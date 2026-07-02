@@ -1,47 +1,40 @@
+# Production DigitalOcean setup using a managed PostgreSQL database.
+# The backend reads DATABASE_URL from backend/.env. Do not put a db service here.
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: grocery_house
-      POSTGRES_USER: grocery_user
-      POSTGRES_PASSWORD: grocery_password
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U grocery_user -d grocery_house"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   backend:
     build: ./backend
+    restart: always
     env_file:
       - ./backend/.env
-    environment:
-      DATABASE_URL: postgresql+psycopg2://grocery_user:grocery_password@db:5432/grocery_house
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    expose:
+      - "8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   frontend:
     build: ./frontend
+    restart: always
     env_file:
       - ./frontend/.env
     depends_on:
       - backend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    expose:
+      - "5173"
     command: npm run dev -- --host 0.0.0.0
 
+  caddy:
+    image: caddy:2
+    restart: always
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
 volumes:
-  pgdata:
+  caddy_data:
+  caddy_config:

@@ -303,4 +303,32 @@ docker compose down
 docker compose build --no-cache backend frontend
 docker compose up
 ```
-"# grocery-house-manager" 
+
+## Production deployment note for DigitalOcean Managed PostgreSQL
+
+Version 10 changes the default `docker-compose.yml` to the production setup for DigitalOcean:
+
+- No local `db` container.
+- The backend uses `DATABASE_URL` from `backend/.env`.
+- Caddy is included for HTTPS and `/api` routing.
+- `www.grocery-house-manager.com` redirects to `grocery-house-manager.com` so browser login storage does not split between two domains.
+
+For local development with a Docker PostgreSQL database, use:
+
+```bash
+docker compose -f docker-compose.local.yml up --build
+```
+
+For DigitalOcean production, use:
+
+```bash
+docker compose up --build -d
+```
+
+Make sure `backend/.env` contains your DigitalOcean Managed PostgreSQL URL, for example:
+
+```env
+DATABASE_URL=postgresql+psycopg2://doadmin:YOUR_PASSWORD@YOUR_DB_HOST:25060/defaultdb?sslmode=require
+```
+
+Do not add a `DATABASE_URL` override inside the production `docker-compose.yml`; that would make the backend ignore your managed database.

@@ -2,8 +2,20 @@ import axios from 'axios';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+export function logoutToLogin() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
 export const api = axios.create({
   baseURL: API_URL,
+  headers: {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  },
 });
 
 api.interceptors.request.use((config) => {
@@ -18,8 +30,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      logoutToLogin();
     }
     return Promise.reject(error);
   }
@@ -27,7 +38,10 @@ api.interceptors.response.use(
 
 export function errorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    return error.response?.data?.detail || error.message;
+    const detail = error.response?.data?.detail;
+    if (Array.isArray(detail)) return detail.map((item) => item.msg || String(item)).join(', ');
+    if (typeof detail === 'string') return detail;
+    return error.message;
   }
   return 'Something went wrong';
 }

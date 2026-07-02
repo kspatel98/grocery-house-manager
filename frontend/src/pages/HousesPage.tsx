@@ -7,14 +7,20 @@ export default function HousesPage() {
   const [houses, setHouses] = useState<House[]>([]);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   async function load() {
     try {
-      const { data } = await api.get<House[]>('/houses');
-      setHouses(data);
+      setLoading(true);
+      setError('');
+      const { data } = await api.get<House[]>('/houses', { params: { t: Date.now() } });
+      setHouses(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(errorMessage(err));
+      setHouses([]);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -22,7 +28,9 @@ export default function HousesPage() {
     event.preventDefault();
     if (!name.trim()) return;
     try {
-      const { data } = await api.post<House>('/houses', { name });
+      setError('');
+      const { data } = await api.post<House>('/houses', { name: name.trim() });
+      setName('');
       navigate(`/houses/${data.id}`);
     } catch (err) {
       setError(errorMessage(err));
@@ -38,7 +46,11 @@ export default function HousesPage() {
           <h1>Your houses</h1>
           <p>Create one house for your family or roommates and invite them with a link.</p>
         </div>
-        <div className="topbar-actions"><Link to="/pricing" className="secondary center-link">Plans</Link><Link to="/profile" className="secondary center-link">Profile</Link></div>
+        <div className="topbar-actions">
+          <button className="secondary" onClick={load}>Refresh</button>
+          <Link to="/pricing" className="secondary center-link">Plans</Link>
+          <Link to="/profile" className="secondary center-link">Profile</Link>
+        </div>
       </header>
 
       <section className="panel">
@@ -50,6 +62,17 @@ export default function HousesPage() {
       </section>
 
       {error && <div className="error">{error}</div>}
+      {loading && <div className="panel muted-panel">Loading your houses...</div>}
+      {!loading && !error && houses.length === 0 && (
+        <section className="panel empty-state">
+          <h2>No houses found for this account</h2>
+          <p>
+            If you already created a house, make sure you are logged in with the same email/account and using
+            <strong> grocery-house-manager.com</strong>, not a different www/non-www address.
+          </p>
+          <button className="secondary" onClick={load}>Check again</button>
+        </section>
+      )}
       <div className="grid houses-grid">
         {houses.map((house) => (
           <Link to={`/houses/${house.id}`} key={house.id} className="house-card">

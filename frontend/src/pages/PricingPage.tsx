@@ -8,19 +8,28 @@ export default function PricingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [error, setError] = useState('');
   const [busyPlan, setBusyPlan] = useState<PlanName | ''>('');
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const [params] = useSearchParams();
 
   async function load() {
+    setError('');
+    setLoadingPlans(true);
+
     try {
-      const [plansRes, subRes] = await Promise.all([
-        api.get<Plan[]>('/billing/plans'),
-        api.get<Subscription>('/billing/me'),
-      ]);
+      const plansRes = await api.get<Plan[]>('/billing/plans', { params: { t: Date.now() } });
       setPlans(plansRes.data);
-      setSubscription(subRes.data);
-      setError('');
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setLoadingPlans(false);
+    }
+
+    // Subscription data requires a valid login token. Do not block the plan cards if this fails.
+    try {
+      const subRes = await api.get<Subscription>('/billing/me', { params: { t: Date.now() } });
+      setSubscription(subRes.data);
+    } catch {
+      setSubscription(null);
     }
   }
 
@@ -28,6 +37,7 @@ export default function PricingPage() {
     if (planName === 'free') return;
     try {
       setBusyPlan(planName);
+      setError('');
       const { data } = await api.post<{ checkout_url: string }>('/billing/checkout-session', { plan_name: planName });
       window.location.href = data.checkout_url;
     } catch (err) {
@@ -55,9 +65,10 @@ export default function PricingPage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>Subscription plans</h1>
-          <p>Reasonable pricing with limits that feel useful, not restrictive.</p>
+          <p>Simple pricing for families, roommates, and shared homes.</p>
         </div>
         <div className="profile-actions">
+          <button className="secondary" onClick={load}>Refresh</button>
           <Link to="/profile" className="secondary center-link">Profile</Link>
           {subscription?.subscription_status && subscription.subscription_status !== 'free' && (
             <button className="secondary" onClick={manageBilling}>Manage billing</button>
@@ -65,16 +76,25 @@ export default function PricingPage() {
         </div>
       </header>
 
-      {checkoutStatus === 'success' && <div className="success">Checkout completed. Stripe webhook will update your plan after payment confirmation.</div>}
+      {checkoutStatus === 'success' && <div className="success">Checkout completed. Your plan will update after Stripe confirms the payment.</div>}
       {checkoutStatus === 'cancelled' && <div className="hint">Checkout cancelled. Your current plan is unchanged.</div>}
       {error && <div className="error">{error}</div>}
+      {loadingPlans && <div className="panel muted-panel">Loading plans...</div>}
+
+      {!loadingPlans && plans.length === 0 && !error && (
+        <section className="panel empty-state">
+          <h2>Plans could not be loaded</h2>
+          <p>Please check that the backend is running and that <code>VITE_API_URL</code> points to your production API.</p>
+          <button className="secondary" onClick={load}>Try again</button>
+        </section>
+      )}
 
       <section className="pricing-grid">
         {plans.map((plan) => {
           const isCurrent = subscription?.plan_name === plan.key;
           return (
             <article key={plan.key} className={`panel pricing-card ${plan.recommended ? 'recommended' : ''}`}>
-              {plan.recommended && <div className="recommended-badge">Most attractive</div>}
+              {plan.recommended && <div className="recommended-badge">Best value</div>}
               <h2>{plan.name}</h2>
               <p>{plan.tagline}</p>
               <div className="price-line">
@@ -102,13 +122,6 @@ export default function PricingPage() {
             </article>
           );
         })}
-      </section>
-
-      <section className="panel">
-        <h2>Payment gateway setup</h2>
-        <p>
-          This starter uses Stripe Checkout for hosted subscription checkout. Add your Stripe secret key and recurring Price IDs in <code>backend/.env</code>, then point your Stripe webhook to <code>/billing/webhook</code>.
-        </p>
       </section>
     </main>
   );
