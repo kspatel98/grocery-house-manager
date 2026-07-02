@@ -8,7 +8,7 @@ from app.api.plan_utils import ensure_house_limit, ensure_member_limit
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Activity, House, HouseMember, HouseRole, Invite, Section, User
-from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseOut, InviteOut
+from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseOut, InviteOut, InvitePreviewOut
 
 router = APIRouter(prefix="/houses", tags=["houses"])
 
@@ -154,6 +154,34 @@ def create_invite(house_id: int, db: Session = Depends(get_db), user: User = Dep
     db.commit()
     join_url = f"{settings.frontend_url}/join/{token}"
     return InviteOut(token=token, join_url=join_url, expires_at=expires_at)
+
+
+@router.get("/join/{token}/preview", response_model=InvitePreviewOut)
+def preview_invite(token: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    invite = db.query(Invite).filter(Invite.token == token, Invite.is_active == True).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invite not found or inactive")
+    if invite.expires_at and invite.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Invite has expired")
+
+    house = db.get(House, invite.house_id)
+    inviter = db.get(User, invite.created_by_id)
+    membership = db.query(HouseMember).filter(
+        HouseMember.house_id == invite.house_id,
+        HouseMember.user_id == user.id,
+    ).first()
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+
+    return InvitePreviewOut(
+        token=token,
+        house_id=house.id,
+        house_name=house.name,
+        inviter_name=display_name(inviter) if inviter else "Someone",
+        inviter_email=inviter.email if inviter else None,
+        expires_at=invite.expires_at,
+        already_member=membership is not None,
+    )
 
 
 @router.post("/join/{token}", response_model=HouseOut)

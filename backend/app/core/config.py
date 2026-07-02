@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Stripe Billing / Checkout. Add real values in backend/.env when ready.
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
+    stripe_price_basic_monthly: str | None = None
     stripe_price_family_monthly: str | None = None
     stripe_price_pro_monthly: str | None = None
 

@@ -2,6 +2,13 @@
 
 A full-stack grocery management starter project for shared households.
 
+### v12 update
+
+- Coupon validation now returns calculated discounted prices for each paid plan.
+- Pricing cards immediately show the original monthly price crossed out and the new coupon price after a valid code is applied.
+- Stripe Checkout still receives the verified Stripe promotion code ID so the customer pays the discounted amount.
+
+
 ## Features
 
 - Email/password registration and login
@@ -332,3 +339,48 @@ DATABASE_URL=postgresql+psycopg2://doadmin:YOUR_PASSWORD@YOUR_DB_HOST:25060/defa
 ```
 
 Do not add a `DATABASE_URL` override inside the production `docker-compose.yml`; that would make the backend ignore your managed database.
+
+## v11 invitation confirmation, account deletion, About page, pricing, and coupons
+
+This version adds:
+
+- Invitation links now show a confirmation screen before adding the user to a house.
+  - The user sees the house name and inviter name.
+  - Accept joins the house.
+  - Decline returns to the houses page without joining.
+- Profile page now has a **Delete account** danger-zone flow.
+  - User must type their exact full name, or email if no name exists.
+  - Account deletion is blocked if the user owns shared houses that still have other members.
+- Added `/about` page with professional project information, features, how to use, best practices, and owner information.
+- Pricing updated to:
+  - Free Starter: $0
+  - Basic Home: regular $1.99 CAD/month, launch price $0.60 CAD/month with 70% off display
+  - Family Plus: $4.99 CAD/month
+  - Household Pro: $6.99 CAD/month
+- Added optional Stripe coupon validation and checkout discount application.
+  - Users can enter a coupon code on the pricing page.
+  - The backend validates active Stripe Promotion Codes.
+  - Invalid or expired coupons show a clear message.
+
+New backend environment variable:
+
+```env
+STRIPE_PRICE_BASIC_MONTHLY=price_...
+```
+
+Create this Stripe recurring monthly Price for the Basic Home launch price, then add the Price ID above.
+
+Recommended rebuild:
+
+```bash
+docker compose down
+docker compose build --no-cache backend frontend
+docker compose up -d
+```
+
+New/updated endpoints:
+
+- `GET /houses/join/{token}/preview`
+- `POST /auth/me/delete`
+- `POST /billing/coupon/validate`
+- `POST /billing/checkout-session` now accepts optional `promotion_code_id`

@@ -7,6 +7,7 @@ import ShoppingPage from './pages/ShoppingPage';
 import JoinPage from './pages/JoinPage';
 import ProfilePage from './pages/ProfilePage';
 import PricingPage from './pages/PricingPage';
+import AboutPage from './pages/AboutPage';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const token = localStorage.getItem('token');
@@ -21,6 +22,7 @@ export default function App() {
       <Route path="/houses" element={<RequireAuth><HousesPage /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
       <Route path="/pricing" element={<RequireAuth><PricingPage /></RequireAuth>} />
+      <Route path="/about" element={<RequireAuth><AboutPage /></RequireAuth>} />
       <Route path="/houses/:houseId" element={<RequireAuth><HousePage /></RequireAuth>} />
       <Route path="/houses/:houseId/shopping" element={<RequireAuth><ShoppingPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/houses" replace />} />

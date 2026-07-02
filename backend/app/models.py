@@ -39,6 +39,7 @@ class ShoppingItemStatus(str, Enum):
 
 class PlanName(str, Enum):
     free = "free"
+    basic = "basic"
     family = "family"
     pro = "pro"
 

@@ -7,8 +7,9 @@ from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from app.models import AuthProvider, User
-from app.schemas import GoogleLoginIn, LoginIn, RegisterIn, TokenOut, UserProfileOut, UserProfileUpdate
+from app.api.activity_utils import display_name, log_activity
+from app.models import AuthProvider, House, HouseMember, HouseRole, User
+from app.schemas import AccountDeleteIn, GoogleLoginIn, LoginIn, RegisterIn, TokenOut, UserProfileOut, UserProfileUpdate
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -120,3 +121,65 @@ def update_me_via_post(payload: UserProfileUpdate, db: Session = Depends(get_db)
     # Compatibility endpoint for browsers/dev proxies that cache or block PATCH preflight.
     return update_me(payload, db, user)
 
+
+
+@router.post("/me/delete")
+def delete_my_account(payload: AccountDeleteIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    expected_name = (user.full_name or user.email or "").strip()
+    if payload.confirm_name.strip() != expected_name:
+        raise HTTPException(
+            status_code=400,
+            detail=f"To delete this account, type exactly: {expected_name}",
+        )
+
+    owned_memberships = db.query(HouseMember).filter(
+        HouseMember.user_id == user.id,
+        HouseMember.role == HouseRole.owner,
+    ).all()
+
+    blocked_house_names: list[str] = []
+    owned_solo_house_ids: list[int] = []
+    for membership in owned_memberships:
+        member_count = db.query(HouseMember).filter(HouseMember.house_id == membership.house_id).count()
+        house = db.get(House, membership.house_id)
+        if member_count > 1:
+            blocked_house_names.append(house.name if house else f"House #{membership.house_id}")
+        else:
+            owned_solo_house_ids.append(membership.house_id)
+
+    if blocked_house_names:
+        names = ", ".join(blocked_house_names)
+        raise HTTPException(
+            status_code=400,
+            detail=f"You own shared house(s): {names}. Remove other members or transfer/delete those houses before deleting your account.",
+        )
+
+    user_name = display_name(user)
+
+    # Leave houses the user does not own, keeping those houses for the remaining members.
+    non_owner_memberships = db.query(HouseMember).filter(
+        HouseMember.user_id == user.id,
+        HouseMember.role != HouseRole.owner,
+    ).all()
+    for membership in non_owner_memberships:
+        log_activity(
+            db,
+            house_id=membership.house_id,
+            user=user,
+            action="member_left",
+            message=f"{user_name} left this house by deleting their account.",
+            entity_type="member",
+            entity_id=user.id,
+        )
+        db.delete(membership)
+
+    # Delete houses the user owns only when they are the sole member.
+    for house_id in owned_solo_house_ids:
+        house = db.get(House, house_id)
+        if house:
+            db.delete(house)
+
+    db.flush()
+    db.delete(user)
+    db.commit()
+    return {"ok": True}

@@ -101,7 +101,7 @@ export type Activity = {
   user?: User;
 };
 
-export type PlanName = 'free' | 'family' | 'pro';
+export type PlanName = 'free' | 'basic' | 'family' | 'pro';
 
 export type PlanLimits = {
   houses: number;
@@ -114,6 +114,9 @@ export type Plan = {
   key: PlanName;
   name: string;
   price_monthly_cad: number;
+  regular_price_monthly_cad?: number | null;
+  discount_percent?: number | null;
+  discount_label?: string | null;
   tagline: string;
   limits: PlanLimits;
   features: string[];
@@ -126,4 +129,26 @@ export type Subscription = {
   current_period_end?: string;
   limits: PlanLimits;
   usage: Record<string, number | Record<string, number>>;
+};
+
+
+export type InvitePreview = {
+  token: string;
+  house_id: number;
+  house_name: string;
+  inviter_name: string;
+  inviter_email?: string;
+  expires_at?: string;
+  already_member: boolean;
+};
+
+export type CouponValidation = {
+  valid: boolean;
+  message: string;
+  promotion_code_id?: string;
+  coupon_name?: string;
+  percent_off?: number;
+  amount_off?: number;
+  currency?: string;
+  discounted_prices?: Partial<Record<PlanName, number>>;
 };

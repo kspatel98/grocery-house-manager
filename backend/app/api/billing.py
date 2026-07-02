@@ -8,7 +8,7 @@ from app.api.plan_utils import PLANS, get_user_plan, plan_usage
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
 from app.models import PlanName, User
-from app.schemas import CheckoutSessionIn, CheckoutSessionOut, PlanLimitsOut, PlanOut, SubscriptionOut
+from app.schemas import CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, PlanLimitsOut, PlanOut, SubscriptionOut
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -27,6 +27,9 @@ def plan_out(plan) -> PlanOut:
         key=plan.key,
         name=plan.name,
         price_monthly_cad=plan.price_monthly_cad,
+        regular_price_monthly_cad=plan.regular_price_monthly_cad,
+        discount_percent=plan.discount_percent,
+        discount_label=plan.discount_label,
         tagline=plan.tagline,
         limits=plan_limits_out(plan),
         features=plan.features,
@@ -36,6 +39,7 @@ def plan_out(plan) -> PlanOut:
 
 def configured_price_ids() -> dict[PlanName, str | None]:
     return {
+        PlanName.basic: settings.stripe_price_basic_monthly,
         PlanName.family: settings.stripe_price_family_monthly,
         PlanName.pro: settings.stripe_price_pro_monthly,
     }
@@ -71,6 +75,53 @@ def get_subscription(db: Session = Depends(get_db), user: User = Depends(get_cur
     return subscription_out(user, db)
 
 
+@router.post("/coupon/validate", response_model=CouponValidateOut)
+def validate_coupon(payload: CouponValidateIn, user: User = Depends(get_current_user)):
+    code = payload.code.strip()
+    if not code:
+        return CouponValidateOut(valid=False, message="Enter a coupon code.")
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=400, detail="Stripe is not configured. Add STRIPE_SECRET_KEY before validating coupons.")
+
+    stripe.api_key = settings.stripe_secret_key
+    promotion_codes = stripe.PromotionCode.list(code=code, active=True, limit=1)
+    if not promotion_codes.data:
+        return CouponValidateOut(valid=False, message="This coupon code is invalid or expired.")
+
+    promotion_code = promotion_codes.data[0]
+    coupon = promotion_code.get("coupon") or {}
+    if not promotion_code.get("active", False) or not coupon.get("valid", False):
+        return CouponValidateOut(valid=False, message="This coupon code is invalid or expired.")
+
+    amount_off_raw = coupon.get("amount_off")
+    amount_off = (amount_off_raw / 100) if amount_off_raw else None
+    currency = coupon.get("currency")
+    percent_off = coupon.get("percent_off")
+
+    discounted_prices: dict[str, float] = {}
+    for plan_name, plan in PLANS.items():
+        if plan_name == PlanName.free:
+            continue
+        price = float(plan.price_monthly_cad)
+        discounted = price
+        if percent_off:
+            discounted = price * (1 - (float(percent_off) / 100))
+        elif amount_off:
+            discounted = price - float(amount_off)
+        discounted_prices[plan_name.value] = round(max(discounted, 0), 2)
+
+    return CouponValidateOut(
+        valid=True,
+        message="Coupon verified. Discounted prices are shown below and will be applied at Stripe Checkout.",
+        promotion_code_id=promotion_code.get("id"),
+        coupon_name=coupon.get("name"),
+        percent_off=percent_off,
+        amount_off=amount_off,
+        currency=currency.upper() if currency else None,
+        discounted_prices=discounted_prices,
+    )
+
+
 @router.post("/checkout-session", response_model=CheckoutSessionOut)
 def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if payload.plan_name == PlanName.free:
@@ -90,17 +141,22 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         user.stripe_customer_id = customer_id
         db.commit()
 
-    session = stripe.checkout.Session.create(
-        mode="subscription",
-        customer=customer_id,
-        line_items=[{"price": price_id, "quantity": 1}],
-        success_url=f"{settings.frontend_url}/pricing?checkout=success",
-        cancel_url=f"{settings.frontend_url}/pricing?checkout=cancelled",
-        client_reference_id=str(user.id),
-        metadata={"user_id": str(user.id), "plan_name": payload.plan_name.value},
-        subscription_data={"metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value}},
-        allow_promotion_codes=True,
-    )
+    checkout_kwargs = {
+        "mode": "subscription",
+        "customer": customer_id,
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": f"{settings.frontend_url}/pricing?checkout=success",
+        "cancel_url": f"{settings.frontend_url}/pricing?checkout=cancelled",
+        "client_reference_id": str(user.id),
+        "metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value},
+        "subscription_data": {"metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value}},
+    }
+    if payload.promotion_code_id:
+        checkout_kwargs["discounts"] = [{"promotion_code": payload.promotion_code_id}]
+    else:
+        checkout_kwargs["allow_promotion_codes"] = True
+
+    session = stripe.checkout.Session.create(**checkout_kwargs)
     return CheckoutSessionOut(checkout_url=session["url"])
 
 

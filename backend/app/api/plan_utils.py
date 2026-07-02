@@ -21,49 +21,69 @@ class PlanDefinition:
     limits: PlanLimits
     features: list[str]
     recommended: bool = False
+    regular_price_monthly_cad: float | None = None
+    discount_percent: int | None = None
+    discount_label: str | None = None
 
 
 PLANS: dict[PlanName, PlanDefinition] = {
     PlanName.free: PlanDefinition(
         key=PlanName.free,
-        name="Free Home",
+        name="Free Starter",
         price_monthly_cad=0,
-        tagline="Great for trying the app with one small household.",
-        limits=PlanLimits(houses=1, products_per_house=150, active_lists_per_house=2, members_per_house=4),
+        tagline="Try the app with one household before upgrading.",
+        limits=PlanLimits(houses=1, products_per_house=75, active_lists_per_house=1, members_per_house=3),
         features=[
             "1 house",
-            "150 inventory products per house",
-            "2 active shopping lists per house",
-            "4 members per house",
-            "Live updates, activity feed, invite links",
+            "75 inventory products per house",
+            "1 active shopping list per house",
+            "3 members per house",
+            "Invite links, live updates, and activity feed",
+        ],
+    ),
+    PlanName.basic: PlanDefinition(
+        key=PlanName.basic,
+        name="Basic Home",
+        price_monthly_cad=0.60,
+        regular_price_monthly_cad=1.99,
+        discount_percent=70,
+        discount_label="Launch offer: 70% off",
+        tagline="Affordable plan for small families and couples.",
+        limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6),
+        features=[
+            "2 houses per account",
+            "250 inventory products per house",
+            "5 active shopping lists per house",
+            "6 members per house",
+            "Best low-cost plan for everyday home groceries",
         ],
     ),
     PlanName.family: PlanDefinition(
         key=PlanName.family,
         name="Family Plus",
-        price_monthly_cad=3.99,
+        price_monthly_cad=4.99,
         tagline="Best value for most families and roommates.",
-        limits=PlanLimits(houses=3, products_per_house=500, active_lists_per_house=10, members_per_house=10),
+        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15),
         features=[
-            "3 houses per account",
-            "500 inventory products per house",
-            "10 active shopping lists per house",
-            "10 members per house",
-            "Best for weekly groceries, shared homes, and roommates",
+            "5 houses per account",
+            "800 inventory products per house",
+            "15 active shopping lists per house",
+            "15 members per house",
+            "Great for weekly groceries, shared homes, and roommates",
         ],
         recommended=True,
     ),
     PlanName.pro: PlanDefinition(
         key=PlanName.pro,
         name="Household Pro",
-        price_monthly_cad=7.99,
+        price_monthly_cad=6.99,
         tagline="For large families, multiple homes, and heavy users.",
-        limits=PlanLimits(houses=10, products_per_house=2000, active_lists_per_house=30, members_per_house=25),
+        limits=PlanLimits(houses=15, products_per_house=3000, active_lists_per_house=50, members_per_house=35),
         features=[
-            "10 houses per account",
-            "2,000 inventory products per house",
-            "30 active shopping lists per house",
-            "25 members per house",
+            "15 houses per account",
+            "3,000 inventory products per house",
+            "50 active shopping lists per house",
+            "35 members per house",
             "Ideal for extended families, shared rentals, and multiple properties",
         ],
     ),

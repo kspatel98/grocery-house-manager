@@ -13,7 +13,8 @@ def ensure_dev_schema(engine: Engine) -> None:
         # Existing local Docker volumes from earlier starter ZIPs may be missing
         # columns that newer UI screens read/write. Keep these additive only.
         "DO $$ BEGIN CREATE TYPE shoppingitemstatus AS ENUM ('to_buy', 'in_cart', 'skipped'); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
-        "DO $$ BEGIN CREATE TYPE planname AS ENUM ('free', 'family', 'pro'); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+        "DO $$ BEGIN CREATE TYPE planname AS ENUM ('free', 'basic', 'family', 'pro'); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+        "DO $$ BEGIN ALTER TYPE planname ADD VALUE IF NOT EXISTS 'basic'; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
 
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_name planname DEFAULT 'free'",

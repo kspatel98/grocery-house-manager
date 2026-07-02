@@ -48,6 +48,7 @@ export default function HousesPage() {
         </div>
         <div className="topbar-actions">
           <button className="secondary" onClick={load}>Refresh</button>
+          <Link to="/about" className="secondary center-link">About</Link>
           <Link to="/pricing" className="secondary center-link">Plans</Link>
           <Link to="/profile" className="secondary center-link">Profile</Link>
         </div>

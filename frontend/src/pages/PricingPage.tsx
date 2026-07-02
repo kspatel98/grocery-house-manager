@@ -1,7 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { Plan, PlanName, Subscription } from '../types';
+import type { CouponValidation, Plan, PlanName, Subscription } from '../types';
+
+function formatPrice(value: number) {
+  return `$${value.toFixed(2)}`;
+}
+
+function calculateFallbackDiscount(planPrice: number, coupon: CouponValidation | null) {
+  if (!coupon?.valid) return null;
+  if (typeof coupon.percent_off === 'number') {
+    return Math.max(0, Number((planPrice * (1 - coupon.percent_off / 100)).toFixed(2)));
+  }
+  if (typeof coupon.amount_off === 'number') {
+    return Math.max(0, Number((planPrice - coupon.amount_off).toFixed(2)));
+  }
+  return null;
+}
 
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -9,6 +24,9 @@ export default function PricingPage() {
   const [error, setError] = useState('');
   const [busyPlan, setBusyPlan] = useState<PlanName | ''>('');
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const [couponCode, setCouponCode] = useState('');
+  const [coupon, setCoupon] = useState<CouponValidation | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
   const [params] = useSearchParams();
 
   async function load() {
@@ -24,7 +42,6 @@ export default function PricingPage() {
       setLoadingPlans(false);
     }
 
-    // Subscription data requires a valid login token. Do not block the plan cards if this fails.
     try {
       const subRes = await api.get<Subscription>('/billing/me', { params: { t: Date.now() } });
       setSubscription(subRes.data);
@@ -33,12 +50,40 @@ export default function PricingPage() {
     }
   }
 
+  async function validateCoupon(event: React.FormEvent) {
+    event.preventDefault();
+    const code = couponCode.trim();
+    if (!code) {
+      setCoupon({ valid: false, message: 'Enter a coupon code.' });
+      return;
+    }
+    try {
+      setCouponBusy(true);
+      setCoupon(null);
+      const { data } = await api.post<CouponValidation>('/billing/coupon/validate', { code });
+      setCoupon(data);
+      setError('');
+    } catch (err) {
+      setCoupon({ valid: false, message: errorMessage(err) });
+    } finally {
+      setCouponBusy(false);
+    }
+  }
+
+  function removeCoupon() {
+    setCoupon(null);
+    setCouponCode('');
+  }
+
   async function checkout(planName: PlanName) {
     if (planName === 'free') return;
     try {
       setBusyPlan(planName);
       setError('');
-      const { data } = await api.post<{ checkout_url: string }>('/billing/checkout-session', { plan_name: planName });
+      const { data } = await api.post<{ checkout_url: string }>('/billing/checkout-session', {
+        plan_name: planName,
+        promotion_code_id: coupon?.valid ? coupon.promotion_code_id : null,
+      });
       window.location.href = data.checkout_url;
     } catch (err) {
       setError(errorMessage(err));
@@ -69,6 +114,7 @@ export default function PricingPage() {
         </div>
         <div className="profile-actions">
           <button className="secondary" onClick={load}>Refresh</button>
+          <Link to="/about" className="secondary center-link">About</Link>
           <Link to="/profile" className="secondary center-link">Profile</Link>
           {subscription?.subscription_status && subscription.subscription_status !== 'free' && (
             <button className="secondary" onClick={manageBilling}>Manage billing</button>
@@ -81,6 +127,27 @@ export default function PricingPage() {
       {error && <div className="error">{error}</div>}
       {loadingPlans && <div className="panel muted-panel">Loading plans...</div>}
 
+      <section className="panel coupon-panel">
+        <div>
+          <p className="eyebrow">Have a coupon?</p>
+          <h2>Apply coupon code</h2>
+          <p>Enter an active coupon code before choosing a paid plan. Invalid or expired coupons will not be applied.</p>
+        </div>
+        <form onSubmit={validateCoupon} className="coupon-form">
+          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" />
+          <button className="secondary" disabled={couponBusy}>{couponBusy ? 'Checking...' : 'Apply'}</button>
+          {coupon && <button type="button" className="ghost-button" onClick={removeCoupon}>Remove</button>}
+        </form>
+        {coupon && (
+          <div className={coupon.valid ? 'success compact-message' : 'error compact-message'}>
+            {coupon.message}
+            {coupon.valid && coupon.percent_off ? ` ${coupon.percent_off}% off.` : ''}
+            {coupon.valid && coupon.amount_off ? ` ${formatPrice(coupon.amount_off)} ${coupon.currency || 'CAD'} off.` : ''}
+            {coupon.valid ? ' The cards below now show the price you should pay after the coupon.' : ''}
+          </div>
+        )}
+      </section>
+
       {!loadingPlans && plans.length === 0 && !error && (
         <section className="panel empty-state">
           <h2>Plans could not be loaded</h2>
@@ -92,15 +159,30 @@ export default function PricingPage() {
       <section className="pricing-grid">
         {plans.map((plan) => {
           const isCurrent = subscription?.plan_name === plan.key;
+          const hasLaunchDiscount = Boolean(plan.regular_price_monthly_cad && plan.regular_price_monthly_cad > plan.price_monthly_cad);
+          const backendCouponPrice = coupon?.valid ? coupon.discounted_prices?.[plan.key] : null;
+          const fallbackCouponPrice = calculateFallbackDiscount(plan.price_monthly_cad, coupon);
+          const couponPrice = typeof backendCouponPrice === 'number' ? backendCouponPrice : fallbackCouponPrice;
+          const hasCouponDiscount = plan.key !== 'free' && typeof couponPrice === 'number' && couponPrice < plan.price_monthly_cad;
+          const effectivePrice = hasCouponDiscount ? couponPrice : plan.price_monthly_cad;
+          const oldPrice = hasCouponDiscount ? plan.price_monthly_cad : plan.regular_price_monthly_cad;
           return (
-            <article key={plan.key} className={`panel pricing-card ${plan.recommended ? 'recommended' : ''}`}>
+            <article key={plan.key} className={`panel pricing-card ${plan.recommended ? 'recommended' : ''} ${hasCouponDiscount ? 'coupon-applied-card' : ''}`}>
               {plan.recommended && <div className="recommended-badge">Best value</div>}
+              {plan.discount_label && !hasCouponDiscount && <div className="discount-badge">{plan.discount_label}</div>}
+              {hasCouponDiscount && <div className="coupon-badge">Coupon applied</div>}
               <h2>{plan.name}</h2>
               <p>{plan.tagline}</p>
               <div className="price-line">
-                <strong>${plan.price_monthly_cad.toFixed(2)}</strong>
+                {(hasLaunchDiscount || hasCouponDiscount) && oldPrice !== null && oldPrice !== undefined && <span className="old-price">{formatPrice(oldPrice)}</span>}
+                <strong>{formatPrice(effectivePrice)}</strong>
                 <span>CAD / month</span>
               </div>
+              {hasCouponDiscount && (
+                <p className="coupon-savings">
+                  You save {formatPrice(plan.price_monthly_cad - effectivePrice)} per month with this code.
+                </p>
+              )}
               <ul className="feature-list">
                 {plan.features.map((feature) => <li key={feature}>{feature}</li>)}
               </ul>

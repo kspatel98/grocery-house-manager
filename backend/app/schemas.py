@@ -228,6 +228,9 @@ class PlanOut(BaseModel):
     key: PlanName
     name: str
     price_monthly_cad: float
+    regular_price_monthly_cad: float | None = None
+    discount_percent: int | None = None
+    discount_label: str | None = None
     tagline: str
     limits: PlanLimitsOut
     features: list[str]
@@ -244,7 +247,37 @@ class SubscriptionOut(BaseModel):
 
 class CheckoutSessionIn(BaseModel):
     plan_name: PlanName
+    promotion_code_id: str | None = None
 
 
 class CheckoutSessionOut(BaseModel):
     checkout_url: str
+
+
+class InvitePreviewOut(BaseModel):
+    token: str
+    house_id: int
+    house_name: str
+    inviter_name: str
+    inviter_email: EmailStr | None = None
+    expires_at: datetime | None = None
+    already_member: bool = False
+
+
+class AccountDeleteIn(BaseModel):
+    confirm_name: str = Field(min_length=1, max_length=255)
+
+
+class CouponValidateIn(BaseModel):
+    code: str = Field(min_length=1, max_length=80)
+
+
+class CouponValidateOut(BaseModel):
+    valid: bool
+    message: str
+    promotion_code_id: str | None = None
+    coupon_name: str | None = None
+    percent_off: float | None = None
+    amount_off: float | None = None
+    currency: str | None = None
+    discounted_prices: dict[str, float] = Field(default_factory=dict)

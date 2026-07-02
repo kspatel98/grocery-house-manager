@@ -7,10 +7,15 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const navigate = useNavigate();
+
+  const expectedDeleteName = profile?.full_name || profile?.email || '';
 
   async function loadProfile() {
     try {
@@ -49,6 +54,24 @@ export default function ProfilePage() {
     }
   }
 
+  async function deleteAccount(event: React.FormEvent) {
+    event.preventDefault();
+    if (!expectedDeleteName || deleteConfirmName.trim() !== expectedDeleteName) {
+      setError(`Type exactly: ${expectedDeleteName}`);
+      return;
+    }
+    try {
+      setDeleteBusy(true);
+      await api.post('/auth/me/delete', { confirm_name: deleteConfirmName.trim() });
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/login', { replace: true });
+    } catch (err) {
+      setError(errorMessage(err));
+      setDeleteBusy(false);
+    }
+  }
+
   async function manageBilling() {
     try {
       const { data } = await api.post<{ url: string }>('/billing/customer-portal');
@@ -72,7 +95,11 @@ export default function ProfilePage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>Profile</h1>
-          <p>Manage your account details and logout from here.</p>
+          <p>Manage your account details, subscription, logout, and account deletion from here.</p>
+        </div>
+        <div className="profile-actions">
+          <Link to="/about" className="secondary center-link">About</Link>
+          <Link to="/pricing" className="secondary center-link">Plans</Link>
         </div>
       </header>
 
@@ -112,6 +139,32 @@ export default function ProfilePage() {
             <button type="button" className="secondary danger-button" onClick={logout}>Logout</button>
           </div>
         </form>
+      </section>
+
+      <section className="panel danger-zone">
+        <div>
+          <p className="eyebrow">Danger zone</p>
+          <h2>Delete account</h2>
+          <p>
+            This permanently deletes your account. For safety, if you own shared houses with other members,
+            delete will be blocked until you remove members or handle those houses first.
+          </p>
+        </div>
+
+        {!showDelete ? (
+          <button className="secondary danger-button" onClick={() => setShowDelete(true)}>Delete my account</button>
+        ) : (
+          <form onSubmit={deleteAccount} className="delete-account-form">
+            <p>Type <strong>{expectedDeleteName}</strong> to confirm.</p>
+            <input value={deleteConfirmName} onChange={(e) => setDeleteConfirmName(e.target.value)} placeholder={expectedDeleteName} />
+            <div className="profile-actions">
+              <button className="danger-primary" disabled={deleteBusy || deleteConfirmName.trim() !== expectedDeleteName}>
+                {deleteBusy ? 'Deleting...' : 'Permanently delete account'}
+              </button>
+              <button type="button" className="secondary" onClick={() => { setShowDelete(false); setDeleteConfirmName(''); }}>Cancel</button>
+            </div>
+          </form>
+        )}
       </section>
     </main>
   );
