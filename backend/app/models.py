@@ -1,0 +1,195 @@
+from datetime import date, datetime, timezone
+from enum import Enum
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Enum as SAEnum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.db.session import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class AuthProvider(str, Enum):
+    email = "email"
+    google = "google"
+
+
+class HouseRole(str, Enum):
+    owner = "owner"
+    admin = "admin"
+    member = "member"
+
+
+class ShoppingItemStatus(str, Enum):
+    to_buy = "to_buy"
+    in_cart = "in_cart"
+    skipped = "skipped"
+
+
+class PlanName(str, Enum):
+    free = "free"
+    family = "family"
+    pro = "pro"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    full_name: Mapped[str | None] = mapped_column(String(255))
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    auth_provider: Mapped[AuthProvider] = mapped_column(SAEnum(AuthProvider), default=AuthProvider.email)
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text)
+    plan_name: Mapped[PlanName] = mapped_column(SAEnum(PlanName), default=PlanName.free)
+    subscription_status: Mapped[str] = mapped_column(String(60), default="free")
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    subscription_current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    memberships: Mapped[list["HouseMember"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    activities: Mapped[list["Activity"]] = relationship(back_populates="user")
+
+
+class House(Base):
+    __tablename__ = "houses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    members: Mapped[list["HouseMember"]] = relationship(back_populates="house", cascade="all, delete-orphan")
+    sections: Mapped[list["Section"]] = relationship(back_populates="house", cascade="all, delete-orphan")
+    invites: Mapped[list["Invite"]] = relationship(back_populates="house", cascade="all, delete-orphan")
+    activities: Mapped[list["Activity"]] = relationship(back_populates="house", cascade="all, delete-orphan")
+
+
+class HouseMember(Base):
+    __tablename__ = "house_members"
+    __table_args__ = (UniqueConstraint("house_id", "user_id", name="uq_house_user"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[HouseRole] = mapped_column(SAEnum(HouseRole), default=HouseRole.member)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    house: Mapped[House] = relationship(back_populates="members")
+    user: Mapped[User] = relationship(back_populates="memberships")
+
+
+class Invite(Base):
+    __tablename__ = "invites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    house: Mapped[House] = relationship(back_populates="invites")
+
+
+class Section(Base):
+    __tablename__ = "sections"
+    __table_args__ = (UniqueConstraint("house_id", "name", name="uq_house_section_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    icon: Mapped[str | None] = mapped_column(String(64))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    house: Mapped[House] = relationship(back_populates="sections")
+    products: Mapped[list["Product"]] = relationship(back_populates="section", cascade="all, delete-orphan")
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    section_id: Mapped[int] = mapped_column(ForeignKey("sections.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(180), index=True)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    icon: Mapped[str | None] = mapped_column(String(64))
+    quantity: Mapped[float] = mapped_column(Float, default=0)
+    unit: Mapped[str] = mapped_column(String(32), default="pcs")
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    store_name: Mapped[str | None] = mapped_column(String(150), index=True)
+    brand: Mapped[str | None] = mapped_column(String(120))
+    barcode: Mapped[str | None] = mapped_column(String(120), index=True)
+    expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    low_stock_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+    last_bought_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    section: Mapped[Section] = relationship(back_populates="products")
+    shopping_items: Mapped[list["ShoppingListItem"]] = relationship(back_populates="product")
+
+
+class ShoppingList(Base):
+    __tablename__ = "shopping_lists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(180), default="Grocery List")
+    is_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    completed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    items: Mapped[list["ShoppingListItem"]] = relationship(back_populates="shopping_list", cascade="all, delete-orphan")
+
+
+class ShoppingListItem(Base):
+    __tablename__ = "shopping_list_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    shopping_list_id: Mapped[int] = mapped_column(ForeignKey("shopping_lists.id", ondelete="CASCADE"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    requested_quantity: Mapped[float] = mapped_column(Float, default=1)
+    bought_quantity: Mapped[float] = mapped_column(Float, default=1)
+    message: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[ShoppingItemStatus] = mapped_column(SAEnum(ShoppingItemStatus), default=ShoppingItemStatus.to_buy)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    shopping_list: Mapped[ShoppingList] = relationship(back_populates="items")
+    product: Mapped[Product] = relationship(back_populates="shopping_items")
+
+
+class Activity(Base):
+    __tablename__ = "activities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(80), index=True)
+    message: Mapped[str] = mapped_column(Text)
+    entity_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    house: Mapped[House] = relationship(back_populates="activities")
+    user: Mapped[User | None] = relationship(back_populates="activities")

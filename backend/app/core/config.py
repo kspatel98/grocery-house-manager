@@ -1,0 +1,53 @@
+from functools import lru_cache
+import json
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    app_name: str = "Grocery House Manager"
+    environment: str = "development"
+    database_url: str
+    secret_key: str
+    access_token_expire_minutes: int = 60 * 24
+
+    # Keep this as a string so .env can use a simple value like:
+    # BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+    backend_cors_origins: str = "http://localhost:5173"
+
+    frontend_url: str = "http://localhost:5173"
+    google_client_id: str | None = None
+
+    # Stripe Billing / Checkout. Add real values in backend/.env when ready.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_family_monthly: str | None = None
+    stripe_price_pro_monthly: str | None = None
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+
+    @property
+    def cors_origins(self) -> list[str]:
+        value = (self.backend_cors_origins or "").strip()
+        if not value:
+            return ["http://localhost:5173"]
+
+        # Also support JSON format if someone uses:
+        # BACKEND_CORS_ORIGINS=["http://localhost:5173"]
+        if value.startswith("["):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return [str(origin).strip() for origin in parsed if str(origin).strip()]
+            except json.JSONDecodeError:
+                pass
+
+        return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
