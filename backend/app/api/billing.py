@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 import stripe
@@ -8,7 +8,7 @@ from app.api.plan_utils import PLANS, get_user_plan, plan_usage
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
 from app.models import PlanName, User
-from app.schemas import CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, PlanLimitsOut, PlanOut, SubscriptionOut
+from app.schemas import CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -45,6 +45,36 @@ def configured_price_ids() -> dict[PlanName, str | None]:
     }
 
 
+
+
+def new_user_offer_for(user: User) -> NewUserOfferOut | None:
+    created_at = user.created_at
+    if not created_at:
+        return None
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    eligible_until = created_at + timedelta(days=settings.new_user_offer_days)
+    has_paid_or_active = (user.subscription_status or "free").lower() not in {"free", "cancelled", "canceled", "incomplete", "incomplete_expired"}
+    active = datetime.now(timezone.utc) <= eligible_until and not has_paid_or_active
+    if not active:
+        return None
+    return NewUserOfferOut(
+        active=True,
+        applies_to_plan=PlanName.basic,
+        discount_percent=65,
+        duration_months=2,
+        eligible_until=eligible_until,
+        message="New user offer active: Basic Home is 65% off for the first 2 billing months. Coupon codes cannot be combined with this offer. You can use a coupon after this offer expires or after you choose a non-offer checkout.",
+    )
+
+
+def discount_price(price: float, percent_off: float | None = None, amount_off: float | None = None) -> float:
+    if percent_off:
+        return round(max(price * (1 - float(percent_off) / 100), 0), 2)
+    if amount_off:
+        return round(max(price - float(amount_off), 0), 2)
+    return round(price, 2)
+
 def plan_from_price_id(price_id: str | None) -> PlanName | None:
     if not price_id:
         return None
@@ -62,6 +92,7 @@ def subscription_out(user: User, db: Session) -> SubscriptionOut:
         current_period_end=user.subscription_current_period_end,
         limits=plan_limits_out(plan),
         usage=plan_usage(db, user),
+        new_user_offer=new_user_offer_for(user),
     )
 
 
@@ -76,10 +107,19 @@ def get_subscription(db: Session = Depends(get_db), user: User = Depends(get_cur
 
 
 @router.post("/coupon/validate", response_model=CouponValidateOut)
-def validate_coupon(payload: CouponValidateIn, user: User = Depends(get_current_user)):
+def validate_coupon(payload: CouponValidateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     code = payload.code.strip()
     if not code:
         return CouponValidateOut(valid=False, message="Enter a coupon code.")
+    active_offer = new_user_offer_for(user)
+    if active_offer:
+        return CouponValidateOut(
+            valid=False,
+            message=f"Coupon codes cannot be used while your new-user Basic offer is active. {active_offer.message}",
+            blocked_by_new_user_offer=True,
+            available_after=active_offer.eligible_until,
+        )
+
     if not settings.stripe_secret_key:
         raise HTTPException(status_code=400, detail="Stripe is not configured. Add STRIPE_SECRET_KEY before validating coupons.")
 
@@ -103,12 +143,7 @@ def validate_coupon(payload: CouponValidateIn, user: User = Depends(get_current_
         if plan_name == PlanName.free:
             continue
         price = float(plan.price_monthly_cad)
-        discounted = price
-        if percent_off:
-            discounted = price * (1 - (float(percent_off) / 100))
-        elif amount_off:
-            discounted = price - float(amount_off)
-        discounted_prices[plan_name.value] = round(max(discounted, 0), 2)
+        discounted_prices[plan_name.value] = discount_price(price, percent_off=percent_off, amount_off=amount_off)
 
     return CouponValidateOut(
         valid=True,
@@ -141,6 +176,13 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         user.stripe_customer_id = customer_id
         db.commit()
 
+    active_offer = new_user_offer_for(user)
+    if active_offer and payload.promotion_code_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Coupon codes cannot be combined while your new-user Basic offer is active. {active_offer.message}",
+        )
+
     checkout_kwargs = {
         "mode": "subscription",
         "customer": customer_id,
@@ -151,10 +193,12 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         "metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value},
         "subscription_data": {"metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value}},
     }
-    if payload.promotion_code_id:
+    if active_offer and payload.plan_name == PlanName.basic and settings.stripe_promotion_code_basic_new_user:
+        checkout_kwargs["discounts"] = [{"promotion_code": settings.stripe_promotion_code_basic_new_user}]
+    elif payload.promotion_code_id:
         checkout_kwargs["discounts"] = [{"promotion_code": payload.promotion_code_id}]
     else:
-        checkout_kwargs["allow_promotion_codes"] = True
+        checkout_kwargs["allow_promotion_codes"] = active_offer is None
 
     session = stripe.checkout.Session.create(**checkout_kwargs)
     return CheckoutSessionOut(checkout_url=session["url"])

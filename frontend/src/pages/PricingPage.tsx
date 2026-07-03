@@ -57,6 +57,15 @@ export default function PricingPage() {
       setCoupon({ valid: false, message: 'Enter a coupon code.' });
       return;
     }
+    if (subscription?.new_user_offer?.active) {
+      setCoupon({
+        valid: false,
+        message: subscription.new_user_offer.message,
+        blocked_by_new_user_offer: true,
+        available_after: subscription.new_user_offer.eligible_until,
+      });
+      return;
+    }
     try {
       setCouponBusy(true);
       setCoupon(null);
@@ -82,7 +91,7 @@ export default function PricingPage() {
       setError('');
       const { data } = await api.post<{ checkout_url: string }>('/billing/checkout-session', {
         plan_name: planName,
-        promotion_code_id: coupon?.valid ? coupon.promotion_code_id : null,
+        promotion_code_id: subscription?.new_user_offer?.active ? null : (coupon?.valid ? coupon.promotion_code_id : null),
       });
       window.location.href = data.checkout_url;
     } catch (err) {
@@ -124,16 +133,22 @@ export default function PricingPage() {
       {checkoutStatus === 'cancelled' && <div className="hint">Checkout cancelled. Your current plan is unchanged.</div>}
       {error && <div className="error">{error}</div>}
       {loadingPlans && <div className="panel muted-panel">Loading plans...</div>}
+      {subscription?.new_user_offer?.active && (
+        <section className="success offer-banner">
+          <strong>New-user offer active:</strong> Basic Home is 65% off for the first 2 billing months. Coupon codes cannot be combined while this offer is active.
+          {subscription.new_user_offer.eligible_until && ` Coupons can be used after ${new Date(subscription.new_user_offer.eligible_until).toLocaleDateString()} if you have not used this offer.`}
+        </section>
+      )}
 
       <section className="panel coupon-panel">
         <div>
           <p className="eyebrow">Have a coupon?</p>
           <h2>Apply coupon code</h2>
-          <p>Public prices are shown by default. Enter an active coupon code to preview your discounted price before checkout. Invalid or expired coupons will not be applied.</p>
+          <p>Public prices are shown by default. Enter an active coupon code to preview your discounted price before checkout. Coupons cannot be combined with the new-user Basic offer.</p>
         </div>
         <form onSubmit={validateCoupon} className="coupon-form">
-          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" />
-          <button className="secondary" disabled={couponBusy}>{couponBusy ? 'Checking...' : 'Apply'}</button>
+          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" disabled={!!subscription?.new_user_offer?.active} />
+          <button className="secondary" disabled={couponBusy || !!subscription?.new_user_offer?.active}>{couponBusy ? 'Checking...' : 'Apply'}</button>
           {coupon && <button type="button" className="ghost-button" onClick={removeCoupon}>Remove</button>}
         </form>
         {coupon && (
@@ -158,16 +173,19 @@ export default function PricingPage() {
         {plans.map((plan) => {
           const isCurrent = subscription?.plan_name === plan.key;
           const hasLaunchDiscount = Boolean(plan.regular_price_monthly_cad && plan.regular_price_monthly_cad > plan.price_monthly_cad);
-          const backendCouponPrice = coupon?.valid ? coupon.discounted_prices?.[plan.key] : null;
+          const hasNewUserBasicOffer = !!subscription?.new_user_offer?.active && plan.key === 'basic';
+          const newUserOfferPrice = hasNewUserBasicOffer ? Number((plan.price_monthly_cad * 0.35).toFixed(2)) : null;
+          const backendCouponPrice = !subscription?.new_user_offer?.active && coupon?.valid ? coupon.discounted_prices?.[plan.key] : null;
           const fallbackCouponPrice = calculateFallbackDiscount(plan.price_monthly_cad, coupon);
           const couponPrice = typeof backendCouponPrice === 'number' ? backendCouponPrice : fallbackCouponPrice;
-          const hasCouponDiscount = plan.key !== 'free' && typeof couponPrice === 'number' && couponPrice < plan.price_monthly_cad;
-          const effectivePrice = hasCouponDiscount ? couponPrice : plan.price_monthly_cad;
-          const oldPrice = hasCouponDiscount ? plan.price_monthly_cad : plan.regular_price_monthly_cad;
+          const hasCouponDiscount = plan.key !== 'free' && !subscription?.new_user_offer?.active && typeof couponPrice === 'number' && couponPrice < plan.price_monthly_cad;
+          const effectivePrice = hasNewUserBasicOffer && newUserOfferPrice !== null ? newUserOfferPrice : (hasCouponDiscount ? couponPrice : plan.price_monthly_cad);
+          const oldPrice = (hasCouponDiscount || hasNewUserBasicOffer) ? plan.price_monthly_cad : plan.regular_price_monthly_cad;
           return (
-            <article key={plan.key} className={`panel pricing-card ${plan.recommended ? 'recommended' : ''} ${hasCouponDiscount ? 'coupon-applied-card' : ''}`}>
+            <article key={plan.key} className={`panel pricing-card ${plan.recommended ? 'recommended' : ''} ${hasCouponDiscount || hasNewUserBasicOffer ? 'coupon-applied-card' : ''}`}>
               {plan.recommended && <div className="recommended-badge">Best value</div>}
               {plan.discount_label && !hasCouponDiscount && <div className="discount-badge">{plan.discount_label}</div>}
+              {hasNewUserBasicOffer && <div className="coupon-badge">New-user offer</div>}
               {hasCouponDiscount && <div className="coupon-badge">Coupon applied</div>}
               <h2>{plan.name}</h2>
               <p>{plan.tagline}</p>
@@ -176,6 +194,11 @@ export default function PricingPage() {
                 <strong>{formatPrice(effectivePrice)}</strong>
                 <span>CAD / month</span>
               </div>
+              {hasNewUserBasicOffer && (
+                <p className="coupon-savings">
+                  You save {formatPrice(plan.price_monthly_cad - effectivePrice)} per month for the first 2 billing months. No coupon can be added with this offer.
+                </p>
+              )}
               {hasCouponDiscount && (
                 <p className="coupon-savings">
                   You save {formatPrice(plan.price_monthly_cad - effectivePrice)} per month with this code.

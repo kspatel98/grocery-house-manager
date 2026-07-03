@@ -1,21 +1,26 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { House } from '../types';
+import type { House, Subscription } from '../types';
 
 export default function HousesPage() {
   const [houses, setHouses] = useState<House[]>([]);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const navigate = useNavigate();
 
   async function load() {
     try {
       setLoading(true);
       setError('');
-      const { data } = await api.get<House[]>('/houses', { params: { t: Date.now() } });
+      const [{ data }, subRes] = await Promise.all([
+        api.get<House[]>('/houses', { params: { t: Date.now() } }),
+        api.get<Subscription>('/billing/me').catch(() => null),
+      ]);
       setHouses(Array.isArray(data) ? data : []);
+      if (subRes) setSubscription(subRes.data);
     } catch (err) {
       setError(errorMessage(err));
       setHouses([]);
@@ -39,6 +44,10 @@ export default function HousesPage() {
 
   useEffect(() => { load(); }, []);
 
+  const ownedHouseCount = Number(subscription?.usage?.houses || 0);
+  const canCreateHouse = !!subscription && subscription.limits.houses > ownedHouseCount;
+  const isFreePlan = subscription?.plan_name === 'free';
+
   return (
     <main className="page shell">
       <header className="topbar">
@@ -51,12 +60,25 @@ export default function HousesPage() {
         </div>
       </header>
 
-      <section className="panel">
-        <h2>Create a house</h2>
-        <form onSubmit={createHouse} className="inline-form">
-          <input placeholder="Example: Patel Family Home" value={name} onChange={(e) => setName(e.target.value)} />
-          <button className="primary">Create</button>
-        </form>
+      <section className="panel create-house-panel">
+        <div className="panel-title-row">
+          <div>
+            <h2>Create a house</h2>
+            <p>{isFreePlan ? 'Free Starter can join invited houses, but creating a house requires Basic Home or higher.' : 'Create one house for a household you own or manage.'}</p>
+          </div>
+          {subscription && <span className="plan-pill">{subscription.plan_name} • {ownedHouseCount}/{subscription.limits.houses} owned houses</span>}
+        </div>
+        {isFreePlan ? (
+          <div className="upgrade-callout">
+            <strong>Upgrade to create a house.</strong> Members can still join houses for free by invitation. The house features are controlled by the owner's plan.
+            <Link to="/pricing" className="primary center-link">View plans</Link>
+          </div>
+        ) : (
+          <form onSubmit={createHouse} className="inline-form">
+            <input placeholder="Example: Patel Family Home" value={name} onChange={(e) => setName(e.target.value)} />
+            <button className="primary" disabled={!canCreateHouse}>Create</button>
+          </form>
+        )}
       </section>
 
       {error && <div className="error">{error}</div>}

@@ -54,6 +54,8 @@ class HouseOut(BaseModel):
     id: int
     name: str
     role: HouseRole | None = None
+    owner_name: str | None = None
+    owner_plan_name: PlanName | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -145,6 +147,16 @@ class ProductUpdate(BaseModel):
     notes: str | None = None
 
 
+class ProductStorePriceOut(BaseModel):
+    id: int
+    store_name: str
+    price: float
+    source: str = "manual"
+    recorded_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ProductOut(ProductBase):
     id: int
     house_id: int
@@ -154,6 +166,7 @@ class ProductOut(ProductBase):
     updated_at: datetime
     is_low_stock: bool = False
     is_expiring_soon: bool = False
+    store_prices: list[ProductStorePriceOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -162,6 +175,8 @@ class ShoppingListItemCreate(BaseModel):
     product_id: int
     requested_quantity: float = Field(default=1, gt=0)
     bought_quantity: float | None = Field(default=None, gt=0)
+    bought_price: float | None = Field(default=None, ge=0)
+    bought_store_name: str | None = Field(default=None, max_length=150)
     message: str | None = None
 
 
@@ -181,6 +196,8 @@ class ShoppingListItemsAdd(BaseModel):
 class ShoppingListItemUpdate(BaseModel):
     requested_quantity: float | None = Field(default=None, gt=0)
     bought_quantity: float | None = Field(default=None, gt=0)
+    bought_price: float | None = Field(default=None, ge=0)
+    bought_store_name: str | None = Field(default=None, max_length=150)
     message: str | None = None
     status: ShoppingItemStatus | None = None
 
@@ -194,6 +211,8 @@ class ShoppingListItemOut(BaseModel):
     product_id: int
     requested_quantity: float
     bought_quantity: float
+    bought_price: float | None = None
+    bought_store_name: str | None = None
     message: str | None = None
     status: ShoppingItemStatus
     product: ProductOut
@@ -237,12 +256,22 @@ class PlanOut(BaseModel):
     recommended: bool = False
 
 
+class NewUserOfferOut(BaseModel):
+    active: bool
+    applies_to_plan: PlanName = PlanName.basic
+    discount_percent: int = 65
+    duration_months: int = 2
+    eligible_until: datetime | None = None
+    message: str
+
+
 class SubscriptionOut(BaseModel):
     plan_name: PlanName
     subscription_status: str
     current_period_end: datetime | None = None
     limits: PlanLimitsOut
     usage: dict[str, int | dict[str, int]] = Field(default_factory=dict)
+    new_user_offer: NewUserOfferOut | None = None
 
 
 class CheckoutSessionIn(BaseModel):
@@ -264,6 +293,34 @@ class InvitePreviewOut(BaseModel):
     already_member: bool = False
 
 
+class ReceiptLineCreate(BaseModel):
+    product_id: int
+    price: float = Field(ge=0)
+    store_name: str | None = Field(default=None, max_length=150)
+
+
+class ReceiptCreate(BaseModel):
+    store_name: str | None = Field(default=None, max_length=150)
+    receipt_date: date | None = None
+    image_url: str | None = None
+    notes: str | None = None
+    items: list[ReceiptLineCreate] = Field(default_factory=list)
+
+
+class ReceiptOut(BaseModel):
+    id: int
+    house_id: int
+    store_name: str | None = None
+    receipt_date: date | None = None
+    image_url: str | None = None
+    notes: str | None = None
+    created_at: datetime
+    uploaded_by: UserOut | None = None
+    price_entries: list[ProductStorePriceOut] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
 class AccountDeleteIn(BaseModel):
     confirm_name: str = Field(min_length=1, max_length=255)
 
@@ -281,3 +338,5 @@ class CouponValidateOut(BaseModel):
     amount_off: float | None = None
     currency: str | None = None
     discounted_prices: dict[str, float] = Field(default_factory=dict)
+    blocked_by_new_user_offer: bool = False
+    available_after: datetime | None = None

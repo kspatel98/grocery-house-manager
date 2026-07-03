@@ -64,6 +64,8 @@ class User(Base):
 
     memberships: Mapped[list["HouseMember"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     activities: Mapped[list["Activity"]] = relationship(back_populates="user")
+    receipts: Mapped[list["Receipt"]] = relationship(back_populates="uploaded_by")
+    price_entries: Mapped[list["ProductStorePrice"]] = relationship(back_populates="recorded_by")
 
 
 class House(Base):
@@ -78,6 +80,7 @@ class House(Base):
     sections: Mapped[list["Section"]] = relationship(back_populates="house", cascade="all, delete-orphan")
     invites: Mapped[list["Invite"]] = relationship(back_populates="house", cascade="all, delete-orphan")
     activities: Mapped[list["Activity"]] = relationship(back_populates="house", cascade="all, delete-orphan")
+    receipts: Mapped[list["Receipt"]] = relationship(back_populates="house", cascade="all, delete-orphan")
 
 
 class HouseMember(Base):
@@ -147,6 +150,7 @@ class Product(Base):
 
     section: Mapped[Section] = relationship(back_populates="products")
     shopping_items: Mapped[list["ShoppingListItem"]] = relationship(back_populates="product")
+    store_prices: Mapped[list["ProductStorePrice"]] = relationship(back_populates="product", cascade="all, delete-orphan")
 
 
 class ShoppingList(Base):
@@ -173,11 +177,49 @@ class ShoppingListItem(Base):
     requested_quantity: Mapped[float] = mapped_column(Float, default=1)
     bought_quantity: Mapped[float] = mapped_column(Float, default=1)
     message: Mapped[str | None] = mapped_column(Text)
+    bought_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bought_store_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     status: Mapped[ShoppingItemStatus] = mapped_column(SAEnum(ShoppingItemStatus), default=ShoppingItemStatus.to_buy)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     shopping_list: Mapped[ShoppingList] = relationship(back_populates="items")
     product: Mapped[Product] = relationship(back_populates="shopping_items")
+
+
+class Receipt(Base):
+    __tablename__ = "receipts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    store_name: Mapped[str | None] = mapped_column(String(150), index=True)
+    receipt_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    house: Mapped[House] = relationship(back_populates="receipts")
+    uploaded_by: Mapped[User | None] = relationship(back_populates="receipts")
+    price_entries: Mapped[list["ProductStorePrice"]] = relationship(back_populates="receipt", cascade="all, delete-orphan")
+
+
+class ProductStorePrice(Base):
+    __tablename__ = "product_store_prices"
+    __table_args__ = (UniqueConstraint("product_id", "store_name", name="uq_product_store_price"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    store_name: Mapped[str] = mapped_column(String(150), index=True)
+    price: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(60), default="manual")
+    receipt_id: Mapped[int | None] = mapped_column(ForeignKey("receipts.id", ondelete="SET NULL"), nullable=True, index=True)
+    recorded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    product: Mapped[Product] = relationship(back_populates="store_prices")
+    receipt: Mapped[Receipt | None] = relationship(back_populates="price_entries")
+    recorded_by: Mapped[User | None] = relationship(back_populates="price_entries")
 
 
 class Activity(Base):

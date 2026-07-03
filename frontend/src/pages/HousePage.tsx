@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Product, Section, ShoppingList, User } from '../types';
+import type { Activity, House, HouseMember, Product, Receipt, Section, ShoppingList, User } from '../types';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
 import { ActivityFeed, MembersPanel } from '../components/HouseInfoPanels';
@@ -18,6 +18,7 @@ export default function HousePage() {
   const [activeList, setActiveList] = useState<ShoppingList | null>(null);
   const [members, setMembers] = useState<HouseMember[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [sortBy, setSortBy] = useState('name');
   const [direction, setDirection] = useState('asc');
   const [search, setSearch] = useState('');
@@ -28,20 +29,23 @@ export default function HousePage() {
 
   async function loadAll() {
     try {
-      const [houseRes, sectionsRes, productsRes, listRes, membersRes, activitiesRes] = await Promise.all([
+      const [houseRes, sectionsRes, productsRes, listRes, membersRes, activitiesRes, receiptsRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
         api.get<Section[]>(`/houses/${id}/sections`),
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined } }),
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
         api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 30 } }),
+        api.get<Receipt[]>(`/houses/${id}/receipts`),
       ]);
       setHouse(houseRes.data);
       setSections(sectionsRes.data);
       setProducts(productsRes.data);
       setActiveList(listRes.data);
       setMembers(membersRes.data);
+      setReceipts(receiptsRes.data);
       setActivities(activitiesRes.data);
+      setReceipts(receiptsRes.data);
       setError('');
     } catch (err) {
       const message = errorMessage(err);
@@ -63,16 +67,19 @@ export default function HousePage() {
 
   async function loadShoppingAndActivity() {
     try {
-      const [listRes, productsRes, activitiesRes, membersRes] = await Promise.all([
+      const [listRes, productsRes, activitiesRes, membersRes, receiptsRes] = await Promise.all([
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined } }),
         api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 30 } }),
         api.get<HouseMember[]>(`/houses/${id}/members`),
+        api.get<Receipt[]>(`/houses/${id}/receipts`),
       ]);
       setActiveList(listRes.data);
       setProducts(productsRes.data);
       setActivities(activitiesRes.data);
+      setReceipts(receiptsRes.data);
       setMembers(membersRes.data);
+      setReceipts(receiptsRes.data);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -143,7 +150,8 @@ export default function HousePage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>{house?.name || 'House'}</h1>
-          <p>Shared grocery inventory, house members, activity notifications, and shopping list.</p>
+          <p>Shared grocery inventory, house members, activity notifications, and shopping list. House capacity follows the owner's plan.</p>
+          {house?.owner_name && <small className="small-muted">Owner: {house.owner_name}{house.owner_plan_name ? ` • Owner plan: ${house.owner_plan_name}` : ''}</small>}
         </div>
         <div className="topbar-actions">
           <Link to="/pricing" className="secondary center-link">Plans</Link>
@@ -207,6 +215,13 @@ export default function HousePage() {
                     <span>{product.quantity} {product.unit}</span>
                     {product.price !== undefined && product.price !== null && <span>${product.price.toFixed(2)}</span>}
                   </div>
+                  {product.store_prices?.length ? (
+                    <div className="store-price-list">
+                      {product.store_prices.slice(0, 3).map((price) => (
+                        <span key={price.id}>{price.store_name}: ${price.price.toFixed(2)}</span>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="badges">
                     {product.is_low_stock && <span className="badge warning">Low stock</span>}
                     {product.is_expiring_soon && <span className="badge danger">Expiring soon</span>}
@@ -224,6 +239,7 @@ export default function HousePage() {
 
         <aside>
           <ShoppingSummaryCard houseId={id} activeList={activeList} />
+          <ReceiptPanel houseId={id} products={products} receipts={receipts} onChange={loadShoppingAndActivity} />
           <HouseActionsPanel house={house} memberCount={members.length} onLeave={leaveHouse} onDelete={deleteHouse} />
           <MembersPanel members={members} currentUserId={currentUser?.id} houseRole={house?.role} onRemoveMember={removeMember} />
           <ActivityFeed activities={activities} onRefresh={loadShoppingAndActivity} />
@@ -244,6 +260,81 @@ export default function HousePage() {
 }
 
 
+
+
+function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: number; products: Product[]; receipts: Receipt[]; onChange: () => void | Promise<void> }) {
+  const [storeName, setStoreName] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [notes, setNotes] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
+  const [price, setPrice] = useState('');
+  const [lines, setLines] = useState<{ product_id: number; product_name: string; price: number; store_name?: string }[]>([]);
+  const [error, setError] = useState('');
+
+  function addLine() {
+    const product = products.find((p) => p.id === Number(selectedProductId));
+    const parsedPrice = Number(price);
+    if (!product || !Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setError('Choose a product and enter a valid price.');
+      return;
+    }
+    setLines((prev) => [...prev, { product_id: product.id, product_name: product.name, price: parsedPrice, store_name: storeName || product.store_name }]);
+    setSelectedProductId('');
+    setPrice('');
+    setError('');
+  }
+
+  async function saveReceipt() {
+    if (!lines.length) {
+      setError('Add at least one product price from the receipt.');
+      return;
+    }
+    try {
+      await api.post(`/houses/${houseId}/receipts`, {
+        store_name: storeName || null,
+        image_url: imageUrl || null,
+        notes: notes || null,
+        items: lines.map((line) => ({ product_id: line.product_id, price: line.price, store_name: line.store_name || storeName || null })),
+      });
+      setStoreName('');
+      setImageUrl('');
+      setNotes('');
+      setLines([]);
+      setError('');
+      await onChange();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  return (
+    <section className="panel receipt-panel">
+      <h2>Receipts & price updates</h2>
+      <p>Upload receipt details to keep product prices updated by store. One product can keep prices for multiple stores.</p>
+      {error && <div className="error">{error}</div>}
+      <label>Store name<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
+      <label>Receipt image URL<input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Optional image URL" /></label>
+      <div className="receipt-line-builder">
+        <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value ? Number(e.target.value) : '')}>
+          <option value="">Select product</option>
+          {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+        </select>
+        <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" />
+        <button className="secondary" type="button" onClick={addLine}>Add</button>
+      </div>
+      {lines.length > 0 && (
+        <div className="receipt-lines">
+          {lines.map((line, index) => (
+            <span key={`${line.product_id}-${index}`}>{line.product_name} • {line.store_name || storeName || 'Store'} • ${line.price.toFixed(2)}</span>
+          ))}
+        </div>
+      )}
+      <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Receipt notes" /></label>
+      <button className="primary full" onClick={saveReceipt} disabled={!lines.length}>Save receipt prices</button>
+      {receipts.length > 0 && <small className="small-muted">Latest receipt: {receipts[0].store_name || 'Store'} • {new Date(receipts[0].created_at).toLocaleDateString()}</small>}
+    </section>
+  );
+}
 
 function HouseActionsPanel({ house, memberCount, onLeave, onDelete }: { house: House | null; memberCount: number; onLeave: () => void; onDelete: () => void }) {
   if (!house) return null;

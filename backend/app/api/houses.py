@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_house_limit, ensure_member_limit
+from app.api.plan_utils import ensure_house_limit, ensure_member_limit, get_house_plan
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Activity, House, HouseMember, HouseRole, Invite, Section, User
-from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseOut, InviteOut, InvitePreviewOut
+from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseOut, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
 
 router = APIRouter(prefix="/houses", tags=["houses"])
 
@@ -48,6 +48,38 @@ def serialize_activity(activity: Activity) -> ActivityOut:
     )
 
 
+def serialize_house(house: House, role: HouseRole | None, db: Session) -> HouseOut:
+    owner = db.get(User, house.created_by_id) if house else None
+    return HouseOut(
+        id=house.id,
+        name=house.name,
+        role=role,
+        owner_name=display_name(owner) if owner else None,
+        owner_plan_name=owner.plan_name if owner else None,
+        created_at=house.created_at,
+    )
+
+
+def serialize_plan(plan) -> PlanOut:
+    return PlanOut(
+        key=plan.key,
+        name=plan.name,
+        price_monthly_cad=plan.price_monthly_cad,
+        regular_price_monthly_cad=plan.regular_price_monthly_cad,
+        discount_percent=plan.discount_percent,
+        discount_label=plan.discount_label,
+        tagline=plan.tagline,
+        limits=PlanLimitsOut(
+            houses=plan.limits.houses,
+            products_per_house=plan.limits.products_per_house,
+            active_lists_per_house=plan.limits.active_lists_per_house,
+            members_per_house=plan.limits.members_per_house,
+        ),
+        features=plan.features,
+        recommended=plan.recommended,
+    )
+
+
 def require_house_owner(house_id: int, user: User, db: Session) -> HouseMember:
     membership = db.query(HouseMember).filter(
         HouseMember.house_id == house_id,
@@ -70,7 +102,7 @@ def list_houses(db: Session = Depends(get_db), user: User = Depends(get_current_
     result = []
     for membership in memberships:
         house = db.get(House, membership.house_id)
-        result.append(HouseOut(id=house.id, name=house.name, role=membership.role, created_at=house.created_at))
+        result.append(serialize_house(house, membership.role, db))
     return result
 
 
@@ -94,14 +126,20 @@ def create_house(payload: HouseCreate, db: Session = Depends(get_db), user: User
     )
     db.commit()
     db.refresh(house)
-    return HouseOut(id=house.id, name=house.name, role=HouseRole.owner, created_at=house.created_at)
+    return serialize_house(house, HouseRole.owner, db)
 
 
 @router.get("/{house_id}", response_model=HouseOut)
 def get_house(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     membership = require_house_member(house_id, user, db)
     house = db.get(House, house_id)
-    return HouseOut(id=house.id, name=house.name, role=membership.role, created_at=house.created_at)
+    return serialize_house(house, membership.role, db)
+
+
+@router.get("/{house_id}/plan", response_model=PlanOut)
+def get_house_subscription_plan(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    return serialize_plan(get_house_plan(db, house_id))
 
 
 @router.get("/{house_id}/members", response_model=list[HouseMemberOut])
@@ -196,10 +234,9 @@ def join_house(token: str, db: Session = Depends(get_db), user: User = Depends(g
         HouseMember.user_id == user.id,
     ).first()
     if not membership:
-        ensure_house_limit(db, user)
-        house_for_limit = db.get(House, invite.house_id)
-        owner = db.get(User, house_for_limit.created_by_id) if house_for_limit else user
-        ensure_member_limit(db, invite.house_id, owner or user)
+        # Free users are allowed to join invited houses. House capacity is controlled by
+        # the owner's plan, not the joining member's plan.
+        ensure_member_limit(db, invite.house_id, user)
         membership = HouseMember(house_id=invite.house_id, user_id=user.id, role=HouseRole.member)
         db.add(membership)
         log_activity(
@@ -213,7 +250,7 @@ def join_house(token: str, db: Session = Depends(get_db), user: User = Depends(g
         )
         db.commit()
     house = db.get(House, invite.house_id)
-    return HouseOut(id=house.id, name=house.name, role=membership.role, created_at=house.created_at)
+    return serialize_house(house, membership.role, db)
 
 
 @router.post("/{house_id}/leave")

@@ -6,8 +6,8 @@ from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_product_limit
 from app.db.session import get_db
-from app.models import Product, Section, User
-from app.schemas import ProductCreate, ProductOut, ProductUpdate
+from app.models import Product, ProductStorePrice, Receipt, Section, User
+from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut
 
 router = APIRouter(prefix="/houses/{house_id}", tags=["products"])
 
@@ -19,6 +19,16 @@ SORT_FIELDS = {
     "created_at": Product.created_at,
     "expiry_date": Product.expiry_date,
 }
+
+
+def serialize_store_price(price: ProductStorePrice) -> ProductStorePriceOut:
+    return ProductStorePriceOut(
+        id=price.id,
+        store_name=price.store_name,
+        price=price.price,
+        source=price.source,
+        recorded_at=price.recorded_at,
+    )
 
 
 def serialize_product(product: Product) -> ProductOut:
@@ -46,6 +56,7 @@ def serialize_product(product: Product) -> ProductOut:
         updated_at=product.updated_at,
         is_low_stock=is_low_stock,
         is_expiring_soon=is_expiring_soon,
+        store_prices=[serialize_store_price(price) for price in sorted(product.store_prices, key=lambda p: (p.price, p.store_name.lower()))] if hasattr(product, "store_prices") and product.store_prices else [],
     )
 
 
@@ -60,7 +71,7 @@ def list_products(
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
-    query = db.query(Product).options(joinedload(Product.section)).filter(Product.house_id == house_id)
+    query = db.query(Product).options(joinedload(Product.section), joinedload(Product.store_prices)).filter(Product.house_id == house_id)
     if section_id:
         query = query.filter(Product.section_id == section_id)
     if search:
@@ -80,6 +91,15 @@ def create_product(house_id: int, section_id: int, payload: ProductCreate, db: S
     product = Product(house_id=house_id, section_id=section_id, **payload.model_dump())
     db.add(product)
     db.flush()
+    if product.price is not None and product.store_name:
+        db.add(ProductStorePrice(
+            house_id=house_id,
+            product_id=product.id,
+            store_name=product.store_name,
+            price=product.price,
+            source="manual",
+            recorded_by_id=user.id,
+        ))
     log_activity(db, house_id=house_id, user=user, action="product_created", message=f"Product {product.name} added by {display_name(user)}.", entity_type="product", entity_id=product.id)
     db.commit()
     db.refresh(product)
@@ -89,7 +109,7 @@ def create_product(house_id: int, section_id: int, payload: ProductCreate, db: S
 
 def _update_product_record(house_id: int, product_id: int, payload: ProductUpdate, db: Session, user: User) -> ProductOut:
     require_house_member(house_id, user, db)
-    product = db.query(Product).options(joinedload(Product.section)).filter(Product.id == product_id, Product.house_id == house_id).first()
+    product = db.query(Product).options(joinedload(Product.section), joinedload(Product.store_prices)).filter(Product.id == product_id, Product.house_id == house_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -110,6 +130,25 @@ def _update_product_record(house_id: int, product_id: int, payload: ProductUpdat
     for key, value in cleaned_updates.items():
         setattr(product, key, value)
 
+    if product.price is not None and product.store_name:
+        existing_price = db.query(ProductStorePrice).filter(
+            ProductStorePrice.product_id == product.id,
+            ProductStorePrice.store_name == product.store_name,
+        ).first()
+        if existing_price:
+            existing_price.price = product.price
+            existing_price.source = "manual"
+            existing_price.recorded_by_id = user.id
+        else:
+            db.add(ProductStorePrice(
+                house_id=house_id,
+                product_id=product.id,
+                store_name=product.store_name,
+                price=product.price,
+                source="manual",
+                recorded_by_id=user.id,
+            ))
+
     log_activity(
         db,
         house_id=house_id,
@@ -121,7 +160,7 @@ def _update_product_record(house_id: int, product_id: int, payload: ProductUpdat
     )
     db.commit()
 
-    refreshed = db.query(Product).options(joinedload(Product.section)).filter(Product.id == product_id, Product.house_id == house_id).first()
+    refreshed = db.query(Product).options(joinedload(Product.section), joinedload(Product.store_prices)).filter(Product.id == product_id, Product.house_id == house_id).first()
     if not refreshed:
         raise HTTPException(status_code=404, detail="Product not found after update")
     return serialize_product(refreshed)
@@ -136,6 +175,92 @@ def update_product(house_id: int, product_id: int, payload: ProductUpdate, db: S
 def update_product_via_post(house_id: int, product_id: int, payload: ProductUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     # Compatibility endpoint for browsers/dev proxies that cache or block PATCH preflight.
     return _update_product_record(house_id, product_id, payload, db, user)
+
+
+
+def serialize_receipt(receipt: Receipt) -> ReceiptOut:
+    return ReceiptOut(
+        id=receipt.id,
+        house_id=receipt.house_id,
+        store_name=receipt.store_name,
+        receipt_date=receipt.receipt_date,
+        image_url=receipt.image_url,
+        notes=receipt.notes,
+        created_at=receipt.created_at,
+        uploaded_by=receipt.uploaded_by,
+        price_entries=[serialize_store_price(price) for price in receipt.price_entries],
+    )
+
+
+@router.get("/receipts", response_model=list[ReceiptOut])
+def list_receipts(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    receipts = (
+        db.query(Receipt)
+        .options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries))
+        .filter(Receipt.house_id == house_id)
+        .order_by(Receipt.created_at.desc(), Receipt.id.desc())
+        .limit(50)
+        .all()
+    )
+    return [serialize_receipt(receipt) for receipt in receipts]
+
+
+@router.post("/receipts", response_model=ReceiptOut)
+def create_receipt(house_id: int, payload: ReceiptCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    receipt = Receipt(
+        house_id=house_id,
+        uploaded_by_id=user.id,
+        store_name=payload.store_name,
+        receipt_date=payload.receipt_date,
+        image_url=payload.image_url,
+        notes=payload.notes,
+    )
+    db.add(receipt)
+    db.flush()
+
+    updated_products: list[str] = []
+    for line in payload.items:
+        product = db.query(Product).filter(Product.id == line.product_id, Product.house_id == house_id).first()
+        if not product:
+            raise HTTPException(status_code=400, detail=f"Product {line.product_id} does not belong to this house")
+        store = (line.store_name or payload.store_name or product.store_name or "Unknown store").strip()
+        existing = db.query(ProductStorePrice).filter(
+            ProductStorePrice.product_id == product.id,
+            ProductStorePrice.store_name == store,
+        ).first()
+        if existing:
+            existing.price = line.price
+            existing.source = "receipt"
+            existing.receipt_id = receipt.id
+            existing.recorded_by_id = user.id
+        else:
+            db.add(ProductStorePrice(
+                house_id=house_id,
+                product_id=product.id,
+                store_name=store,
+                price=line.price,
+                source="receipt",
+                receipt_id=receipt.id,
+                recorded_by_id=user.id,
+            ))
+        product.price = line.price
+        product.store_name = store
+        updated_products.append(product.name)
+
+    log_activity(
+        db,
+        house_id=house_id,
+        user=user,
+        action="receipt_uploaded",
+        message=f"Receipt uploaded by {display_name(user)}. Updated prices for {len(updated_products)} product(s).",
+        entity_type="receipt",
+        entity_id=receipt.id,
+    )
+    db.commit()
+    refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries)).filter(Receipt.id == receipt.id).first()
+    return serialize_receipt(refreshed)
 
 
 @router.delete("/products/{product_id}")

@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
 import type { Product, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
 
-type Selection = Record<number, { selected: boolean; requested_quantity: number; message: string }>;
+type Selection = Record<number, { selected: boolean; requested_quantity: number; message: string; bought_price?: number | null; bought_store_name?: string }>;
 type ItemUpdates = {
   requested_quantity?: number;
   bought_quantity?: number;
   message?: string | null;
   status?: ShoppingItemStatus;
+  bought_price?: number | null;
+  bought_store_name?: string | null;
 };
 
 export default function ShoppingListPanel({ houseId, products, activeList, onChange, onListCreated }: { houseId: number; products: Product[]; activeList: ShoppingList | null; onChange: () => void | Promise<void>; onListCreated?: (list: ShoppingList) => void }) {
@@ -33,18 +35,20 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
       ...prev,
       [product.id]: prev[product.id]
         ? { ...prev[product.id], selected: !prev[product.id].selected }
-        : { selected: true, requested_quantity: 1, message: '' },
+        : { selected: true, requested_quantity: 1, message: '', bought_price: product.price ?? null, bought_store_name: product.store_name || '' },
     }));
   }
 
-  function updateSelection(productId: number, key: 'requested_quantity' | 'message', value: string) {
+  function updateSelection(productId: number, key: 'requested_quantity' | 'message' | 'bought_price' | 'bought_store_name', value: string) {
     setSelection((prev) => ({
       ...prev,
       [productId]: {
         selected: true,
         requested_quantity: prev[productId]?.requested_quantity || 1,
         message: prev[productId]?.message || '',
-        [key]: key === 'requested_quantity' ? Number(value) : value,
+        bought_price: prev[productId]?.bought_price ?? null,
+        bought_store_name: prev[productId]?.bought_store_name || '',
+        [key]: key === 'requested_quantity' || key === 'bought_price' ? (value === '' ? null : Number(value)) : value,
       },
     }));
   }
@@ -54,6 +58,8 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
       product_id: Number(productId),
       requested_quantity: item.requested_quantity || 1,
       bought_quantity: item.requested_quantity || 1,
+      bought_price: item.bought_price ?? null,
+      bought_store_name: item.bought_store_name || null,
       message: item.message || null,
     }));
   }
@@ -233,7 +239,7 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
   );
 }
 
-function ProductPicker({ products, selection, onToggle, onUpdate }: { products: Product[]; selection: Selection; onToggle: (product: Product) => void; onUpdate: (productId: number, key: 'requested_quantity' | 'message', value: string) => void }) {
+function ProductPicker({ products, selection, onToggle, onUpdate }: { products: Product[]; selection: Selection; onToggle: (product: Product) => void; onUpdate: (productId: number, key: 'requested_quantity' | 'message' | 'bought_price' | 'bought_store_name', value: string) => void }) {
   return (
     <div className="product-picker">
       {products.map((product) => {
@@ -244,12 +250,14 @@ function ProductPicker({ products, selection, onToggle, onUpdate }: { products: 
               <input type="checkbox" checked={!!selected} onChange={() => onToggle(product)} />
               <span>
                 {product.icon || '🛒'} {product.name}
-                <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}</small>
+                <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • $${product.price.toFixed(2)}` : ''}</small>
               </span>
             </label>
             {selected && (
               <div className="pick-extra">
                 <input type="number" min="0.01" step="0.01" value={selection[product.id]?.requested_quantity || 1} onChange={(e) => onUpdate(product.id, 'requested_quantity', e.target.value)} />
+                <input placeholder="Store for this trip" value={selection[product.id]?.bought_store_name || ''} onChange={(e) => onUpdate(product.id, 'bought_store_name', e.target.value)} />
+                <input type="number" min="0" step="0.01" placeholder="Expected price" value={selection[product.id]?.bought_price ?? ''} onChange={(e) => onUpdate(product.id, 'bought_price', e.target.value)} />
                 <input placeholder="Message e.g. buy 2% milk" value={selection[product.id]?.message || ''} onChange={(e) => onUpdate(product.id, 'message', e.target.value)} />
               </div>
             )}
@@ -278,10 +286,12 @@ function Tag({ title, items, onUpdate, onStatusChange, onRemove }: { title: stri
           <div className="cart-grid">
             <label>Need<input type="number" min="0.01" step="0.01" value={item.requested_quantity} onChange={(e) => onUpdate(item, { requested_quantity: Number(e.target.value) })} /></label>
             <label>Bought<input type="number" min="0.01" step="0.01" value={item.bought_quantity} onChange={(e) => onUpdate(item, { bought_quantity: Number(e.target.value) })} /></label>
+            <label>Store<input value={item.bought_store_name || ''} onChange={(e) => onUpdate(item, { bought_store_name: e.target.value || null })} /></label>
+            <label>Price<input type="number" min="0" step="0.01" value={item.bought_price ?? ''} onChange={(e) => onUpdate(item, { bought_price: e.target.value === '' ? null : Number(e.target.value) })} /></label>
           </div>
           <textarea value={item.message || ''} placeholder="Message for this item" onChange={(e) => onUpdate(item, { message: e.target.value })} />
           <div className="cart-footer">
-            <small>Store: {item.product.store_name || 'No store'} • Current inventory: {item.product.quantity} {item.product.unit}</small>
+            <small>Trip store: {item.bought_store_name || item.product.store_name || 'No store'} • Current inventory: {item.product.quantity} {item.product.unit}</small>
             <button className="secondary small-button" onClick={() => onRemove(item)}>Remove</button>
           </div>
         </article>

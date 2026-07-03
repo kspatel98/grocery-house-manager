@@ -23,6 +23,8 @@ export type House = {
   id: number;
   name: string;
   role?: 'owner' | 'admin' | 'member';
+  owner_name?: string;
+  owner_plan_name?: PlanName;
   created_at: string;
 };
 
@@ -32,6 +34,14 @@ export type Section = {
   name: string;
   icon?: string;
   sort_order: number;
+};
+
+export type ProductStorePrice = {
+  id: number;
+  store_name: string;
+  price: number;
+  source: string;
+  recorded_at: string;
 };
 
 export type Product = {
@@ -55,6 +65,7 @@ export type Product = {
   is_expiring_soon: boolean;
   created_at: string;
   updated_at: string;
+  store_prices?: ProductStorePrice[];
 };
 
 export type ShoppingItemStatus = 'to_buy' | 'in_cart' | 'skipped';
@@ -65,6 +76,8 @@ export type ShoppingListItem = {
   requested_quantity: number;
   bought_quantity: number;
   message?: string;
+  bought_price?: number;
+  bought_store_name?: string;
   status: ShoppingItemStatus;
   product: Product;
 };
@@ -129,6 +142,7 @@ export type Subscription = {
   current_period_end?: string;
   limits: PlanLimits;
   usage: Record<string, number | Record<string, number>>;
+  new_user_offer?: NewUserOffer;
 };
 
 
@@ -151,4 +165,28 @@ export type CouponValidation = {
   amount_off?: number;
   currency?: string;
   discounted_prices?: Partial<Record<PlanName, number>>;
+  blocked_by_new_user_offer?: boolean;
+  available_after?: string;
+};
+
+
+export type Receipt = {
+  id: number;
+  house_id: number;
+  store_name?: string;
+  receipt_date?: string;
+  image_url?: string;
+  notes?: string;
+  created_at: string;
+  uploaded_by?: User;
+  price_entries: ProductStorePrice[];
+};
+
+export type NewUserOffer = {
+  active: boolean;
+  applies_to_plan: PlanName;
+  discount_percent: number;
+  duration_months: number;
+  eligible_until?: string;
+  message: string;
 };

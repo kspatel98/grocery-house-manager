@@ -1,6 +1,19 @@
 # Grocery House Manager
 
-A full-stack grocery management platform for shared households, published as Grocery House Manager by SupremDas Group.
+A full-stack grocery management platform for shared households.
+
+## Brand structure
+
+- **Company / parent business:** SupremDas Group
+- **Product / app name:** Grocery House Manager
+- **Website:** https://grocery-house-manager.com
+- **Category:** SaaS for household productivity and grocery management
+- **Recommended Stripe public business name:** SupremDas Group
+- **Recommended Stripe product name:** Grocery House Manager
+- **Recommended statement descriptor:** GROCERY HOUSE
+
+Use **SupremDas Group** for business/account identity and **Grocery House Manager** for the customer-facing software product.
+
 
 ### v12 update
 
@@ -422,3 +435,52 @@ Then hard-refresh the browser or open:
 ```text
 https://grocery-house-manager.com/pricing?v=13
 ```
+
+
+## v14 brand-positioning correction
+
+This version explicitly separates business identity from product identity across the website and documentation.
+
+- SupremDas Group is presented as the parent business/company.
+- Grocery House Manager is presented as the SaaS product/app.
+- Header, footer, login page, metadata, About page, manifest, and README were updated with this structure.
+- The About page now uses professional company/product wording and does not include personal owner contact details or placeholder edit messages.
+- Stripe setup guidance now matches this structure: business/public name `SupremDas Group`, product name `Grocery House Manager`, descriptor `GROCERY HOUSE`.
+
+Recommended deploy test URL after rebuilding:
+
+```text
+https://grocery-house-manager.com/about?v=14
+```
+
+## v15 launch/premium update
+
+This version includes the missing launch feature set:
+
+- Free Starter users can join houses by invite, but cannot create houses.
+- House capacity and shared-house features are controlled by the house owner's plan.
+- Members can still use the features available inside houses they join; their own plan controls their own account/owned-house capabilities.
+- Receipt price updates are available from the inventory page.
+- A single product can now keep multiple store-specific prices, for example milk at Costco, Walmart, and No Frills under one inventory product.
+- Shopping-list items can capture bought store and bought price; completing shopping updates inventory quantity and the store-specific price history.
+- Pricing includes a new-user Basic offer: 65% off Basic Home for the first 2 billing months when eligible.
+- Coupon codes cannot be stacked with the new-user Basic offer. Users see a clear message explaining why and when coupons can be used.
+- Coupon validation checks active Stripe promotion codes and returns discounted prices for preview before Checkout.
+- UI has clearer professional layout, better plan messaging, header/footer branding, receipt panel, and store-price chips.
+
+### Stripe setup for the new-user Basic offer
+
+Create a Stripe coupon:
+
+- Percent off: `65%`
+- Duration: `Repeating`
+- Number of months: `2`
+
+Then create a Stripe Promotion Code for that coupon and copy the `promo_...` promotion code ID into `backend/.env`:
+
+```env
+STRIPE_PROMOTION_CODE_BASIC_NEW_USER=promo_...
+NEW_USER_OFFER_DAYS=14
+```
+
+The app applies this automatic discount only for eligible new users choosing Basic Home. When this offer is active, regular coupon codes are blocked so discounts cannot be clubbed/stacked.

@@ -52,8 +52,14 @@ def ensure_dev_schema(engine: Engine) -> None:
         "ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS requested_quantity DOUBLE PRECISION DEFAULT 1",
         "ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS bought_quantity DOUBLE PRECISION DEFAULT 1",
         "ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS message TEXT",
+        "ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS bought_price DOUBLE PRECISION",
+        "ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS bought_store_name VARCHAR(150)",
         "ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS status shoppingitemstatus DEFAULT 'to_buy'",
         "ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+
+        "CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, uploaded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, store_name VARCHAR(150), receipt_date DATE, image_url TEXT, notes TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE TABLE IF NOT EXISTS product_store_prices (id SERIAL PRIMARY KEY, product_id INTEGER REFERENCES products(id) ON DELETE CASCADE, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, store_name VARCHAR(150) NOT NULL, price DOUBLE PRECISION NOT NULL, source VARCHAR(60) DEFAULT 'manual', receipt_id INTEGER REFERENCES receipts(id) ON DELETE SET NULL, recorded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "DO $$ BEGIN ALTER TABLE product_store_prices ADD CONSTRAINT uq_product_store_price UNIQUE (product_id, store_name); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
     ]
     with engine.begin() as connection:
         for statement in statements:

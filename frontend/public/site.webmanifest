@@ -1,7 +1,7 @@
 {
   "name": "Grocery House Manager",
   "short_name": "Grocery House",
-  "description": "Shared grocery inventory and shopping lists by SupremDas Group.",
+  "description": "A SupremDas Group household productivity SaaS product for shared grocery inventory and shopping lists.",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }

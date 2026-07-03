@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Product, ShoppingList, Subscription } from '../types';
+import type { Activity, House, HouseMember, Plan, Product, ShoppingList, Subscription } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { ActivityFeed, MembersPanel } from '../components/HouseInfoPanels';
 
@@ -17,19 +17,21 @@ export default function ShoppingPage() {
   const [members, setMembers] = useState<HouseMember[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [housePlan, setHousePlan] = useState<Plan | null>(null);
   const [sortBy, setSortBy] = useState('store_name');
   const [direction, setDirection] = useState('asc');
   const [error, setError] = useState('');
 
   async function loadAll() {
     try {
-      const [houseRes, productsRes, listsRes, membersRes, activitiesRes, subscriptionRes] = await Promise.all([
+      const [houseRes, productsRes, listsRes, membersRes, activitiesRes, subscriptionRes, housePlanRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction } }),
         api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
         api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 40 } }),
         api.get<Subscription>('/billing/me'),
+        api.get<Plan>(`/houses/${id}/plan`),
       ]);
       setHouse(houseRes.data);
       setProducts(productsRes.data);
@@ -37,6 +39,7 @@ export default function ShoppingPage() {
       setMembers(membersRes.data);
       setActivities(activitiesRes.data);
       setSubscription(subscriptionRes.data);
+      setHousePlan(housePlanRes.data);
       setError('');
 
       if (!listsRes.data.length) {
@@ -57,7 +60,8 @@ export default function ShoppingPage() {
     () => activeLists.find((list) => list.id === selectedListId) || activeLists[0] || null,
     [activeLists, selectedListId]
   );
-  const canCreateMore = !subscription || activeLists.length < subscription.limits.active_lists_per_house;
+  const listLimit = housePlan?.limits.active_lists_per_house ?? subscription?.limits.active_lists_per_house ?? 0;
+  const canCreateMore = !listLimit || activeLists.length < listLimit;
   const activeListForPanel = creatingNew ? null : selectedList;
 
   return (
@@ -98,7 +102,7 @@ export default function ShoppingPage() {
                 <h2>Active shopping lists</h2>
                 <p>
                   {activeLists.length} active list{activeLists.length === 1 ? '' : 's'}
-                  {subscription ? ` / ${subscription.limits.active_lists_per_house} allowed on ${subscription.plan_name}` : ''}
+                  {housePlan ? ` / ${housePlan.limits.active_lists_per_house} allowed by owner plan (${housePlan.name})` : ''}
                 </p>
               </div>
               <button
@@ -109,7 +113,7 @@ export default function ShoppingPage() {
                 New list
               </button>
             </div>
-            {!canCreateMore && <div className="hint">You reached your active shopping-list limit. Finish/cancel one or upgrade your plan.</div>}
+            {!canCreateMore && <div className="hint">This house reached the owner plan's active shopping-list limit. Finish/cancel one, or ask the owner to upgrade.</div>}
             <div className="list-tabs">
               {activeLists.map((list) => (
                 <button

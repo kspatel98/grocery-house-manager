@@ -80,7 +80,7 @@ export default function LoginPage() {
     <main className="auth-page">
       <section className="auth-card">
         <img className="auth-logo" src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
-        <p className="brand-kicker">by SupremDas Group</p>
+        <p className="brand-kicker">A SupremDas Group product</p>
         <h1>Grocery House Manager</h1>
         <p>Shared grocery inventory, shopping lists, members, and activity updates for your household.</p>
 

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     stripe_price_basic_monthly: str | None = None
     stripe_price_family_monthly: str | None = None
     stripe_price_pro_monthly: str | None = None
+    # Optional Stripe promotion code ID for the automatic new-user Basic offer.
+    # Create a Stripe coupon: 65% off, duration=repeating, duration_in_months=2,
+    # then create a Promotion Code and paste its promo_... ID here.
+    stripe_promotion_code_basic_new_user: str | None = None
+    new_user_offer_days: int = 14
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 

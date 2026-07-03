@@ -725,3 +725,81 @@ code {
   .auth-card { padding: 24px; }
   .auth-logo { height: 132px; }
 }
+.footer-brand-stack {
+  display: grid;
+  gap: 4px;
+  color: #687786;
+  font-weight: 700;
+  min-width: 220px;
+}
+.footer-brand-stack strong { color: #173b2f; }
+
+/* v15 launch polish: clearer pricing, receipts, and store-price UI */
+.offer-banner {
+  border-radius: 18px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+.plan-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .45rem .75rem;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.06);
+  color: #334155;
+  font-weight: 700;
+  font-size: .85rem;
+}
+.upgrade-callout {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff7ed, #ecfdf5);
+  border: 1px solid rgba(249, 115, 22, .18);
+}
+.store-price-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin: .55rem 0;
+}
+.store-price-list span,
+.receipt-lines span {
+  display: inline-flex;
+  padding: .35rem .55rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: .78rem;
+  font-weight: 700;
+}
+.receipt-panel label,
+.receipt-panel textarea,
+.receipt-panel input,
+.receipt-panel select {
+  width: 100%;
+}
+.receipt-line-builder {
+  display: grid;
+  grid-template-columns: 1fr .55fr auto;
+  gap: .5rem;
+  align-items: end;
+  margin: .75rem 0;
+}
+.receipt-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin: .5rem 0 .75rem;
+}
+.create-house-panel .panel-title-row {
+  align-items: flex-start;
+}
+@media (max-width: 720px) {
+  .receipt-line-builder {
+    grid-template-columns: 1fr;
+  }
+}

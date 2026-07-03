@@ -19,7 +19,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
             <span>
               <strong>Grocery House Manager</strong>
-              <small>by SupremDas Group</small>
+              <small>A SupremDas Group product</small>
             </span>
           </Link>
           <nav className="site-nav" aria-label="Primary navigation">
@@ -42,7 +42,13 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         <div className="shell wide site-footer-inner">
           <div>
             <strong>Grocery House Manager</strong>
-            <p>A shared grocery inventory and shopping-list platform by SupremDas Group.</p>
+            <p>
+              A household grocery inventory and shopping-list SaaS product from SupremDas Group.
+            </p>
+          </div>
+          <div className="footer-brand-stack" aria-label="Company and product">
+            <span>Company: <strong>SupremDas Group</strong></span>
+            <span>Product: <strong>Grocery House Manager</strong></span>
           </div>
           <div className="footer-links">
             <Link to="/about">About</Link>

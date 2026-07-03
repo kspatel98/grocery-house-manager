@@ -6,7 +6,7 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_active_shopping_list_limit
 from app.api.products import serialize_product
 from app.db.session import get_db
-from app.models import Product, ShoppingItemStatus, ShoppingList, ShoppingListItem, User
+from app.models import Product, ProductStorePrice, ShoppingItemStatus, ShoppingList, ShoppingListItem, User
 from app.schemas import (
     ShoppingDoneIn,
     ShoppingListCreate,
@@ -28,6 +28,8 @@ def serialize_item(item: ShoppingListItem) -> ShoppingListItemOut:
         requested_quantity=item.requested_quantity,
         bought_quantity=item.bought_quantity,
         message=item.message,
+        bought_price=item.bought_price,
+        bought_store_name=item.bought_store_name,
         status=item.status,
         product=serialize_product(item.product),
     )
@@ -49,7 +51,8 @@ def serialize_list(shopping_list: ShoppingList) -> ShoppingListOut:
 def load_list(db: Session, house_id: int, list_id: int) -> ShoppingList:
     shopping_list = (
         db.query(ShoppingList)
-        .options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.section))
+        .options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.section),
+            joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.store_prices))
         .filter(ShoppingList.id == list_id, ShoppingList.house_id == house_id)
         .first()
     )
@@ -71,7 +74,8 @@ def validate_products(db: Session, house_id: int, product_ids: list[int]) -> dic
 def list_shopping_lists(house_id: int, include_done: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_house_member(house_id, user, db)
     query = db.query(ShoppingList).options(
-        joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.section)
+        joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.section),
+            joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.store_prices)
     ).filter(ShoppingList.house_id == house_id)
     if not include_done:
         query = query.filter(ShoppingList.is_done == False)
@@ -83,7 +87,8 @@ def list_shopping_lists(house_id: int, include_done: bool = False, db: Session =
 def get_active_list(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_house_member(house_id, user, db)
     shopping_list = db.query(ShoppingList).options(
-        joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.section)
+        joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.section),
+            joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.store_prices)
     ).filter(ShoppingList.house_id == house_id, ShoppingList.is_done == False).order_by(ShoppingList.created_at.desc()).first()
     return serialize_list(shopping_list) if shopping_list else None
 
@@ -108,6 +113,8 @@ def create_shopping_list(house_id: int, payload: ShoppingListCreate, db: Session
             requested_quantity=item.requested_quantity,
             bought_quantity=item.bought_quantity or item.requested_quantity,
             message=item.message,
+            bought_price=item.bought_price,
+            bought_store_name=item.bought_store_name,
         ))
     log_activity(
         db,
@@ -174,6 +181,10 @@ def add_items(house_id: int, list_id: int, payload: ShoppingListItemsAdd, db: Se
             existing_item.bought_quantity += item.bought_quantity or item.requested_quantity
             if item.message:
                 existing_item.message = item.message
+            if item.bought_price is not None:
+                existing_item.bought_price = item.bought_price
+            if item.bought_store_name:
+                existing_item.bought_store_name = item.bought_store_name
             existing_item.status = ShoppingItemStatus.to_buy
         else:
             db.add(ShoppingListItem(
@@ -182,6 +193,8 @@ def add_items(house_id: int, list_id: int, payload: ShoppingListItemsAdd, db: Se
                 requested_quantity=item.requested_quantity,
                 bought_quantity=item.bought_quantity or item.requested_quantity,
                 message=item.message,
+                bought_price=item.bought_price,
+                bought_store_name=item.bought_store_name,
             ))
 
     log_activity(
@@ -202,6 +215,7 @@ def update_item(house_id: int, list_id: int, item_id: int, payload: ShoppingList
     require_house_member(house_id, user, db)
     item = db.query(ShoppingListItem).options(
         joinedload(ShoppingListItem.product).joinedload(Product.section),
+        joinedload(ShoppingListItem.product).joinedload(Product.store_prices),
         joinedload(ShoppingListItem.shopping_list),
     ).filter(ShoppingListItem.id == item_id, ShoppingListItem.shopping_list_id == list_id).first()
     if not item or item.shopping_list.house_id != house_id:
@@ -331,10 +345,34 @@ def complete_shopping(house_id: int, list_id: int, payload: ShoppingDoneIn, db: 
         raise HTTPException(status_code=400, detail="Shopping list is already done")
 
     updated_count = 0
+    price_updates = 0
+    now = datetime.now(timezone.utc)
     for item in shopping_list.items:
         if item.status == ShoppingItemStatus.in_cart:
             item.product.quantity += item.bought_quantity
-            item.product.last_bought_at = datetime.now(timezone.utc)
+            item.product.last_bought_at = now
+            if item.bought_price is not None and item.bought_store_name:
+                store = item.bought_store_name.strip()
+                existing_price = db.query(ProductStorePrice).filter(
+                    ProductStorePrice.product_id == item.product_id,
+                    ProductStorePrice.store_name == store,
+                ).first()
+                if existing_price:
+                    existing_price.price = item.bought_price
+                    existing_price.source = "shopping"
+                    existing_price.recorded_by_id = user.id
+                else:
+                    db.add(ProductStorePrice(
+                        house_id=house_id,
+                        product_id=item.product_id,
+                        store_name=store,
+                        price=item.bought_price,
+                        source="shopping",
+                        recorded_by_id=user.id,
+                    ))
+                item.product.price = item.bought_price
+                item.product.store_name = store
+                price_updates += 1
             updated_count += 1
     shopping_list.is_done = True
     shopping_list.completed_by_id = user.id
@@ -344,7 +382,7 @@ def complete_shopping(house_id: int, list_id: int, payload: ShoppingDoneIn, db: 
         house_id=house_id,
         user=user,
         action="shopping_list_completed",
-        message=f"Shopping done by {display_name(user)}. {updated_count} product quantities were added to inventory.",
+        message=f"Shopping done by {display_name(user)}. {updated_count} product quantities and {price_updates} store price(s) were updated.",
         entity_type="shopping_list",
         entity_id=shopping_list.id,
     )
