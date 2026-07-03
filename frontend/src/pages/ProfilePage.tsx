@@ -97,10 +97,6 @@ export default function ProfilePage() {
           <h1>Profile</h1>
           <p>Manage your account details, subscription, logout, and account deletion from here.</p>
         </div>
-        <div className="profile-actions">
-          <Link to="/about" className="secondary center-link">About</Link>
-          <Link to="/pricing" className="secondary center-link">Plans</Link>
-        </div>
       </header>
 
       {error && <div className="error">{error}</div>}

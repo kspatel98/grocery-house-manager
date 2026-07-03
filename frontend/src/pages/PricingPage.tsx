@@ -114,8 +114,6 @@ export default function PricingPage() {
         </div>
         <div className="profile-actions">
           <button className="secondary" onClick={load}>Refresh</button>
-          <Link to="/about" className="secondary center-link">About</Link>
-          <Link to="/profile" className="secondary center-link">Profile</Link>
           {subscription?.subscription_status && subscription.subscription_status !== 'free' && (
             <button className="secondary" onClick={manageBilling}>Manage billing</button>
           )}
@@ -131,7 +129,7 @@ export default function PricingPage() {
         <div>
           <p className="eyebrow">Have a coupon?</p>
           <h2>Apply coupon code</h2>
-          <p>Enter an active coupon code before choosing a paid plan. Invalid or expired coupons will not be applied.</p>
+          <p>Public prices are shown by default. Enter an active coupon code to preview your discounted price before checkout. Invalid or expired coupons will not be applied.</p>
         </div>
         <form onSubmit={validateCoupon} className="coupon-form">
           <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" />

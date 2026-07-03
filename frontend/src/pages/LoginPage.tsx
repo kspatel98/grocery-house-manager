@@ -79,9 +79,10 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-card">
-        <div className="brand-badge">🛒</div>
+        <img className="auth-logo" src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
+        <p className="brand-kicker">by SupremDas Group</p>
         <h1>Grocery House Manager</h1>
-        <p>Manage one shared grocery inventory for everyone at home.</p>
+        <p>Shared grocery inventory, shopping lists, members, and activity updates for your household.</p>
 
         {googleClientId ? <div id="google-signin" className="google-box" /> : (
           <div className="hint">Add VITE_GOOGLE_CLIENT_ID to enable Google login.</div>
@@ -110,6 +111,7 @@ export default function LoginPage() {
           {isRegister ? 'Already have an account? Login' : 'New here? Create account'}
         </button>
       </section>
+      <footer className="auth-footer">© {new Date().getFullYear()} SupremDas Group. All rights reserved.</footer>
     </main>
   );
 }

@@ -44,10 +44,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
     PlanName.basic: PlanDefinition(
         key=PlanName.basic,
         name="Basic Home",
-        price_monthly_cad=0.60,
-        regular_price_monthly_cad=1.99,
-        discount_percent=70,
-        discount_label="Launch offer: 70% off",
+        price_monthly_cad=1.99,
         tagline="Affordable plan for small families and couples.",
         limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6),
         features=[

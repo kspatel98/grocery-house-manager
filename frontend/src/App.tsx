@@ -8,10 +8,11 @@ import JoinPage from './pages/JoinPage';
 import ProfilePage from './pages/ProfilePage';
 import PricingPage from './pages/PricingPage';
 import AboutPage from './pages/AboutPage';
+import AppFrame from './components/AppFrame';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" replace />;
+  return token ? <AppFrame>{children}</AppFrame> : <Navigate to="/login" replace />;
 }
 
 export default function App() {

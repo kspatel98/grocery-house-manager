@@ -1,6 +1,6 @@
 # Grocery House Manager
 
-A full-stack grocery management starter project for shared households.
+A full-stack grocery management platform for shared households, published as Grocery House Manager by SupremDas Group.
 
 ### v12 update
 
@@ -351,10 +351,10 @@ This version adds:
 - Profile page now has a **Delete account** danger-zone flow.
   - User must type their exact full name, or email if no name exists.
   - Account deletion is blocked if the user owns shared houses that still have other members.
-- Added `/about` page with professional project information, features, how to use, best practices, and owner information.
+- Added `/about` page with professional project information, features, how to use, best practices, and company information.
 - Pricing updated to:
   - Free Starter: $0
-  - Basic Home: regular $1.99 CAD/month, launch price $0.60 CAD/month with 70% off display
+  - Basic Home: $1.99 CAD/month. Private discounts are applied with Stripe coupons/promotion codes.
   - Family Plus: $4.99 CAD/month
   - Household Pro: $6.99 CAD/month
 - Added optional Stripe coupon validation and checkout discount application.
@@ -368,7 +368,7 @@ New backend environment variable:
 STRIPE_PRICE_BASIC_MONTHLY=price_...
 ```
 
-Create this Stripe recurring monthly Price for the Basic Home launch price, then add the Price ID above.
+Create this Stripe recurring monthly Price for the Basic Home regular price, then add the Price ID above. Create private Stripe coupons/promotion codes separately for discounts such as 70% off.
 
 Recommended rebuild:
 
@@ -384,3 +384,41 @@ New/updated endpoints:
 - `POST /auth/me/delete`
 - `POST /billing/coupon/validate`
 - `POST /billing/checkout-session` now accepts optional `promotion_code_id`
+
+## v13 production branding update
+
+This version prepares the public website for launch under **SupremDas Group** with **Grocery House Manager** as the product name.
+
+Added/updated:
+
+- Added branded header and footer across authenticated pages.
+- Added official app logo assets under `frontend/public/brand/`.
+- Added browser tab favicon and web app manifest.
+- Updated browser title and metadata to `Grocery House Manager | SupremDas Group`.
+- Updated login screen with product logo and SupremDas Group branding.
+- Reworked the About page into a professional company/product information page.
+- Removed personal owner contact details and placeholder owner-edit messaging from the public UI.
+- Production frontend now builds and serves the optimized Vite bundle through `vite preview` instead of running the Vite dev server.
+- Public paid plan prices are now Basic Home `$1.99`, Family Plus `$4.99`, and Household Pro `$6.99` CAD/month. Private discounts should be handled through Stripe coupons/promotion codes.
+
+Stripe product image suggestion:
+
+```text
+frontend/public/brand/grocery-house-manager-stripe-logo.png
+```
+
+Use that image in Stripe for the Grocery House Manager product image.
+
+Recommended production deploy after pulling this version:
+
+```bash
+docker compose down --remove-orphans
+docker compose build --no-cache backend frontend
+docker compose up -d --force-recreate
+```
+
+Then hard-refresh the browser or open:
+
+```text
+https://grocery-house-manager.com/pricing?v=13
+```

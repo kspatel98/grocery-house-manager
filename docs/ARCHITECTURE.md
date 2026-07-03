@@ -27,3 +27,12 @@ Example:
 ## Why PostgreSQL
 
 The data is relational: users join houses, houses contain sections/products, and shopping list items reference existing products. PostgreSQL makes membership checks, sorting, filtering, and inventory updates straightforward.
+
+
+## v13 branding and production notes
+
+- SupremDas Group is the parent company/brand.
+- Grocery House Manager is the product/app name.
+- Frontend public assets include logo, favicon, web manifest, and Stripe product image.
+- The production frontend container builds the optimized Vite bundle at startup using environment variables from `frontend/.env`, then serves with `vite preview`.
+- Basic Home public price is $1.99 CAD/month; discounts should be handled by Stripe coupons/promotion codes rather than hardcoded launch pricing.

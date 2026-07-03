@@ -7,26 +7,27 @@ export default function AboutPage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>About Grocery House Manager</h1>
-          <p>A shared grocery inventory and shopping-list app for families, roommates, and busy homes.</p>
-        </div>
-        <div className="profile-actions">
-          <Link to="/pricing" className="secondary center-link">Plans</Link>
-          <Link to="/profile" className="secondary center-link">Profile</Link>
+          <p>A professional household grocery management platform by SupremDas Group.</p>
         </div>
       </header>
 
-      <section className="about-hero panel">
+      <section className="about-hero panel branded-hero">
         <div>
-          <p className="eyebrow">Project purpose</p>
-          <h2>Know what you have, what you need, and who changed it.</h2>
+          <p className="eyebrow">SupremDas Group product</p>
+          <h2>Manage groceries together with clarity, accountability, and real-time updates.</h2>
           <p>
-            Grocery House Manager helps a household manage grocery inventory together. Each house can invite members,
-            organize products by section, create multiple shopping lists, and update inventory after shopping is done.
+            Grocery House Manager helps families, roommates, and shared homes organize grocery inventory,
+            plan shopping lists, invite household members, and track activity in one secure place.
           </p>
+          <div className="hero-actions">
+            <Link to="/houses" className="primary center-link">Open houses</Link>
+            <Link to="/pricing" className="secondary center-link">View plans</Link>
+          </div>
         </div>
-        <div className="about-stat-card">
-          <strong>Built for shared homes</strong>
-          <span>Live updates, activity history, invite links, and shopping checkout built into one simple workflow.</span>
+        <div className="about-logo-card">
+          <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
+          <strong>Grocery House Manager</strong>
+          <span>by SupremDas Group</span>
         </div>
       </section>
 
@@ -35,11 +36,12 @@ export default function AboutPage() {
           <h2>Main features</h2>
           <ul className="feature-list roomy-list">
             <li>Google login and email/password account creation.</li>
-            <li>Create houses and invite family members or roommates with a secure link.</li>
+            <li>Create houses and invite family members or roommates with a secure invite link.</li>
+            <li>Accept-or-decline invite confirmation before a user joins a house.</li>
             <li>Editable grocery sections like fruits, snacks, dairy, frozen, household, and more.</li>
             <li>Add products with image/icon, quantity, unit, price, store name, brand, barcode, expiry date, and notes.</li>
             <li>Sort products by name, price, store name, quantity, expiry date, or newest.</li>
-            <li>Create multiple active shopping lists without finishing the current one first.</li>
+            <li>Create multiple active shopping lists without waiting for the current list to finish.</li>
             <li>Move products from “Products to buy” to “Added in cart,” then update inventory when shopping is done.</li>
             <li>Members and activity feed show who added, edited, removed, joined, or completed actions.</li>
           </ul>
@@ -62,22 +64,25 @@ export default function AboutPage() {
           <h2>Best practices</h2>
           <ul className="feature-list roomy-list">
             <li>Use clear product names like “Milk bags,” “Apples,” or “Greek yogurt.”</li>
-            <li>Add store names so the shopping list is easier to plan by store.</li>
-            <li>Use expiry dates for dairy, frozen food, and fresh items.</li>
+            <li>Add store names so shopping lists are easier to plan by store.</li>
+            <li>Use expiry dates for dairy, frozen food, fresh items, and household essentials.</li>
             <li>Use low-stock thresholds to quickly notice items that need refilling.</li>
             <li>Check the activity feed when multiple people are updating the same house.</li>
           </ul>
         </article>
 
-        <article className="panel owner-card">
-          <h2>Owner information</h2>
+        <article className="panel company-card">
+          <h2>Company information</h2>
           <div className="profile-details">
-            <div><strong>Owner</strong><span>Kartik Patel</span></div>
-            <div><strong>Project</strong><span>Grocery House Manager</span></div>
+            <div><strong>Company</strong><span>SupremDas Group</span></div>
+            <div><strong>Product</strong><span>Grocery House Manager</span></div>
             <div><strong>Website</strong><span>grocery-house-manager.com</span></div>
-            <div><strong>Contact</strong><span>kp3813294@gmail.com</span></div>
+            <div><strong>Category</strong><span>Household productivity and grocery management software</span></div>
           </div>
-          <p className="hint">You can edit this owner section later if you want to use a business support email instead of a personal email.</p>
+          <p>
+            SupremDas Group builds practical digital tools that simplify daily life through clean design,
+            reliable workflows, and user-friendly collaboration.
+          </p>
         </article>
       </section>
     </main>
