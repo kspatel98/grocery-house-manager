@@ -14,6 +14,7 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
   const navigate = useNavigate();
 
   const expectedDeleteName = profile?.full_name || profile?.email || '';
@@ -85,6 +86,22 @@ export default function ProfilePage() {
     }
   }
 
+  async function cancelSubscription() {
+    if (!confirm('Cancel your subscription at the end of the current billing period? You will keep paid features until the period ends.')) return;
+    try {
+      setCancelBusy(true);
+      const { data } = await api.post<{ message: string; current_period_end?: string }>('/billing/cancel-subscription');
+      setSuccess(data.message || 'Subscription cancellation scheduled.');
+      await loadProfile();
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+      setSuccess('');
+    } finally {
+      setCancelBusy(false);
+    }
+  }
+
   async function manageBilling() {
     try {
       const { data } = await api.post<{ url: string }>('/billing/customer-portal');
@@ -137,7 +154,16 @@ export default function ProfilePage() {
 
         <div className="profile-actions profile-plan-actions">
           <Link to="/pricing" className="primary center-link">View plans</Link>
-          {profile?.subscription_status && profile.subscription_status !== 'free' && <button className="secondary" onClick={manageBilling}>Manage billing</button>}
+          {profile?.subscription_status && profile.subscription_status !== 'free' && (
+            <>
+              <button className="secondary" onClick={manageBilling}>Manage billing</button>
+              {profile.subscription_status !== 'cancel_at_period_end' && (
+                <button className="secondary danger-button" onClick={cancelSubscription} disabled={cancelBusy}>
+                  {cancelBusy ? 'Scheduling cancellation...' : 'Cancel subscription'}
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         <form onSubmit={saveProfile} className="profile-form">

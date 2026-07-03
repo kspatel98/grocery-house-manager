@@ -510,3 +510,11 @@ NEW_USER_OFFER_DAYS=14
 ```
 
 The regular Basic Home Stripe price should remain $1.99 CAD/month. The discount should be applied by the promotion code, not by creating a separate discounted price.
+
+## v17 update: coupons and cancellation
+
+- Coupon input stays available during the Basic new-user offer window.
+- A verified coupon replaces the automatic Basic new-user offer for checkout; discounts are not stacked.
+- If a user already has an active subscription or accepted discount, the backend blocks new coupon validation and explains why.
+- Profile now includes a Cancel subscription button that schedules cancellation at the end of the current Stripe billing period.
+- Stripe webhooks preserve `cancel_at_period_end` status so users keep paid features until the period ends.

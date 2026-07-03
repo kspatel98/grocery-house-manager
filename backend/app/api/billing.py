@@ -64,7 +64,7 @@ def new_user_offer_for(user: User) -> NewUserOfferOut | None:
         discount_percent=65,
         duration_months=2,
         eligible_until=eligible_until,
-        message="New user offer active: Basic Home is 65% off for the first 2 billing months. Coupon codes cannot be combined with this offer. You can use a coupon after this offer expires or after you choose a non-offer checkout.",
+        message="New user offer active: Basic Home is 65% off for the first 2 billing months. You can still apply one valid coupon before checkout; if you use a coupon, the automatic Basic new-user offer will not be applied.",
     )
 
 
@@ -111,13 +111,11 @@ def validate_coupon(payload: CouponValidateIn, db: Session = Depends(get_db), us
     code = payload.code.strip()
     if not code:
         return CouponValidateOut(valid=False, message="Enter a coupon code.")
-    active_offer = new_user_offer_for(user)
-    if active_offer:
+    status_value = (user.subscription_status or "free").lower()
+    if status_value in {"active", "trialing", "cancel_at_period_end"}:
         return CouponValidateOut(
             valid=False,
-            message=f"Coupon codes cannot be used while your new-user Basic offer is active. {active_offer.message}",
-            blocked_by_new_user_offer=True,
-            available_after=active_offer.eligible_until,
+            message="You already have an active subscription or accepted discount. New coupon codes can only be applied before starting a new checkout. To change or cancel your current plan, use Manage billing or Cancel subscription in Profile.",
         )
 
     if not settings.stripe_secret_key:
@@ -182,13 +180,12 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         user.stripe_customer_id = customer_id
         db.commit()
 
+    status_value = (user.subscription_status or "free").lower()
+    if status_value in {"active", "trialing", "cancel_at_period_end"}:
+        raise HTTPException(status_code=400, detail="You already have an active subscription or a subscription scheduled to cancel. Manage billing, wait until the current period ends, or contact support before starting a new checkout.")
+
     active_offer = new_user_offer_for(user)
-    if active_offer and payload.promotion_code_id:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Coupon codes cannot be combined while your new-user Basic offer is active. {active_offer.message}",
-        )
-    if active_offer and payload.plan_name == PlanName.basic and not settings.stripe_promotion_code_basic_new_user:
+    if active_offer and payload.plan_name == PlanName.basic and not payload.promotion_code_id and not settings.stripe_promotion_code_basic_new_user:
         raise HTTPException(
             status_code=400,
             detail="The Basic new-user offer is visible, but STRIPE_PROMOTION_CODE_BASIC_NEW_USER is missing in backend/.env. Add the promo_... ID from Stripe or disable the offer.",
@@ -204,18 +201,46 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         "metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value},
         "subscription_data": {"metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value}},
     }
-    if active_offer and payload.plan_name == PlanName.basic and settings.stripe_promotion_code_basic_new_user:
-        checkout_kwargs["discounts"] = [{"promotion_code": settings.stripe_promotion_code_basic_new_user}]
-    elif payload.promotion_code_id:
+    if payload.promotion_code_id:
+        # User-entered coupons take priority over the automatic Basic new-user offer.
+        # This prevents discount stacking while keeping the coupon box usable.
         checkout_kwargs["discounts"] = [{"promotion_code": payload.promotion_code_id}]
+    elif active_offer and payload.plan_name == PlanName.basic and settings.stripe_promotion_code_basic_new_user:
+        checkout_kwargs["discounts"] = [{"promotion_code": settings.stripe_promotion_code_basic_new_user}]
     else:
-        checkout_kwargs["allow_promotion_codes"] = active_offer is None
+        checkout_kwargs["allow_promotion_codes"] = False
 
     try:
         session = stripe.checkout.Session.create(**checkout_kwargs)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Stripe checkout failed: {exc}")
     return CheckoutSessionOut(checkout_url=session["url"])
+
+
+
+
+@router.post("/cancel-subscription")
+def cancel_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=400, detail="Stripe is not configured.")
+    if not user.stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="No active Stripe subscription was found for this account.")
+    stripe.api_key = settings.stripe_secret_key
+    try:
+        subscription = stripe.Subscription.modify(user.stripe_subscription_id, cancel_at_period_end=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Stripe subscription cancellation failed: {exc}")
+
+    period_end = subscription.get("current_period_end")
+    if period_end:
+        user.subscription_current_period_end = datetime.fromtimestamp(int(period_end), tz=timezone.utc)
+    status_value = subscription.get("status") or user.subscription_status or "active"
+    user.subscription_status = "cancel_at_period_end" if status_value in {"active", "trialing"} else status_value
+    db.commit()
+    return {
+        "message": "Subscription cancellation scheduled. You can keep using your paid plan until the current billing period ends.",
+        "current_period_end": user.subscription_current_period_end,
+    }
 
 
 @router.post("/customer-portal")
@@ -256,7 +281,7 @@ def apply_subscription_event(db: Session, subscription: dict) -> None:
     plan_name = plan_from_price_id(price_id) or metadata_plan
 
     user.plan_name = plan_name if status_value in {"active", "trialing"} else PlanName.free
-    user.subscription_status = status_value
+    user.subscription_status = "cancel_at_period_end" if subscription.get("cancel_at_period_end") and status_value in {"active", "trialing"} else status_value
     user.stripe_customer_id = customer_id or user.stripe_customer_id
     user.stripe_subscription_id = subscription.get("id") or user.stripe_subscription_id
 
