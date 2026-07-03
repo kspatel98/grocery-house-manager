@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # then create a Promotion Code and paste its promo_... ID here.
     stripe_promotion_code_basic_new_user: str | None = None
     new_user_offer_days: int = 14
+    upload_dir: str = "public/uploads"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 

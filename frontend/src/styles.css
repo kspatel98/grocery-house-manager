@@ -803,3 +803,53 @@ code {
     grid-template-columns: 1fr;
   }
 }
+
+/* v16 premium polish */
+.offer-banner s,
+.old-price {
+  color: #8b98a7;
+  text-decoration-thickness: 2px;
+}
+.premium-receipt-panel {
+  border-color: rgba(23, 59, 47, 0.16);
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(243,250,246,.94));
+}
+.receipt-scan-results,
+.receipt-manual-block {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e5ebf2;
+  border-radius: 16px;
+  padding: 12px;
+  background: #fbfcfe;
+  margin: 12px 0;
+}
+.scan-line {
+  display: block;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: #f0f4f8;
+  color: #526171;
+  font-size: .9rem;
+}
+.scan-line.applied {
+  background: #eafff2;
+  color: #105c37;
+  font-weight: 800;
+}
+.personal-insights-panel {
+  background: linear-gradient(135deg, #ffffff, #f3faf6);
+}
+.profile-insights-grid .stat-card strong {
+  font-size: 1.35rem;
+}
+.compact-feature-list {
+  margin-top: 12px;
+}
+.limits-box span {
+  justify-content: center;
+  text-align: center;
+}
+.pricing-card .feature-list li {
+  line-height: 1.35;
+}

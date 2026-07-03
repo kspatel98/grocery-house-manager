@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, houses, products, sections, shopping, live, billing
 from app.core.config import settings
@@ -10,6 +12,9 @@ Base.metadata.create_all(bind=engine)
 ensure_dev_schema(engine)
 
 app = FastAPI(title=settings.app_name)
+
+Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Product, Receipt, Section, ShoppingList, User } from '../types';
+import type { Activity, House, HouseMember, Product, Receipt, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
 import { ActivityFeed, MembersPanel } from '../components/HouseInfoPanels';
@@ -269,6 +269,10 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
   const [price, setPrice] = useState('');
   const [lines, setLines] = useState<{ product_id: number; product_name: string; price: number; store_name?: string }[]>([]);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptText, setReceiptText] = useState('');
+  const [uploadResult, setUploadResult] = useState<ReceiptUploadResult | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [error, setError] = useState('');
 
   function addLine() {
@@ -282,6 +286,35 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
     setSelectedProductId('');
     setPrice('');
     setError('');
+  }
+
+  async function uploadReceipt() {
+    if (!receiptFile) {
+      setError('Choose a receipt photo, image, or PDF first.');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', receiptFile);
+    if (storeName.trim()) formData.append('store_name', storeName.trim());
+    if (notes.trim()) formData.append('notes', notes.trim());
+    if (receiptText.trim()) formData.append('receipt_text', receiptText.trim());
+    try {
+      setUploadBusy(true);
+      setUploadResult(null);
+      const { data } = await api.post<ReceiptUploadResult>(`/houses/${houseId}/receipts/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setUploadResult(data);
+      setReceiptFile(null);
+      setReceiptText('');
+      setNotes('');
+      setError('');
+      await onChange();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setUploadBusy(false);
+    }
   }
 
   async function saveReceipt() {
@@ -308,33 +341,60 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
   }
 
   return (
-    <section className="panel receipt-panel">
-      <h2>Receipts & price updates</h2>
-      <p>Upload receipt details to keep product prices updated by store. One product can keep prices for multiple stores.</p>
-      {error && <div className="error">{error}</div>}
-      <label>Store name<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
-      <label>Receipt image URL<input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Optional image URL" /></label>
-      <div className="receipt-line-builder">
-        <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value ? Number(e.target.value) : '')}>
-          <option value="">Select product</option>
-          {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-        </select>
-        <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" />
-        <button className="secondary" type="button" onClick={addLine}>Add</button>
+    <section className="panel receipt-panel premium-receipt-panel">
+      <div className="panel-title-row">
+        <div>
+          <p className="eyebrow">Premium price tracking</p>
+          <h2>Receipts & store prices</h2>
+        </div>
+        <span className="badge">OCR assisted</span>
       </div>
-      {lines.length > 0 && (
-        <div className="receipt-lines">
-          {lines.map((line, index) => (
-            <span key={`${line.product_id}-${index}`}>{line.product_name} • {line.store_name || storeName || 'Store'} • ${line.price.toFixed(2)}</span>
+      <p>Attach a receipt photo/PDF to save it with the house. Images are scanned when possible and matched to existing products so prices can update automatically. Review results because receipt OCR is never perfect.</p>
+      {error && <div className="error">{error}</div>}
+      {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}
+      <label>Store name<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
+      <label>Attach receipt photo or PDF<input type="file" accept="image/*,.pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} /></label>
+      <label>Optional receipt text for better matching<textarea value={receiptText} onChange={(e) => setReceiptText(e.target.value)} placeholder="Paste receipt text if the image is blurry or OCR misses items." /></label>
+      <button className="secondary full" type="button" onClick={uploadReceipt} disabled={uploadBusy || !receiptFile}>{uploadBusy ? 'Uploading and scanning...' : 'Upload & scan receipt'}</button>
+
+      {uploadResult?.parsed_lines?.length ? (
+        <div className="receipt-scan-results">
+          <strong>Scan results</strong>
+          {uploadResult.parsed_lines.slice(0, 8).map((line, index) => (
+            <span key={`${line.raw_text}-${index}`} className={line.applied ? 'scan-line applied' : 'scan-line'}>
+              {line.applied ? '✓' : '•'} {line.matched_product_name || line.product_name || line.raw_text} {line.price !== null && line.price !== undefined ? `• $${line.price.toFixed(2)}` : ''}
+            </span>
           ))}
         </div>
-      )}
-      <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Receipt notes" /></label>
-      <button className="primary full" onClick={saveReceipt} disabled={!lines.length}>Save receipt prices</button>
+      ) : null}
+
+      <div className="receipt-manual-block">
+        <h3>Manual price entry</h3>
+        <p className="small-muted">Use this when OCR misses an item or the product name on the receipt is different.</p>
+        <label>Receipt image URL<input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Optional image URL" /></label>
+        <div className="receipt-line-builder">
+          <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">Select product</option>
+            {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+          </select>
+          <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" />
+          <button className="secondary" type="button" onClick={addLine}>Add</button>
+        </div>
+        {lines.length > 0 && (
+          <div className="receipt-lines">
+            {lines.map((line, index) => (
+              <span key={`${line.product_id}-${index}`}>{line.product_name} • {line.store_name || storeName || 'Store'} • ${line.price.toFixed(2)}</span>
+            ))}
+          </div>
+        )}
+        <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Receipt notes" /></label>
+        <button className="primary full" onClick={saveReceipt} disabled={!lines.length}>Save manual receipt prices</button>
+      </div>
       {receipts.length > 0 && <small className="small-muted">Latest receipt: {receipts[0].store_name || 'Store'} • {new Date(receipts[0].created_at).toLocaleDateString()}</small>}
     </section>
   );
 }
+
 
 function HouseActionsPanel({ house, memberCount, onLeave, onDelete }: { house: House | null; memberCount: number; onLeave: () => void; onDelete: () => void }) {
   if (!house) return null;

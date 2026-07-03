@@ -190,3 +190,29 @@ export type NewUserOffer = {
   eligible_until?: string;
   message: string;
 };
+
+export type ReceiptParsedLine = {
+  raw_text: string;
+  product_name?: string | null;
+  matched_product_id?: number | null;
+  matched_product_name?: string | null;
+  price?: number | null;
+  applied: boolean;
+};
+
+export type ReceiptUploadResult = {
+  receipt: Receipt;
+  extracted_text?: string | null;
+  parsed_lines: ReceiptParsedLine[];
+  matched_count: number;
+  message: string;
+};
+
+export type PersonalInsights = {
+  plan_name: PlanName;
+  receipts_uploaded: number;
+  prices_recorded: number;
+  stores_tracked: number;
+  estimated_personal_spend: number;
+  premium_tools: string[];
+};

@@ -124,7 +124,10 @@ def validate_coupon(payload: CouponValidateIn, db: Session = Depends(get_db), us
         raise HTTPException(status_code=400, detail="Stripe is not configured. Add STRIPE_SECRET_KEY before validating coupons.")
 
     stripe.api_key = settings.stripe_secret_key
-    promotion_codes = stripe.PromotionCode.list(code=code, active=True, limit=1)
+    try:
+        promotion_codes = stripe.PromotionCode.list(code=code, active=True, limit=1)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Stripe coupon check failed: {exc}")
     if not promotion_codes.data:
         return CouponValidateOut(valid=False, message="This coupon code is invalid or expired.")
 
@@ -171,7 +174,10 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
     stripe.api_key = settings.stripe_secret_key
     customer_id = user.stripe_customer_id
     if not customer_id:
-        customer = stripe.Customer.create(email=user.email, name=user.full_name or user.email, metadata={"user_id": str(user.id)})
+        try:
+            customer = stripe.Customer.create(email=user.email, name=user.full_name or user.email, metadata={"user_id": str(user.id)})
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Stripe customer creation failed: {exc}")
         customer_id = customer["id"]
         user.stripe_customer_id = customer_id
         db.commit()
@@ -181,6 +187,11 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         raise HTTPException(
             status_code=400,
             detail=f"Coupon codes cannot be combined while your new-user Basic offer is active. {active_offer.message}",
+        )
+    if active_offer and payload.plan_name == PlanName.basic and not settings.stripe_promotion_code_basic_new_user:
+        raise HTTPException(
+            status_code=400,
+            detail="The Basic new-user offer is visible, but STRIPE_PROMOTION_CODE_BASIC_NEW_USER is missing in backend/.env. Add the promo_... ID from Stripe or disable the offer.",
         )
 
     checkout_kwargs = {
@@ -200,7 +211,10 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
     else:
         checkout_kwargs["allow_promotion_codes"] = active_offer is None
 
-    session = stripe.checkout.Session.create(**checkout_kwargs)
+    try:
+        session = stripe.checkout.Session.create(**checkout_kwargs)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Stripe checkout failed: {exc}")
     return CheckoutSessionOut(checkout_url=session["url"])
 
 

@@ -321,6 +321,32 @@ class ReceiptOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ReceiptParsedLineOut(BaseModel):
+    raw_text: str
+    product_name: str | None = None
+    matched_product_id: int | None = None
+    matched_product_name: str | None = None
+    price: float | None = None
+    applied: bool = False
+
+
+class ReceiptUploadOut(BaseModel):
+    receipt: ReceiptOut
+    extracted_text: str | None = None
+    parsed_lines: list[ReceiptParsedLineOut] = Field(default_factory=list)
+    matched_count: int = 0
+    message: str
+
+
+class PersonalInsightsOut(BaseModel):
+    plan_name: PlanName
+    receipts_uploaded: int = 0
+    prices_recorded: int = 0
+    stores_tracked: int = 0
+    estimated_personal_spend: float = 0
+    premium_tools: list[str] = Field(default_factory=list)
+
+
 class AccountDeleteIn(BaseModel):
     confirm_name: str = Field(min_length=1, max_length=255)
 

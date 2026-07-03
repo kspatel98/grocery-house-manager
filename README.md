@@ -484,3 +484,29 @@ NEW_USER_OFFER_DAYS=14
 ```
 
 The app applies this automatic discount only for eligible new users choosing Basic Home. When this offer is active, regular coupon codes are blocked so discounts cannot be clubbed/stacked.
+
+
+## v16 launch update
+
+- Basic Home now clearly shows the new-user offer as a crossed regular price and explains that it renews at the regular $1.99 CAD/month after the first 2 billing months.
+- Pricing cards focus on premium features, while the numeric plan limits stay grouped at the bottom of each card.
+- Receipt upload now supports image/PDF attachment storage. Images are scanned with OCR when available and matched against existing product names to update store-specific prices automatically.
+- Receipt uploads are stored in the backend uploads volume and served from `/uploads/...`; production Caddy routes `/uploads*` to the backend.
+- Profile now includes personal premium insights such as receipts uploaded, prices recorded, stores tracked, and tracked spend.
+- Stripe checkout now returns clear 400-level messages for missing price IDs, missing Basic new-user promo code, or Stripe API failures instead of causing a backend 500.
+- Startup migration now safely ignores the existing `uq_product_store_price` constraint to prevent backend restart loops.
+
+### Receipt OCR note
+
+The Docker backend installs Tesseract OCR and uses it for receipt images. OCR is best-effort; users should review matched products and manually add any missed receipt lines.
+
+### Production environment reminder
+
+For the Basic 65% new-user offer, create a Stripe coupon with 65% off, repeating for 2 months, then create a promotion code and set:
+
+```env
+STRIPE_PROMOTION_CODE_BASIC_NEW_USER=promo_...
+NEW_USER_OFFER_DAYS=14
+```
+
+The regular Basic Home Stripe price should remain $1.99 CAD/month. The discount should be applied by the promotion code, not by creating a separate discounted price.

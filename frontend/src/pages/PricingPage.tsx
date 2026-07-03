@@ -119,7 +119,7 @@ export default function PricingPage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>Subscription plans</h1>
-          <p>Simple pricing for families, roommates, and shared homes.</p>
+          <p>Choose the plan for houses you own. Members can use house features based on the owner's plan, while their own subscription unlocks personal premium tools.</p>
         </div>
         <div className="profile-actions">
           <button className="secondary" onClick={load}>Refresh</button>
@@ -135,8 +135,8 @@ export default function PricingPage() {
       {loadingPlans && <div className="panel muted-panel">Loading plans...</div>}
       {subscription?.new_user_offer?.active && (
         <section className="success offer-banner">
-          <strong>New-user offer active:</strong> Basic Home is 65% off for the first 2 billing months. Coupon codes cannot be combined while this offer is active.
-          {subscription.new_user_offer.eligible_until && ` Coupons can be used after ${new Date(subscription.new_user_offer.eligible_until).toLocaleDateString()} if you have not used this offer.`}
+          <strong>New-user offer active:</strong> Basic Home is shown as <s>$1.99</s> $0.70 CAD/month for the first 2 billing months. After 2 months, Stripe will charge the regular Basic Home price of $1.99 CAD/month. Coupon codes cannot be combined while this offer is active.
+          {subscription.new_user_offer.eligible_until && ` If you do not use this offer, coupons can be used after ${new Date(subscription.new_user_offer.eligible_until).toLocaleDateString()}.`}
         </section>
       )}
 
@@ -144,7 +144,7 @@ export default function PricingPage() {
         <div>
           <p className="eyebrow">Have a coupon?</p>
           <h2>Apply coupon code</h2>
-          <p>Public prices are shown by default. Enter an active coupon code to preview your discounted price before checkout. Coupons cannot be combined with the new-user Basic offer.</p>
+          <p>Public prices are shown by default. Enter an active coupon code to preview your discounted price before checkout. Only one offer can be used at a time, so coupons cannot be combined with the new-user Basic offer.</p>
         </div>
         <form onSubmit={validateCoupon} className="coupon-form">
           <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" disabled={!!subscription?.new_user_offer?.active} />
@@ -196,7 +196,7 @@ export default function PricingPage() {
               </div>
               {hasNewUserBasicOffer && (
                 <p className="coupon-savings">
-                  You save {formatPrice(plan.price_monthly_cad - effectivePrice)} per month for the first 2 billing months. No coupon can be added with this offer.
+                  65% off for your first 2 billing months. After that, this plan automatically renews at the regular price of {formatPrice(plan.price_monthly_cad)} CAD/month. Coupons cannot be added with this offer.
                 </p>
               )}
               {hasCouponDiscount && (

@@ -59,7 +59,7 @@ def ensure_dev_schema(engine: Engine) -> None:
 
         "CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, uploaded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, store_name VARCHAR(150), receipt_date DATE, image_url TEXT, notes TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
         "CREATE TABLE IF NOT EXISTS product_store_prices (id SERIAL PRIMARY KEY, product_id INTEGER REFERENCES products(id) ON DELETE CASCADE, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, store_name VARCHAR(150) NOT NULL, price DOUBLE PRECISION NOT NULL, source VARCHAR(60) DEFAULT 'manual', receipt_id INTEGER REFERENCES receipts(id) ON DELETE SET NULL, recorded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
-        "DO $$ BEGIN ALTER TABLE product_store_prices ADD CONSTRAINT uq_product_store_price UNIQUE (product_id, store_name); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+        "DO $$ BEGIN ALTER TABLE product_store_prices ADD CONSTRAINT uq_product_store_price UNIQUE (product_id, store_name); EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$",
     ]
     with engine.begin() as connection:
         for statement in statements:

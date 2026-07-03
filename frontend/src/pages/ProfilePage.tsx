@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { UserProfile } from '../types';
+import type { PersonalInsights, UserProfile } from '../types';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [insights, setInsights] = useState<PersonalInsights | null>(null);
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
@@ -23,6 +24,12 @@ export default function ProfilePage() {
       setProfile(data);
       setFullName(data.full_name || '');
       setAvatarUrl(data.avatar_url || '');
+      try {
+        const insightsRes = await api.get<PersonalInsights>('/auth/me/insights');
+        setInsights(insightsRes.data);
+      } catch {
+        setInsights(null);
+      }
       setError('');
     } catch (err) {
       setError(errorMessage(err));
@@ -45,6 +52,12 @@ export default function ProfilePage() {
         avatar_url: data.avatar_url,
       }));
       setSuccess('Profile updated.');
+      try {
+        const insightsRes = await api.get<PersonalInsights>('/auth/me/insights');
+        setInsights(insightsRes.data);
+      } catch {
+        setInsights(null);
+      }
       setError('');
     } catch (err) {
       setError(errorMessage(err));
@@ -136,6 +149,29 @@ export default function ProfilePage() {
           </div>
         </form>
       </section>
+
+
+      {insights && (
+        <section className="panel profile-panel personal-insights-panel">
+          <div className="panel-title-row">
+            <div>
+              <p className="eyebrow">Personal premium tools</p>
+              <h2>Your personal insights</h2>
+              <p>House features follow the house owner's plan. These tools belong to your own account and grow with your own subscription.</p>
+            </div>
+            <Link to="/pricing" className="secondary center-link">Upgrade</Link>
+          </div>
+          <div className="stats-grid four profile-insights-grid">
+            <div className="stat-card"><strong>{insights.receipts_uploaded}</strong><span>Receipts uploaded</span></div>
+            <div className="stat-card"><strong>{insights.prices_recorded}</strong><span>Prices recorded</span></div>
+            <div className="stat-card"><strong>{insights.stores_tracked}</strong><span>Stores tracked</span></div>
+            <div className="stat-card"><strong>${insights.estimated_personal_spend.toFixed(2)}</strong><span>Tracked spend</span></div>
+          </div>
+          <ul className="feature-list compact-feature-list">
+            {insights.premium_tools.map((tool) => <li key={tool}>{tool}</li>)}
+          </ul>
+        </section>
+      )}
 
       <section className="panel danger-zone">
         <div>
