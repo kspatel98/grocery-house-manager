@@ -1,7 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { PersonalInsights, UserProfile } from '../types';
+import type { PersonalInsights, Subscription, UserProfile } from '../types';
+
+const PLAN_LABELS: Record<string, string> = {
+  free: 'Free Starter',
+  basic: 'Basic Home',
+  family: 'Family Plus',
+  pro: 'Household Pro',
+};
+
+function isPaidStatus(status?: string) {
+  return ['active', 'trialing', 'past_due', 'cancel_at_period_end'].includes((status || '').toLowerCase());
+}
+
+function isCancelledAtPeriodEnd(status?: string) {
+  return (status || '').toLowerCase() === 'cancel_at_period_end';
+}
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -15,9 +30,23 @@ export default function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
   const navigate = useNavigate();
 
   const expectedDeleteName = profile?.full_name || profile?.email || '';
+  const planName = profile?.plan_name || 'free';
+  const planLabel = PLAN_LABELS[planName] || planName;
+  const paid = isPaidStatus(profile?.subscription_status);
+  const proActive = planName === 'pro' && paid;
+  const familyActive = planName === 'family' && paid;
+  const basicActive = planName === 'basic' && paid;
+
+  const personalPlanAction = useMemo(() => {
+    if (proActive) return { label: 'Household Pro active', kind: 'status' as const };
+    if (familyActive) return { label: 'Upgrade to Household Pro', kind: 'link' as const };
+    if (basicActive) return { label: 'Upgrade personal tools', kind: 'link' as const };
+    return { label: 'Upgrade personal tools', kind: 'link' as const };
+  }, [proActive, familyActive, basicActive]);
 
   async function loadProfile() {
     try {
@@ -65,6 +94,21 @@ export default function ProfilePage() {
       setSuccess('');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function syncSubscription() {
+    try {
+      setSyncBusy(true);
+      const { data } = await api.post<Subscription>('/billing/sync-subscription');
+      await loadProfile();
+      setSuccess(`Subscription synced. Current plan: ${PLAN_LABELS[data.plan_name] || data.plan_name}.`);
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+      setSuccess('');
+    } finally {
+      setSyncBusy(false);
     }
   }
 
@@ -143,25 +187,54 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        <div className="plan-summary-card">
+          <div>
+            <p className="eyebrow">Current plan</p>
+            <h3>{planLabel}</h3>
+            <p>
+              {proActive
+                ? 'Household Pro is active. Your personal premium tools and owned-house limits are unlocked.'
+                : paid
+                  ? `${planLabel} is active. You can manage billing or upgrade anytime.`
+                  : 'You are currently on the Free Starter plan.'}
+            </p>
+            {isCancelledAtPeriodEnd(profile?.subscription_status) && profile?.subscription_current_period_end && (
+              <p className="small-muted">Cancellation scheduled. Paid access remains until {new Date(profile.subscription_current_period_end).toLocaleDateString()}.</p>
+            )}
+          </div>
+          <span className={`plan-status-badge ${proActive ? 'pro' : paid ? 'paid' : 'free'}`}>
+            {proActive ? 'Pro active' : paid ? 'Paid active' : 'Free'}
+          </span>
+        </div>
+
         <div className="profile-details">
           <div><strong>Email</strong><span>{profile?.email || '-'}</span></div>
           <div><strong>Login method</strong><span>{profile?.auth_provider || '-'}</span></div>
           <div><strong>User ID</strong><span>{profile?.id || '-'}</span></div>
           <div><strong>Account created</strong><span>{profile?.created_at ? new Date(profile.created_at).toLocaleString() : '-'}</span></div>
-          <div><strong>Plan</strong><span>{profile?.plan_name || 'free'}</span></div>
+          <div><strong>Plan</strong><span>{planLabel}</span></div>
           <div><strong>Subscription</strong><span>{profile?.subscription_status || 'free'}</span></div>
         </div>
 
         <div className="profile-actions profile-plan-actions">
-          <Link to="/pricing" className="primary center-link">View plans</Link>
-          {profile?.subscription_status && profile.subscription_status !== 'free' && (
+          {paid ? (
             <>
-              <button className="secondary" onClick={manageBilling}>Manage billing</button>
-              {profile.subscription_status !== 'cancel_at_period_end' && (
+              <button className="primary" onClick={manageBilling}>Manage billing</button>
+              <button className="secondary" onClick={syncSubscription} disabled={syncBusy}>
+                {syncBusy ? 'Syncing...' : 'Sync subscription'}
+              </button>
+              {!isCancelledAtPeriodEnd(profile?.subscription_status) && (
                 <button className="secondary danger-button" onClick={cancelSubscription} disabled={cancelBusy}>
                   {cancelBusy ? 'Scheduling cancellation...' : 'Cancel subscription'}
                 </button>
               )}
+            </>
+          ) : (
+            <>
+              <Link to="/pricing" className="primary center-link">View plans</Link>
+              <button className="secondary" onClick={syncSubscription} disabled={syncBusy}>
+                {syncBusy ? 'Syncing...' : 'I already paid — sync subscription'}
+              </button>
             </>
           )}
         </div>
@@ -176,16 +249,22 @@ export default function ProfilePage() {
         </form>
       </section>
 
-
       {insights && (
         <section className="panel profile-panel personal-insights-panel">
-          <div className="panel-title-row">
+          <div className="panel-title-row insights-title-row">
             <div>
               <p className="eyebrow">Personal premium tools</p>
               <h2>Your personal insights</h2>
               <p>House features follow the house owner's plan. These tools belong to your own account and grow with your own subscription.</p>
             </div>
-            <Link to="/pricing" className="secondary center-link">Upgrade</Link>
+            <div className="insights-actions">
+              {personalPlanAction.kind === 'status' ? (
+                <span className="plan-status-badge pro">{personalPlanAction.label}</span>
+              ) : (
+                <Link to="/pricing" className="secondary center-link">{personalPlanAction.label}</Link>
+              )}
+              {paid && <button className="secondary" onClick={manageBilling}>Manage billing</button>}
+            </div>
           </div>
           <div className="stats-grid four profile-insights-grid">
             <div className="stat-card"><strong>{insights.receipts_uploaded}</strong><span>Receipts uploaded</span></div>

@@ -853,3 +853,96 @@ code {
 .pricing-card .feature-list li {
   line-height: 1.35;
 }
+
+/* v18 profile/subscription polish */
+.plan-summary-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid #dce9e2;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #f7fff9, #f4f8ff);
+  margin-bottom: 16px;
+}
+.plan-summary-card h3 { margin: 0 0 6px; font-size: 1.35rem; }
+.plan-summary-card p { margin-bottom: 0; }
+.plan-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  border: 1px solid #d9e5ef;
+  background: #eef4fa;
+  color: #324253;
+}
+.plan-status-badge.pro {
+  background: #173b2f;
+  color: #fff;
+  border-color: #173b2f;
+}
+.plan-status-badge.paid {
+  background: #eafff2;
+  color: #105c37;
+  border-color: #b8efce;
+}
+.plan-status-badge.free {
+  background: #fff8d8;
+  color: #735400;
+  border-color: #f2de8b;
+}
+.insights-title-row { align-items: flex-start; }
+.insights-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: min(280px, 100%);
+}
+.personal-insights-panel .secondary,
+.personal-insights-panel .plan-status-badge {
+  width: auto;
+}
+.profile-actions button,
+.profile-actions a,
+.insights-actions button,
+.insights-actions a {
+  min-height: 42px;
+}
+
+@media (max-width: 700px) {
+  .profile-panel { max-width: 100%; }
+  .plan-summary-card { grid-template-columns: 1fr; }
+  .plan-status-badge { width: 100%; }
+  .profile-actions.profile-plan-actions,
+  .insights-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    justify-content: stretch;
+  }
+  .profile-actions.profile-plan-actions > *,
+  .insights-actions > * {
+    width: 100%;
+  }
+  .personal-insights-panel {
+    padding: 18px;
+  }
+  .personal-insights-panel .panel-title-row {
+    gap: 16px;
+  }
+  .profile-insights-grid {
+    gap: 12px;
+  }
+  .profile-insights-grid .stat-card {
+    padding: 16px;
+  }
+  .profile-insights-grid .stat-card strong {
+    font-size: 1.8rem;
+  }
+}

@@ -218,6 +218,96 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
 
 
 
+def apply_checkout_session_event(db: Session, session: dict) -> None:
+    """Use Checkout metadata/client_reference_id to connect a paid checkout to an app user.
+
+    This is intentionally defensive because Stripe webhook ordering can vary:
+    checkout.session.completed may arrive before subscription.updated, and the
+    subscription may or may not include the metadata in older sessions.
+    """
+    user_id = None
+    metadata = session.get("metadata") or {}
+    if metadata.get("user_id"):
+        user_id = metadata.get("user_id")
+    elif session.get("client_reference_id"):
+        user_id = session.get("client_reference_id")
+
+    user = None
+    if user_id:
+        try:
+            user = db.get(User, int(user_id))
+        except (TypeError, ValueError):
+            user = None
+
+    customer_id = session.get("customer")
+    if not user and customer_id:
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+    if not user:
+        return
+
+    subscription_id = session.get("subscription")
+    if customer_id:
+        user.stripe_customer_id = customer_id
+    if subscription_id:
+        user.stripe_subscription_id = subscription_id
+
+    # Prefer the full subscription object so we can read the real price/status.
+    if subscription_id:
+        try:
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            apply_subscription_event(db, subscription)
+            return
+        except Exception:
+            # Fallback to the plan name carried by checkout metadata.
+            pass
+
+    try:
+        metadata_plan = PlanName(metadata.get("plan_name", "free"))
+    except ValueError:
+        metadata_plan = PlanName.free
+    if metadata_plan != PlanName.free:
+        user.plan_name = metadata_plan
+        user.subscription_status = "active"
+    db.commit()
+
+
+@router.post("/sync-subscription", response_model=SubscriptionOut)
+def sync_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Refresh the signed-in user's subscription from Stripe.
+
+    This gives users a safe self-service recovery path if a webhook was delayed
+    or missed. It does not create a subscription; it only syncs an existing
+    Stripe customer/subscription connected to the user.
+    """
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=400, detail="Stripe is not configured.")
+    if not user.stripe_customer_id and not user.stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="No Stripe customer or subscription is connected to this account yet.")
+
+    stripe.api_key = settings.stripe_secret_key
+    subscription = None
+    if user.stripe_subscription_id:
+        try:
+            subscription = stripe.Subscription.retrieve(user.stripe_subscription_id)
+        except Exception:
+            subscription = None
+
+    if not subscription and user.stripe_customer_id:
+        try:
+            subscriptions = stripe.Subscription.list(customer=user.stripe_customer_id, status="all", limit=10)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Stripe subscription sync failed: {exc}")
+        active_candidates = [s for s in subscriptions.data if s.get("status") in {"active", "trialing", "past_due"}]
+        subscription = active_candidates[0] if active_candidates else (subscriptions.data[0] if subscriptions.data else None)
+
+    if not subscription:
+        raise HTTPException(status_code=400, detail="No Stripe subscription was found for this account.")
+
+    apply_subscription_event(db, subscription)
+    db.refresh(user)
+    return subscription_out(user, db)
+
+
 
 @router.post("/cancel-subscription")
 def cancel_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -311,8 +401,10 @@ async def stripe_webhook(request: Request):
     data_object = event["data"]["object"]
     db = SessionLocal()
     try:
-        if event_type in {"customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"}:
+        if event_type == "checkout.session.completed":
+            apply_checkout_session_event(db, data_object)
+        elif event_type in {"customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"}:
             apply_subscription_event(db, data_object)
     finally:
         db.close()
-    return {"received": True}
+    return {"received": True, "event_type": event_type}
