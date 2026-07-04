@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { AuthResponse } from '../types';
 
@@ -110,6 +110,7 @@ export default function LoginPage() {
         <button className="link-button" onClick={() => setIsRegister(!isRegister)}>
           {isRegister ? 'Already have an account? Login' : 'New here? Create account'}
         </button>
+        <Link to="/" className="home-link">← Back to website</Link>
       </section>
       <footer className="auth-footer">© {new Date().getFullYear()} SupremDas Group. All rights reserved.</footer>
     </main>

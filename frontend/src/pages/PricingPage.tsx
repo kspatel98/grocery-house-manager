@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { CouponValidation, Plan, PlanName, Subscription } from '../types';
 
@@ -28,6 +28,8 @@ export default function PricingPage() {
   const [coupon, setCoupon] = useState<CouponValidation | null>(null);
   const [couponBusy, setCouponBusy] = useState(false);
   const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const loggedIn = Boolean(localStorage.getItem('token'));
 
   async function load() {
     setError('');
@@ -53,6 +55,10 @@ export default function PricingPage() {
   async function validateCoupon(event: React.FormEvent) {
     event.preventDefault();
     const code = couponCode.trim();
+    if (!loggedIn) {
+      setCoupon({ valid: false, message: 'Please login or create an account before applying a coupon.' });
+      return;
+    }
     if (!code) {
       setCoupon({ valid: false, message: 'Enter a coupon code.' });
       return;
@@ -84,6 +90,10 @@ export default function PricingPage() {
 
   async function checkout(planName: PlanName) {
     if (planName === 'free') return;
+    if (!loggedIn) {
+      navigate('/login');
+      return;
+    }
     try {
       setBusyPlan(planName);
       setError('');
@@ -99,6 +109,10 @@ export default function PricingPage() {
   }
 
   async function manageBilling() {
+    if (!loggedIn) {
+      navigate('/login');
+      return;
+    }
     try {
       const { data } = await api.post<{ url: string }>('/billing/customer-portal');
       window.location.href = data.url;
@@ -112,15 +126,16 @@ export default function PricingPage() {
   const checkoutStatus = params.get('checkout');
 
   return (
-    <main className="page shell wide">
+    <main className="page shell wide pricing-page">
       <header className="topbar">
         <div>
-          <Link to="/houses" className="breadcrumb">← Houses</Link>
+          <Link to={loggedIn ? '/houses' : '/'} className="breadcrumb">← {loggedIn ? 'Houses' : 'Home'}</Link>
           <h1>Subscription plans</h1>
           <p>Choose the plan for houses you own. Members can use house features based on the owner's plan, while their own subscription unlocks personal premium tools.</p>
         </div>
         <div className="profile-actions">
           <button className="secondary" onClick={load}>Refresh</button>
+          {!loggedIn && <Link className="primary center-link" to="/login">Login to subscribe</Link>}
           {subscription?.subscription_status && subscription.subscription_status !== 'free' && (
             <button className="secondary" onClick={manageBilling}>Manage billing</button>
           )}
@@ -131,6 +146,12 @@ export default function PricingPage() {
       {checkoutStatus === 'cancelled' && <div className="hint">Checkout cancelled. Your current plan is unchanged.</div>}
       {error && <div className="error">{error}</div>}
       {loadingPlans && <div className="panel muted-panel">Loading plans...</div>}
+      {!loggedIn && (
+        <section className="hint offer-banner">
+          <strong>Viewing plans as a guest.</strong> Create an account or sign in to see your new-user offer, apply account-specific coupons, and start checkout.
+        </section>
+      )}
+
       {subscription?.new_user_offer?.active && (
         <section className="success offer-banner">
           <strong>New-user offer available:</strong> Basic Home is shown as <s>$1.99</s> $0.70 CAD/month for the first 2 billing months. After 2 months, Stripe will charge the regular Basic Home price of $1.99 CAD/month. You can still enter a coupon; if you use a coupon, the automatic Basic offer will not be applied.
@@ -145,8 +166,8 @@ export default function PricingPage() {
           <p>Public prices are shown by default. Enter an active coupon code to preview your discounted price before checkout. Only one discount can be used at a time. A verified coupon replaces the automatic Basic new-user offer for checkout; after a discount or paid plan is accepted, new coupons cannot be added to that active subscription.</p>
         </div>
         <form onSubmit={validateCoupon} className="coupon-form">
-          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" />
-          <button className="secondary" disabled={couponBusy}>{couponBusy ? 'Checking...' : 'Apply'}</button>
+          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" disabled={!loggedIn} />
+          <button className="secondary" disabled={couponBusy || !loggedIn}>{!loggedIn ? 'Login first' : couponBusy ? 'Checking...' : 'Apply'}</button>
           {coupon && <button type="button" className="ghost-button" onClick={removeCoupon}>Remove</button>}
         </form>
         {coupon && (
@@ -218,7 +239,7 @@ export default function PricingPage() {
                 <button className="secondary full" disabled>Free by default</button>
               ) : (
                 <button className="primary full" disabled={busyPlan === plan.key} onClick={() => checkout(plan.key)}>
-                  {busyPlan === plan.key ? 'Opening checkout...' : `Choose ${plan.name}`}
+                  {!loggedIn ? 'Login to choose' : busyPlan === plan.key ? 'Opening checkout...' : `Choose ${plan.name}`}
                 </button>
               )}
             </article>

@@ -518,3 +518,24 @@ The regular Basic Home Stripe price should remain $1.99 CAD/month. The discount 
 - If a user already has an active subscription or accepted discount, the backend blocks new coupon validation and explains why.
 - Profile now includes a Cancel subscription button that schedules cancellation at the end of the current Stripe billing period.
 - Stripe webhooks preserve `cancel_at_period_end` status so users keep paid features until the period ends.
+
+## v19 launch polish
+
+This version adds a production-ready public website layer around the existing SaaS app:
+
+- Public homepage at `/` with a clear product pitch, feature sections, workflow, and call-to-action buttons.
+- Public Pricing page access for visitors, with login required only when starting checkout or applying account-specific coupons.
+- Public About page retained with SupremDas Group as the company and Grocery House Manager as the product.
+- New public Support page at `/support`.
+- New Privacy Policy page at `/privacy`.
+- New Terms of Service page at `/terms`.
+- New Refund and Cancellation Policy page at `/refund-policy`.
+- Header and footer updated with professional navigation and legal links.
+- Mobile-friendly marketing layout and cleaner navigation for public visitors and logged-in users.
+
+Recommended final launch checklist:
+
+1. Verify Stripe live/test mode values match your current environment.
+2. Confirm webhook events are successful in Stripe Dashboard.
+3. Confirm `support@grocery-house-manager.com` is configured before publishing the support/legal pages broadly.
+4. Test homepage, pricing, login, checkout, profile, cancellation, invite joining, receipt upload, and house creation on mobile and desktop.
