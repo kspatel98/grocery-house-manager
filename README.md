@@ -539,3 +539,19 @@ Recommended final launch checklist:
 2. Confirm webhook events are successful in Stripe Dashboard.
 3. Confirm `support@grocery-house-manager.com` is configured before publishing the support/legal pages broadly.
 4. Test homepage, pricing, login, checkout, profile, cancellation, invite joining, receipt upload, and house creation on mobile and desktop.
+
+
+## Production auth troubleshooting
+
+If Google sign-in opens the Google account selector and then returns to the login page, check these first:
+
+1. `backend/.env` must contain the same OAuth Web Client ID as the frontend:
+   - `GOOGLE_CLIENT_ID=...apps.googleusercontent.com`
+   - `frontend/.env` must contain `VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com`
+2. Google Cloud Console must include these Authorized JavaScript origins:
+   - `https://grocery-house-manager.com`
+   - `https://www.grocery-house-manager.com` if you allow www before redirect
+3. Rebuild the frontend after changing `VITE_GOOGLE_CLIENT_ID` because Vite bakes env values into the build.
+4. Check the browser Network tab for `/api/auth/google`; a 401 means OAuth client ID/domain mismatch.
+
+If a paid account appears as Free, go to Profile and click **Sync subscription**. If it still stays Free, check the Stripe webhook deliveries and confirm your live/test keys, webhook secret, and Price IDs all come from the same Stripe mode.

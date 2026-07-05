@@ -16,7 +16,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
     <div className="app-frame public-frame">
       <header className="site-header public-site-header">
         <div className="site-header-inner shell wide">
-          <Link to={loggedIn ? '/houses' : '/'} className="site-brand" aria-label="Grocery House Manager home">
+          <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
             <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
             <span>
               <strong>Grocery House Manager</strong>

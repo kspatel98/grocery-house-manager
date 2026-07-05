@@ -54,8 +54,15 @@ def google_login(payload: GoogleLoginIn, db: Session = Depends(get_db)):
             google_requests.Request(),
             settings.google_client_id,
         )
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google credential")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "Google sign-in could not be verified. Make sure backend GOOGLE_CLIENT_ID and "
+                "frontend VITE_GOOGLE_CLIENT_ID are the exact same Google OAuth Web Client ID, "
+                "and that https://grocery-house-manager.com is added to Authorized JavaScript origins."
+            ),
+        ) from exc
 
     email = info.get("email")
     if not email:

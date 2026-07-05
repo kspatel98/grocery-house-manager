@@ -16,7 +16,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     <div className="app-frame">
       <header className="site-header">
         <div className="site-header-inner shell wide">
-          <Link to="/houses" className="site-brand" aria-label="Grocery House Manager home">
+          <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
             <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
             <span>
               <strong>Grocery House Manager</strong>

@@ -29,7 +29,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = String(error.config?.url || '');
+    const isAuthAttempt = ['/auth/login', '/auth/register', '/auth/google'].some((path) => requestUrl.includes(path));
+
+    // Do not clear an existing session when a login/register/Google attempt fails.
+    // This keeps the real error visible on the login screen instead of silently
+    // bouncing the user back to /login. For protected API calls, a 401 still
+    // means the saved session is invalid/expired, so we clear it.
+    if (error.response?.status === 401 && !isAuthAttempt) {
       logoutToLogin();
     }
     return Promise.reject(error);

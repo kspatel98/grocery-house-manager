@@ -50,10 +50,19 @@ export default function ProfilePage() {
 
   async function loadProfile() {
     try {
-      const { data } = await api.get<UserProfile>('/auth/me');
-      setProfile(data);
-      setFullName(data.full_name || '');
-      setAvatarUrl(data.avatar_url || '');
+      const [{ data }, billingRes] = await Promise.all([
+        api.get<UserProfile>('/auth/me'),
+        api.get<Subscription>('/billing/me').catch(() => null),
+      ]);
+      const mergedProfile = billingRes ? {
+        ...data,
+        plan_name: billingRes.data.plan_name,
+        subscription_status: billingRes.data.subscription_status,
+        subscription_current_period_end: billingRes.data.current_period_end,
+      } : data;
+      setProfile(mergedProfile);
+      setFullName(mergedProfile.full_name || '');
+      setAvatarUrl(mergedProfile.avatar_url || '');
       try {
         const insightsRes = await api.get<PersonalInsights>('/auth/me/insights');
         setInsights(insightsRes.data);
