@@ -19,7 +19,11 @@ function isCancelledAtPeriodEnd(status?: string) {
 }
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+  const cached = localStorage.getItem('account_profile_cache');
+  return cached ? JSON.parse(cached) : null;
+});
+const [profileRefreshing, setProfileRefreshing] = useState(false);
   const [insights, setInsights] = useState<PersonalInsights | null>(null);
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -51,31 +55,32 @@ const planLabel = planName ? (PLAN_LABELS[planName] || planName) : 'Loading...';
   }, [proActive, familyActive, basicActive]);
 
   async function loadProfile() {
-    try {
-      const [{ data }, billingRes] = await Promise.all([
-        api.get<UserProfile>('/auth/me'),
-        api.get<Subscription>('/billing/me').catch(() => null),
-      ]);
-      const mergedProfile = billingRes ? {
-        ...data,
-        plan_name: billingRes.data.plan_name,
-        subscription_status: billingRes.data.subscription_status,
-        subscription_current_period_end: billingRes.data.current_period_end,
-      } : data;
-      setProfile(mergedProfile);
-      setFullName(mergedProfile.full_name || '');
-      setAvatarUrl(mergedProfile.avatar_url || '');
-      try {
-        const insightsRes = await api.get<PersonalInsights>('/auth/me/insights');
-        setInsights(insightsRes.data);
-      } catch {
-        setInsights(null);
-      }
-      setError('');
-    } catch (err) {
-      setError(errorMessage(err));
-    }
+  try {
+    setProfileRefreshing(true);
+    const [{ data }, billingRes] = await Promise.all([
+      api.get<UserProfile>('/auth/me'),
+      api.get<Subscription>('/billing/me').catch(() => null),
+    ]);
+
+    const mergedProfile = billingRes ? {
+      ...data,
+      plan_name: billingRes.data.plan_name,
+      subscription_status: billingRes.data.subscription_status,
+      subscription_current_period_end: billingRes.data.current_period_end,
+    } : data;
+
+    setProfile(mergedProfile);
+    localStorage.setItem('account_profile_cache', JSON.stringify(mergedProfile));
+
+    setFullName(mergedProfile.full_name || '');
+    setAvatarUrl(mergedProfile.avatar_url || '');
+    setError('');
+  } catch (err) {
+    setError(errorMessage(err));
+  } finally {
+    setProfileRefreshing(false);
   }
+}
 
   async function saveProfile(event: React.FormEvent) {
     event.preventDefault();
@@ -186,7 +191,10 @@ const planLabel = planName ? (PLAN_LABELS[planName] || planName) : 'Loading...';
 
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
-
+{profileRefreshing && (
+        <div className="hint">Refreshing your account details...</div>
+      )}
+<section className="panel profile-panel">
 {isLoadingProfile && (
   <section className="panel profile-panel">
     <p className="eyebrow">Account</p>
@@ -194,6 +202,7 @@ const planLabel = planName ? (PLAN_LABELS[planName] || planName) : 'Loading...';
     <p>Please wait while we load your profile, plan, and billing status.</p>
   </section>
 )}
+</section>
 {profile && (
         <section className="panel profile-panel">
           {

@@ -17,6 +17,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+useEffect(() => {
+  const message = localStorage.getItem('session_expired_message');
+  if (message) {
+    setError(message);
+    localStorage.removeItem('session_expired_message');
+  }
+}, []);
 
   function saveAuth(data: AuthResponse) {
     localStorage.setItem('token', data.access_token);

@@ -37,8 +37,9 @@ api.interceptors.response.use(
     // bouncing the user back to /login. For protected API calls, a 401 still
     // means the saved session is invalid/expired, so we clear it.
     if (error.response?.status === 401 && !isAuthAttempt) {
-      logoutToLogin();
-    }
+  localStorage.setItem('session_expired_message', 'Your session expired. Please sign in again.');
+  logoutToLogin();
+}
     return Promise.reject(error);
   }
 );
