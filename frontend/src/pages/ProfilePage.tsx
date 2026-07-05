@@ -34,7 +34,9 @@ export default function ProfilePage() {
   const navigate = useNavigate();
 
   const expectedDeleteName = profile?.full_name || profile?.email || '';
-  const planName = profile?.plan_name || 'free';
+  const isLoadingProfile = profile === null;
+const planName = profile?.plan_name;
+const planLabel = planName ? (PLAN_LABELS[planName] || planName) : 'Loading...';
   const planLabel = PLAN_LABELS[planName] || planName;
   const paid = isPaidStatus(profile?.subscription_status);
   const proActive = planName === 'pro' && paid;
@@ -185,6 +187,16 @@ export default function ProfilePage() {
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
 
+{isLoadingProfile && (
+  <section className="panel profile-panel">
+    <p className="eyebrow">Account</p>
+    <h2>Loading your account...</h2>
+    <p>Please wait while we load your profile, plan, and billing status.</p>
+  </section>
+)}
+{profile && (
+        <section className="panel profile-panel">
+          {
       <section className="panel profile-panel">
         <div className="profile-header">
           <div className="profile-avatar">
@@ -257,7 +269,9 @@ export default function ProfilePage() {
           </div>
         </form>
       </section>
-
+}
+        </section>
+      )}
       {insights && (
         <section className="panel profile-panel personal-insights-panel">
           <div className="panel-title-row insights-title-row">
