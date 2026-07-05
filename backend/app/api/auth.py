@@ -1,5 +1,3 @@
-from app.schemas import AccountBootstrapOut
-from app.api.billing import subscription_out
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from google.auth.transport import requests as google_requests
@@ -169,25 +167,6 @@ def get_personal_insights(db: Session = Depends(get_db), user: User = Depends(ge
         premium_tools=tools_by_plan.get(plan_value, tools_by_plan[PlanName.free]),
     )
 
-@router.get("/bootstrap", response_model=AccountBootstrapOut)
-def account_bootstrap(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    profile = UserProfileOut(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        auth_provider=user.auth_provider.value if hasattr(user.auth_provider, "value") else str(user.auth_provider),
-        created_at=user.created_at,
-        plan_name=user.plan_name.value if hasattr(user.plan_name, "value") else str(user.plan_name or "free"),
-        subscription_status=user.subscription_status or "free",
-        subscription_current_period_end=user.subscription_current_period_end,
-    )
-
-    return AccountBootstrapOut(
-        user=profile,
-        subscription=subscription_out(user, db),
-        insights=get_personal_insights(db, user),
-    )
 
 @router.post("/me/delete")
 def delete_my_account(payload: AccountDeleteIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

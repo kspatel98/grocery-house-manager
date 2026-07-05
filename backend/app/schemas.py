@@ -366,8 +366,3 @@ class CouponValidateOut(BaseModel):
     discounted_prices: dict[str, float] = Field(default_factory=dict)
     blocked_by_new_user_offer: bool = False
     available_after: datetime | None = None
-
-class AccountBootstrapOut(BaseModel):
-    user: UserProfileOut
-    subscription: SubscriptionOut
-    insights: PersonalInsightsOut | None = None
