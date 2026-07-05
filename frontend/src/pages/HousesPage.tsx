@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { House, Subscription } from '../types';
+import type { AccountBootstrap, House, Subscription } from '../types';
 
 export default function HousesPage() {
   const [houses, setHouses] = useState<House[]>([]);
@@ -15,12 +15,10 @@ export default function HousesPage() {
     try {
       setLoading(true);
       setError('');
-      const [{ data }, subRes] = await Promise.all([
-        api.get<House[]>('/houses', { params: { t: Date.now() } }),
-        api.get<Subscription>('/billing/me').catch(() => null),
-      ]);
-      setHouses(Array.isArray(data) ? data : []);
-      if (subRes) setSubscription(subRes.data);
+      const { data } = await api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } });
+      setHouses(Array.isArray(data.houses) ? data.houses : []);
+      setSubscription(data.subscription);
+      localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
     } catch (err) {
       setError(errorMessage(err));
       setHouses([]);

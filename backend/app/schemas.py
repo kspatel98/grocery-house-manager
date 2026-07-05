@@ -351,6 +351,21 @@ class AccountDeleteIn(BaseModel):
     confirm_name: str = Field(min_length=1, max_length=255)
 
 
+
+
+class AccountDeletePreviewOut(BaseModel):
+    can_delete: bool
+    blocked_shared_houses: list[str] = Field(default_factory=list)
+    solo_owned_houses: list[str] = Field(default_factory=list)
+    message: str
+
+
+class AccountBootstrapOut(BaseModel):
+    user: UserProfileOut
+    subscription: SubscriptionOut
+    insights: PersonalInsightsOut
+    houses: list[HouseOut] = Field(default_factory=list)
+
 class CouponValidateIn(BaseModel):
     code: str = Field(min_length=1, max_length=80)
 

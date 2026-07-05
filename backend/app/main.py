@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, houses, products, sections, shopping, live, billing
+from app.api import auth, houses, products, sections, shopping, live, billing, account
 from app.core.config import settings
 from app.db.session import Base, engine
 from app.db.dev_migrations import ensure_dev_schema
@@ -35,6 +35,7 @@ app.include_router(products.router)
 app.include_router(shopping.router)
 app.include_router(live.router)
 app.include_router(billing.router)
+app.include_router(account.router)
 
 
 @app.get("/health")

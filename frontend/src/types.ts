@@ -216,3 +216,18 @@ export type PersonalInsights = {
   estimated_personal_spend: number;
   premium_tools: string[];
 };
+
+
+export type AccountDeletePreview = {
+  can_delete: boolean;
+  blocked_shared_houses: string[];
+  solo_owned_houses: string[];
+  message: string;
+};
+
+export type AccountBootstrap = {
+  user: UserProfile;
+  subscription: Subscription;
+  insights: PersonalInsights;
+  houses: House[];
+};

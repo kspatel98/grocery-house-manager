@@ -567,3 +567,12 @@ If a paid account appears as Free, go to Profile and click **Sync subscription**
   - local image upload with browser-side resize before saving
   - external image URL support
 - Inventory product cards now fit images with `object-fit: contain`, so external images and built-in images stay clean without distortion.
+
+
+## v24 update: faster account loading, safer deletion, and responsive polish
+
+- Added `GET /account/bootstrap` so Profile and Houses can load user, billing, houses, and personal insights with one request instead of several separate calls.
+- Profile now uses the bootstrap response to avoid briefly showing incorrect Free/general account data while billing is loading.
+- Account deletion now has a safety preview. If the user owns shared houses with other members, deletion is blocked until those members are removed. If the user owns solo houses, the UI clearly warns that those houses and all related data will be deleted.
+- Product images now render through a safer responsive visual component with full-image fitting on desktop and mobile. External image URLs use `referrerPolicy="no-referrer"` and inventory cards no longer crop product images in half.
+- Homepage desktop/laptop layout has been adjusted with better max widths, margins, and hero image sizing while keeping the mobile layout strong.

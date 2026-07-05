@@ -205,10 +205,7 @@ export default function HousePage() {
           <div className="products-grid">
             {products.map((product) => (
               <article key={product.id} className="product-card">
-                <div className="product-media">
-                  {product.image_url ? <img src={product.image_url} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{product.icon || '🛒'}</span>}
-                  {product.image_url && <span className="product-media-fallback">{product.icon || '🛒'}</span>}
-                </div>
+                <ProductVisual product={product} />
                 <div className="product-body">
                   <strong>{product.name}</strong>
                   <small>{product.section_name} • {product.store_name || 'Any store'}</small>
@@ -260,8 +257,26 @@ export default function HousePage() {
   );
 }
 
-
-
+function ProductVisual({ product }: { product: Product }) {
+  const [failed, setFailed] = useState(false);
+  const hasImage = Boolean(product.image_url && !failed);
+  return (
+    <div className={`product-media ${hasImage ? 'has-image' : 'icon-only'}`}>
+      {hasImage ? (
+        <img
+          src={product.image_url}
+          alt={`${product.name} product image`}
+          loading="eager"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="product-media-emoji" aria-hidden="true">{product.icon || '🛒'}</span>
+      )}
+    </div>
+  );
+}
 
 function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: number; products: Product[]; receipts: Receipt[]; onChange: () => void | Promise<void> }) {
   const [storeName, setStoreName] = useState('');

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "../api";
-import type { PersonalInsights, Subscription, UserProfile } from "../types";
+import type { AccountBootstrap, AccountDeletePreview, PersonalInsights, Subscription, UserProfile } from "../types";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free Starter",
@@ -36,6 +36,8 @@ export default function ProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [showDelete, setShowDelete] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<AccountDeletePreview | null>(null);
+  const [deletePreviewBusy, setDeletePreviewBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,32 +69,23 @@ export default function ProfilePage() {
   async function loadProfile() {
     try {
       setProfileRefreshing(true);
-      const [{ data }, billingRes] = await Promise.all([
-        api.get<UserProfile>("/auth/me"),
-        api.get<Subscription>("/billing/me").catch(() => null),
-      ]);
-      const mergedProfile = billingRes
-        ? {
-            ...data,
-            plan_name: billingRes.data.plan_name,
-            subscription_status: billingRes.data.subscription_status,
-            subscription_current_period_end: billingRes.data.current_period_end,
-          }
-        : data;
+      const { data } = await api.get<AccountBootstrap>("/account/bootstrap", {
+        params: { t: Date.now() },
+      });
+      const mergedProfile = {
+        ...data.user,
+        plan_name: data.subscription.plan_name,
+        subscription_status: data.subscription.subscription_status,
+        subscription_current_period_end: data.subscription.current_period_end,
+      };
       setProfile(mergedProfile);
+      setInsights(data.insights);
       localStorage.setItem(
         "account_profile_cache",
         JSON.stringify(mergedProfile),
       );
       setFullName(mergedProfile.full_name || "");
       setAvatarUrl(mergedProfile.avatar_url || "");
-      try {
-        const insightsRes =
-          await api.get<PersonalInsights>("/auth/me/insights");
-        setInsights(insightsRes.data);
-      } catch {
-        setInsights(null);
-      }
       setError("");
     } catch (err) {
       setError(errorMessage(err));
@@ -156,6 +149,19 @@ export default function ProfilePage() {
     }
   }
 
+  async function loadDeletePreview() {
+    try {
+      setDeletePreviewBusy(true);
+      const { data } = await api.get<AccountDeletePreview>("/auth/me/delete-preview");
+      setDeletePreview(data);
+      setError("");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDeletePreviewBusy(false);
+    }
+  }
+
   async function deleteAccount(event: React.FormEvent) {
     event.preventDefault();
     if (
@@ -165,6 +171,21 @@ export default function ProfilePage() {
       setError(`Type exactly: ${expectedDeleteName}`);
       return;
     }
+    if (deletePreview?.blocked_shared_houses.length) {
+      setError(deletePreview.message);
+      return;
+    }
+    if (deletePreview?.solo_owned_houses.length) {
+      const names = deletePreview.solo_owned_houses.join(", ");
+      if (
+        !confirm(
+          `Deleting your account will also permanently delete these owned house(s): ${names}. All sections, products, shopping lists, receipts, prices, and activities inside them will be lost. Continue?`,
+        )
+      ) {
+        return;
+      }
+    }
+
     try {
       setDeleteBusy(true);
       await api.post("/auth/me/delete", {
@@ -478,7 +499,7 @@ export default function ProfilePage() {
           {!showDelete ? (
             <button
               className="secondary danger-button"
-              onClick={() => setShowDelete(true)}
+              onClick={() => { setShowDelete(true); loadDeletePreview(); }}
             >
               Delete my account
             </button>
@@ -487,6 +508,19 @@ export default function ProfilePage() {
               <p>
                 Type <strong>{expectedDeleteName}</strong> to confirm.
               </p>
+              {deletePreviewBusy && <div className="hint">Checking owned houses before account deletion...</div>}
+              {deletePreview && (
+                <div className={deletePreview.can_delete ? "hint delete-preview-box" : "error delete-preview-box"}>
+                  <strong>{deletePreview.can_delete ? "Deletion safety check" : "Action required before deleting"}</strong>
+                  <p>{deletePreview.message}</p>
+                  {deletePreview.blocked_shared_houses.length > 0 && (
+                    <p>Shared owned houses: {deletePreview.blocked_shared_houses.join(", ")}</p>
+                  )}
+                  {deletePreview.solo_owned_houses.length > 0 && (
+                    <p>Owned houses that will be deleted with your account: {deletePreview.solo_owned_houses.join(", ")}</p>
+                  )}
+                </div>
+              )}
               <input
                 value={deleteConfirmName}
                 onChange={(e) => setDeleteConfirmName(e.target.value)}
@@ -497,6 +531,8 @@ export default function ProfilePage() {
                   className="danger-primary"
                   disabled={
                     deleteBusy ||
+                    deletePreviewBusy ||
+                    !!deletePreview?.blocked_shared_houses.length ||
                     deleteConfirmName.trim() !== expectedDeleteName
                   }
                 >

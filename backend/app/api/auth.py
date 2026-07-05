@@ -9,7 +9,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.api.activity_utils import display_name, log_activity
 from app.models import AuthProvider, House, HouseMember, HouseRole, User, Receipt, ProductStorePrice, PlanName
-from app.schemas import AccountDeleteIn, GoogleLoginIn, LoginIn, RegisterIn, TokenOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
+from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, GoogleLoginIn, LoginIn, RegisterIn, TokenOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -166,6 +166,60 @@ def get_personal_insights(db: Session = Depends(get_db), user: User = Depends(ge
         estimated_personal_spend=round(spend, 2),
         premium_tools=tools_by_plan.get(plan_value, tools_by_plan[PlanName.free]),
     )
+
+
+
+
+def account_delete_preview_data(db: Session, user: User) -> AccountDeletePreviewOut:
+    owned_memberships = db.query(HouseMember).filter(
+        HouseMember.user_id == user.id,
+        HouseMember.role == HouseRole.owner,
+    ).all()
+
+    blocked_house_names: list[str] = []
+    solo_house_names: list[str] = []
+    for membership in owned_memberships:
+        member_count = db.query(HouseMember).filter(HouseMember.house_id == membership.house_id).count()
+        house = db.get(House, membership.house_id)
+        house_name = house.name if house else f"House #{membership.house_id}"
+        if member_count > 1:
+            blocked_house_names.append(house_name)
+        else:
+            solo_house_names.append(house_name)
+
+    if blocked_house_names:
+        return AccountDeletePreviewOut(
+            can_delete=False,
+            blocked_shared_houses=blocked_house_names,
+            solo_owned_houses=solo_house_names,
+            message=(
+                "You own shared house(s) with other members. For other members' data security, "
+                "remove those members or delete/handle those houses first, then try deleting your account again."
+            ),
+        )
+
+    if solo_house_names:
+        return AccountDeletePreviewOut(
+            can_delete=True,
+            blocked_shared_houses=[],
+            solo_owned_houses=solo_house_names,
+            message=(
+                "Deleting your account will also permanently delete your owned house(s), products, sections, "
+                "shopping lists, receipts, prices, and activity history because you are the only member."
+            ),
+        )
+
+    return AccountDeletePreviewOut(
+        can_delete=True,
+        blocked_shared_houses=[],
+        solo_owned_houses=[],
+        message="Your account can be deleted. Houses you joined but do not own will remain for other members.",
+    )
+
+
+@router.get("/me/delete-preview", response_model=AccountDeletePreviewOut)
+def get_account_delete_preview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return account_delete_preview_data(db, user)
 
 
 @router.post("/me/delete")
