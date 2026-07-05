@@ -3,89 +3,100 @@ import { Link } from 'react-router-dom';
 const featureCards = [
   {
     icon: '🏠',
-    title: 'Shared household inventory',
-    text: 'Create a house, invite family members or roommates, and keep grocery products organized by custom sections.',
+    title: 'Shared inventory',
+    text: 'Know what is already at home before anyone goes shopping.',
   },
   {
     icon: '🛒',
-    title: 'Multiple shopping lists',
-    text: 'Build lists from inventory, set shopping-only quantities, add notes, check items into cart, and update inventory when shopping is done.',
+    title: 'Shopping lists',
+    text: 'Create multiple lists, check items into cart, and update stock after shopping.',
   },
   {
     icon: '🧾',
-    title: 'Receipts and price history',
-    text: 'Attach receipt photos or PDFs, record store prices, and keep one product with prices from different stores.',
+    title: 'Receipts & spend',
+    text: 'Upload receipts, track spending, and keep grocery records in one place.',
   },
   {
-    icon: '⚡',
-    title: 'Real-time collaboration',
-    text: 'Members see changes, activity, shopping progress, and owner-controlled house features without needing manual refreshes.',
+    icon: '🏷️',
+    title: 'Store prices',
+    text: 'Save different prices for the same product at different stores.',
   },
+];
+
+const dailyMoments = [
+  { icon: '🥛', title: 'Never buy duplicates', text: 'Check inventory before buying milk, eggs, bread, snacks, or household essentials.' },
+  { icon: '👨‍👩‍👧‍👦', title: 'Everyone stays updated', text: 'House members can see changes, shopping progress, and activity in real time.' },
+  { icon: '📸', title: 'Smarter receipts', text: 'Attach receipt photos/PDFs and keep price history connected to products.' },
+  { icon: '📉', title: 'Spend with clarity', text: 'Personal insights help premium members understand receipts, prices, stores, and spend.' },
 ];
 
 const workflow = [
   'Create your account or sign in with Google.',
-  'Join a house by invite, or upgrade to create your own household workspace.',
-  'Add products, sections, stores, prices, expiry dates, and low-stock thresholds.',
-  'Create one or more shopping lists and shop together in real time.',
-  'Upload receipts or enter bought prices to update inventory and compare stores.',
+  'Join a house for free by invite, or upgrade to create your own house.',
+  'Add products using built-in icons, preset product images, or your own resized image.',
+  'Plan shopping together and update inventory after checkout.',
+  'Upload receipts and compare store prices over time.',
 ];
 
 const premiumTools = [
-  'Receipt uploads and OCR-assisted scanning',
+  'Receipt photo/PDF upload and OCR-assisted scanning',
   'Store-specific price history for every product',
   'Personal receipt tracker and spending summary',
   'Best-store comparison for smarter shopping',
-  'Owner-plan based house features for shared homes',
-  'Private coupons and transparent subscription billing',
+  'Low-stock and expiry reminders for household planning',
+  'Private coupons, launch offers, and transparent billing',
 ];
 
 export default function HomePage() {
   const loggedIn = Boolean(localStorage.getItem('token'));
 
   return (
-    <main className="marketing-page">
-      <section className="marketing-hero shell wide">
-        <div className="marketing-hero-copy">
-          <p className="eyebrow">Household grocery management, simplified</p>
-          <h1>Manage groceries together instead of using scattered notes, messages, and forgotten lists.</h1>
+    <main className="marketing-page warm-marketing-page">
+      <section className="landing-hero shell wide">
+        <div className="landing-copy">
+          <p className="eyebrow warm-eyebrow">Inventory • lists • receipts • store prices</p>
+          <h1>Your household grocery system.</h1>
           <p className="hero-lede">
-            Grocery House Manager helps households organize inventory, plan shopping, upload receipts,
-            track store prices, and collaborate in real time from one clean dashboard.
+            Grocery House Manager helps families, couples, and roommates manage groceries together —
+            from what is already at home to what was bought, where it was cheaper, and who updated what.
           </p>
-          <div className="hero-actions">
-            <Link to={loggedIn ? '/houses' : '/login'} className="primary center-link">
-              {loggedIn ? 'Open your houses' : 'Get started free'}
+          <div className="hero-actions big-hero-actions">
+            <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link">
+              {loggedIn ? 'Open your dashboard' : 'Start free today'}
             </Link>
-            <Link to="/pricing" className="secondary center-link">View plans</Link>
+            <Link to="/pricing" className="secondary warm-secondary center-link">View plans</Link>
           </div>
-          <div className="trust-row" aria-label="Product highlights">
-            <span>Free invite joining</span>
-            <span>Stripe subscriptions</span>
-            <span>Google login</span>
-            <span>Real-time updates</span>
+          <div className="trust-row warm-trust-row" aria-label="Product highlights">
+            <span>✓ Free invite joining</span>
+            <span>✓ Shared shopping</span>
+            <span>✓ Receipt tracking</span>
+            <span>✓ Real-time updates</span>
           </div>
         </div>
-        <div className="hero-product-card" aria-label="Grocery House Manager preview">
-          <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
-          <div className="mini-dashboard">
-            <div><strong>Milk bags</strong><span>Walmart • $5.49</span></div>
-            <div><strong>Apples</strong><span>No Frills • $3.99</span></div>
-            <div><strong>Greek yogurt</strong><span>Costco • $7.99</span></div>
+
+        <div className="landing-visual" aria-label="Grocery House Manager app preview">
+          <img src="/brand/homepage-grocery-ad.webp" alt="Family using Grocery House Manager on a phone" />
+          <div className="visual-floating-card top-card">
+            <strong>32</strong>
+            <span>Items in stock</span>
           </div>
-          <p>Inventory, shopping lists, receipts, members, and activity in one household workspace.</p>
+          <div className="visual-floating-card bottom-card">
+            <strong>$87.64</strong>
+            <span>Receipt tracked</span>
+          </div>
         </div>
       </section>
 
-      <section className="shell wide marketing-section">
+      <section className="shell wide marketing-section quick-benefits-section">
         <div className="section-heading centered">
-          <p className="eyebrow">What it does</p>
-          <h2>Everything your household needs before, during, and after grocery shopping.</h2>
+          <p className="eyebrow warm-eyebrow">Built for real grocery habits</p>
+          <h2>Everything is placed where normal users expect it.</h2>
+          <p>Houses, inventory, shopping, receipts, members, and activity are easy to reach without technical confusion.</p>
         </div>
-        <div className="marketing-feature-grid">
+        <div className="marketing-feature-grid visual-feature-grid">
           {featureCards.map((feature) => (
-            <article className="panel marketing-feature-card" key={feature.title}>
-              <span className="feature-icon">{feature.icon}</span>
+            <article className="panel marketing-feature-card warm-feature-card" key={feature.title}>
+              <span className="feature-icon round-icon">{feature.icon}</span>
               <h3>{feature.title}</h3>
               <p>{feature.text}</p>
             </article>
@@ -93,41 +104,72 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="shell wide marketing-split panel">
+      <section className="shell wide app-preview-strip panel">
         <div>
-          <p className="eyebrow">Simple workflow</p>
+          <p className="eyebrow warm-eyebrow">Easy product setup</p>
+          <h2>Add products faster with built-in icons, preset product images, or your own photo.</h2>
+          <p>
+            Product images automatically resize and fit inside cards, so inventory stays clean even when images come from different sources.
+          </p>
+        </div>
+        <div className="product-icon-preview" aria-label="Built-in product image examples">
+          {['milk', 'apple', 'bread', 'vegetables', 'eggs', 'snacks'].map((name) => (
+            <img key={name} src={`/product-icons/${name}.svg`} alt={`${name} icon`} />
+          ))}
+        </div>
+      </section>
+
+      <section className="shell wide marketing-section">
+        <div className="section-heading centered">
+          <p className="eyebrow warm-eyebrow">Daily value</p>
+          <h2>Small features that make the app feel useful every day.</h2>
+        </div>
+        <div className="daily-moments-grid">
+          {dailyMoments.map((item) => (
+            <article className="daily-moment-card" key={item.title}>
+              <span>{item.icon}</span>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="shell wide marketing-split panel warm-split-panel">
+        <div>
+          <p className="eyebrow warm-eyebrow">Simple workflow</p>
           <h2>Designed so every household member can understand it quickly.</h2>
           <p>
-            The app keeps common actions close together: houses, inventory, shopping, receipts,
-            members, and activities are arranged around the way people actually shop.
+            The app follows the way people shop: check inventory, build a list, shop together,
+            update the cart, save receipt prices, and keep everyone in the loop.
           </p>
-          <Link to={loggedIn ? '/houses' : '/login'} className="primary center-link split-cta">
+          <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link split-cta">
             {loggedIn ? 'Go to dashboard' : 'Create your account'}
           </Link>
         </div>
-        <ol className="workflow-list">
+        <ol className="workflow-list warm-workflow-list">
           {workflow.map((step) => <li key={step}>{step}</li>)}
         </ol>
       </section>
 
       <section className="shell wide marketing-section">
         <div className="section-heading centered">
-          <p className="eyebrow">Premium value</p>
-          <h2>Paid plans unlock more than just higher limits.</h2>
-          <p>Members can use house features based on the owner’s plan, while their own plan unlocks personal tools and insights.</p>
+          <p className="eyebrow warm-eyebrow">Premium value</p>
+          <h2>Paid plans unlock more than higher limits.</h2>
+          <p>House members share the owner’s house features, while their own plan unlocks personal tools and insights.</p>
         </div>
-        <div className="premium-tools-grid">
+        <div className="premium-tools-grid premium-warm-grid">
           {premiumTools.map((tool) => <div className="premium-tool" key={tool}>✓ {tool}</div>)}
         </div>
       </section>
 
-      <section className="shell wide marketing-cta panel">
+      <section className="shell wide marketing-cta panel warm-marketing-cta">
         <div>
-          <h2>Start with invite joining for free. Upgrade when you are ready to create your own house.</h2>
-          <p>Basic Home, Family Plus, and Household Pro are designed to be affordable for real households.</p>
+          <h2>Start free. Upgrade when your household is ready.</h2>
+          <p>Free users can join by invite. Paid plans help you create and manage your own household grocery system.</p>
         </div>
         <div className="hero-actions">
-          <Link to="/pricing" className="primary center-link">Compare plans</Link>
+          <Link to="/pricing" className="primary orange-cta center-link">Compare plans</Link>
           <Link to="/about" className="secondary center-link">Learn more</Link>
         </div>
       </section>

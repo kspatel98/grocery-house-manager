@@ -555,3 +555,15 @@ If Google sign-in opens the Google account selector and then returns to the logi
 4. Check the browser Network tab for `/api/auth/google`; a 401 means OAuth client ID/domain mismatch.
 
 If a paid account appears as Free, go to Profile and click **Sync subscription**. If it still stays Free, check the Stripe webhook deliveries and confirm your live/test keys, webhook secret, and Price IDs all come from the same Stripe mode.
+
+## v23 Visual and product media polish
+
+- Homepage now uses a warmer grocery-ad-inspired visual direction with green/orange brand colors, a stronger hero, feature cards, daily-use sections, and product media preview.
+- Added built-in product image presets under `frontend/public/product-icons/` for common grocery items such as milk, eggs, bread, fruits, vegetables, pantry, snacks, cleaning, and toiletries.
+- Product modal now includes:
+  - built-in product image picker
+  - quick emoji icon picker
+  - product image preview
+  - local image upload with browser-side resize before saving
+  - external image URL support
+- Inventory product cards now fit images with `object-fit: contain`, so external images and built-in images stay clean without distortion.

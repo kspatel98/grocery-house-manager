@@ -206,7 +206,8 @@ export default function HousePage() {
             {products.map((product) => (
               <article key={product.id} className="product-card">
                 <div className="product-media">
-                  {product.image_url ? <img src={product.image_url} alt="" /> : <span>{product.icon || '🛒'}</span>}
+                  {product.image_url ? <img src={product.image_url} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{product.icon || '🛒'}</span>}
+                  {product.image_url && <span className="product-media-fallback">{product.icon || '🛒'}</span>}
                 </div>
                 <div className="product-body">
                   <strong>{product.name}</strong>
