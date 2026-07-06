@@ -1714,3 +1714,190 @@ body {
     font-size: 3rem;
   }
 }
+
+/* v25: admin, reports, location-aware shopping, and product media polish */
+.product-media {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(255,255,255,.9), transparent 28%),
+    linear-gradient(135deg, #eff8f4, #fff7ec);
+  overflow: hidden;
+}
+.product-media.has-image img,
+.product-image-preview img,
+.preset-tile img {
+  object-fit: contain !important;
+  object-position: center !important;
+}
+.product-image-preview {
+  overflow: hidden;
+}
+.product-image-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 20px;
+  background: rgba(255,255,255,.88);
+}
+.inline-help {
+  display: grid;
+  align-items: center;
+  padding: 8px 0;
+}
+.auth-location-row {
+  grid-template-columns: 1fr 1fr;
+}
+.profile-details {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.smart-suggestions-panel .form-row.compact-location-row {
+  grid-template-columns: 1fr 1fr;
+}
+.location-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.suggestion-results,
+.suggestion-list,
+.nearby-store-list,
+.store-report-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.suggestion-row,
+.store-result-card,
+.store-report-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e5ebf2;
+  background: #fbfcfe;
+  border-radius: 16px;
+}
+.suggestion-row span,
+.store-result-card span,
+.store-report-card strong {
+  font-weight: 900;
+  color: #243141;
+}
+.store-result-card:hover {
+  border-color: #b9ebcc;
+  background: #f7fff9;
+}
+.admin-stats-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.admin-table-wrap,
+.comparison-table-wrap {
+  overflow-x: auto;
+  margin-top: 16px;
+  border: 1px solid #e5ebf2;
+  border-radius: 18px;
+}
+.admin-table {
+  width: 100%;
+  min-width: 840px;
+  border-collapse: collapse;
+  background: #fff;
+}
+.admin-table th,
+.admin-table td {
+  padding: 12px;
+  border-bottom: 1px solid #edf1f5;
+  text-align: left;
+  vertical-align: top;
+}
+.admin-table th {
+  color: #526171;
+  font-size: .82rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: #f7fafb;
+}
+.admin-table td {
+  color: #243141;
+}
+.admin-table td small {
+  display: block;
+  color: #7a8794;
+  margin-top: 3px;
+  max-width: 280px;
+  overflow-wrap: anywhere;
+}
+.admin-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(80px, 1fr));
+  gap: 6px;
+  min-width: 190px;
+}
+.admin-plan-counts .chips {
+  margin-top: 12px;
+}
+.reports-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, .8fr);
+  gap: 18px;
+  align-items: start;
+}
+.comparison-table td:nth-child(4) {
+  min-width: 260px;
+}
+.site-nav {
+  gap: 6px;
+}
+.site-nav a {
+  white-space: nowrap;
+}
+@media (min-width: 1200px) {
+  .site-header-inner.shell.wide,
+  .site-footer-inner.shell.wide,
+  .shell.wide {
+    max-width: 1380px;
+  }
+  .warm-marketing-page .marketing-section,
+  .quick-benefits-section {
+    max-width: 1280px;
+    margin-inline: auto;
+  }
+}
+@media (max-width: 1100px) {
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .site-header-inner {
+    gap: 12px;
+  }
+  .site-nav {
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+  }
+  .auth-location-row,
+  .smart-suggestions-panel .form-row.compact-location-row,
+  .location-actions {
+    grid-template-columns: 1fr;
+  }
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-table {
+    min-width: 760px;
+  }
+  .product-media {
+    min-height: 210px;
+    aspect-ratio: 16 / 11;
+  }
+  .product-media.has-image img {
+    max-height: 198px;
+  }
+}

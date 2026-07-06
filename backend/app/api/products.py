@@ -132,8 +132,19 @@ def _update_product_record(house_id: int, product_id: int, payload: ProductUpdat
                 raise HTTPException(status_code=400, detail="New section does not exist in this house")
 
     old_name = product.name
+    old_store_name = product.store_name
+    price_was_sent = "price" in cleaned_updates
     for key, value in cleaned_updates.items():
         setattr(product, key, value)
+
+    if price_was_sent and product.price is None:
+        store_to_clear = product.store_name or old_store_name
+        if store_to_clear:
+            db.query(ProductStorePrice).filter(
+                ProductStorePrice.product_id == product.id,
+                ProductStorePrice.store_name == store_to_clear,
+                ProductStorePrice.source == "manual",
+            ).delete(synchronize_session=False)
 
     if product.price is not None and product.store_name:
         existing_price = db.query(ProductStorePrice).filter(

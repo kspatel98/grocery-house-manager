@@ -9,14 +9,44 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.api.activity_utils import display_name, log_activity
 from app.models import AuthProvider, House, HouseMember, HouseRole, User, Receipt, ProductStorePrice, PlanName
-from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, GoogleLoginIn, LoginIn, RegisterIn, TokenOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
+from app.utils.location import currency_for_country, normalize_country
+from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, GoogleLoginIn, LoginIn, RegisterIn, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def user_out(user: User) -> UserOut:
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        avatar_url=user.avatar_url,
+        country=user.country,
+        city=user.city,
+        currency_code=currency_for_country(user.country),
+    )
+
+
+def user_profile_out(user: User) -> UserProfileOut:
+    return UserProfileOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        avatar_url=user.avatar_url,
+        country=user.country,
+        city=user.city,
+        currency_code=currency_for_country(user.country),
+        auth_provider=user.auth_provider.value if hasattr(user.auth_provider, "value") else str(user.auth_provider),
+        created_at=user.created_at,
+        plan_name=user.plan_name.value if hasattr(user.plan_name, "value") else str(user.plan_name or "free"),
+        subscription_status=user.subscription_status or "free",
+        subscription_current_period_end=user.subscription_current_period_end,
+    )
+
+
 def issue_token(user: User) -> TokenOut:
     token = create_access_token(user.id, timedelta(minutes=settings.access_token_expire_minutes))
-    return TokenOut(access_token=token, user=user)
+    return TokenOut(access_token=token, user=user_out(user))
 
 
 @router.post("/register", response_model=TokenOut)
@@ -29,6 +59,8 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         email=payload.email.lower(),
         password_hash=get_password_hash(payload.password),
         auth_provider=AuthProvider.email,
+        country=normalize_country(payload.country),
+        city=normalize_country(payload.city),
     )
     db.add(user)
     db.commit()
@@ -89,17 +121,7 @@ def google_login(payload: GoogleLoginIn, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserProfileOut)
 def get_me(user: User = Depends(get_current_user)):
-    return UserProfileOut(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        auth_provider=user.auth_provider.value if hasattr(user.auth_provider, "value") else str(user.auth_provider),
-        created_at=user.created_at,
-        plan_name=user.plan_name.value if hasattr(user.plan_name, "value") else str(user.plan_name or "free"),
-        subscription_status=user.subscription_status or "free",
-        subscription_current_period_end=user.subscription_current_period_end,
-    )
+    return user_profile_out(user)
 
 
 @router.patch("/me", response_model=UserProfileOut)
@@ -109,19 +131,13 @@ def update_me(payload: UserProfileUpdate, db: Session = Depends(get_db), user: U
         user.full_name = updates["full_name"]
     if "avatar_url" in updates:
         user.avatar_url = updates["avatar_url"]
+    if "country" in updates:
+        user.country = normalize_country(updates["country"])
+    if "city" in updates:
+        user.city = normalize_country(updates["city"])
     db.commit()
     db.refresh(user)
-    return UserProfileOut(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        auth_provider=user.auth_provider.value if hasattr(user.auth_provider, "value") else str(user.auth_provider),
-        created_at=user.created_at,
-        plan_name=user.plan_name.value if hasattr(user.plan_name, "value") else str(user.plan_name or "free"),
-        subscription_status=user.subscription_status or "free",
-        subscription_current_period_end=user.subscription_current_period_end,
-    )
+    return user_profile_out(user)
 
 @router.post("/me/edit", response_model=UserProfileOut)
 def update_me_via_post(payload: UserProfileUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

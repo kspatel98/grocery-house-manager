@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Plan, Product, ShoppingList, Subscription } from '../types';
+import type { Activity, House, HouseMember, Plan, Product, ShoppingList, ShoppingSuggestions, Subscription } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { ActivityFeed, MembersPanel } from '../components/HouseInfoPanels';
+import { money } from '../currency';
 
 export default function ShoppingPage() {
   const { houseId } = useParams();
@@ -141,10 +142,139 @@ export default function ShoppingPage() {
           />
         </section>
         <aside className="shopping-side-column">
+          <SmartShoppingSuggestions houseId={id} selectedList={selectedList} />
           <MembersPanel members={members} />
           <ActivityFeed activities={activities} onRefresh={loadAll} />
         </aside>
       </div>
     </main>
+  );
+}
+
+
+function cachedLocation() {
+  try {
+    const cached = localStorage.getItem('account_profile_cache');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return { city: parsed?.city || '', country: parsed?.country || '' };
+    }
+  } catch {
+    // ignore malformed cache
+  }
+  return { city: '', country: '' };
+}
+
+function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; selectedList: ShoppingList | null }) {
+  const initial = cachedLocation();
+  const [city, setCity] = useState(initial.city);
+  const [country, setCountry] = useState(initial.country || 'Canada');
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<ShoppingSuggestions | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function loadSuggestions(nextLat = lat, nextLng = lng) {
+    if (!selectedList) return;
+    try {
+      setBusy(true);
+      const { data } = await api.get<ShoppingSuggestions>(`/market/houses/${houseId}/shopping-lists/${selectedList.id}/suggestions`, {
+        params: { city: city || undefined, country: country || undefined, lat: nextLat ?? undefined, lng: nextLng ?? undefined },
+      });
+      setSuggestions(data);
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      setError('Location access is not supported on this device. Enter city manually.');
+      return;
+    }
+    setBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextLat = position.coords.latitude;
+        const nextLng = position.coords.longitude;
+        setLat(nextLat);
+        setLng(nextLng);
+        loadSuggestions(nextLat, nextLng);
+      },
+      () => {
+        setBusy(false);
+        setError('Location permission was not allowed. Enter your city manually and search again.');
+      },
+      { enableHighAccuracy: false, timeout: 9000 },
+    );
+  }
+
+  if (!selectedList) {
+    return (
+      <section className="panel smart-suggestions-panel">
+        <p className="eyebrow">Household Pro</p>
+        <h2>Smart store suggestions</h2>
+        <p>Create or choose a shopping list to see best known prices and nearby grocery stores.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel smart-suggestions-panel">
+      <div className="panel-title-row">
+        <div>
+          <p className="eyebrow">Household Pro</p>
+          <h2>Smart store suggestions</h2>
+        </div>
+        <span className="badge">Prices + nearby stores</span>
+      </div>
+      <p>Get store suggestions using your saved receipt/product prices plus nearby grocery locations. Live product prices depend on available retailer data.</p>
+      {error && <div className="error">{error}</div>}
+      <div className="form-row compact-location-row">
+        <label>City<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Hamilton" /></label>
+        <label>Country<input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Canada" /></label>
+      </div>
+      <div className="location-actions">
+        <button className="secondary" type="button" onClick={useCurrentLocation} disabled={busy}>Use my location</button>
+        <button className="primary" type="button" onClick={() => loadSuggestions()} disabled={busy}>{busy ? 'Checking...' : 'Get suggestions'}</button>
+      </div>
+
+      {suggestions && (
+        <div className="suggestion-results">
+          <div className={suggestions.premium_required ? 'hint' : 'success compact-message'}>{suggestions.message}</div>
+          {suggestions.item_suggestions.length > 0 && (
+            <div className="suggestion-list">
+              <strong>Best known prices</strong>
+              {suggestions.item_suggestions.slice(0, 8).map((item) => (
+                <div key={item.product_id} className="suggestion-row">
+                  <span>{item.product_name}</span>
+                  <small>
+                    {item.best_known_store
+                      ? `${item.best_known_store} • ${money(item.best_known_price, suggestions.currency_code)}`
+                      : 'No saved price yet'}
+                    {item.savings_vs_current ? ` • save ${money(item.savings_vs_current, suggestions.currency_code)}` : ''}
+                  </small>
+                </div>
+              ))}
+            </div>
+          )}
+          {suggestions.nearby_stores.length > 0 && (
+            <div className="nearby-store-list">
+              <strong>Nearby grocery stores {suggestions.location_label ? `near ${suggestions.location_label}` : ''}</strong>
+              {suggestions.nearby_stores.slice(0, 6).map((store, index) => (
+                <a key={`${store.name}-${index}`} href={store.maps_url || '#'} target="_blank" rel="noreferrer" className="store-result-card">
+                  <span>{store.name}</span>
+                  <small>{store.address || 'Open in maps'}{store.rating ? ` • ${store.rating}★ (${store.user_ratings_total || 0})` : ''}</small>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

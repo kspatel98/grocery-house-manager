@@ -31,7 +31,21 @@ class Settings(BaseSettings):
     new_user_offer_days: int = 14
     upload_dir: str = "public/uploads"
 
+    # Comma-separated app administrator emails. The owner email is included by default.
+    admin_emails: str = "kp3813294@gmail.com"
+
+    # Optional Google Maps Platform Places API key for nearby grocery store search.
+    google_places_api_key: str | None = None
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+
+    @property
+    @property
+    def admin_email_list(self) -> list[str]:
+        return [email.strip().lower() for email in (self.admin_emails or "").split(",") if email.strip()]
+
+    def is_admin_email(self, email: str | None) -> bool:
+        return bool(email and email.lower() in self.admin_email_list)
 
     @property
     def cors_origins(self) -> list[str]:

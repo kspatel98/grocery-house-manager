@@ -576,3 +576,43 @@ If a paid account appears as Free, go to Profile and click **Sync subscription**
 - Account deletion now has a safety preview. If the user owns shared houses with other members, deletion is blocked until those members are removed. If the user owns solo houses, the UI clearly warns that those houses and all related data will be deleted.
 - Product images now render through a safer responsive visual component with full-image fitting on desktop and mobile. External image URLs use `referrerPolicy="no-referrer"` and inventory cards no longer crop product images in half.
 - Homepage desktop/laptop layout has been adjusted with better max widths, margins, and hero image sizing while keeping the mobile layout strong.
+
+## v25 update — top-class UX, admin, reports, and smart shopping
+
+This version adds a larger user-experience upgrade:
+
+- Account signup now asks for country and city.
+- Country/city are editable from Profile and displayed in Profile.
+- Product/shop prices now display with a currency based on the user's country where possible.
+- Product prices can be cleared by leaving the price blank or using the Clear product price button.
+- Product images/external image links use safer `object-fit: contain` styling so they do not get cropped/cut on mobile or desktop.
+- Added Reports page with store comparison, best-known prices, low-stock/expiry stats, and store activity.
+- Added Household Pro smart shopping suggestions on shopping lists:
+  - Uses household saved prices from products/receipts.
+  - Can ask for browser location permission.
+  - Can use manually entered city/country.
+  - Shows nearby grocery stores when Google Places API is configured.
+  - Falls back to common grocery chains for the user's country/city when no Google Places key is configured.
+- Added private Admin Dashboard at `/admin`, protected by backend admin email checking.
+- Admin can view users, plans, houses/products/receipts counts, grant plans manually, schedule/cancel/reset a user, and create a latest-payment Stripe refund.
+
+### New backend environment variables
+
+```env
+ADMIN_EMAILS=kp3813294@gmail.com
+GOOGLE_PLACES_API_KEY=
+```
+
+`GOOGLE_PLACES_API_KEY` is optional. Add it only after enabling Google Maps Platform Places API (New). Without it, the app still works and shows city-level fallback grocery chains.
+
+### Admin notes
+
+The Admin Dashboard is available at:
+
+```text
+https://grocery-house-manager.com/admin
+```
+
+Only emails listed in `ADMIN_EMAILS` can access admin endpoints. The frontend also shows the Admin navigation link for `kp3813294@gmail.com`; backend protection is the real security layer.
+
+Refunds from Admin Dashboard are real Stripe refund actions when live Stripe keys are configured. Use test mode first before using live mode.

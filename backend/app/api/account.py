@@ -7,6 +7,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import House, HouseMember, HouseRole, PlanName, ProductStorePrice, Receipt, User
 from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, UserProfileOut
+from app.utils.location import currency_for_country
 
 router = APIRouter(prefix="/account", tags=["account"])
 
@@ -17,6 +18,9 @@ def user_profile_out(user: User) -> UserProfileOut:
         email=user.email,
         full_name=user.full_name,
         avatar_url=user.avatar_url,
+        country=user.country,
+        city=user.city,
+        currency_code=currency_for_country(user.country),
         auth_provider=user.auth_provider.value if hasattr(user.auth_provider, "value") else str(user.auth_provider),
         created_at=user.created_at,
         plan_name=user.plan_name.value if hasattr(user.plan_name, "value") else str(user.plan_name or "free"),

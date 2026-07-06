@@ -8,6 +8,9 @@ class UserOut(BaseModel):
     email: EmailStr
     full_name: str | None = None
     avatar_url: str | None = None
+    country: str | None = None
+    city: str | None = None
+    currency_code: str = "CAD"
 
     model_config = {"from_attributes": True}
 
@@ -23,6 +26,8 @@ class UserProfileOut(UserOut):
 class UserProfileUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=255)
     avatar_url: str | None = None
+    country: str | None = Field(default=None, max_length=120)
+    city: str | None = Field(default=None, max_length=120)
 
 
 class TokenOut(BaseModel):
@@ -35,6 +40,8 @@ class RegisterIn(BaseModel):
     full_name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+    country: str = Field(min_length=1, max_length=120)
+    city: str = Field(min_length=1, max_length=120)
 
 
 class LoginIn(BaseModel):
@@ -381,3 +388,74 @@ class CouponValidateOut(BaseModel):
     discounted_prices: dict[str, float] = Field(default_factory=dict)
     blocked_by_new_user_offer: bool = False
     available_after: datetime | None = None
+
+
+class AdminSummaryOut(BaseModel):
+    total_users: int
+    paid_or_granted_users: int
+    total_houses: int
+    total_products: int
+    total_receipts: int
+    users_by_plan: dict[str, int] = Field(default_factory=dict)
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str | None = None
+    country: str | None = None
+    city: str | None = None
+    currency_code: str = "CAD"
+    plan_name: PlanName
+    subscription_status: str
+    created_at: datetime
+    houses_owned: int = 0
+    memberships: int = 0
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+
+
+class AdminPlanAssignIn(BaseModel):
+    plan_name: PlanName
+    reason: str | None = Field(default=None, max_length=240)
+
+
+class AdminActionOut(BaseModel):
+    ok: bool
+    message: str
+
+
+class AdminRefundIn(BaseModel):
+    confirm: bool = False
+    amount_cents: int | None = Field(default=None, ge=1)
+    reason: str | None = Field(default=None, max_length=240)
+
+
+class NearbyStoreOut(BaseModel):
+    name: str
+    address: str | None = None
+    rating: float | None = None
+    user_ratings_total: int | None = None
+    maps_url: str | None = None
+    source: str = "fallback"
+
+
+class ShoppingItemSuggestionOut(BaseModel):
+    product_id: int
+    product_name: str
+    requested_quantity: float
+    current_store: str | None = None
+    current_price: float | None = None
+    best_known_store: str | None = None
+    best_known_price: float | None = None
+    savings_vs_current: float | None = None
+    message: str
+
+
+class ShoppingSuggestionsOut(BaseModel):
+    currency_code: str = "CAD"
+    location_label: str | None = None
+    premium_required: bool = False
+    message: str
+    nearby_stores: list[NearbyStoreOut] = Field(default_factory=list)
+    item_suggestions: list[ShoppingItemSuggestionOut] = Field(default_factory=list)

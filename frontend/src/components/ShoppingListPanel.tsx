@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
+import { money } from '../currency';
 import type { Product, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
 
 type Selection = Record<number, { selected: boolean; requested_quantity: number; message: string; bought_price?: number | null; bought_store_name?: string }>;
@@ -250,7 +251,7 @@ function ProductPicker({ products, selection, onToggle, onUpdate }: { products: 
               <input type="checkbox" checked={!!selected} onChange={() => onToggle(product)} />
               <span>
                 {product.icon || '🛒'} {product.name}
-                <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • $${product.price.toFixed(2)}` : ''}</small>
+                <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • ${money(product.price)}` : ''}</small>
               </span>
             </label>
             {selected && (

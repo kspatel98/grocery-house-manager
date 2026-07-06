@@ -13,6 +13,8 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
 import RefundPolicyPage from './pages/RefundPolicyPage';
 import SupportPage from './pages/SupportPage';
+import ReportsPage from './pages/ReportsPage';
+import AdminPage from './pages/AdminPage';
 import AppFrame from './components/AppFrame';
 import PublicFrame from './components/PublicFrame';
 
@@ -40,6 +42,8 @@ export default function App() {
       <Route path="/join/:token" element={<RequireAuth><JoinPage /></RequireAuth>} />
       <Route path="/houses" element={<RequireAuth><HousesPage /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+      <Route path="/reports" element={<RequireAuth><ReportsPage /></RequireAuth>} />
+      <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
       <Route path="/houses/:houseId" element={<RequireAuth><HousePage /></RequireAuth>} />
       <Route path="/houses/:houseId/shopping" element={<RequireAuth><ShoppingPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />

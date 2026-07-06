@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { money } from '../currency';
 import { useHouseLiveRefresh } from '../hooks';
 import type { Activity, House, HouseMember, Product, Receipt, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
 import ProductModal from '../components/ProductModal';
@@ -211,12 +212,12 @@ export default function HousePage() {
                   <small>{product.section_name} • {product.store_name || 'Any store'}</small>
                   <div className="product-meta">
                     <span>{product.quantity} {product.unit}</span>
-                    {product.price !== undefined && product.price !== null && <span>${product.price.toFixed(2)}</span>}
+                    {product.price !== undefined && product.price !== null && <span>{money(product.price)}</span>}
                   </div>
                   {product.store_prices?.length ? (
                     <div className="store-price-list">
                       {product.store_prices.slice(0, 3).map((price) => (
-                        <span key={price.id}>{price.store_name}: ${price.price.toFixed(2)}</span>
+                        <span key={price.id}>{price.store_name}: {money(price.price)}</span>
                       ))}
                     </div>
                   ) : null}
@@ -378,7 +379,7 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
           <strong>Scan results</strong>
           {uploadResult.parsed_lines.slice(0, 8).map((line, index) => (
             <span key={`${line.raw_text}-${index}`} className={line.applied ? 'scan-line applied' : 'scan-line'}>
-              {line.applied ? '✓' : '•'} {line.matched_product_name || line.product_name || line.raw_text} {line.price !== null && line.price !== undefined ? `• $${line.price.toFixed(2)}` : ''}
+              {line.applied ? '✓' : '•'} {line.matched_product_name || line.product_name || line.raw_text} {line.price !== null && line.price !== undefined ? `• ${money(line.price)}` : ''}
             </span>
           ))}
         </div>
@@ -399,7 +400,7 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
         {lines.length > 0 && (
           <div className="receipt-lines">
             {lines.map((line, index) => (
-              <span key={`${line.product_id}-${index}`}>{line.product_name} • {line.store_name || storeName || 'Store'} • ${line.price.toFixed(2)}</span>
+              <span key={`${line.product_id}-${index}`}>{line.product_name} • {line.store_name || storeName || 'Store'} • {money(line.price)}</span>
             ))}
           </div>
         )}

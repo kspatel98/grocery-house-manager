@@ -1,16 +1,26 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-const navItems = [
+const baseNavItems = [
   { to: '/houses', label: 'Houses' },
+  { to: '/reports', label: 'Reports' },
   { to: '/pricing', label: 'Plans' },
-  { to: '/about', label: 'About' },
   { to: '/support', label: 'Support' },
   { to: '/profile', label: 'Profile' },
 ];
 
+function isAdminUser() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    return String(user?.email || '').toLowerCase() === 'kp3813294@gmail.com';
+  } catch {
+    return false;
+  }
+}
+
 export default function AppFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const navItems = isAdminUser() ? [...baseNavItems, { to: '/admin', label: 'Admin' }] : baseNavItems;
 
   return (
     <div className="app-frame">

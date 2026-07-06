@@ -54,6 +54,8 @@ class User(Base):
     auth_provider: Mapped[AuthProvider] = mapped_column(SAEnum(AuthProvider), default=AuthProvider.email)
     google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(Text)
+    country: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(120), nullable=True)
     plan_name: Mapped[PlanName] = mapped_column(SAEnum(PlanName), default=PlanName.free)
     subscription_status: Mapped[str] = mapped_column(String(60), default="free")
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)

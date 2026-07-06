@@ -15,6 +15,8 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [country, setCountry] = useState("Canada");
+  const [city, setCity] = useState("");
   const [error, setError] = useState("");
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -38,7 +40,7 @@ export default function LoginPage() {
     try {
       const endpoint = isRegister ? "/auth/register" : "/auth/login";
       const payload = isRegister
-        ? { full_name: fullName, email, password }
+        ? { full_name: fullName, email, password, country, city }
         : { email, password };
       const { data } = await api.post<AuthResponse>(endpoint, payload);
       saveAuth(data);
@@ -121,14 +123,36 @@ export default function LoginPage() {
         </div>
         <form onSubmit={submit} className="stack">
           {isRegister && (
-            <label>
-              Full name
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-            </label>
+            <>
+              <label>
+                Full name
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </label>
+              <div className="form-row auth-location-row">
+                <label>
+                  Country
+                  <input
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder="Canada"
+                    required
+                  />
+                </label>
+                <label>
+                  City
+                  <input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Hamilton"
+                    required
+                  />
+                </label>
+              </div>
+            </>
           )}
           <label>
             Email

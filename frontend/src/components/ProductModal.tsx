@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { api, errorMessage } from '../api';
+import { money } from '../currency';
 import type { Product, Section } from '../types';
 
 type Props = {
@@ -194,7 +195,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
                 )}
               </div>
               <strong>{form.name || 'Product preview'}</strong>
-              <small>{form.store_name || 'Any store'}{form.price ? ` • $${Number(form.price).toFixed(2)}` : ''}</small>
+              <small>{form.store_name || 'Any store'}{form.price !== '' && form.price !== null ? ` • ${money(Number(form.price))}` : ''}</small>
             </div>
 
             <div className="preset-panel">
@@ -237,7 +238,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
             <label>Unit<input placeholder="bags, kg, pcs" value={form.unit} onChange={(e) => setField('unit', e.target.value)} /></label>
           </div>
           <div className="form-row">
-            <label>Price<input type="number" step="0.01" value={form.price} onChange={(e) => setField('price', e.target.value)} /></label>
+            <label>Price<input type="number" step="0.01" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="Leave blank to remove price" /></label>
             <label>Store<input value={form.store_name} onChange={(e) => setField('store_name', e.target.value)} /></label>
           </div>
           <div className="form-row">
@@ -248,6 +249,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
             <label>Expiry date<input type="date" value={form.expiry_date} onChange={(e) => setField('expiry_date', e.target.value)} /></label>
             <label>Low stock alert<input type="number" step="0.01" value={form.low_stock_threshold} onChange={(e) => setField('low_stock_threshold', e.target.value)} /></label>
           </div>
+          <div className="form-row"><button type="button" className="secondary" onClick={() => setField('price', '')}>Clear product price</button><span className="small-muted inline-help">Blank price saves as no price and removes the manual product price.</span></div>
           <label>Notes<textarea value={form.notes} onChange={(e) => setField('notes', e.target.value)} /></label>
           <div className="modal-actions">
             <button type="button" onClick={onClose} className="secondary">Cancel</button>

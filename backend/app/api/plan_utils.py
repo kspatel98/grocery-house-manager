@@ -80,6 +80,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "Advanced price tracking for multiple stores",
             "Large receipt and inventory history",
             "Export-ready personal insights for serious tracking",
+            "Smart shopping suggestions with nearby grocery store locations",
             "Built for extended families, shared rentals, and multiple homes",
         ],
     ),
@@ -179,3 +180,8 @@ def plan_usage(db: Session, user: User) -> dict:
         "active_lists_by_house": active_lists_by_house,
         "members_by_house": members_by_house,
     }
+
+
+def house_plan_has_smart_market(db: Session, house_id: int) -> bool:
+    """House-level premium feature. Household Pro unlocks live nearby store suggestions."""
+    return get_house_plan(db, house_id).key == PlanName.pro

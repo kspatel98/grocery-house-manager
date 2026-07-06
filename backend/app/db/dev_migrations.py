@@ -17,6 +17,8 @@ def ensure_dev_schema(engine: Engine) -> None:
         "DO $$ BEGIN ALTER TYPE planname ADD VALUE IF NOT EXISTS 'basic'; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
 
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(120)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(120)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_name planname DEFAULT 'free'",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(60) DEFAULT 'free'",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)",

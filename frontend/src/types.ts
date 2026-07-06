@@ -3,6 +3,9 @@ export type User = {
   email: string;
   full_name?: string;
   avatar_url?: string;
+  country?: string;
+  city?: string;
+  currency_code?: string;
 };
 
 export type UserProfile = User & {
@@ -230,4 +233,65 @@ export type AccountBootstrap = {
   subscription: Subscription;
   insights: PersonalInsights;
   houses: House[];
+};
+
+
+export type AdminSummary = {
+  total_users: number;
+  paid_or_granted_users: number;
+  total_houses: number;
+  total_products: number;
+  total_receipts: number;
+  users_by_plan: Record<string, number>;
+};
+
+export type AdminUser = {
+  id: number;
+  email: string;
+  full_name?: string;
+  country?: string;
+  city?: string;
+  currency_code: string;
+  plan_name: PlanName;
+  subscription_status: string;
+  created_at: string;
+  houses_owned: number;
+  memberships: number;
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+};
+
+export type AdminAction = {
+  ok: boolean;
+  message: string;
+};
+
+export type NearbyStore = {
+  name: string;
+  address?: string;
+  rating?: number;
+  user_ratings_total?: number;
+  maps_url?: string;
+  source: string;
+};
+
+export type ShoppingItemSuggestion = {
+  product_id: number;
+  product_name: string;
+  requested_quantity: number;
+  current_store?: string;
+  current_price?: number;
+  best_known_store?: string;
+  best_known_price?: number;
+  savings_vs_current?: number;
+  message: string;
+};
+
+export type ShoppingSuggestions = {
+  currency_code: string;
+  location_label?: string;
+  premium_required: boolean;
+  message: string;
+  nearby_stores: NearbyStore[];
+  item_suggestions: ShoppingItemSuggestion[];
 };

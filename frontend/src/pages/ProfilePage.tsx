@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "../api";
+import { money } from "../currency";
 import type { AccountBootstrap, AccountDeletePreview, PersonalInsights, Subscription, UserProfile } from "../types";
 
 const PLAN_LABELS: Record<string, string> = {
@@ -11,7 +12,7 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 function isPaidStatus(status?: string) {
-  return ["active", "trialing", "past_due", "cancel_at_period_end"].includes(
+  return ["active", "trialing", "past_due", "cancel_at_period_end", "admin_granted"].includes(
     (status || "").toLowerCase(),
   );
 }
@@ -34,6 +35,8 @@ export default function ProfilePage() {
   const [insights, setInsights] = useState<PersonalInsights | null>(null);
   const [fullName, setFullName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [country, setCountry] = useState("");
+  const [city, setCity] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [showDelete, setShowDelete] = useState(false);
   const [deletePreview, setDeletePreview] = useState<AccountDeletePreview | null>(null);
@@ -86,6 +89,8 @@ export default function ProfilePage() {
       );
       setFullName(mergedProfile.full_name || "");
       setAvatarUrl(mergedProfile.avatar_url || "");
+      setCountry(mergedProfile.country || "");
+      setCity(mergedProfile.city || "");
       setError("");
     } catch (err) {
       setError(errorMessage(err));
@@ -101,6 +106,8 @@ export default function ProfilePage() {
       const { data } = await api.post<UserProfile>("/auth/me/edit", {
         full_name: fullName.trim() || null,
         avatar_url: avatarUrl.trim() || null,
+        country: country.trim() || null,
+        city: city.trim() || null,
       });
       setProfile(data);
       localStorage.setItem("account_profile_cache", JSON.stringify(data));
@@ -111,6 +118,9 @@ export default function ProfilePage() {
           email: data.email,
           full_name: data.full_name,
           avatar_url: data.avatar_url,
+          country: data.country,
+          city: data.city,
+          currency_code: data.currency_code,
         }),
       );
       setSuccess("Profile updated.");
@@ -333,6 +343,18 @@ export default function ProfilePage() {
               <span>{profile?.auth_provider || "-"}</span>
             </div>
             <div>
+              <strong>Country</strong>
+              <span>{profile?.country || "Add country"}</span>
+            </div>
+            <div>
+              <strong>City</strong>
+              <span>{profile?.city || "Add city"}</span>
+            </div>
+            <div>
+              <strong>Currency</strong>
+              <span>{profile?.currency_code || "CAD"}</span>
+            </div>
+            <div>
               <strong>User ID</strong>
               <span>{profile?.id || "-"}</span>
             </div>
@@ -414,6 +436,24 @@ export default function ProfilePage() {
                 placeholder="https://..."
               />
             </label>
+            <div className="form-row">
+              <label>
+                Country
+                <input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="Canada"
+                />
+              </label>
+              <label>
+                City
+                <input
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Hamilton"
+                />
+              </label>
+            </div>
             <div className="profile-actions">
               <button className="primary" disabled={busy}>
                 {busy ? "Saving..." : "Save profile"}
@@ -472,7 +512,7 @@ export default function ProfilePage() {
               <span>Stores tracked</span>
             </div>
             <div className="stat-card">
-              <strong>${insights.estimated_personal_spend.toFixed(2)}</strong>
+              <strong>{money(insights.estimated_personal_spend, profile?.currency_code)}</strong>
               <span>Tracked spend</span>
             </div>
           </div>
