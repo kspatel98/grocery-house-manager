@@ -161,16 +161,19 @@ export default function AdminPage() {
             <h2>Password reset email health</h2>
             <p>Use this when a user says they requested a forgot-password code but did not receive the email.</p>
           </div>
-          <span className={`plan-status-badge ${emailStatus?.smtp_configured ? 'paid' : 'free'}`}>
-            {emailStatus?.smtp_configured ? 'SMTP configured' : 'SMTP missing'}
+          <span className={`plan-status-badge ${emailStatus?.email_configured ? 'paid' : 'free'}`}>
+            {emailStatus?.email_configured ? `${emailStatus.provider.toUpperCase()} configured` : `${emailStatus?.provider?.toUpperCase() || 'EMAIL'} missing`}
           </span>
         </div>
         {emailStatus && (
           <div className="email-status-grid">
-            <div><strong>Host</strong><span>{emailStatus.smtp_host || '-'}</span></div>
-            <div><strong>Port</strong><span>{emailStatus.smtp_port || '-'}</span></div>
-            <div><strong>From</strong><span>{emailStatus.smtp_from_email || '-'}</span></div>
-            <div><strong>Username</strong><span>{emailStatus.smtp_username || '-'}</span></div>
+            <div><strong>Active provider</strong><span>{emailStatus.provider || '-'}</span></div>
+            <div><strong>Email configured</strong><span>{emailStatus.email_configured ? 'true' : 'false'}</span></div>
+            <div><strong>Resend from</strong><span>{emailStatus.resend_from_email || '-'}</span></div>
+            <div><strong>SMTP host</strong><span>{emailStatus.smtp_host || '-'}</span></div>
+            <div><strong>SMTP port</strong><span>{emailStatus.smtp_port || '-'}</span></div>
+            <div><strong>SMTP from</strong><span>{emailStatus.smtp_from_email || '-'}</span></div>
+            <div><strong>SMTP username</strong><span>{emailStatus.smtp_username || '-'}</span></div>
             <div><strong>TLS</strong><span>{emailStatus.smtp_use_tls ? 'true' : 'false'}</span></div>
             <div><strong>Force IPv4</strong><span>{emailStatus.smtp_force_ipv4 ? 'true' : 'false'}</span></div>
             <div><strong>Missing</strong><span>{emailStatus.missing_settings?.length ? emailStatus.missing_settings.join(', ') : '-'}</span></div>
@@ -181,10 +184,10 @@ export default function AdminPage() {
           <label>Send test password-reset email<input type="email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="your inbox email" required /></label>
           <button className="primary" disabled={emailBusy}>{emailBusy ? 'Sending...' : 'Send test'}</button>
         </form>
-        {emailBusy && <div className="hint form-message">Sending a real test email through SMTP. This can take up to 30 seconds.</div>}
+        {emailBusy && <div className="hint form-message">Sending a real test email through the active provider. SMTP may take up to 30 seconds; Resend usually returns faster.</div>}
         {emailError && <div className="error form-message">{emailError}</div>}
         {emailSuccess && <div className="success form-message">{emailSuccess}</div>}
-        <p className="small-muted">If the test fails, check server logs: <code>docker compose logs backend --tail=100</code></p>
+        <p className="small-muted">If the test fails, check server logs: <code>docker compose logs backend --tail=100</code>. If SMTP times out, use EMAIL_PROVIDER=resend.</p>
       </section>
 
       <section className="panel admin-plan-counts">

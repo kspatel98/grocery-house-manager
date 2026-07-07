@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     # Optional Google Maps Platform Places API key for nearby grocery store search.
     google_places_api_key: str | None = None
 
+    # Password reset email provider.
+    # Recommended production value when SMTP 587/465 is blocked by hosting: resend.
+    # Supported values: auto, resend, smtp. auto uses Resend when RESEND_API_KEY exists, otherwise SMTP.
+    email_provider: str = "auto"
+
+    # Optional Resend HTTPS Email API settings. Uses outbound HTTPS port 443.
+    resend_api_key: str | None = None
+    resend_from_email: str | None = None
+    resend_from_name: str = "Grocery House Manager"
+
     # Optional SMTP settings for password reset emails. If these are blank,
     # forgot-password requests still generate secure codes but the backend can
     # only expose the code in non-production development mode.

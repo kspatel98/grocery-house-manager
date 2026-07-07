@@ -696,3 +696,24 @@ SMTP_FROM_EMAIL=support@grocery-house-manager.com
 ```
 
 Use `support@` as `SMTP_USERNAME` only if it is a separate paid Workspace user, not just an alias.
+
+
+### Password reset email when SMTP is blocked
+
+If Docker logs show `SMTP connection timed out` for `smtp.gmail.com:587`, use the Resend HTTPS Email API instead of Gmail SMTP:
+
+```env
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_your_resend_api_key_here
+RESEND_FROM_EMAIL=support@grocery-house-manager.com
+RESEND_FROM_NAME=Grocery House Manager
+```
+
+Then restart and test:
+
+```bash
+docker compose down
+docker compose up -d --build
+docker compose exec backend python -m app.scripts.email_api_network_check
+docker compose exec backend python -m app.scripts.test_resend your@email.com
+```

@@ -11,7 +11,7 @@ from app.api.deps import get_current_user
 from app.api.activity_utils import display_name, log_activity
 from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordHistory, PasswordResetCode, User, Receipt, ProductStorePrice, PlanName
 from app.utils.location import currency_for_country, normalize_country
-from app.utils.emailer import send_password_reset_code
+from app.utils.emailer import email_configured, send_password_reset_code
 from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, ForgotPasswordRequestIn, ForgotPasswordRequestOut, ForgotPasswordResetIn, ForgotPasswordVerifyIn, ForgotPasswordVerifyOut, GoogleLoginIn, LoginIn, PasswordChangeIn, RegisterIn, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -177,7 +177,7 @@ def change_password(payload: PasswordChangeIn, db: Session = Depends(get_db), us
 @router.post("/forgot-password/request", response_model=ForgotPasswordRequestOut)
 def request_forgot_password(payload: ForgotPasswordRequestIn, db: Session = Depends(get_db)):
     message = reset_code_message()
-    if not settings.smtp_host or not settings.smtp_from_email:
+    if not email_configured():
         if (settings.environment or "development").lower() == "production":
             raise HTTPException(status_code=503, detail="Password reset email is not configured yet. Please contact support@grocery-house-manager.com.")
     user = db.query(User).filter(User.email == payload.email.lower()).first()
