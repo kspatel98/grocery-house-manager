@@ -13,7 +13,7 @@ type ItemUpdates = {
   bought_store_name?: string | null;
 };
 
-export default function ShoppingListPanel({ houseId, products, activeList, onChange, onListCreated }: { houseId: number; products: Product[]; activeList: ShoppingList | null; onChange: () => void | Promise<void>; onListCreated?: (list: ShoppingList) => void }) {
+export default function ShoppingListPanel({ houseId, products, activeList, onChange, onListCreated, onListUpdated }: { houseId: number; products: Product[]; activeList: ShoppingList | null; onChange: () => void | Promise<void>; onListCreated?: (list: ShoppingList) => void; onListUpdated?: (list: ShoppingList) => void }) {
   const [selection, setSelection] = useState<Selection>({});
   const [title, setTitle] = useState('Grocery List');
   const [editedTitle, setEditedTitle] = useState(activeList?.title || 'Grocery List');
@@ -73,7 +73,7 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
       setTitle('Grocery List');
       setError('');
       onListCreated?.(data);
-      await onChange();
+      onListUpdated?.(data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -85,11 +85,11 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
     if (!activeList) return;
     try {
       setBusy(true);
-      await api.post(`/houses/${houseId}/shopping-lists/${activeList.id}/items`, { items: selectionPayload() });
+      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists/${activeList.id}/items`, { items: selectionPayload() });
       setSelection({});
       setShowAddMore(false);
       setError('');
-      await onChange();
+      onListUpdated?.(data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -101,9 +101,9 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
     if (!activeList) return;
     try {
       setBusy(true);
-      await api.post(`/houses/${houseId}/shopping-lists/${activeList.id}/edit`, { title: editedTitle });
+      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists/${activeList.id}/edit`, { title: editedTitle });
       setError('');
-      await onChange();
+      onListUpdated?.(data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -115,9 +115,9 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
     if (!activeList) return;
     try {
       setBusy(true);
-      await api.post(`/houses/${houseId}/shopping-lists/${activeList.id}/items/${item.id}/edit`, updates);
+      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists/${activeList.id}/items/${item.id}/edit`, updates);
       setError('');
-      await onChange();
+      onListUpdated?.(data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -129,9 +129,9 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
     if (!activeList) return;
     try {
       setBusy(true);
-      await api.post(`/houses/${houseId}/shopping-lists/${activeList.id}/items/${item.id}/status`, { status });
+      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists/${activeList.id}/items/${item.id}/status`, { status });
       setError('');
-      await onChange();
+      onListUpdated?.(data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -241,30 +241,46 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
 }
 
 function ProductPicker({ products, selection, onToggle, onUpdate }: { products: Product[]; selection: Selection; onToggle: (product: Product) => void; onUpdate: (productId: number, key: 'requested_quantity' | 'message' | 'bought_price' | 'bought_store_name', value: string) => void }) {
+  const [pickerSearch, setPickerSearch] = useState('');
+  const visibleProducts = useMemo(() => {
+    const query = pickerSearch.trim().toLowerCase();
+    const filtered = query
+      ? products.filter((product) => [product.name, product.store_name, product.section_name, product.brand].filter(Boolean).join(' ').toLowerCase().includes(query))
+      : products;
+    return filtered.slice(0, 80);
+  }, [products, pickerSearch]);
+
   return (
-    <div className="product-picker">
-      {products.map((product) => {
-        const selected = selection[product.id]?.selected;
-        return (
-          <div key={product.id} className={`pick-row ${selected ? 'selected' : ''}`}>
-            <label>
-              <input type="checkbox" checked={!!selected} onChange={() => onToggle(product)} />
-              <span>
-                {product.icon || '🛒'} {product.name}
-                <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • ${money(product.price)}` : ''}</small>
-              </span>
-            </label>
-            {selected && (
-              <div className="pick-extra">
-                <input type="number" min="0.01" step="0.01" value={selection[product.id]?.requested_quantity || 1} onChange={(e) => onUpdate(product.id, 'requested_quantity', e.target.value)} />
-                <input placeholder="Store for this trip" value={selection[product.id]?.bought_store_name || ''} onChange={(e) => onUpdate(product.id, 'bought_store_name', e.target.value)} />
-                <input type="number" min="0" step="0.01" placeholder="Expected price" value={selection[product.id]?.bought_price ?? ''} onChange={(e) => onUpdate(product.id, 'bought_price', e.target.value)} />
-                <input placeholder="Message e.g. buy 2% milk" value={selection[product.id]?.message || ''} onChange={(e) => onUpdate(product.id, 'message', e.target.value)} />
-              </div>
-            )}
-          </div>
-        );
-      })}
+    <div className="product-picker-wrap">
+      <div className="product-picker-toolbar">
+        <input value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} placeholder="Search inventory products..." />
+        <small>{visibleProducts.length} shown{products.length > visibleProducts.length ? ` of ${products.length}` : ''}</small>
+      </div>
+      {products.length > visibleProducts.length && <p className="small-muted">Showing the first 80 matches to keep this page fast. Search to narrow the list.</p>}
+      <div className="product-picker">
+        {visibleProducts.map((product) => {
+          const selected = selection[product.id]?.selected;
+          return (
+            <div key={product.id} className={`pick-row ${selected ? 'selected' : ''}`}>
+              <label>
+                <input type="checkbox" checked={!!selected} onChange={() => onToggle(product)} />
+                <span>
+                  {product.icon || '🛒'} {product.name}
+                  <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • ${money(product.price)}` : ''}</small>
+                </span>
+              </label>
+              {selected && (
+                <div className="pick-extra">
+                  <input type="number" min="0.01" step="0.01" value={selection[product.id]?.requested_quantity || 1} onChange={(e) => onUpdate(product.id, 'requested_quantity', e.target.value)} />
+                  <input placeholder="Store for this trip" value={selection[product.id]?.bought_store_name || ''} onChange={(e) => onUpdate(product.id, 'bought_store_name', e.target.value)} />
+                  <input type="number" min="0" step="0.01" placeholder="Expected price" value={selection[product.id]?.bought_price ?? ''} onChange={(e) => onUpdate(product.id, 'bought_price', e.target.value)} />
+                  <input placeholder="Message e.g. buy 2% milk" value={selection[product.id]?.message || ''} onChange={(e) => onUpdate(product.id, 'message', e.target.value)} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

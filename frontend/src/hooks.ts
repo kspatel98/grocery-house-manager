@@ -3,6 +3,7 @@ import { API_URL } from './api';
 
 export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Promise<void>) {
   const refreshRef = useRef(onRefresh);
+  const debounceRef = useRef<number | undefined>(undefined);
   refreshRef.current = onRefresh;
 
   useEffect(() => {
@@ -14,6 +15,14 @@ export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Pro
     let socket: WebSocket | null = null;
     let reconnectTimer: number | undefined;
 
+    function scheduleRefresh(delay = 900) {
+      if (stopped) return;
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+      debounceRef.current = window.setTimeout(() => {
+        refreshRef.current();
+      }, delay);
+    }
+
     function connect() {
       if (stopped) return;
       const wsBase = API_URL.replace(/^http/i, 'ws');
@@ -23,7 +32,7 @@ export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Pro
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'house_updated') {
-            await refreshRef.current();
+            scheduleRefresh();
           }
         } catch {
           // Ignore malformed websocket messages.
@@ -39,12 +48,13 @@ export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Pro
 
     connect();
 
-    const onFocus = () => refreshRef.current();
+    const onFocus = () => scheduleRefresh(1200);
     window.addEventListener('focus', onFocus);
 
     return () => {
       stopped = true;
       window.removeEventListener('focus', onFocus);
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
       socket?.close();
     };

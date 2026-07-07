@@ -36,7 +36,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         features=[
             "Join houses by invitation",
             "Use shared house features based on the owner's plan",
-            "Live updates and activity feed inside joined houses",
+            "Recent activity and member visibility inside joined houses",
             "Upgrade to create your own house and unlock personal tools",
         ],
     ),
@@ -47,8 +47,10 @@ PLANS: dict[PlanName, PlanDefinition] = {
         tagline="Affordable plan for couples and small households.",
         limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6),
         features=[
+            "Create and manage your own houses",
             "Receipt photo upload with OCR-assisted price matching",
             "Store-specific price history for each product",
+            "Product lookup by barcode or product name",
             "Personal receipt tracker and spending summary",
             "Low-stock and expiry highlights",
             "65% off Basic for the first 2 billing months when eligible",
@@ -63,7 +65,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         features=[
             "Everything in Basic Home",
             "Best-store comparison across your grocery inventory",
-            "Canadian live price comparison for supported retailers",
+            "Canadian grocery price comparison for supported retailers",
             "Monthly household expense view",
             "Receipt archive for shared homes",
             "Better for families, roommates, and weekly shopping routines",
@@ -82,7 +84,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "Large receipt and inventory history",
             "Export-ready personal insights for serious tracking",
             "Smart shopping suggestions with nearby grocery store locations",
-            "Canadian live price comparison for supported retailers",
+            "Canadian grocery price comparison for supported retailers",
             "Built for extended families, shared rentals, and multiple homes",
         ],
     ),

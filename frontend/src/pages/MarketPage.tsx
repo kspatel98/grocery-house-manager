@@ -113,8 +113,7 @@ export default function MarketPage() {
           <p className="eyebrow">Market tools</p>
           <h1>Find product details and compare grocery prices</h1>
           <p>
-            Use Open Food Facts for barcode/product details and Canadian price comparison for supported retailers.
-            Prices are latest available results and may vary by location, loyalty offers, and availability.
+            Search product details, compare supported Canadian grocery prices, and use your household price history to shop smarter. Prices are latest available estimates and may vary by location, loyalty offers, and availability.
           </p>
         </div>
         <div className="topbar-actions">
@@ -137,7 +136,7 @@ export default function MarketPage() {
           </select>
         </div>
         {!houses.length && <div className="hint">Create or join a house first, then come back to use market tools.</div>}
-        {capabilities && <div className="market-capability-note">{capabilities.message}</div>}
+        {capabilities && <PlanAccessPreview configured={capabilities.apify_configured} />}
       </section>
 
       <div className="market-layout-grid">
@@ -147,9 +146,9 @@ export default function MarketPage() {
               <p className="eyebrow">Basic Home+</p>
               <h2>Product lookup</h2>
             </div>
-            <span className="badge">Open Food Facts</span>
+            <span className="badge access-basic">Basic Home+</span>
           </div>
-          <p>Search by barcode or product name to quickly collect product name, brand, image, category, and nutrition grade.</p>
+          <p>Search by barcode or product name to quickly collect product name, brand, image, category, and nutrition grade before adding inventory.</p>
           <form onSubmit={runLookup} className="market-lookup-form">
             <label>Barcode<input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Example: 3017624010701" /></label>
             <label>Product name<input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Example: milk, rice, cereal" /></label>
@@ -178,9 +177,9 @@ export default function MarketPage() {
               <p className="eyebrow">Family Plus+</p>
               <h2>Canadian price comparison</h2>
             </div>
-            <span className="badge">Live-ish prices</span>
+            <span className="badge access-family">Family Plus+</span>
           </div>
-          <p>Compare a small basket across supported Canadian retailers. Results are cached to control API cost.</p>
+          <p>Compare a small basket across supported Canadian retailers. Saved results are reused for a short time so the page stays fast.</p>
           <label>Location or postal code<input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Hamilton, ON or L8P" /></label>
           <label>Items, one per line<textarea value={itemsText} onChange={(e) => setItemsText(e.target.value)} rows={5} /></label>
           <div className="retailer-chip-grid">
@@ -203,6 +202,26 @@ export default function MarketPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function PlanAccessPreview({ configured }: { configured: boolean }) {
+  return (
+    <div className="market-plan-access-preview">
+      <div className="market-access-chip unlocked">
+        <strong>Basic Home+</strong>
+        <span>Product lookup</span>
+      </div>
+      <div className="market-access-chip family">
+        <strong>Family Plus+</strong>
+        <span>Canadian price comparison</span>
+      </div>
+      <div className="market-access-chip pro">
+        <strong>Household Pro</strong>
+        <span>Nearby store suggestions</span>
+      </div>
+      {!configured && <div className="market-access-chip locked"><strong>Live prices</strong><span>Waiting for setup</span></div>}
+    </div>
   );
 }
 

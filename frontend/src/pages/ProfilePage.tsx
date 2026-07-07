@@ -158,6 +158,14 @@ export default function ProfilePage() {
     }
   }
 
+  function clearPasswordForm() {
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setPasswordError("");
+    setPasswordSuccess("");
+  }
+
   async function changePassword(event: React.FormEvent) {
     event.preventDefault();
     setPasswordError("");
@@ -420,6 +428,7 @@ export default function ProfilePage() {
             <p className="small-muted password-rule-note">For security, your new password cannot match any of your last 5 passwords.</p>
             <div className="profile-actions">
               <button className="primary" disabled={passwordBusy}>{passwordBusy ? "Updating..." : "Update password"}</button>
+              <button type="button" className="secondary" onClick={clearPasswordForm} disabled={passwordBusy || (!oldPassword && !newPassword && !confirmNewPassword)}>Clear / cancel</button>
             </div>
           </form>
         </section>

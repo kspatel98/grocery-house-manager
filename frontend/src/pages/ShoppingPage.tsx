@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, LivePriceCompareResponse, Plan, Product, ShoppingList, ShoppingSuggestions, Subscription } from '../types';
+import type { Activity, House, HouseMember, LivePriceCompareResponse, Plan, Product, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
-import { ActivityFeed, MembersPanel } from '../components/HouseInfoPanels';
+import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
 
 export default function ShoppingPage() {
@@ -22,6 +22,9 @@ export default function ShoppingPage() {
   const [sortBy, setSortBy] = useState('store_name');
   const [direction, setDirection] = useState('asc');
   const [error, setError] = useState('');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const currentUser: User | null = JSON.parse(localStorage.getItem('user') || 'null');
 
   async function loadAll() {
     try {
@@ -30,7 +33,7 @@ export default function ShoppingPage() {
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction } }),
         api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
-        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 40 } }),
+        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
         api.get<Subscription>('/billing/me'),
         api.get<Plan>(`/houses/${id}/plan`),
       ]);
@@ -51,6 +54,8 @@ export default function ShoppingPage() {
       }
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setInitialLoading(false);
     }
   }
 
@@ -65,6 +70,15 @@ export default function ShoppingPage() {
   const canCreateMore = !listLimit || activeLists.length < listLimit;
   const activeListForPanel = creatingNew ? null : selectedList;
 
+  function replaceActiveList(nextList: ShoppingList) {
+    setActiveLists((current) => {
+      const exists = current.some((list) => list.id === nextList.id);
+      const next = exists ? current.map((list) => (list.id === nextList.id ? nextList : list)) : [nextList, ...current];
+      return next.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    });
+    setSelectedListId(nextList.id);
+  }
+
   return (
     <main className="page shell wide">
       <header className="topbar">
@@ -75,6 +89,7 @@ export default function ShoppingPage() {
         </div>
         <div className="shopping-topbar-actions">
           <Link to="/pricing" className="secondary center-link">Plans</Link>
+          <button onClick={() => setMembersOpen(true)} className="secondary">Members ({members.length})</button>
           <Link to="/profile" className="secondary center-link">Profile</Link>
           <div className="shopping-sort-controls">
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
@@ -94,6 +109,9 @@ export default function ShoppingPage() {
       </header>
 
       {error && <div className="error">{error}</div>}
+      {initialLoading && <div className="panel muted-panel">Loading grocery lists...</div>}
+
+      <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
 
       <div className="shopping-page-layout">
         <section className="shopping-main-column">
@@ -135,6 +153,7 @@ export default function ShoppingPage() {
             products={products}
             activeList={activeListForPanel}
             onChange={loadAll}
+            onListUpdated={replaceActiveList}
             onListCreated={(list) => {
               setCreatingNew(false);
               setSelectedListId(list.id);
@@ -143,10 +162,17 @@ export default function ShoppingPage() {
         </section>
         <aside className="shopping-side-column">
           <SmartShoppingSuggestions houseId={id} selectedList={selectedList} />
-          <MembersPanel members={members} />
           <ActivityFeed activities={activities} onRefresh={loadAll} />
         </aside>
       </div>
+
+      <MembersDrawer
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        members={members}
+        currentUserId={currentUser?.id}
+        houseRole={house?.role}
+      />
     </main>
   );
 }

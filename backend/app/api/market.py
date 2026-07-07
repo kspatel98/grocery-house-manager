@@ -91,7 +91,7 @@ def market_capabilities(user: User = Depends(get_current_user)):
         live_price_compare_available=bool(settings.apify_api_token),
         apify_configured=bool(settings.apify_api_token),
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        message="Product lookup uses Open Food Facts. Live Canadian price comparison uses the configured Apify actor and is available to eligible house plans when APIFY_API_TOKEN is configured.",
+        message="Market tools are available by plan: Basic Home unlocks product lookup, Family Plus unlocks Canadian price comparison, and Household Pro unlocks nearby store suggestions.",
     )
 
 
@@ -109,7 +109,7 @@ def product_lookup(
         return ProductLookupOut(
             premium_required=True,
             configured=True,
-            message=f"Open Food Facts product lookup is a Basic Home or higher house feature. This house is on the owner's {house_plan.name} plan.",
+            message=f"Product lookup is a Basic Home or higher house feature. This house is on the owner's {house_plan.name} plan.",
             results=[],
         )
     if not barcode and not query:
@@ -125,7 +125,7 @@ def product_lookup(
     return ProductLookupOut(
         premium_required=False,
         configured=True,
-        message="Product details loaded from Open Food Facts. Please verify details before saving because crowd-sourced product data may be incomplete.",
+        message="Product details found. Please review the details before saving them to your inventory.",
         results=results,
     )
 
@@ -180,7 +180,7 @@ def price_compare(
             configured=False,
             currency_code="CAD",
             location_label=location,
-            message="Live Canadian price comparison is enabled for this plan, but APIFY_API_TOKEN is not configured in backend/.env yet.",
+            message="Live Canadian price comparison is included with this plan, but it is not turned on yet. Please contact support if you need help.",
             supported_retailers=SUPPORTED_CANADA_RETAILERS,
             results=[],
         )
@@ -199,7 +199,7 @@ def price_compare(
             cached=False,
             currency_code="CAD",
             location_label=location,
-            message=f"Live price comparison could not be loaded right now. Saved household prices still work. Details: {exc}",
+            message="Live price comparison could not be loaded right now. Saved household prices still work. Please try again later.",
             supported_retailers=SUPPORTED_CANADA_RETAILERS,
             results=[],
         )

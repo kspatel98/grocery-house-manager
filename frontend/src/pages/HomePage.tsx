@@ -43,6 +43,8 @@ const premiumTools = [
   'Store-specific price history for every product',
   'Personal receipt tracker and spending summary',
   'Best-store comparison for smarter shopping',
+  'Product lookup by barcode or product name',
+  'Canadian price comparison for supported retailers',
   'Low-stock and expiry reminders for household planning',
   'Private coupons, launch offers, and transparent billing',
 ];
@@ -70,6 +72,7 @@ export default function HomePage() {
             <span>✓ Free invite joining</span>
             <span>✓ Shared shopping</span>
             <span>✓ Receipt tracking</span>
+            <span>✓ Price tools by plan</span>
             <span>✓ Real-time updates</span>
           </div>
         </div>

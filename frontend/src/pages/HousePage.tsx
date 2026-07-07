@@ -6,7 +6,7 @@ import { useHouseLiveRefresh } from '../hooks';
 import type { Activity, House, HouseMember, Product, Receipt, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
-import { ActivityFeed, MembersPanel } from '../components/HouseInfoPanels';
+import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 
 export default function HousePage() {
   const { houseId } = useParams();
@@ -27,6 +27,8 @@ export default function HousePage() {
   const [productModal, setProductModal] = useState<{ mode: 'create' | 'edit'; product?: Product; sectionId?: number } | null>(null);
   const [inviteUrl, setInviteUrl] = useState('');
   const [error, setError] = useState('');
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   async function loadAll() {
     try {
@@ -36,7 +38,7 @@ export default function HousePage() {
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined } }),
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
-        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 30 } }),
+        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
         api.get<Receipt[]>(`/houses/${id}/receipts`),
       ]);
       setHouse(houseRes.data);
@@ -52,6 +54,8 @@ export default function HousePage() {
       const message = errorMessage(err);
       setError(message);
       if (message.includes('not a member')) navigate('/houses');
+    } finally {
+      setInitialLoading(false);
     }
   }
 
@@ -71,7 +75,7 @@ export default function HousePage() {
       const [listRes, productsRes, activitiesRes, membersRes, receiptsRes] = await Promise.all([
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined } }),
-        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 30 } }),
+        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
         api.get<HouseMember[]>(`/houses/${id}/members`),
         api.get<Receipt[]>(`/houses/${id}/receipts`),
       ]);
@@ -151,18 +155,22 @@ export default function HousePage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>{house?.name || 'House'}</h1>
-          <p>Shared grocery inventory, house members, activity notifications, and shopping list. House capacity follows the owner's plan.</p>
+          <p>Shared inventory, shopping lists, receipts, store prices, members, and recent activity in one simple house dashboard.</p>
           {house?.owner_name && <small className="small-muted">Owner: {house.owner_name}{house.owner_plan_name ? ` • Owner plan: ${house.owner_plan_name}` : ''}</small>}
         </div>
         <div className="topbar-actions">
           <Link to="/pricing" className="secondary center-link">Plans</Link>
           <Link to="/profile" className="secondary center-link">Profile</Link>
+          <button onClick={() => setMembersOpen(true)} className="secondary">Members ({members.length})</button>
           <button onClick={createInvite} className="secondary">Copy invite link</button>
         </div>
       </header>
 
       {inviteUrl && <div className="success">Invite copied: {inviteUrl}</div>}
       {error && <div className="error">{error}</div>}
+      {initialLoading && <div className="panel muted-panel">Loading house dashboard...</div>}
+
+      <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
 
       <section className="stats-grid four">
         <div className="stat-card"><strong>{products.length}</strong><span>Total products</span></div>
@@ -240,7 +248,6 @@ export default function HousePage() {
           <ShoppingSummaryCard houseId={id} activeList={activeList} />
           <ReceiptPanel houseId={id} products={products} receipts={receipts} onChange={loadShoppingAndActivity} />
           <HouseActionsPanel house={house} memberCount={members.length} onLeave={leaveHouse} onDelete={deleteHouse} />
-          <MembersPanel members={members} currentUserId={currentUser?.id} houseRole={house?.role} onRemoveMember={removeMember} />
           <ActivityFeed activities={activities} onRefresh={loadShoppingAndActivity} />
         </aside>
       </div>
@@ -254,6 +261,15 @@ export default function HousePage() {
           onSaved={() => { setProductModal(null); loadShoppingAndActivity(); }}
         />
       )}
+
+      <MembersDrawer
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        members={members}
+        currentUserId={currentUser?.id}
+        houseRole={house?.role}
+        onRemoveMember={removeMember}
+      />
     </main>
   );
 }
@@ -267,7 +283,7 @@ function ProductVisual({ product }: { product: Product }) {
         <img
           src={product.image_url}
           alt={`${product.name} product image`}
-          loading="eager"
+          loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setFailed(true)}

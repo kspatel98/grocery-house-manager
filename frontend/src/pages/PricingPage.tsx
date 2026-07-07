@@ -18,6 +18,30 @@ function calculateFallbackDiscount(planPrice: number, coupon: CouponValidation |
   return null;
 }
 
+const PLAN_RANK: Record<PlanName, number> = { free: 0, basic: 1, family: 2, pro: 3 };
+const PLAN_BADGE_LABELS: Record<PlanName, string> = {
+  free: 'Free Starter',
+  basic: 'Basic Home',
+  family: 'Family Plus',
+  pro: 'Household Pro',
+};
+
+const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanName }[] = [
+  { title: 'Join invited houses', description: 'Join a household and use features unlocked by the house owner.', minPlan: 'free' },
+  { title: 'Create your own houses', description: 'Own and manage houses, members, inventory, and shopping lists.', minPlan: 'basic' },
+  { title: 'Receipts and store-price history', description: 'Upload receipts and save prices by store for future shopping.', minPlan: 'basic' },
+  { title: 'Product lookup', description: 'Search product details by barcode or name while building inventory.', minPlan: 'basic' },
+  { title: 'Best-store comparison', description: 'Compare saved household prices across your stores.', minPlan: 'family' },
+  { title: 'Canadian price comparison', description: 'Compare supported Canadian retailers when live price data is available.', minPlan: 'family' },
+  { title: 'Monthly household expense view', description: 'Understand shared grocery spending over time.', minPlan: 'family' },
+  { title: 'Nearby store suggestions', description: 'Use your list and location to find nearby grocery store options.', minPlan: 'pro' },
+  { title: 'Large household history and insights', description: 'Higher limits for large families, multiple houses, and serious tracking.', minPlan: 'pro' },
+];
+
+function featureUnlocked(planKey: PlanName, minPlan: PlanName) {
+  return PLAN_RANK[planKey] >= PLAN_RANK[minPlan];
+}
+
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -159,6 +183,41 @@ export default function PricingPage() {
         </section>
       )}
 
+      <section className="panel plan-access-panel">
+        <div className="panel-title-row plan-access-title">
+          <div>
+            <p className="eyebrow">Feature access</p>
+            <h2>Unlocked and locked tools by plan</h2>
+            <p>Each house uses the owner&apos;s plan. Green means included, grey means locked until that plan or higher.</p>
+          </div>
+          <Link to="/support" className="secondary center-link">Need help choosing?</Link>
+        </div>
+        <div className="plan-access-grid">
+          {(['free', 'basic', 'family', 'pro'] as PlanName[]).map((planKey) => (
+            <article className={`plan-access-column plan-${planKey}`} key={planKey}>
+              <div className="plan-access-column-header">
+                <span className={`plan-color-dot plan-dot-${planKey}`} />
+                <strong>{PLAN_BADGE_LABELS[planKey]}</strong>
+              </div>
+              <div className="plan-access-list">
+                {PLAN_FEATURE_ACCESS.map((feature) => {
+                  const unlocked = featureUnlocked(planKey, feature.minPlan);
+                  return (
+                    <div key={feature.title} className={unlocked ? 'feature-access-item unlocked' : 'feature-access-item locked'}>
+                      <span>{unlocked ? '✓' : '🔒'}</span>
+                      <div>
+                        <strong>{feature.title}</strong>
+                        <small>{unlocked ? 'Included' : `Locked until ${PLAN_BADGE_LABELS[feature.minPlan]}`}</small>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="panel coupon-panel">
         <div>
           <p className="eyebrow">Have a coupon?</p>
@@ -202,12 +261,13 @@ export default function PricingPage() {
           const effectivePrice = hasNewUserBasicOffer && newUserOfferPrice !== null ? newUserOfferPrice : (hasCouponDiscount ? couponPrice : plan.price_monthly_cad);
           const oldPrice = (hasCouponDiscount || hasNewUserBasicOffer) ? plan.price_monthly_cad : plan.regular_price_monthly_cad;
           return (
-            <article key={plan.key} className={`panel pricing-card ${plan.recommended ? 'recommended' : ''} ${hasCouponDiscount || hasNewUserBasicOffer ? 'coupon-applied-card' : ''}`}>
+            <article key={plan.key} className={`panel pricing-card plan-card-${plan.key} ${plan.recommended ? 'recommended' : ''} ${hasCouponDiscount || hasNewUserBasicOffer ? 'coupon-applied-card' : ''}`}>
               {plan.recommended && <div className="recommended-badge">Best value</div>}
               {plan.discount_label && !hasCouponDiscount && <div className="discount-badge">{plan.discount_label}</div>}
               {hasNewUserBasicOffer && <div className="coupon-badge">New-user offer</div>}
               {hasCouponDiscount && <div className="coupon-badge">Coupon applied</div>}
               <h2>{plan.name}</h2>
+              <span className={`plan-name-chip plan-name-chip-${plan.key}`}>{PLAN_BADGE_LABELS[plan.key]}</span>
               <p>{plan.tagline}</p>
               <div className="price-line">
                 {(hasLaunchDiscount || hasCouponDiscount || hasNewUserBasicOffer) && oldPrice !== null && oldPrice !== undefined && <span className="old-price">{formatPrice(oldPrice)}</span>}

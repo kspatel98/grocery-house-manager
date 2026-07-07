@@ -7,17 +7,25 @@ const supportItems = [
   },
   {
     title: 'Plans and billing',
-    text: 'Manage billing, sync subscription, or cancel from Profile. Paid plans are processed by Stripe.',
+    text: 'Paid plans are processed by Stripe. Profile shows your current plan, billing status, cancellation status, and subscription sync option.',
   },
   {
     title: 'House access',
     text: 'Free users can join houses by invite. Creating a house requires Basic Home or higher. House features follow the owner’s plan.',
   },
   {
+    title: 'Unlocked and locked features',
+    text: 'The Plans page now shows which tools are included or locked for Free Starter, Basic Home, Family Plus, and Household Pro.',
+  },
+  {
+    title: 'Market tools and price comparison',
+    text: 'Basic Home unlocks product lookup. Family Plus unlocks supported Canadian price comparison. Household Pro adds nearby store suggestions.',
+  },
+  {
     title: 'Receipts and prices',
     text: 'Receipt scanning helps extract prices, but always review OCR results before updating inventory or relying on store-price history.',
   },
-];
+]
 
 export default function SupportPage() {
   const loggedIn = Boolean(localStorage.getItem('token'));
@@ -29,7 +37,7 @@ export default function SupportPage() {
           <Link to={loggedIn ? '/houses' : '/'} className="breadcrumb">← {loggedIn ? 'Houses' : 'Home'}</Link>
           <p className="eyebrow">Support</p>
           <h1>How can we help?</h1>
-          <p>Find quick guidance for accounts, houses, billing, receipts, and subscriptions.</p>
+          <p>Find quick guidance for accounts, houses, billing, plans, market tools, receipts, and subscriptions.</p>
         </div>
       </header>
 
@@ -61,7 +69,7 @@ export default function SupportPage() {
         <ul>
           <li>For billing issues, include your account email and plan name.</li>
           <li>For house access issues, include the house name and whether you are owner or member.</li>
-          <li>For receipt issues, include the store name and whether the uploaded file was an image or PDF.</li>
+          <li>For receipt or price-comparison issues, include the store name, city/postal code, item name, and whether the uploaded file was an image or PDF.</li>
           <li>Never send full card numbers, passwords, or sensitive payment details.</li>
         </ul>
       </section>
