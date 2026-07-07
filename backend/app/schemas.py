@@ -53,6 +53,40 @@ class GoogleLoginIn(BaseModel):
     credential: str
 
 
+class PasswordChangeIn(BaseModel):
+    old_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+    confirm_password: str = Field(min_length=8, max_length=128)
+
+
+class ForgotPasswordRequestIn(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordRequestOut(BaseModel):
+    ok: bool = True
+    message: str
+    # Only returned in non-production when SMTP is not configured, so local testing is possible.
+    debug_code: str | None = None
+
+
+class ForgotPasswordVerifyIn(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=12)
+
+
+class ForgotPasswordVerifyOut(BaseModel):
+    verified: bool
+    message: str
+
+
+class ForgotPasswordResetIn(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=12)
+    new_password: str = Field(min_length=8, max_length=128)
+    confirm_password: str = Field(min_length=8, max_length=128)
+
+
 class HouseCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
 
@@ -72,7 +106,8 @@ class HouseMemberOut(BaseModel):
     id: int
     user_id: int
     full_name: str | None = None
-    email: EmailStr
+    # Hidden from regular house members for privacy. Admin dashboard has its own user controls.
+    email: EmailStr | None = None
     avatar_url: str | None = None
     role: HouseRole
     joined_at: datetime

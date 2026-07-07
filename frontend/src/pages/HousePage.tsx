@@ -128,7 +128,7 @@ export default function HousePage() {
   }
 
   async function removeMember(member: HouseMember) {
-    const label = member.full_name || member.email;
+    const label = member.full_name || 'this member';
     if (!confirm(`Kick ${label} out of this house? They will lose access immediately.`)) return;
     try {
       await api.delete(`/houses/${id}/members/${member.id}`);

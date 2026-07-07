@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -8,11 +9,47 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.api.activity_utils import display_name, log_activity
-from app.models import AuthProvider, House, HouseMember, HouseRole, User, Receipt, ProductStorePrice, PlanName
+from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordResetCode, User, Receipt, ProductStorePrice, PlanName
 from app.utils.location import currency_for_country, normalize_country
-from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, GoogleLoginIn, LoginIn, RegisterIn, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
+from app.utils.emailer import send_password_reset_code
+from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, ForgotPasswordRequestIn, ForgotPasswordRequestOut, ForgotPasswordResetIn, ForgotPasswordVerifyIn, ForgotPasswordVerifyOut, GoogleLoginIn, LoginIn, PasswordChangeIn, RegisterIn, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def reset_code_message() -> str:
+    return "If a matching email/password account exists, a password reset code has been sent."
+
+
+def generate_reset_code() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
+
+
+def find_matching_reset_code(db: Session, user: User, code: str) -> PasswordResetCode | None:
+    now = datetime.now(timezone.utc)
+    records = (
+        db.query(PasswordResetCode)
+        .filter(
+            PasswordResetCode.user_id == user.id,
+            PasswordResetCode.used_at.is_(None),
+            PasswordResetCode.expires_at >= now,
+            PasswordResetCode.attempts < 5,
+        )
+        .order_by(PasswordResetCode.created_at.desc(), PasswordResetCode.id.desc())
+        .limit(5)
+        .all()
+    )
+    clean_code = code.strip()
+    for record in records:
+        try:
+            if verify_password(clean_code, record.code_hash):
+                return record
+        except Exception:
+            continue
+    if records:
+        records[0].attempts = int(records[0].attempts or 0) + 1
+        db.commit()
+    return None
 
 
 def user_out(user: User) -> UserOut:
@@ -74,6 +111,77 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     return issue_token(user)
+
+
+@router.post("/change-password")
+def change_password(payload: PasswordChangeIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not user.password_hash or user.auth_provider != AuthProvider.email:
+        raise HTTPException(status_code=400, detail="Password change is available only for email/password accounts. Google sign-in accounts do not have a local password.")
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match.")
+    if not verify_password(payload.old_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Old password is incorrect.")
+    user.password_hash = get_password_hash(payload.new_password)
+    db.commit()
+    return {"ok": True, "message": "Password updated successfully."}
+
+
+@router.post("/forgot-password/request", response_model=ForgotPasswordRequestOut)
+def request_forgot_password(payload: ForgotPasswordRequestIn, db: Session = Depends(get_db)):
+    message = reset_code_message()
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    debug_code = None
+
+    if user and user.password_hash:
+        code = generate_reset_code()
+        db.query(PasswordResetCode).filter(PasswordResetCode.user_id == user.id, PasswordResetCode.used_at.is_(None)).delete(synchronize_session=False)
+        db.add(PasswordResetCode(
+            user_id=user.id,
+            code_hash=get_password_hash(code),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+        ))
+        db.commit()
+        sent = False
+        try:
+            sent = send_password_reset_code(user.email, user.full_name, code)
+        except Exception:
+            sent = False
+        if not sent and (settings.environment or "development").lower() != "production":
+            debug_code = code
+
+    return ForgotPasswordRequestOut(ok=True, message=message, debug_code=debug_code)
+
+
+@router.post("/forgot-password/verify", response_model=ForgotPasswordVerifyOut)
+def verify_forgot_password_code(payload: ForgotPasswordVerifyIn, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    if not user or not user.password_hash:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
+    record = find_matching_reset_code(db, user, payload.code)
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
+    return ForgotPasswordVerifyOut(verified=True, message="Verification code accepted. You can now set a new password.")
+
+
+@router.post("/forgot-password/reset")
+def reset_forgotten_password(payload: ForgotPasswordResetIn, db: Session = Depends(get_db)):
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match.")
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    if not user or not user.password_hash:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
+    record = find_matching_reset_code(db, user, payload.code)
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
+    user.password_hash = get_password_hash(payload.new_password)
+    record.used_at = datetime.now(timezone.utc)
+    db.query(PasswordResetCode).filter(
+        PasswordResetCode.user_id == user.id,
+        PasswordResetCode.id != record.id,
+        PasswordResetCode.used_at.is_(None),
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True, "message": "Password reset successfully. Please login with your new password."}
 
 
 @router.post("/google", response_model=TokenOut)

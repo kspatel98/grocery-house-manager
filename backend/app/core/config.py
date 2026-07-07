@@ -37,9 +37,19 @@ class Settings(BaseSettings):
     # Optional Google Maps Platform Places API key for nearby grocery store search.
     google_places_api_key: str | None = None
 
+    # Optional SMTP settings for password reset emails. If these are blank,
+    # forgot-password requests still generate secure codes but the backend can
+    # only expose the code in non-production development mode.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str = "Grocery House Manager"
+    smtp_use_tls: bool = True
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
-    @property
     @property
     def admin_email_list(self) -> list[str]:
         return [email.strip().lower() for email in (self.admin_emails or "").split(",") if email.strip()]

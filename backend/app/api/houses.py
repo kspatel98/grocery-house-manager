@@ -28,7 +28,7 @@ def serialize_member(member: HouseMember) -> HouseMemberOut:
         id=member.id,
         user_id=member.user_id,
         full_name=member.user.full_name,
-        email=member.user.email,
+        email=None,
         avatar_url=member.user.avatar_url,
         role=member.role,
         joined_at=member.joined_at,
@@ -216,7 +216,7 @@ def preview_invite(token: str, db: Session = Depends(get_db), user: User = Depen
         house_id=house.id,
         house_name=house.name,
         inviter_name=display_name(inviter) if inviter else "Someone",
-        inviter_email=inviter.email if inviter else None,
+        inviter_email=None,
         expires_at=invite.expires_at,
         already_member=membership is not None,
     )

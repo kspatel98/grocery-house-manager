@@ -21,10 +21,10 @@ export function MembersPanel({ members, currentUserId, houseRole, onRemoveMember
 
           return (
             <div key={member.id} className="member-row member-row-with-action">
-              <div className="avatar">{member.avatar_url ? <img src={member.avatar_url} alt="" /> : (member.full_name || member.email).slice(0, 1).toUpperCase()}</div>
+              <div className="avatar">{member.avatar_url ? <img src={member.avatar_url} alt="" /> : (member.full_name || 'M').slice(0, 1).toUpperCase()}</div>
               <div className="member-main">
-                <strong>{member.full_name || member.email}{isCurrentUser ? ' (you)' : ''}</strong>
-                <small>{member.role} • {member.email}</small>
+                <strong>{member.full_name || 'House member'}{isCurrentUser ? ' (you)' : ''}</strong>
+                <small>{member.role} • email hidden for privacy</small>
               </div>
               {canKick && <button className="danger small-button" onClick={() => onRemoveMember?.(member)}>Kick out</button>}
             </div>

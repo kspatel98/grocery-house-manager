@@ -47,6 +47,10 @@ export default function ProfilePage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [profileRefreshing, setProfileRefreshing] = useState(true);
   const navigate = useNavigate();
 
@@ -137,6 +141,32 @@ export default function ProfilePage() {
       setSuccess("");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function changePassword(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+    if (newPassword !== confirmNewPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+    try {
+      setPasswordBusy(true);
+      const { data } = await api.post<{ ok: boolean; message: string }>("/auth/change-password", {
+        old_password: oldPassword,
+        new_password: newPassword,
+        confirm_password: confirmNewPassword,
+      });
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setSuccess(data.message || "Password updated.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setPasswordBusy(false);
     }
   }
 
@@ -467,6 +497,47 @@ export default function ProfilePage() {
               </button>
             </div>
           </form>
+        </section>
+      )}
+
+      {profile && profile.auth_provider === "email" && (
+        <section className="panel profile-panel password-panel">
+          <div className="panel-title-row">
+            <div>
+              <p className="eyebrow">Security</p>
+              <h2>Change password</h2>
+              <p>For email/password accounts, enter your old password and your new password twice.</p>
+            </div>
+          </div>
+          <form onSubmit={changePassword} className="profile-form password-change-form">
+            <label>
+              Old password
+              <input type="password" minLength={8} value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} required />
+            </label>
+            <div className="form-row">
+              <label>
+                New password
+                <input type="password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+              </label>
+              <label>
+                Confirm new password
+                <input type="password" minLength={8} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} required />
+              </label>
+            </div>
+            <div className="profile-actions">
+              <button className="primary" disabled={passwordBusy}>
+                {passwordBusy ? "Updating..." : "Update password"}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {profile && profile.auth_provider !== "email" && (
+        <section className="panel profile-panel password-panel">
+          <p className="eyebrow">Security</p>
+          <h2>Password</h2>
+          <p>Your account uses Google sign-in, so password changes are managed through Google.</p>
         </section>
       )}
 

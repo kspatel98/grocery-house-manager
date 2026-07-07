@@ -1901,3 +1901,33 @@ body {
     max-height: 198px;
   }
 }
+
+/* v26: password recovery, password change, admin stability, privacy polish */
+.forgot-link {
+  margin-top: 8px;
+  color: #d56a1c;
+}
+.forgot-password-box {
+  text-align: left;
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+.forgot-password-box h2 {
+  color: #173b2f;
+  margin-bottom: 0;
+}
+.password-panel {
+  background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(246,255,249,.96));
+}
+.password-change-form .form-row {
+  align-items: start;
+}
+.member-main small {
+  color: #7a8794;
+}
+@media (max-width: 700px) {
+  .password-change-form .form-row {
+    grid-template-columns: 1fr;
+  }
+}

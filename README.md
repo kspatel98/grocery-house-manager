@@ -616,3 +616,41 @@ https://grocery-house-manager.com/admin
 Only emails listed in `ADMIN_EMAILS` can access admin endpoints. The frontend also shows the Admin navigation link for `kp3813294@gmail.com`; backend protection is the real security layer.
 
 Refunds from Admin Dashboard are real Stripe refund actions when live Stripe keys are configured. Use test mode first before using live mode.
+
+## v26 update - admin fix, passwords, and member privacy
+
+- Fixed the `/admin` 500 error caused by the admin email settings helper.
+- Added Profile → Security → Change password for email/password users.
+- Added Login → Forgot password flow:
+  1. user enters registered email,
+  2. app sends a verification code by email,
+  3. user verifies the code,
+  4. user enters a new password twice.
+- Added `password_reset_codes` table for secure expiring reset codes.
+- House member email addresses are now hidden from the house member list and invite preview for privacy.
+- Admin dashboard still shows user emails so you can handle support queries.
+
+### Forgot password SMTP setup
+
+Add these to `backend/.env` in production so reset codes can be emailed:
+
+```env
+SMTP_HOST=smtp.your-email-provider.com
+SMTP_PORT=587
+SMTP_USERNAME=your-smtp-username
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM_EMAIL=support@grocery-house-manager.com
+SMTP_FROM_NAME=Grocery House Manager
+SMTP_USE_TLS=true
+```
+
+If SMTP is not configured and `ENVIRONMENT` is not `production`, the backend returns a development-only debug code so you can test locally. In production, configure SMTP before relying on forgot password.
+
+### New auth endpoints
+
+- `POST /auth/change-password`
+- `POST /auth/forgot-password/request`
+- `POST /auth/forgot-password/verify`
+- `POST /auth/forgot-password/reset`
+
+After deploying this version, rebuild the backend so the new `password_reset_codes` table is created automatically by the starter migration helper.

@@ -100,7 +100,7 @@ export type HouseMember = {
   id: number;
   user_id: number;
   full_name?: string;
-  email: string;
+  email?: string | null;
   avatar_url?: string;
   role: 'owner' | 'admin' | 'member';
   joined_at: string;

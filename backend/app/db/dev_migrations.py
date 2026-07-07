@@ -62,6 +62,9 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, uploaded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, store_name VARCHAR(150), receipt_date DATE, image_url TEXT, notes TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
         "CREATE TABLE IF NOT EXISTS product_store_prices (id SERIAL PRIMARY KEY, product_id INTEGER REFERENCES products(id) ON DELETE CASCADE, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, store_name VARCHAR(150) NOT NULL, price DOUBLE PRECISION NOT NULL, source VARCHAR(60) DEFAULT 'manual', receipt_id INTEGER REFERENCES receipts(id) ON DELETE SET NULL, recorded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
         "DO $$ BEGIN ALTER TABLE product_store_prices ADD CONSTRAINT uq_product_store_price UNIQUE (product_id, store_name); EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$",
+        "CREATE TABLE IF NOT EXISTS password_reset_codes (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, code_hash VARCHAR(255) NOT NULL, expires_at TIMESTAMP WITH TIME ZONE NOT NULL, used_at TIMESTAMP WITH TIME ZONE, attempts INTEGER DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE INDEX IF NOT EXISTS ix_password_reset_codes_user_id ON password_reset_codes(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_password_reset_codes_expires_at ON password_reset_codes(expires_at)",
     ]
     with engine.begin() as connection:
         for statement in statements:
