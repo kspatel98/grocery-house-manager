@@ -1,15 +1,19 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.activity_utils import display_name
 from app.api.billing import subscription_out
+from app.api.plan_utils import get_user_plan
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import House, HouseMember, HouseRole, PlanName, ProductStorePrice, Receipt, User
-from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, UserProfileOut
+from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, PlanLimitsOut, SubscriptionOut, UserProfileOut
 from app.utils.location import currency_for_country
 
 router = APIRouter(prefix="/account", tags=["account"])
+logger = logging.getLogger(__name__)
 
 
 def user_profile_out(user: User) -> UserProfileOut:
@@ -84,6 +88,67 @@ def house_out(db: Session, membership: HouseMember) -> HouseOut | None:
     )
 
 
+def safe_subscription_out(db: Session, user: User) -> SubscriptionOut:
+    """Return subscription details without letting optional usage queries break login/bootstrap.
+
+    Existing production databases from older ZIPs can be missing newer columns until
+    additive migrations finish. Account bootstrap is called by several pages, so one
+    optional analytics/usage query should not make the whole app return 500.
+    """
+    try:
+        return subscription_out(user, db)
+    except Exception:
+        logger.exception("Account bootstrap subscription section failed for user_id=%s", user.id)
+        plan = get_user_plan(user)
+        return SubscriptionOut(
+            plan_name=plan.key,
+            subscription_status=user.subscription_status or "free",
+            current_period_end=user.subscription_current_period_end,
+            limits=PlanLimitsOut(
+                houses=plan.limits.houses,
+                products_per_house=plan.limits.products_per_house,
+                active_lists_per_house=plan.limits.active_lists_per_house,
+                members_per_house=plan.limits.members_per_house,
+            ),
+            usage={
+                "houses": 0,
+                "joined_houses": 0,
+                "products_by_house": {},
+                "active_lists_by_house": {},
+                "members_by_house": {},
+            },
+            new_user_offer=None,
+        )
+
+
+def safe_personal_insights_out(db: Session, user: User) -> PersonalInsightsOut:
+    try:
+        return personal_insights_out(db, user)
+    except Exception:
+        logger.exception("Account bootstrap insights section failed for user_id=%s", user.id)
+        try:
+            plan_value = user.plan_name if isinstance(user.plan_name, PlanName) else PlanName(str(user.plan_name or "free"))
+        except ValueError:
+            plan_value = PlanName.free
+        return PersonalInsightsOut(
+            plan_name=plan_value,
+            receipts_uploaded=0,
+            prices_recorded=0,
+            stores_tracked=0,
+            estimated_personal_spend=0,
+            premium_tools=[],
+        )
+
+
+def safe_houses_out(db: Session, user: User) -> list[HouseOut]:
+    try:
+        memberships = db.query(HouseMember).filter(HouseMember.user_id == user.id).all()
+        return [item for item in (house_out(db, membership) for membership in memberships) if item is not None]
+    except Exception:
+        logger.exception("Account bootstrap houses section failed for user_id=%s", user.id)
+        return []
+
+
 @router.get("/bootstrap", response_model=AccountBootstrapOut)
 def account_bootstrap(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Return the signed-in user's essential dashboard data in one request.
@@ -91,11 +156,9 @@ def account_bootstrap(db: Session = Depends(get_db), user: User = Depends(get_cu
     The frontend uses this to avoid several small account/billing/houses calls
     that can make Profile and Houses feel slow on mobile connections.
     """
-    memberships = db.query(HouseMember).filter(HouseMember.user_id == user.id).all()
-    houses = [item for item in (house_out(db, membership) for membership in memberships) if item is not None]
     return AccountBootstrapOut(
         user=user_profile_out(user),
-        subscription=subscription_out(user, db),
-        insights=personal_insights_out(db, user),
-        houses=houses,
+        subscription=safe_subscription_out(db, user),
+        insights=safe_personal_insights_out(db, user),
+        houses=safe_houses_out(db, user),
     )

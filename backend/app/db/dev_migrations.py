@@ -13,6 +13,7 @@ def ensure_dev_schema(engine: Engine) -> None:
         # Existing local Docker volumes from earlier starter ZIPs may be missing
         # columns that newer UI screens read/write. Keep these additive only.
         "DO $$ BEGIN CREATE TYPE shoppingitemstatus AS ENUM ('to_buy', 'in_cart', 'skipped'); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+        "DO $$ BEGIN CREATE TYPE houserole AS ENUM ('owner', 'admin', 'member'); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
         "DO $$ BEGIN CREATE TYPE planname AS ENUM ('free', 'basic', 'family', 'pro'); EXCEPTION WHEN duplicate_object THEN NULL; END $$",
         "DO $$ BEGIN ALTER TYPE planname ADD VALUE IF NOT EXISTS 'basic'; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
 
@@ -25,6 +26,10 @@ def ensure_dev_schema(engine: Engine) -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end TIMESTAMP WITH TIME ZONE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+        "ALTER TABLE house_members ADD COLUMN IF NOT EXISTS role houserole DEFAULT 'member'",
+        "ALTER TABLE house_members ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
 
         "ALTER TABLE sections ADD COLUMN IF NOT EXISTS icon VARCHAR(64)",
         "ALTER TABLE sections ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
@@ -61,6 +66,16 @@ def ensure_dev_schema(engine: Engine) -> None:
 
         "CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, uploaded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, store_name VARCHAR(150), receipt_date DATE, image_url TEXT, notes TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
         "CREATE TABLE IF NOT EXISTS product_store_prices (id SERIAL PRIMARY KEY, product_id INTEGER REFERENCES products(id) ON DELETE CASCADE, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, store_name VARCHAR(150) NOT NULL, price DOUBLE PRECISION NOT NULL, source VARCHAR(60) DEFAULT 'manual', receipt_id INTEGER REFERENCES receipts(id) ON DELETE SET NULL, recorded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "ALTER TABLE receipts ADD COLUMN IF NOT EXISTS uploaded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE receipts ADD COLUMN IF NOT EXISTS receipt_date DATE",
+        "ALTER TABLE receipts ADD COLUMN IF NOT EXISTS image_url TEXT",
+        "ALTER TABLE receipts ADD COLUMN IF NOT EXISTS notes TEXT",
+        "ALTER TABLE receipts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+        "ALTER TABLE product_store_prices ADD COLUMN IF NOT EXISTS house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE",
+        "ALTER TABLE product_store_prices ADD COLUMN IF NOT EXISTS source VARCHAR(60) DEFAULT 'manual'",
+        "ALTER TABLE product_store_prices ADD COLUMN IF NOT EXISTS receipt_id INTEGER REFERENCES receipts(id) ON DELETE SET NULL",
+        "ALTER TABLE product_store_prices ADD COLUMN IF NOT EXISTS recorded_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE product_store_prices ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
         "DO $$ BEGIN ALTER TABLE product_store_prices ADD CONSTRAINT uq_product_store_price UNIQUE (product_id, store_name); EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$",
         "CREATE TABLE IF NOT EXISTS password_reset_codes (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, code_hash VARCHAR(255) NOT NULL, expires_at TIMESTAMP WITH TIME ZONE NOT NULL, used_at TIMESTAMP WITH TIME ZONE, attempts INTEGER DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
         "CREATE INDEX IF NOT EXISTS ix_password_reset_codes_user_id ON password_reset_codes(user_id)",
