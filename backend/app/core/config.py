@@ -37,6 +37,21 @@ class Settings(BaseSettings):
     # Optional Google Maps Platform Places API key for nearby grocery store search.
     google_places_api_key: str | None = None
 
+    # Grocery market/product data integrations.
+    # Open Food Facts is used for barcode/product details. It does not provide live store pricing.
+    open_food_facts_base_url: str = "https://world.openfoodfacts.org"
+    open_food_facts_user_agent: str = "GroceryHouseManager/1.0 (support@grocery-house-manager.com)"
+
+    # Apify Canadian grocery price comparison actor. Uses HTTPS 443, not SMTP.
+    # Actor docs currently support input like:
+    # {"items": ["eggs"], "location": "Vancouver, BC", "retailers": ["loblaws", "saveon", "tnt"]}
+    apify_api_token: str | None = None
+    apify_canada_price_actor_id: str = "sunny_eternity/canada-grocery-price-comparison"
+    apify_price_output_mode: str = "comparison"
+    apify_price_cache_hours: int = 12
+    apify_price_timeout_seconds: int = 90
+    market_max_compare_items: int = 12
+
     # Password reset email provider.
     # Recommended production value when SMTP 587/465 is blocked by hosting: resend.
     # Supported values: auto, resend, smtp. auto uses Resend when RESEND_API_KEY exists, otherwise SMTP.

@@ -514,3 +514,73 @@ class ShoppingSuggestionsOut(BaseModel):
     message: str
     nearby_stores: list[NearbyStoreOut] = Field(default_factory=list)
     item_suggestions: list[ShoppingItemSuggestionOut] = Field(default_factory=list)
+
+
+
+class ProductLookupResultOut(BaseModel):
+    source: str = "open_food_facts"
+    barcode: str | None = None
+    name: str
+    brand: str | None = None
+    image_url: str | None = None
+    categories: list[str] = Field(default_factory=list)
+    nutrition_grade: str | None = None
+    quantity: str | None = None
+    found: bool = True
+
+
+class ProductLookupOut(BaseModel):
+    premium_required: bool = False
+    configured: bool = True
+    message: str
+    results: list[ProductLookupResultOut] = Field(default_factory=list)
+
+
+class PriceCompareIn(BaseModel):
+    items: list[str] = Field(default_factory=list, max_length=20)
+    product_ids: list[int] = Field(default_factory=list, max_length=20)
+    location: str | None = Field(default=None, max_length=180)
+    city: str | None = Field(default=None, max_length=120)
+    province: str | None = Field(default=None, max_length=80)
+    postal_code: str | None = Field(default=None, max_length=20)
+    retailers: list[str] = Field(default_factory=list, max_length=8)
+    force_refresh: bool = False
+
+
+class LivePriceResultOut(BaseModel):
+    item: str
+    retailer: str | None = None
+    banner: str | None = None
+    store_name: str | None = None
+    matched_product_name: str | None = None
+    brand: str | None = None
+    price: float | None = None
+    sale_price: float | None = None
+    unit_price: str | None = None
+    package_size: str | None = None
+    availability: str | None = None
+    is_on_sale: bool | None = None
+    match_confidence: str | None = None
+    source_url: str | None = None
+    scraped_at: datetime | None = None
+    raw_source: str = "apify_canada"
+
+
+class LivePriceCompareOut(BaseModel):
+    premium_required: bool = False
+    configured: bool = False
+    cached: bool = False
+    currency_code: str = "CAD"
+    location_label: str | None = None
+    source: str = "apify_canada"
+    message: str
+    supported_retailers: list[str] = Field(default_factory=list)
+    results: list[LivePriceResultOut] = Field(default_factory=list)
+
+
+class MarketCapabilitiesOut(BaseModel):
+    product_lookup_available: bool
+    live_price_compare_available: bool
+    apify_configured: bool
+    supported_retailers: list[str] = Field(default_factory=list)
+    message: str

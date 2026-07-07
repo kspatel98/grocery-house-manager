@@ -63,6 +63,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         features=[
             "Everything in Basic Home",
             "Best-store comparison across your grocery inventory",
+            "Canadian live price comparison for supported retailers",
             "Monthly household expense view",
             "Receipt archive for shared homes",
             "Better for families, roommates, and weekly shopping routines",
@@ -81,6 +82,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "Large receipt and inventory history",
             "Export-ready personal insights for serious tracking",
             "Smart shopping suggestions with nearby grocery store locations",
+            "Canadian live price comparison for supported retailers",
             "Built for extended families, shared rentals, and multiple homes",
         ],
     ),
@@ -185,3 +187,13 @@ def plan_usage(db: Session, user: User) -> dict:
 def house_plan_has_smart_market(db: Session, house_id: int) -> bool:
     """House-level premium feature. Household Pro unlocks live nearby store suggestions."""
     return get_house_plan(db, house_id).key == PlanName.pro
+
+
+def house_plan_has_product_lookup(db: Session, house_id: int) -> bool:
+    """Basic Home and higher can use product lookup/barcode enrichment."""
+    return get_house_plan(db, house_id).key in {PlanName.basic, PlanName.family, PlanName.pro}
+
+
+def house_plan_has_external_price_comparison(db: Session, house_id: int) -> bool:
+    """Family Plus and Household Pro unlock live Canadian grocery price comparison."""
+    return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}

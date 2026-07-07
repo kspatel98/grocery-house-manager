@@ -5,12 +5,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import get_house_plan, house_plan_has_smart_market
+from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, house_plan_has_product_lookup, house_plan_has_external_price_comparison
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Product, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
-from app.schemas import NearbyStoreOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
+from app.schemas import MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
+from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -81,6 +82,140 @@ def get_nearby_store_results(user: User, city: str | None, country: str | None, 
     if not stores:
         stores = fallback_stores(city, country)
     return label, stores
+
+
+@router.get("/capabilities", response_model=MarketCapabilitiesOut)
+def market_capabilities(user: User = Depends(get_current_user)):
+    return MarketCapabilitiesOut(
+        product_lookup_available=True,
+        live_price_compare_available=bool(settings.apify_api_token),
+        apify_configured=bool(settings.apify_api_token),
+        supported_retailers=SUPPORTED_CANADA_RETAILERS,
+        message="Product lookup uses Open Food Facts. Live Canadian price comparison uses the configured Apify actor and is available to eligible house plans when APIFY_API_TOKEN is configured.",
+    )
+
+
+@router.get("/houses/{house_id}/product-lookup", response_model=ProductLookupOut)
+def product_lookup(
+    house_id: int,
+    barcode: str | None = Query(default=None, max_length=120),
+    query: str | None = Query(default=None, max_length=120),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    house_plan = get_house_plan(db, house_id)
+    if not house_plan_has_product_lookup(db, house_id):
+        return ProductLookupOut(
+            premium_required=True,
+            configured=True,
+            message=f"Open Food Facts product lookup is a Basic Home or higher house feature. This house is on the owner's {house_plan.name} plan.",
+            results=[],
+        )
+    if not barcode and not query:
+        return ProductLookupOut(message="Enter a barcode or product name to search.", results=[])
+    results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)
+    if not results:
+        return ProductLookupOut(
+            premium_required=False,
+            configured=True,
+            message="No matching product details were found. You can still add the product manually.",
+            results=[],
+        )
+    return ProductLookupOut(
+        premium_required=False,
+        configured=True,
+        message="Product details loaded from Open Food Facts. Please verify details before saving because crowd-sourced product data may be incomplete.",
+        results=results,
+    )
+
+
+@router.post("/houses/{house_id}/price-compare", response_model=LivePriceCompareOut)
+def price_compare(
+    house_id: int,
+    payload: PriceCompareIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    house_plan = get_house_plan(db, house_id)
+    location_parts = [payload.location, payload.postal_code, payload.city, payload.province]
+    location = next((str(part).strip() for part in location_parts if part and str(part).strip()), None)
+    if payload.city and payload.province and not payload.location and not payload.postal_code:
+        location = f"{payload.city}, {payload.province}"
+    elif payload.city and not location:
+        location = f"{payload.city}, Canada"
+
+    if not house_plan_has_external_price_comparison(db, house_id):
+        return LivePriceCompareOut(
+            premium_required=True,
+            configured=bool(settings.apify_api_token),
+            currency_code="CAD",
+            location_label=location,
+            message=f"Canadian live price comparison is a Family Plus or Household Pro house feature. This house is on the owner's {house_plan.name} plan.",
+            supported_retailers=SUPPORTED_CANADA_RETAILERS,
+            results=[],
+        )
+
+    items = [item.strip() for item in payload.items if item and item.strip()]
+    if payload.product_ids:
+        products = db.query(Product).filter(Product.house_id == house_id, Product.id.in_(payload.product_ids)).all()
+        existing_names = {item.lower() for item in items}
+        for product in products:
+            if product.name and product.name.lower() not in existing_names:
+                items.append(product.name)
+
+    items = items[: settings.market_max_compare_items]
+    if not items:
+        return LivePriceCompareOut(
+            configured=bool(settings.apify_api_token),
+            currency_code="CAD",
+            location_label=location,
+            message="Choose at least one product or enter item names to compare.",
+            supported_retailers=SUPPORTED_CANADA_RETAILERS,
+            results=[],
+        )
+    if not settings.apify_api_token:
+        return LivePriceCompareOut(
+            configured=False,
+            currency_code="CAD",
+            location_label=location,
+            message="Live Canadian price comparison is enabled for this plan, but APIFY_API_TOKEN is not configured in backend/.env yet.",
+            supported_retailers=SUPPORTED_CANADA_RETAILERS,
+            results=[],
+        )
+
+    try:
+        cached, rows = compare_canadian_grocery_prices(
+            db,
+            items=items,
+            location=location or "Canada",
+            retailers=payload.retailers,
+            force_refresh=payload.force_refresh,
+        )
+    except Exception as exc:
+        return LivePriceCompareOut(
+            configured=True,
+            cached=False,
+            currency_code="CAD",
+            location_label=location,
+            message=f"Live price comparison could not be loaded right now. Saved household prices still work. Details: {exc}",
+            supported_retailers=SUPPORTED_CANADA_RETAILERS,
+            results=[],
+        )
+
+    message = "Showing cached Canadian grocery price results." if cached else "Showing latest available Canadian grocery price results. Prices may vary by store, location, loyalty offers, and availability."
+    if not rows:
+        message = "No live price rows were returned for these items/location. Try fewer items, a postal code, or different supported retailers."
+    return LivePriceCompareOut(
+        configured=True,
+        cached=cached,
+        currency_code="CAD",
+        location_label=location,
+        message=message,
+        supported_retailers=SUPPORTED_CANADA_RETAILERS,
+        results=rows,
+    )
 
 
 @router.get("/nearby-stores", response_model=ShoppingSuggestionsOut)

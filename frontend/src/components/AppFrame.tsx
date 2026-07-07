@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 const baseNavItems = [
   { to: '/houses', label: 'Houses' },
+  { to: '/market', label: 'Prices' },
   { to: '/reports', label: 'Reports' },
   { to: '/pricing', label: 'Plans' },
   { to: '/support', label: 'Support' },

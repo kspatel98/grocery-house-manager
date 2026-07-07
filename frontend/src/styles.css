@@ -1985,3 +1985,160 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Market / price comparison tools */
+.market-page .market-hero-bar {
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.market-access-panel select {
+  min-width: 280px;
+}
+
+.market-capability-note {
+  background: #f8fff9;
+  border: 1px solid #dceee4;
+  border-radius: 16px;
+  color: #345445;
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.market-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.market-tool-card {
+  display: grid;
+  gap: 14px;
+}
+
+.market-lookup-form {
+  display: grid;
+  gap: 12px;
+}
+
+.market-lookup-form label,
+.live-price-card label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.live-price-card textarea {
+  resize: vertical;
+  min-height: 130px;
+}
+
+.retailer-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.retailer-chip {
+  border: 1px solid #dceee4;
+  background: #fff;
+  border-radius: 999px;
+  color: #123428;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 9px 12px;
+}
+
+.retailer-chip.active {
+  background: #0d5c3f;
+  border-color: #0d5c3f;
+  color: white;
+}
+
+.market-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.market-results {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.product-lookup-result {
+  align-items: center;
+  background: #fbfffc;
+  border: 1px solid #dceee4;
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 64px 1fr;
+  padding: 12px;
+}
+
+.product-lookup-result img {
+  border-radius: 12px;
+  height: 64px;
+  object-fit: cover;
+  width: 64px;
+}
+
+.product-lookup-result small {
+  color: var(--muted);
+  display: block;
+  margin-top: 4px;
+}
+
+.market-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e3eee8;
+  border-radius: 16px;
+}
+
+.market-price-table {
+  border-collapse: collapse;
+  min-width: 760px;
+  width: 100%;
+}
+
+.market-price-table th,
+.market-price-table td {
+  border-bottom: 1px solid #e3eee8;
+  font-size: 14px;
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.market-price-table th {
+  background: #f8fff9;
+  color: #123428;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.market-price-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.live-price-summary {
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .market-layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .market-access-panel .panel-title-row {
+    align-items: stretch;
+    display: grid;
+  }
+  .market-access-panel select {
+    min-width: 0;
+    width: 100%;
+  }
+}

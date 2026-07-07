@@ -717,3 +717,16 @@ docker compose up -d --build
 docker compose exec backend python -m app.scripts.email_api_network_check
 docker compose exec backend python -m app.scripts.test_resend your@email.com
 ```
+
+
+## v30 Canada grocery market update
+
+This package adds a new **Prices** page at `/market` plus shopping-list live price comparison controls.
+
+Feature access by owner plan:
+
+- **Basic Home+**: Open Food Facts barcode/product lookup.
+- **Family Plus+**: Canadian grocery price comparison through the Apify actor when `APIFY_API_TOKEN` is configured.
+- **Household Pro**: existing smart nearby store suggestions plus the new live Canadian price comparison.
+
+See `MARKET_API_FEATURES.md` for setup, supported retailers, and deployment notes.

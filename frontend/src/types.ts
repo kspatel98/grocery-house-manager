@@ -312,3 +312,61 @@ export type ShoppingSuggestions = {
   nearby_stores: NearbyStore[];
   item_suggestions: ShoppingItemSuggestion[];
 };
+
+export type MarketCapabilities = {
+  product_lookup_available: boolean;
+  live_price_compare_available: boolean;
+  apify_configured: boolean;
+  supported_retailers: string[];
+  message: string;
+};
+
+export type ProductLookupResult = {
+  source: string;
+  barcode?: string | null;
+  name: string;
+  brand?: string | null;
+  image_url?: string | null;
+  categories: string[];
+  nutrition_grade?: string | null;
+  quantity?: string | null;
+  found: boolean;
+};
+
+export type ProductLookupResponse = {
+  premium_required: boolean;
+  configured: boolean;
+  message: string;
+  results: ProductLookupResult[];
+};
+
+export type LivePriceResult = {
+  item: string;
+  retailer?: string | null;
+  banner?: string | null;
+  store_name?: string | null;
+  matched_product_name?: string | null;
+  brand?: string | null;
+  price?: number | null;
+  sale_price?: number | null;
+  unit_price?: string | null;
+  package_size?: string | null;
+  availability?: string | null;
+  is_on_sale?: boolean | null;
+  match_confidence?: string | null;
+  source_url?: string | null;
+  scraped_at?: string | null;
+  raw_source: string;
+};
+
+export type LivePriceCompareResponse = {
+  premium_required: boolean;
+  configured: boolean;
+  cached: boolean;
+  currency_code: string;
+  location_label?: string | null;
+  source: string;
+  message: string;
+  supported_retailers: string[];
+  results: LivePriceResult[];
+};

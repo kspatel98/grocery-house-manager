@@ -251,6 +251,20 @@ class ProductStorePrice(Base):
     recorded_by: Mapped[User | None] = relationship(back_populates="price_entries")
 
 
+class ExternalPriceCache(Base):
+    __tablename__ = "external_price_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cache_key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    source: Mapped[str] = mapped_column(String(80), default="apify_canada")
+    query: Mapped[str] = mapped_column(Text)
+    location: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    retailers: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload_json: Mapped[str] = mapped_column(Text)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class Activity(Base):
     __tablename__ = "activities"
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Plan, Product, ShoppingList, ShoppingSuggestions, Subscription } from '../types';
+import type { Activity, House, HouseMember, LivePriceCompareResponse, Plan, Product, ShoppingList, ShoppingSuggestions, Subscription } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { ActivityFeed, MembersPanel } from '../components/HouseInfoPanels';
 import { money } from '../currency';
@@ -172,6 +172,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<ShoppingSuggestions | null>(null);
+  const [livePrices, setLivePrices] = useState<LivePriceCompareResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -184,6 +185,28 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
       });
       setSuggestions(data);
       setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
+
+  async function compareCurrentList(forceRefresh = false) {
+    if (!selectedList) return;
+    try {
+      setBusy(true);
+      setError('');
+      const productIds = selectedList.items.map((item) => item.product_id);
+      const location = city && country ? `${city}, ${country}` : city || country || 'Canada';
+      const { data } = await api.post<LivePriceCompareResponse>(`/market/houses/${houseId}/price-compare`, {
+        product_ids: productIds,
+        location,
+        force_refresh: forceRefresh,
+      });
+      setLivePrices(data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -240,8 +263,25 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
       </div>
       <div className="location-actions">
         <button className="secondary" type="button" onClick={useCurrentLocation} disabled={busy}>Use my location</button>
-        <button className="primary" type="button" onClick={() => loadSuggestions()} disabled={busy}>{busy ? 'Checking...' : 'Get suggestions'}</button>
+        <button className="secondary" type="button" onClick={() => loadSuggestions()} disabled={busy}>{busy ? 'Checking...' : 'Get suggestions'}</button>
+        <button className="primary" type="button" onClick={() => compareCurrentList(false)} disabled={busy}>Compare live prices</button>
       </div>
+
+      {livePrices && (
+        <div className={livePrices.premium_required || !livePrices.configured ? 'hint' : 'suggestion-results live-price-summary'}>
+          <div className="compact-message">{livePrices.message}</div>
+          {livePrices.results.slice(0, 8).map((row, index) => (
+            <a key={`${row.item}-${row.retailer}-${index}`} href={row.source_url || '#'} target="_blank" rel="noreferrer" className="store-result-card">
+              <span>{row.item} • {row.banner || row.store_name || row.retailer || 'Store'}</span>
+              <small>
+                {(row.sale_price ?? row.price) != null ? money(row.sale_price ?? row.price, livePrices.currency_code) : 'Price unavailable'}
+                {row.unit_price ? ` • ${row.unit_price}` : ''}
+                {row.match_confidence ? ` • ${row.match_confidence}` : ''}
+              </small>
+            </a>
+          ))}
+        </div>
+      )}
 
       {suggestions && (
         <div className="suggestion-results">
