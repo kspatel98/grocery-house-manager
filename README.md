@@ -654,3 +654,40 @@ If SMTP is not configured and `ENVIRONMENT` is not `production`, the backend ret
 - `POST /auth/forgot-password/reset`
 
 After deploying this version, rebuild the backend so the new `password_reset_codes` table is created automatically by the starter migration helper.
+
+## v27 update - local form errors, password history, and email delivery diagnostics
+
+- Moved Profile form errors/success messages into the exact section where the user is working:
+  - profile update messages show beside the profile form,
+  - billing/sync messages show beside the plan controls,
+  - password change messages show beside the password form,
+  - account delete messages show inside the delete section.
+- Improved Login/Forgot Password error placement so users do not have to scroll to the top to understand what happened.
+- Added clearer forgot-password sending state and inbox/spam guidance while SMTP is sending the verification code.
+- Added password history protection. A user cannot reuse any of the last 5 passwords saved for their account.
+- Added `password_history` table with automatic retention of the 5 newest password hashes per user.
+- Added backend SMTP logging so delivery failures appear in backend Docker logs.
+- Added Admin Dashboard email health/test tools:
+  - `GET /admin/email/status`
+  - `POST /admin/email/test`
+- Admin can send a real test password-reset email from `/admin` to confirm SMTP works before users rely on forgot password.
+
+### If forgot-password email does not arrive
+
+1. Open `/admin` with your admin email.
+2. Check **Password reset email health**.
+3. Send a test email to your own inbox.
+4. If it fails, check backend logs:
+
+```bash
+docker compose logs backend --tail=100
+```
+
+For Google Workspace SMTP, make sure `SMTP_USERNAME` is the real mailbox user, usually:
+
+```env
+SMTP_USERNAME=kartik_patel_98@grocery-house-manager.com
+SMTP_FROM_EMAIL=support@grocery-house-manager.com
+```
+
+Use `support@` as `SMTP_USERNAME` only if it is a separate paid Workspace user, not just an alias.

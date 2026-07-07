@@ -1931,3 +1931,57 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* v27: local form messages, password history UX, and admin email diagnostics */
+.form-message {
+  margin: 4px 0 8px;
+  scroll-margin-top: 120px;
+}
+.password-rule-note,
+.no-email-note {
+  margin: 0;
+  line-height: 1.45;
+}
+.admin-email-panel {
+  background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(246,255,249,.96));
+}
+.email-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.email-status-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e5ebf2;
+  border-radius: 14px;
+  background: #fff;
+  min-width: 0;
+}
+.email-status-grid strong {
+  color: #526171;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.email-status-grid span {
+  color: #243141;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.admin-email-test-form {
+  margin-top: 12px;
+}
+@media (max-width: 900px) {
+  .email-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .email-status-grid,
+  .admin-email-test-form {
+    grid-template-columns: 1fr;
+  }
+}

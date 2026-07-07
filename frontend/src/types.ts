@@ -261,6 +261,16 @@ export type AdminUser = {
   stripe_subscription_id?: string;
 };
 
+
+export type AdminEmailStatus = {
+  smtp_configured: boolean;
+  smtp_host?: string;
+  smtp_from_email?: string;
+  smtp_username?: string;
+  smtp_use_tls: boolean;
+  message: string;
+};
+
 export type AdminAction = {
   ok: boolean;
   message: string;

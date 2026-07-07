@@ -9,8 +9,9 @@ from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import House, HouseMember, PlanName, Product, Receipt, User
-from app.schemas import AdminActionOut, AdminPlanAssignIn, AdminRefundIn, AdminSummaryOut, AdminUserOut
+from app.schemas import AdminActionOut, AdminEmailStatusOut, AdminEmailTestIn, AdminPlanAssignIn, AdminRefundIn, AdminSummaryOut, AdminUserOut
 from app.utils.location import currency_for_country
+from app.utils.emailer import send_password_reset_code, smtp_configured
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -47,6 +48,34 @@ def admin_user_out(db: Session, user: User) -> AdminUserOut:
         stripe_customer_id=user.stripe_customer_id,
         stripe_subscription_id=user.stripe_subscription_id,
     )
+
+
+@router.get("/email/status", response_model=AdminEmailStatusOut)
+def admin_email_status(_: User = Depends(require_admin)):
+    configured = smtp_configured()
+    return AdminEmailStatusOut(
+        smtp_configured=configured,
+        smtp_host=settings.smtp_host,
+        smtp_from_email=settings.smtp_from_email,
+        smtp_username=settings.smtp_username,
+        smtp_use_tls=settings.smtp_use_tls,
+        message=(
+            "SMTP is configured. You can send a test email."
+            if configured
+            else "SMTP is not configured. Forgot-password emails will not be delivered until backend/.env has SMTP settings."
+        ),
+    )
+
+
+@router.post("/email/test", response_model=AdminActionOut)
+def admin_send_test_email(payload: AdminEmailTestIn, admin: User = Depends(require_admin)):
+    if not smtp_configured():
+        raise HTTPException(status_code=503, detail="SMTP is not configured. Add SMTP settings to backend/.env and restart backend.")
+    code = "123456"
+    sent = send_password_reset_code(payload.email, "Admin test", code)
+    if not sent:
+        raise HTTPException(status_code=503, detail="Test email failed. Check backend logs with: docker compose logs backend --tail=100")
+    return AdminActionOut(ok=True, message=f"Test password-reset email sent to {payload.email} by {admin.email}.")
 
 
 @router.get("/summary", response_model=AdminSummaryOut)

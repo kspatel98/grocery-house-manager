@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AdminAction, AdminSummary, AdminUser, PlanName } from '../types';
+import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, PlanName } from '../types';
 
 const PLAN_LABELS: Record<PlanName, string> = {
   free: 'Free Starter',
@@ -13,25 +13,58 @@ const PLAN_LABELS: Record<PlanName, string> = {
 export default function AdminPage() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [emailStatus, setEmailStatus] = useState<AdminEmailStatus | null>(null);
+  const [testEmail, setTestEmail] = useState('');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
+
+  async function loadEmailStatus() {
+    try {
+      const { data } = await api.get<AdminEmailStatus>('/admin/email/status');
+      setEmailStatus(data);
+      setEmailError('');
+    } catch (err) {
+      setEmailError(errorMessage(err));
+    }
+  }
 
   async function loadAll() {
     try {
       setBusy(true);
-      const [summaryRes, usersRes] = await Promise.all([
+      const [summaryRes, usersRes, emailStatusRes] = await Promise.all([
         api.get<AdminSummary>('/admin/summary'),
         api.get<AdminUser[]>('/admin/users', { params: { search: search || undefined, limit: 100 } }),
+        api.get<AdminEmailStatus>('/admin/email/status'),
       ]);
       setSummary(summaryRes.data);
       setUsers(usersRes.data);
+      setEmailStatus(emailStatusRes.data);
       setError('');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendTestEmail(event: React.FormEvent) {
+    event.preventDefault();
+    setEmailError('');
+    setEmailSuccess('');
+    try {
+      setEmailBusy(true);
+      const { data } = await api.post<AdminAction>('/admin/email/test', { email: testEmail });
+      setEmailSuccess(data.message);
+      await loadEmailStatus();
+    } catch (err) {
+      setEmailError(errorMessage(err));
+    } finally {
+      setEmailBusy(false);
     }
   }
 
@@ -45,6 +78,7 @@ export default function AdminPage() {
         reason: `Admin dashboard assignment to ${label}`,
       });
       setSuccess(data.message);
+      setError('');
       await loadAll();
     } catch (err) {
       setError(errorMessage(err));
@@ -59,6 +93,7 @@ export default function AdminPage() {
       setBusy(true);
       const { data } = await api.post<AdminAction>(`/admin/users/${user.id}/cancel-subscription`);
       setSuccess(data.message);
+      setError('');
       await loadAll();
     } catch (err) {
       setError(errorMessage(err));
@@ -84,6 +119,7 @@ export default function AdminPage() {
         reason: 'Support/admin refund from app dashboard',
       });
       setSuccess(data.message);
+      setError('');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -101,7 +137,7 @@ export default function AdminPage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>Admin dashboard</h1>
-          <p>Private owner tools for users, plans, houses, refunds, and support queries.</p>
+          <p>Private owner tools for users, plans, houses, refunds, support queries, and password reset email checks.</p>
         </div>
         <button className="secondary" onClick={loadAll} disabled={busy}>{busy ? 'Refreshing...' : 'Refresh'}</button>
       </header>
@@ -118,6 +154,35 @@ export default function AdminPage() {
           <div className="stat-card"><strong>{summary.total_receipts}</strong><span>Receipts</span></div>
         </section>
       )}
+
+      <section className="panel admin-email-panel">
+        <div className="panel-title-row">
+          <div>
+            <h2>Password reset email health</h2>
+            <p>Use this when a user says they requested a forgot-password code but did not receive the email.</p>
+          </div>
+          <span className={`plan-status-badge ${emailStatus?.smtp_configured ? 'paid' : 'free'}`}>
+            {emailStatus?.smtp_configured ? 'SMTP configured' : 'SMTP missing'}
+          </span>
+        </div>
+        {emailStatus && (
+          <div className="email-status-grid">
+            <div><strong>Host</strong><span>{emailStatus.smtp_host || '-'}</span></div>
+            <div><strong>From</strong><span>{emailStatus.smtp_from_email || '-'}</span></div>
+            <div><strong>Username</strong><span>{emailStatus.smtp_username || '-'}</span></div>
+            <div><strong>TLS</strong><span>{emailStatus.smtp_use_tls ? 'true' : 'false'}</span></div>
+          </div>
+        )}
+        <p className="small-muted">{emailStatus?.message || 'Checking email status...'}</p>
+        <form className="inline-form admin-email-test-form" onSubmit={sendTestEmail}>
+          <label>Send test password-reset email<input type="email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="your inbox email" required /></label>
+          <button className="primary" disabled={emailBusy}>{emailBusy ? 'Sending...' : 'Send test'}</button>
+        </form>
+        {emailBusy && <div className="hint form-message">Sending a real test email through SMTP. This can take up to 30 seconds.</div>}
+        {emailError && <div className="error form-message">{emailError}</div>}
+        {emailSuccess && <div className="success form-message">{emailSuccess}</div>}
+        <p className="small-muted">If the test fails, check server logs: <code>docker compose logs backend --tail=100</code></p>
+      </section>
 
       <section className="panel admin-plan-counts">
         <div className="panel-title-row">

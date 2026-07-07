@@ -9,12 +9,54 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.api.activity_utils import display_name, log_activity
-from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordResetCode, User, Receipt, ProductStorePrice, PlanName
+from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordHistory, PasswordResetCode, User, Receipt, ProductStorePrice, PlanName
 from app.utils.location import currency_for_country, normalize_country
 from app.utils.emailer import send_password_reset_code
 from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, ForgotPasswordRequestIn, ForgotPasswordRequestOut, ForgotPasswordResetIn, ForgotPasswordVerifyIn, ForgotPasswordVerifyOut, GoogleLoginIn, LoginIn, PasswordChangeIn, RegisterIn, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def recent_password_hashes(db: Session, user: User, limit: int = 5) -> list[str]:
+    hashes: list[str] = []
+    if user.password_hash:
+        hashes.append(user.password_hash)
+    rows = (
+        db.query(PasswordHistory)
+        .filter(PasswordHistory.user_id == user.id)
+        .order_by(PasswordHistory.created_at.desc(), PasswordHistory.id.desc())
+        .limit(limit)
+        .all()
+    )
+    for row in rows:
+        if row.password_hash and row.password_hash not in hashes:
+            hashes.append(row.password_hash)
+    return hashes[:limit]
+
+
+def new_password_was_recently_used(db: Session, user: User, new_password: str) -> bool:
+    for password_hash in recent_password_hashes(db, user, 5):
+        try:
+            if verify_password(new_password, password_hash):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def remember_password_hash(db: Session, user: User, password_hash: str | None) -> None:
+    if not password_hash:
+        return
+    db.add(PasswordHistory(user_id=user.id, password_hash=password_hash))
+    db.flush()
+    rows = (
+        db.query(PasswordHistory)
+        .filter(PasswordHistory.user_id == user.id)
+        .order_by(PasswordHistory.created_at.desc(), PasswordHistory.id.desc())
+        .all()
+    )
+    for old_row in rows[5:]:
+        db.delete(old_row)
 
 
 def reset_code_message() -> str:
@@ -100,6 +142,8 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
         city=normalize_country(payload.city),
     )
     db.add(user)
+    db.flush()
+    remember_password_hash(db, user, user.password_hash)
     db.commit()
     db.refresh(user)
     return issue_token(user)
@@ -121,7 +165,11 @@ def change_password(payload: PasswordChangeIn, db: Session = Depends(get_db), us
         raise HTTPException(status_code=400, detail="New passwords do not match.")
     if not verify_password(payload.old_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Old password is incorrect.")
-    user.password_hash = get_password_hash(payload.new_password)
+    if new_password_was_recently_used(db, user, payload.new_password):
+        raise HTTPException(status_code=400, detail="You cannot use one of the last 5 passwords you used. Enter a new password.")
+    new_hash = get_password_hash(payload.new_password)
+    user.password_hash = new_hash
+    remember_password_hash(db, user, new_hash)
     db.commit()
     return {"ok": True, "message": "Password updated successfully."}
 
@@ -129,6 +177,9 @@ def change_password(payload: PasswordChangeIn, db: Session = Depends(get_db), us
 @router.post("/forgot-password/request", response_model=ForgotPasswordRequestOut)
 def request_forgot_password(payload: ForgotPasswordRequestIn, db: Session = Depends(get_db)):
     message = reset_code_message()
+    if not settings.smtp_host or not settings.smtp_from_email:
+        if (settings.environment or "development").lower() == "production":
+            raise HTTPException(status_code=503, detail="Password reset email is not configured yet. Please contact support@grocery-house-manager.com.")
     user = db.query(User).filter(User.email == payload.email.lower()).first()
     debug_code = None
 
@@ -146,8 +197,11 @@ def request_forgot_password(payload: ForgotPasswordRequestIn, db: Session = Depe
             sent = send_password_reset_code(user.email, user.full_name, code)
         except Exception:
             sent = False
-        if not sent and (settings.environment or "development").lower() != "production":
-            debug_code = code
+        if not sent:
+            if (settings.environment or "development").lower() != "production":
+                debug_code = code
+            else:
+                raise HTTPException(status_code=503, detail="We could not send the verification code right now. Please try again in a few minutes or contact support@grocery-house-manager.com.")
 
     return ForgotPasswordRequestOut(ok=True, message=message, debug_code=debug_code)
 
@@ -173,7 +227,11 @@ def reset_forgotten_password(payload: ForgotPasswordResetIn, db: Session = Depen
     record = find_matching_reset_code(db, user, payload.code)
     if not record:
         raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
-    user.password_hash = get_password_hash(payload.new_password)
+    if new_password_was_recently_used(db, user, payload.new_password):
+        raise HTTPException(status_code=400, detail="You cannot use one of the last 5 passwords you used. Enter a new password.")
+    new_hash = get_password_hash(payload.new_password)
+    user.password_hash = new_hash
+    remember_password_hash(db, user, new_hash)
     record.used_at = datetime.now(timezone.utc)
     db.query(PasswordResetCode).filter(
         PasswordResetCode.user_id == user.id,

@@ -455,6 +455,19 @@ class AdminPlanAssignIn(BaseModel):
     reason: str | None = Field(default=None, max_length=240)
 
 
+class AdminEmailTestIn(BaseModel):
+    email: EmailStr
+
+
+class AdminEmailStatusOut(BaseModel):
+    smtp_configured: bool
+    smtp_host: str | None = None
+    smtp_from_email: EmailStr | None = None
+    smtp_username: str | None = None
+    smtp_use_tls: bool = True
+    message: str
+
+
 class AdminActionOut(BaseModel):
     ok: bool
     message: str
