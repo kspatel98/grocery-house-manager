@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     smtp_from_email: str | None = None
     smtp_from_name: str = "Grocery House Manager"
     smtp_use_tls: bool = True
+    # Keep true for Docker servers where smtp.gmail.com may resolve to IPv6
+    # even though the container only has IPv4 routing. This prevents
+    # OSError: [Errno 101] Network is unreachable during SMTP connect.
+    smtp_force_ipv4: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 

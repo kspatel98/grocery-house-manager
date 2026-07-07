@@ -20,6 +20,9 @@ services:
     build: ./backend
     env_file:
       - ./backend/.env
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       DATABASE_URL: postgresql+psycopg2://grocery_user:grocery_password@db:5432/grocery_house
     depends_on:

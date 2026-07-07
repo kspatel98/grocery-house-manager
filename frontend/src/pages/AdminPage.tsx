@@ -168,9 +168,12 @@ export default function AdminPage() {
         {emailStatus && (
           <div className="email-status-grid">
             <div><strong>Host</strong><span>{emailStatus.smtp_host || '-'}</span></div>
+            <div><strong>Port</strong><span>{emailStatus.smtp_port || '-'}</span></div>
             <div><strong>From</strong><span>{emailStatus.smtp_from_email || '-'}</span></div>
             <div><strong>Username</strong><span>{emailStatus.smtp_username || '-'}</span></div>
             <div><strong>TLS</strong><span>{emailStatus.smtp_use_tls ? 'true' : 'false'}</span></div>
+            <div><strong>Force IPv4</strong><span>{emailStatus.smtp_force_ipv4 ? 'true' : 'false'}</span></div>
+            <div><strong>Missing</strong><span>{emailStatus.missing_settings?.length ? emailStatus.missing_settings.join(', ') : '-'}</span></div>
           </div>
         )}
         <p className="small-muted">{emailStatus?.message || 'Checking email status...'}</p>

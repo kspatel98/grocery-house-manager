@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState("");
   const [resetError, setResetError] = useState("");
   const [resetBusy, setResetBusy] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [authBusy, setAuthBusy] = useState(false);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -71,6 +72,14 @@ export default function LoginPage() {
     setResetError("");
   }
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setLoginError("");
@@ -102,6 +111,7 @@ export default function LoginPage() {
           ? `${data.message} Dev code: ${data.debug_code}`
           : `${data.message} Check your inbox, spam, and promotions folder. It can take 1–2 minutes to arrive.`,
       );
+      setResendCooldown(60);
       setResetStep("verify");
     } catch (err) {
       setResetError(errorMessage(err));
@@ -275,7 +285,9 @@ export default function LoginPage() {
                 {resetBusy && <div className="hint form-message">Sending your verification code. This can take up to 30 seconds. Keep this page open.</div>}
                 {resetError && <div className="error form-message">{resetError}</div>}
                 {resetMessage && <div className="success form-message">{resetMessage}</div>}
-                <button className="primary" disabled={resetBusy}>{resetBusy ? "Sending..." : "Send verification code"}</button>
+                <button className="primary" disabled={resetBusy || resendCooldown > 0}>
+                  {resetBusy ? "Sending..." : resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Send verification code"}
+                </button>
               </form>
             )}
 
@@ -289,7 +301,14 @@ export default function LoginPage() {
                 {resetError && <div className="error form-message">{resetError}</div>}
                 {resetMessage && <div className="success form-message">{resetMessage}</div>}
                 <button className="primary" disabled={resetBusy}>{resetBusy ? "Verifying..." : "Verify code"}</button>
-                <button type="button" className="secondary" onClick={() => { setResetStep("request"); setResetMessage(""); setResetError(""); }}>Send a new code</button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={resetBusy || resendCooldown > 0}
+                  onClick={() => { setResetStep("request"); setResetMessage(""); setResetError(""); }}
+                >
+                  {resendCooldown > 0 ? `Send a new code in ${resendCooldown}s` : "Send a new code"}
+                </button>
               </form>
             )}
 

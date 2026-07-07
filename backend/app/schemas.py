@@ -462,9 +462,12 @@ class AdminEmailTestIn(BaseModel):
 class AdminEmailStatusOut(BaseModel):
     smtp_configured: bool
     smtp_host: str | None = None
+    smtp_port: int | None = None
     smtp_from_email: EmailStr | None = None
     smtp_username: str | None = None
     smtp_use_tls: bool = True
+    smtp_force_ipv4: bool = True
+    missing_settings: list[str] = []
     message: str
 
 

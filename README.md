@@ -1,5 +1,10 @@
 # Grocery House Manager
 
+## v27 SMTP network patch
+
+This version includes a forgot-password SMTP network fix for Docker servers showing `OSError: [Errno 101] Network is unreachable`. See `SMTP_NETWORK_FIX.md` and run `docker compose exec backend python -m app.scripts.smtp_network_check` after deployment.
+
+
 A full-stack grocery management platform for shared households.
 
 ## Brand structure

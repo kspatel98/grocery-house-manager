@@ -265,9 +265,12 @@ export type AdminUser = {
 export type AdminEmailStatus = {
   smtp_configured: boolean;
   smtp_host?: string;
+  smtp_port?: number;
   smtp_from_email?: string;
   smtp_username?: string;
   smtp_use_tls: boolean;
+  smtp_force_ipv4: boolean;
+  missing_settings: string[];
   message: string;
 };
 
