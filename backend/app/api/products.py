@@ -4,7 +4,7 @@ import re
 import shutil
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from sqlalchemy import asc, desc
+from sqlalchemy import asc, desc, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
@@ -72,6 +72,8 @@ def list_products(
     direction: str = Query(default="asc"),
     section_id: int | None = None,
     search: str | None = None,
+    limit: int = Query(default=300, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -80,9 +82,16 @@ def list_products(
     if section_id:
         query = query.filter(Product.section_id == section_id)
     if search:
-        query = query.filter(Product.name.ilike(f"%{search}%"))
+        pattern = f"%{search.strip()}%"
+        query = query.filter(or_(
+            Product.name.ilike(pattern),
+            Product.brand.ilike(pattern),
+            Product.store_name.ilike(pattern),
+            Product.barcode.ilike(pattern),
+        ))
     sort_column = SORT_FIELDS.get(sort_by, Product.name)
     query = query.order_by(desc(sort_column) if direction == "desc" else asc(sort_column))
+    query = query.offset(offset).limit(limit)
     return [serialize_product(product) for product in query.all()]
 
 

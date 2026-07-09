@@ -11,10 +11,18 @@ type MembersPanelProps = {
 type MembersDrawerProps = MembersPanelProps & {
   open: boolean;
   onClose: () => void;
+  onCreateInvite?: () => void | Promise<void>;
+  inviteUrl?: string;
 };
 
 function memberInitial(member: HouseMember) {
   return (member.full_name || member.email || 'M').slice(0, 1).toUpperCase();
+}
+
+function roleLabel(role: HouseMember['role']) {
+  if (role === 'owner') return 'Owner';
+  if (role === 'admin') return 'Admin';
+  return 'Member';
 }
 
 function MemberAvatar({ member }: { member: HouseMember }) {
@@ -35,7 +43,10 @@ function MemberRow({ member, currentUserId, houseRole, onRemoveMember }: Members
       <MemberAvatar member={member} />
       <div className="member-main">
         <strong>{member.full_name || 'House member'}{isCurrentUser ? ' (you)' : ''}</strong>
-        <small>{member.role} • email hidden for privacy</small>
+        <small>
+          <span className={`role-badge role-${member.role}`}>{roleLabel(member.role)}</span>
+          <span> Email hidden for privacy</span>
+        </small>
       </div>
       {canKick && <button className="danger small-button" onClick={() => onRemoveMember?.(member)}>Kick out</button>}
     </div>
@@ -71,11 +82,11 @@ export function HouseMembersBar({ members, currentUserId, onOpen }: { members: H
       <div>
         <p className="eyebrow">House members</p>
         <h2>{members.length} member{members.length === 1 ? '' : 's'}</h2>
-        <p>{currentUser ? `You are joined as ${currentUser.role}.` : 'Manage who can view and update this house.'}</p>
+        <p>{currentUser ? `You are joined as ${roleLabel(currentUser.role)}.` : 'Manage who can view and update this house.'}</p>
       </div>
       <div className="member-avatar-stack" aria-label="House member preview">
         {visibleMembers.map((member) => (
-          <span key={member.id} className="stacked-avatar" title={member.full_name || member.role}>
+          <span key={member.id} className={`stacked-avatar stacked-role-${member.role}`} title={member.full_name || roleLabel(member.role)}>
             {member.avatar_url ? <img src={member.avatar_url} alt="" /> : memberInitial(member)}
           </span>
         ))}
@@ -86,7 +97,14 @@ export function HouseMembersBar({ members, currentUserId, onOpen }: { members: H
   );
 }
 
-export function MembersDrawer({ open, onClose, members, currentUserId, houseRole, onRemoveMember }: MembersDrawerProps) {
+export function MembersDrawer({ open, onClose, members, currentUserId, houseRole, onRemoveMember, onCreateInvite, inviteUrl }: MembersDrawerProps) {
+  const [query, setQuery] = useState('');
+  const filteredMembers = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return members;
+    return members.filter((member) => [member.full_name, member.role, member.email].filter(Boolean).join(' ').toLowerCase().includes(normalized));
+  }, [members, query]);
+
   if (!open) return null;
 
   return (
@@ -100,14 +118,32 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
           </div>
           <button className="drawer-close" onClick={onClose} aria-label="Close members panel">×</button>
         </div>
+
+        <div className="drawer-actions">
+          {onCreateInvite && <button className="primary full" onClick={onCreateInvite}>Copy invite link</button>}
+          {inviteUrl && <div className="success compact-message">Invite copied: {inviteUrl}</div>}
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search members..." />
+        </div>
+
         <div className="drawer-member-list">
-          {members.map((member) => (
+          {!filteredMembers.length && <p className="small-muted">No members match your search.</p>}
+          {filteredMembers.map((member) => (
             <MemberRow key={member.id} member={member} members={members} currentUserId={currentUserId} houseRole={houseRole} onRemoveMember={onRemoveMember} />
           ))}
         </div>
       </aside>
     </div>
   );
+}
+
+function activityIcon(action: string) {
+  if (action.includes('shopping')) return '🛒';
+  if (action.includes('receipt')) return '🧾';
+  if (action.includes('member') || action.includes('invite') || action.includes('joined')) return '👥';
+  if (action.includes('section')) return '📂';
+  if (action.includes('product')) return '📦';
+  if (action.includes('house')) return '🏠';
+  return '✨';
 }
 
 export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]; onRefresh: () => void }) {
@@ -123,7 +159,7 @@ export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]
         </div>
         <button className="secondary" onClick={onRefresh}>Refresh</button>
       </div>
-      <div className="activity-list compact-activity-list">
+      <div className="activity-list compact-activity-list timeline-activity-list">
         {!activities.length && <p className="small-muted">No activity yet.</p>}
         {recentActivities.map((activity) => <ActivityRow key={activity.id} activity={activity} />)}
       </div>
@@ -143,7 +179,7 @@ export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]
               </div>
               <button onClick={() => setShowAll(false)} aria-label="Close activity">×</button>
             </div>
-            <div className="activity-list full-activity-list">
+            <div className="activity-list full-activity-list timeline-activity-list">
               {activities.map((activity) => <ActivityRow key={activity.id} activity={activity} />)}
             </div>
           </section>
@@ -155,9 +191,12 @@ export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]
 
 function ActivityRow({ activity }: { activity: Activity }) {
   return (
-    <article className="activity-row">
-      <strong>{activity.message}</strong>
-      <small>{new Date(activity.created_at).toLocaleString()}</small>
+    <article className={`activity-row activity-${activity.action}`}>
+      <span className="activity-icon" aria-hidden="true">{activityIcon(activity.action || '')}</span>
+      <div>
+        <strong>{activity.message}</strong>
+        <small>{new Date(activity.created_at).toLocaleString()}</small>
+      </div>
     </article>
   );
 }

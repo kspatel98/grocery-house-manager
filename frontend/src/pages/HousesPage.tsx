@@ -19,6 +19,7 @@ export default function HousesPage() {
       setHouses(Array.isArray(data.houses) ? data.houses : []);
       setSubscription(data.subscription);
       localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
+      localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
     } catch (err) {
       setError(errorMessage(err));
       setHouses([]);

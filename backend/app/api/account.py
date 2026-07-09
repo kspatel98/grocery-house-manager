@@ -8,12 +8,18 @@ from app.api.billing import subscription_out
 from app.api.plan_utils import get_user_plan
 from app.api.deps import get_current_user
 from app.db.session import get_db
+from app.core.config import settings
 from app.models import House, HouseMember, HouseRole, PlanName, ProductStorePrice, Receipt, User
 from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, PlanLimitsOut, SubscriptionOut, UserProfileOut
 from app.utils.location import currency_for_country
 
 router = APIRouter(prefix="/account", tags=["account"])
 logger = logging.getLogger(__name__)
+
+
+def is_admin_user(user: User) -> bool:
+    configured = {email.strip().lower() for email in (settings.admin_emails or "").split(",") if email.strip()}
+    return user.email.lower() in configured
 
 
 def user_profile_out(user: User) -> UserProfileOut:
@@ -161,4 +167,5 @@ def account_bootstrap(db: Session = Depends(get_db), user: User = Depends(get_cu
         subscription=safe_subscription_out(db, user),
         insights=safe_personal_insights_out(db, user),
         houses=safe_houses_out(db, user),
+        is_admin=is_admin_user(user),
     )

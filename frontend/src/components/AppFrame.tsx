@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { api } from '../api';
+import type { AccountBootstrap } from '../types';
 
 const baseNavItems = [
   { to: '/houses', label: 'Houses' },
@@ -10,18 +13,35 @@ const baseNavItems = [
   { to: '/profile', label: 'Profile' },
 ];
 
-function isAdminUser() {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    return String(user?.email || '').toLowerCase() === 'kp3813294@gmail.com';
-  } catch {
-    return false;
-  }
+function cachedAdminFlag() {
+  return localStorage.getItem('account_is_admin') === 'true';
 }
 
 export default function AppFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const navItems = isAdminUser() ? [...baseNavItems, { to: '/admin', label: 'Admin' }] : baseNavItems;
+  const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setIsAdmin(Boolean(data.is_admin));
+        localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
+        localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
+      })
+      .catch(() => {
+        // Keep navigation usable if bootstrap is temporarily unavailable.
+        // Protected API calls still handle expired sessions globally.
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const navItems = isAdmin ? [...baseNavItems, { to: '/admin', label: 'Admin' }] : baseNavItems;
 
   return (
     <div className="app-frame">

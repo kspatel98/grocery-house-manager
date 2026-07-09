@@ -230,7 +230,7 @@ def nearby_stores(
     return ShoppingSuggestionsOut(
         currency_code=currency_for_country(country or user.country),
         location_label=location_label,
-        message="Nearby grocery stores are based on your browser location or saved city. If Google Places is not configured, common city-level grocery chains are shown.",
+        message="Nearby grocery stores are based on your browser location or saved city. When exact map results are unavailable, common grocery chains for your area are shown.",
         nearby_stores=stores,
         item_suggestions=[],
     )
@@ -317,7 +317,7 @@ def shopping_suggestions(
         currency_code=currency_for_country(country or user.country),
         location_label=location_label,
         premium_required=False,
-        message="Suggestions combine your household's saved receipt/product prices with nearby grocery store results. Live SKU prices depend on retailer/API availability and are not guaranteed.",
+        message="Suggestions combine your household's saved receipt/product prices with nearby grocery store results. Live product prices depend on retailer data availability and are not guaranteed.",
         nearby_stores=stores,
         item_suggestions=suggestions,
     )

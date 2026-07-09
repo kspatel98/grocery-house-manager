@@ -2320,3 +2320,72 @@ body {
   .product-picker-toolbar { grid-template-columns: 1fr; }
   .side-drawer { min-width: 100vw; width: 100vw; }
 }
+
+/* v33 QA/performance polish */
+.inventory-result-note {
+  margin: -4px 0 14px;
+}
+.drawer-actions {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.member-row-with-action {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+}
+.role-badge {
+  border-radius: 999px;
+  display: inline-block;
+  font-size: .72rem;
+  font-weight: 900;
+  margin-right: 6px;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+.role-owner { background: #fff0e5; color: #b34300; }
+.role-admin { background: #f0eaff; color: #4c249a; }
+.role-member { background: #e9f8ef; color: #0d5c3f; }
+.stacked-role-owner { box-shadow: 0 0 0 2px #ff6b1a, 0 8px 22px rgba(23, 59, 47, .12); }
+.stacked-role-admin { box-shadow: 0 0 0 2px #6d35d3, 0 8px 22px rgba(23, 59, 47, .12); }
+.timeline-activity-list {
+  position: relative;
+}
+.timeline-activity-list .activity-row {
+  align-items: start;
+  border: 1px solid #e4eee8;
+  border-left: 4px solid #0d5c3f;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+.activity-icon {
+  align-items: center;
+  background: #effaf3;
+  border-radius: 50%;
+  display: grid;
+  height: 32px;
+  justify-items: center;
+  width: 32px;
+}
+.product-picker-wrap .small-muted {
+  margin: 0;
+}
+.product-picker-toolbar input {
+  background: #fbfcfe;
+}
+.market-access-chip.locked {
+  display: none;
+}
+.price-disclaimer,
+.market-results .compact-message {
+  color: #607080;
+  font-size: .9rem;
+}
+@media (max-width: 640px) {
+  .member-row-with-action {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .member-row-with-action .small-button {
+    grid-column: 1 / -1;
+  }
+}

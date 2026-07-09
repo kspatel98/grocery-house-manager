@@ -40,6 +40,7 @@ export default function MarketPage() {
       setCapabilities(caps);
       if (!selectedHouseId && nextHouses[0]) setSelectedHouseId(nextHouses[0].id);
       localStorage.setItem('account_profile_cache', JSON.stringify(boot.user));
+      localStorage.setItem('account_is_admin', boot.is_admin ? 'true' : 'false');
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -136,7 +137,7 @@ export default function MarketPage() {
           </select>
         </div>
         {!houses.length && <div className="hint">Create or join a house first, then come back to use market tools.</div>}
-        {capabilities && <PlanAccessPreview configured={capabilities.apify_configured} />}
+        {capabilities && <PlanAccessPreview />}
       </section>
 
       <div className="market-layout-grid">
@@ -205,7 +206,7 @@ export default function MarketPage() {
   );
 }
 
-function PlanAccessPreview({ configured }: { configured: boolean }) {
+function PlanAccessPreview() {
   return (
     <div className="market-plan-access-preview">
       <div className="market-access-chip unlocked">
@@ -220,7 +221,6 @@ function PlanAccessPreview({ configured }: { configured: boolean }) {
         <strong>Household Pro</strong>
         <span>Nearby store suggestions</span>
       </div>
-      {!configured && <div className="market-access-chip locked"><strong>Live prices</strong><span>Waiting for setup</span></div>}
     </div>
   );
 }

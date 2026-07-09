@@ -6,6 +6,7 @@ export function logoutToLogin() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
   localStorage.removeItem("account_profile_cache");
+  localStorage.removeItem("account_is_admin");
   if (window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
@@ -55,10 +56,26 @@ api.interceptors.response.use(
 export function errorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail;
-    if (Array.isArray(detail))
-      return detail.map((item) => item.msg || String(item)).join(", ");
+
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) => item?.msg || item?.message || String(item))
+        .join(", ");
+    }
+
     if (typeof detail === "string") return detail;
-    return error.message;
+
+    if (detail && typeof detail === "object") {
+      const message = (detail as { message?: unknown; error?: unknown; reason?: unknown }).message
+        || (detail as { message?: unknown; error?: unknown; reason?: unknown }).error
+        || (detail as { message?: unknown; error?: unknown; reason?: unknown }).reason;
+      if (typeof message === "string" && message.trim()) return message;
+    }
+
+    const topMessage = error.response?.data?.message;
+    if (typeof topMessage === "string" && topMessage.trim()) return topMessage;
+
+    return error.message || "Something went wrong";
   }
   return "Something went wrong";
 }

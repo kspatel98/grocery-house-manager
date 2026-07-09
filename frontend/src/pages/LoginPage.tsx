@@ -50,6 +50,7 @@ export default function LoginPage() {
   function saveAuth(data: AuthResponse) {
     localStorage.setItem("token", data.access_token);
     localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.removeItem("account_is_admin");
     navigate("/houses");
   }
 

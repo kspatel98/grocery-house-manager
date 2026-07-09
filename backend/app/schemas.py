@@ -407,6 +407,7 @@ class AccountBootstrapOut(BaseModel):
     subscription: SubscriptionOut
     insights: PersonalInsightsOut
     houses: list[HouseOut] = Field(default_factory=list)
+    is_admin: bool = False
 
 class CouponValidateIn(BaseModel):
     code: str = Field(min_length=1, max_length=80)

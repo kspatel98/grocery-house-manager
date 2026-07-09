@@ -8,6 +8,8 @@ import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 
+const PRODUCT_PAGE_LIMIT = 240;
+
 export default function HousePage() {
   const { houseId } = useParams();
   const navigate = useNavigate();
@@ -35,7 +37,7 @@ export default function HousePage() {
       const [houseRes, sectionsRes, productsRes, listRes, membersRes, activitiesRes, receiptsRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
         api.get<Section[]>(`/houses/${id}/sections`),
-        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined } }),
+        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT } }),
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
         api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
@@ -48,7 +50,6 @@ export default function HousePage() {
       setMembers(membersRes.data);
       setReceipts(receiptsRes.data);
       setActivities(activitiesRes.data);
-      setReceipts(receiptsRes.data);
       setError('');
     } catch (err) {
       const message = errorMessage(err);
@@ -62,7 +63,7 @@ export default function HousePage() {
   async function loadProducts() {
     try {
       const { data } = await api.get<Product[]>(`/houses/${id}/products`, {
-        params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined },
+        params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT },
       });
       setProducts(data);
     } catch (err) {
@@ -74,7 +75,7 @@ export default function HousePage() {
     try {
       const [listRes, productsRes, activitiesRes, membersRes, receiptsRes] = await Promise.all([
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
-        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined } }),
+        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT } }),
         api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
         api.get<HouseMember[]>(`/houses/${id}/members`),
         api.get<Receipt[]>(`/houses/${id}/receipts`),
@@ -84,7 +85,6 @@ export default function HousePage() {
       setActivities(activitiesRes.data);
       setReceipts(receiptsRes.data);
       setMembers(membersRes.data);
-      setReceipts(receiptsRes.data);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -146,8 +146,11 @@ export default function HousePage() {
   const expiringProducts = useMemo(() => products.filter((p) => p.is_expiring_soon), [products]);
 
   useEffect(() => { loadAll(); }, [id]);
-  useHouseLiveRefresh(id, loadAll);
-  useEffect(() => { loadProducts(); }, [sortBy, direction, sectionFilter]);
+  useHouseLiveRefresh(id, loadShoppingAndActivity);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { loadProducts(); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [sortBy, direction, sectionFilter, search]);
 
   return (
     <main className="page shell wide">
@@ -210,6 +213,7 @@ export default function HousePage() {
             </select>
             <button onClick={loadProducts} className="secondary">Search</button>
           </div>
+          <p className="small-muted inventory-result-note">Showing up to {PRODUCT_PAGE_LIMIT} products for speed. Use search or filters to find more items.</p>
 
           <div className="products-grid">
             {products.map((product) => (
@@ -269,6 +273,8 @@ export default function HousePage() {
         currentUserId={currentUser?.id}
         houseRole={house?.role}
         onRemoveMember={removeMember}
+        onCreateInvite={createInvite}
+        inviteUrl={inviteUrl}
       />
     </main>
   );

@@ -100,6 +100,7 @@ export default function ProfilePage() {
       setProfile(mergedProfile);
       setInsights(data.insights);
       localStorage.setItem("account_profile_cache", JSON.stringify(mergedProfile));
+      localStorage.setItem("account_is_admin", data.is_admin ? "true" : "false");
       setFullName(mergedProfile.full_name || "");
       setAvatarUrl(mergedProfile.avatar_url || "");
       setCountry(mergedProfile.country || "");
@@ -244,6 +245,7 @@ export default function ProfilePage() {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("account_profile_cache");
+      localStorage.removeItem("account_is_admin");
       navigate("/login", { replace: true });
     } catch (err) {
       setDeleteError(errorMessage(err));
@@ -282,6 +284,7 @@ export default function ProfilePage() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("account_profile_cache");
+    localStorage.removeItem("account_is_admin");
     navigate("/login");
   }
 

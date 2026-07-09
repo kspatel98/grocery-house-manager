@@ -7,6 +7,8 @@ import ShoppingListPanel from '../components/ShoppingListPanel';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
 
+const SHOPPING_PRODUCT_LIMIT = 80;
+
 export default function ShoppingPage() {
   const { houseId } = useParams();
   const id = Number(houseId);
@@ -24,13 +26,14 @@ export default function ShoppingPage() {
   const [error, setError] = useState('');
   const [initialLoading, setInitialLoading] = useState(true);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState('');
   const currentUser: User | null = JSON.parse(localStorage.getItem('user') || 'null');
 
   async function loadAll() {
     try {
       const [houseRes, productsRes, listsRes, membersRes, activitiesRes, subscriptionRes, housePlanRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
-        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction } }),
+        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, limit: SHOPPING_PRODUCT_LIMIT } }),
         api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
         api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
@@ -56,6 +59,27 @@ export default function ShoppingPage() {
       setError(errorMessage(err));
     } finally {
       setInitialLoading(false);
+    }
+  }
+
+  async function loadProducts(query = '') {
+    try {
+      const { data } = await api.get<Product[]>(`/houses/${id}/products`, {
+        params: { sort_by: sortBy, direction, search: query || undefined, limit: SHOPPING_PRODUCT_LIMIT },
+      });
+      setProducts(data);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  async function createInvite() {
+    try {
+      const { data } = await api.post(`/houses/${id}/invite`);
+      setInviteUrl(data.join_url);
+      await navigator.clipboard?.writeText(data.join_url);
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -158,6 +182,7 @@ export default function ShoppingPage() {
               setCreatingNew(false);
               setSelectedListId(list.id);
             }}
+            onProductSearch={loadProducts}
           />
         </section>
         <aside className="shopping-side-column">
@@ -172,6 +197,8 @@ export default function ShoppingPage() {
         members={members}
         currentUserId={currentUser?.id}
         houseRole={house?.role}
+        onCreateInvite={createInvite}
+        inviteUrl={inviteUrl}
       />
     </main>
   );

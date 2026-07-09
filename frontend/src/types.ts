@@ -233,6 +233,7 @@ export type AccountBootstrap = {
   subscription: Subscription;
   insights: PersonalInsights;
   houses: House[];
+  is_admin?: boolean;
 };
 
 

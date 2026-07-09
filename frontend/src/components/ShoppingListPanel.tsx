@@ -13,7 +13,7 @@ type ItemUpdates = {
   bought_store_name?: string | null;
 };
 
-export default function ShoppingListPanel({ houseId, products, activeList, onChange, onListCreated, onListUpdated }: { houseId: number; products: Product[]; activeList: ShoppingList | null; onChange: () => void | Promise<void>; onListCreated?: (list: ShoppingList) => void; onListUpdated?: (list: ShoppingList) => void }) {
+export default function ShoppingListPanel({ houseId, products, activeList, onChange, onListCreated, onListUpdated, onProductSearch }: { houseId: number; products: Product[]; activeList: ShoppingList | null; onChange: () => void | Promise<void>; onListCreated?: (list: ShoppingList) => void; onListUpdated?: (list: ShoppingList) => void; onProductSearch?: (query: string) => void | Promise<void> }) {
   const [selection, setSelection] = useState<Selection>({});
   const [title, setTitle] = useState('Grocery List');
   const [editedTitle, setEditedTitle] = useState(activeList?.title || 'Grocery List');
@@ -199,7 +199,7 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
       {!activeList && (
         <>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="List title" />
-          <ProductPicker products={products} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} />
+          <ProductPicker products={products} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} />
           <button className="primary full" disabled={!selectedItems.length || busy} onClick={createList}>Create grocery list</button>
         </>
       )}
@@ -221,7 +221,7 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
               <h4>Add more products</h4>
               {productsNotInList.length ? (
                 <>
-                  <ProductPicker products={productsNotInList} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} />
+                  <ProductPicker products={productsNotInList} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} />
                   <button className="primary full" disabled={!selectedItems.length || busy} onClick={addMoreProducts}>Add selected products</button>
                 </>
               ) : (
@@ -240,12 +240,21 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
   );
 }
 
-function ProductPicker({ products, selection, onToggle, onUpdate }: { products: Product[]; selection: Selection; onToggle: (product: Product) => void; onUpdate: (productId: number, key: 'requested_quantity' | 'message' | 'bought_price' | 'bought_store_name', value: string) => void }) {
+function ProductPicker({ products, selection, onToggle, onUpdate, onSearch }: { products: Product[]; selection: Selection; onToggle: (product: Product) => void; onUpdate: (productId: number, key: 'requested_quantity' | 'message' | 'bought_price' | 'bought_store_name', value: string) => void; onSearch?: (query: string) => void | Promise<void> }) {
   const [pickerSearch, setPickerSearch] = useState('');
+
+  useEffect(() => {
+    if (!onSearch) return;
+    const timer = window.setTimeout(() => {
+      onSearch(pickerSearch.trim());
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [pickerSearch, onSearch]);
+
   const visibleProducts = useMemo(() => {
     const query = pickerSearch.trim().toLowerCase();
     const filtered = query
-      ? products.filter((product) => [product.name, product.store_name, product.section_name, product.brand].filter(Boolean).join(' ').toLowerCase().includes(query))
+      ? products.filter((product) => [product.name, product.store_name, product.section_name, product.brand, product.barcode].filter(Boolean).join(' ').toLowerCase().includes(query))
       : products;
     return filtered.slice(0, 80);
   }, [products, pickerSearch]);
@@ -253,10 +262,10 @@ function ProductPicker({ products, selection, onToggle, onUpdate }: { products: 
   return (
     <div className="product-picker-wrap">
       <div className="product-picker-toolbar">
-        <input value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} placeholder="Search inventory products..." />
+        <input value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} placeholder="Search entire inventory..." />
         <small>{visibleProducts.length} shown{products.length > visibleProducts.length ? ` of ${products.length}` : ''}</small>
       </div>
-      {products.length > visibleProducts.length && <p className="small-muted">Showing the first 80 matches to keep this page fast. Search to narrow the list.</p>}
+      <p className="small-muted">Search by product, brand, store, or barcode. Only the first 80 matches are shown so the list stays fast.</p>
       <div className="product-picker">
         {visibleProducts.map((product) => {
           const selected = selection[product.id]?.selected;
