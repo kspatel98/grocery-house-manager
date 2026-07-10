@@ -124,6 +124,7 @@ export type PlanLimits = {
   products_per_house: number;
   active_lists_per_house: number;
   members_per_house: number;
+  receipt_scans_per_month: number;
 };
 
 export type Plan = {
@@ -173,6 +174,25 @@ export type CouponValidation = {
 };
 
 
+export type ReceiptLineItem = {
+  id: number;
+  line_type: string;
+  description: string;
+  normalized_name?: string | null;
+  sku?: string | null;
+  upc?: string | null;
+  quantity?: number | null;
+  unit_price?: number | null;
+  discount_amount?: number | null;
+  tax_amount?: number | null;
+  line_total?: number | null;
+  confidence?: number | null;
+  needs_review: boolean;
+  is_selected: boolean;
+  matched_product_id?: number | null;
+  matched_product_name?: string | null;
+};
+
 export type Receipt = {
   id: number;
   house_id: number;
@@ -180,9 +200,21 @@ export type Receipt = {
   receipt_date?: string;
   image_url?: string;
   notes?: string;
+  ocr_provider?: string | null;
+  ocr_status: string;
+  ocr_confidence?: number | null;
+  currency?: string | null;
+  subtotal_amount?: number | null;
+  tax_amount?: number | null;
+  discount_amount?: number | null;
+  total_amount?: number | null;
+  receipt_number?: string | null;
+  payment_method?: string | null;
+  reviewed_at?: string | null;
   created_at: string;
   uploaded_by?: User;
   price_entries: ProductStorePrice[];
+  line_items: ReceiptLineItem[];
 };
 
 export type NewUserOffer = {
@@ -196,10 +228,17 @@ export type NewUserOffer = {
 
 export type ReceiptParsedLine = {
   raw_text: string;
+  line_item_id?: number | null;
   product_name?: string | null;
   matched_product_id?: number | null;
   matched_product_name?: string | null;
+  quantity?: number | null;
+  unit_price?: number | null;
   price?: number | null;
+  discount_amount?: number | null;
+  confidence?: number | null;
+  line_type: string;
+  needs_review: boolean;
   applied: boolean;
 };
 
@@ -209,6 +248,7 @@ export type ReceiptUploadResult = {
   parsed_lines: ReceiptParsedLine[];
   matched_count: number;
   message: string;
+  scan_status: string;
 };
 
 export type PersonalInsights = {

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Product, Receipt, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
+import type { Activity, House, HouseMember, Product, Receipt, ReceiptLineItem, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
@@ -301,6 +301,52 @@ function ProductVisual({ product }: { product: Product }) {
   );
 }
 
+type ReviewLine = {
+  id?: number;
+  description: string;
+  product_id: number | '';
+  quantity: string;
+  unit_price: string;
+  line_total: string;
+  discount_amount: string;
+  tax_amount: string;
+  line_type: string;
+  is_selected: boolean;
+  needs_review?: boolean;
+  confidence?: number | null;
+};
+
+function lineFromReceiptItem(item: ReceiptLineItem): ReviewLine {
+  return {
+    id: item.id,
+    description: item.description,
+    product_id: item.matched_product_id || '',
+    quantity: item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '',
+    unit_price: item.unit_price !== null && item.unit_price !== undefined ? String(item.unit_price) : '',
+    line_total: item.line_total !== null && item.line_total !== undefined ? String(item.line_total) : '',
+    discount_amount: item.discount_amount !== null && item.discount_amount !== undefined ? String(item.discount_amount) : '',
+    tax_amount: item.tax_amount !== null && item.tax_amount !== undefined ? String(item.tax_amount) : '',
+    line_type: item.line_type || 'product',
+    is_selected: item.is_selected !== false && item.line_type !== 'discount' && item.line_type !== 'tax',
+    needs_review: item.needs_review,
+    confidence: item.confidence,
+  };
+}
+
+function numberOrNull(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function confidenceLabel(value?: number | null) {
+  if (value === null || value === undefined) return 'Review';
+  if (value >= 0.85) return 'High';
+  if (value >= 0.65) return 'Medium';
+  return 'Review';
+}
+
 function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: number; products: Product[]; receipts: Receipt[]; onChange: () => void | Promise<void> }) {
   const [storeName, setStoreName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -309,9 +355,17 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
   const [price, setPrice] = useState('');
   const [lines, setLines] = useState<{ product_id: number; product_name: string; price: number; store_name?: string }[]>([]);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [receiptText, setReceiptText] = useState('');
   const [uploadResult, setUploadResult] = useState<ReceiptUploadResult | null>(null);
+  const [reviewLines, setReviewLines] = useState<ReviewLine[]>([]);
+  const [receiptDate, setReceiptDate] = useState('');
+  const [receiptNumber, setReceiptNumber] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [subtotal, setSubtotal] = useState('');
+  const [tax, setTax] = useState('');
+  const [discount, setDiscount] = useState('');
+  const [total, setTotal] = useState('');
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [saveScanBusy, setSaveScanBusy] = useState(false);
   const [error, setError] = useState('');
 
   function addLine() {
@@ -327,6 +381,19 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
     setError('');
   }
 
+  function hydrateScan(result: ReceiptUploadResult) {
+    const receipt = result.receipt;
+    setStoreName(receipt.store_name || '');
+    setReceiptDate(receipt.receipt_date || '');
+    setReceiptNumber(receipt.receipt_number || '');
+    setPaymentMethod(receipt.payment_method || '');
+    setSubtotal(receipt.subtotal_amount !== null && receipt.subtotal_amount !== undefined ? String(receipt.subtotal_amount) : '');
+    setTax(receipt.tax_amount !== null && receipt.tax_amount !== undefined ? String(receipt.tax_amount) : '');
+    setDiscount(receipt.discount_amount !== null && receipt.discount_amount !== undefined ? String(receipt.discount_amount) : '');
+    setTotal(receipt.total_amount !== null && receipt.total_amount !== undefined ? String(receipt.total_amount) : '');
+    setReviewLines((receipt.line_items || []).map(lineFromReceiptItem));
+  }
+
   async function uploadReceipt() {
     if (!receiptFile) {
       setError('Choose a receipt photo, image, or PDF first.');
@@ -336,23 +403,94 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
     formData.append('file', receiptFile);
     if (storeName.trim()) formData.append('store_name', storeName.trim());
     if (notes.trim()) formData.append('notes', notes.trim());
-    if (receiptText.trim()) formData.append('receipt_text', receiptText.trim());
     try {
       setUploadBusy(true);
       setUploadResult(null);
+      setReviewLines([]);
       const { data } = await api.post<ReceiptUploadResult>(`/houses/${houseId}/receipts/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setUploadResult(data);
+      hydrateScan(data);
       setReceiptFile(null);
-      setReceiptText('');
-      setNotes('');
       setError('');
       await onChange();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setUploadBusy(false);
+    }
+  }
+
+  function updateReviewLine(index: number, patch: Partial<ReviewLine>) {
+    setReviewLines((prev) => prev.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
+  }
+
+  function removeReviewLine(index: number) {
+    setReviewLines((prev) => prev.filter((_, lineIndex) => lineIndex !== index));
+  }
+
+  function addReviewLine() {
+    setReviewLines((prev) => [
+      ...prev,
+      {
+        description: '',
+        product_id: '',
+        quantity: '1',
+        unit_price: '',
+        line_total: '',
+        discount_amount: '',
+        tax_amount: '',
+        line_type: 'product',
+        is_selected: true,
+        needs_review: true,
+      },
+    ]);
+  }
+
+  async function saveReviewedReceipt() {
+    if (!uploadResult?.receipt?.id) {
+      setError('Scan a receipt first.');
+      return;
+    }
+    const selectedLines = reviewLines.filter((line) => line.is_selected && line.line_type === 'product');
+    if (!selectedLines.length) {
+      setError('Select at least one product row before saving.');
+      return;
+    }
+    try {
+      setSaveScanBusy(true);
+      const { data } = await api.post<Receipt>(`/houses/${houseId}/receipts/${uploadResult.receipt.id}/confirm`, {
+        store_name: storeName || null,
+        receipt_date: receiptDate || null,
+        receipt_number: receiptNumber || null,
+        payment_method: paymentMethod || null,
+        subtotal_amount: numberOrNull(subtotal),
+        tax_amount: numberOrNull(tax),
+        discount_amount: numberOrNull(discount),
+        total_amount: numberOrNull(total),
+        notes: notes || null,
+        items: reviewLines.map((line) => ({
+          id: line.id || null,
+          description: line.description || 'Receipt item',
+          product_id: line.product_id || null,
+          quantity: numberOrNull(line.quantity),
+          unit_price: numberOrNull(line.unit_price),
+          line_total: numberOrNull(line.line_total),
+          discount_amount: numberOrNull(line.discount_amount),
+          tax_amount: numberOrNull(line.tax_amount),
+          line_type: line.line_type || 'product',
+          is_selected: line.is_selected,
+        })),
+      });
+      setUploadResult((prev) => prev ? { ...prev, receipt: data, message: 'Receipt reviewed and saved to price history.', scan_status: data.ocr_status } : prev);
+      setReviewLines((data.line_items || []).map(lineFromReceiptItem));
+      setError('');
+      await onChange();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSaveScanBusy(false);
     }
   }
 
@@ -379,37 +517,99 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
     }
   }
 
+  const scannedProductRows = reviewLines.filter((line) => line.line_type === 'product');
+  const matchedRows = scannedProductRows.filter((line) => line.product_id).length;
+
   return (
-    <section className="panel receipt-panel premium-receipt-panel">
+    <section className="panel receipt-panel premium-receipt-panel receipt-studio">
       <div className="panel-title-row">
         <div>
-          <p className="eyebrow">Premium price tracking</p>
-          <h2>Receipts & store prices</h2>
+          <p className="eyebrow">Smart receipt studio</p>
+          <h2>Scan, review & save receipt prices</h2>
         </div>
-        <span className="badge">OCR assisted</span>
+        <span className="badge premium-badge">Professional scan</span>
       </div>
-      <p>Attach a receipt photo/PDF to save it with the house. Images are scanned when possible and matched to existing products so prices can update automatically. Review results because receipt OCR is never perfect.</p>
+      <p>
+        Upload a receipt photo or PDF. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates price history.
+      </p>
+      <div className="receipt-flow-cards">
+        <span><strong>1</strong> Upload receipt</span>
+        <span><strong>2</strong> Review extracted rows</span>
+        <span><strong>3</strong> Save trusted prices</span>
+      </div>
       {error && <div className="error">{error}</div>}
       {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}
-      <label>Store name<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
-      <label>Attach receipt photo or PDF<input type="file" accept="image/*,.pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} /></label>
-      <label>Optional receipt text for better matching<textarea value={receiptText} onChange={(e) => setReceiptText(e.target.value)} placeholder="Paste receipt text if the image is blurry or OCR misses items." /></label>
-      <button className="secondary full" type="button" onClick={uploadReceipt} disabled={uploadBusy || !receiptFile}>{uploadBusy ? 'Uploading and scanning...' : 'Upload & scan receipt'}</button>
 
-      {uploadResult?.parsed_lines?.length ? (
-        <div className="receipt-scan-results">
-          <strong>Scan results</strong>
-          {uploadResult.parsed_lines.slice(0, 8).map((line, index) => (
-            <span key={`${line.raw_text}-${index}`} className={line.applied ? 'scan-line applied' : 'scan-line'}>
-              {line.applied ? '✓' : '•'} {line.matched_product_name || line.product_name || line.raw_text} {line.price !== null && line.price !== undefined ? `• ${money(line.price)}` : ''}
-            </span>
-          ))}
+      <div className="receipt-upload-card">
+        <div>
+          <h3>Upload receipt</h3>
+          <p className="small-muted">Best results: flat receipt, clear light, full receipt visible, no cropped totals.</p>
+        </div>
+        <label>Store name, optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
+        <label>Attach receipt photo or PDF<input type="file" accept="image/*,.pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} /></label>
+        <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything you want to remember about this receipt" /></label>
+        <button className="primary full" type="button" onClick={uploadReceipt} disabled={uploadBusy || !receiptFile}>{uploadBusy ? 'Scanning receipt...' : 'Scan receipt automatically'}</button>
+      </div>
+
+      {uploadResult ? (
+        <div className="receipt-review-studio">
+          <div className="receipt-review-header">
+            <div>
+              <p className="eyebrow">Review before saving</p>
+              <h3>{storeName || 'Receipt store'} {total ? `• ${money(Number(total))}` : ''}</h3>
+              <p className="small-muted">{scannedProductRows.length} product row(s), {matchedRows} matched to your inventory. Edit wrong rows before saving.</p>
+            </div>
+            <button className="secondary" type="button" onClick={addReviewLine}>Add missing row</button>
+          </div>
+
+          <div className="receipt-meta-grid">
+            <label>Store<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Store name" /></label>
+            <label>Date<input type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} /></label>
+            <label>Receipt #<input value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} placeholder="Optional" /></label>
+            <label>Payment<input value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder="Visa, Debit, Cash" /></label>
+            <label>Subtotal<input type="number" min="0" step="0.01" value={subtotal} onChange={(e) => setSubtotal(e.target.value)} /></label>
+            <label>Discount<input type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} /></label>
+            <label>Tax<input type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} /></label>
+            <label>Total<input type="number" min="0" step="0.01" value={total} onChange={(e) => setTotal(e.target.value)} /></label>
+          </div>
+
+          <div className="receipt-line-table">
+            <div className="receipt-line-row receipt-line-head">
+              <span>Save</span>
+              <span>Receipt item</span>
+              <span>Match product</span>
+              <span>Qty</span>
+              <span>Unit</span>
+              <span>Total</span>
+              <span>Discount</span>
+              <span>Status</span>
+            </div>
+            {reviewLines.map((line, index) => (
+              <div className={`receipt-line-row ${line.needs_review ? 'needs-review' : ''}`} key={`${line.id || 'new'}-${index}`}>
+                <label className="inline-check"><input type="checkbox" checked={line.is_selected} onChange={(e) => updateReviewLine(index, { is_selected: e.target.checked })} /></label>
+                <input value={line.description} onChange={(e) => updateReviewLine(index, { description: e.target.value })} placeholder="Product name" />
+                <select value={line.product_id} onChange={(e) => updateReviewLine(index, { product_id: e.target.value ? Number(e.target.value) : '' })}>
+                  <option value="">No match</option>
+                  {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                </select>
+                <input type="number" min="0" step="0.01" value={line.quantity} onChange={(e) => updateReviewLine(index, { quantity: e.target.value })} />
+                <input type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateReviewLine(index, { unit_price: e.target.value })} />
+                <input type="number" min="0" step="0.01" value={line.line_total} onChange={(e) => updateReviewLine(index, { line_total: e.target.value })} />
+                <input type="number" min="0" step="0.01" value={line.discount_amount} onChange={(e) => updateReviewLine(index, { discount_amount: e.target.value })} />
+                <div className="receipt-line-status">
+                  <span className={line.needs_review || !line.product_id ? 'badge warn' : 'badge ok'}>{!line.product_id ? 'Match' : confidenceLabel(line.confidence)}</span>
+                  <button className="ghost tiny" type="button" onClick={() => removeReviewLine(index)}>Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button className="primary full" type="button" onClick={saveReviewedReceipt} disabled={saveScanBusy || !reviewLines.length}>{saveScanBusy ? 'Saving reviewed receipt...' : 'Save reviewed receipt to price history'}</button>
         </div>
       ) : null}
 
       <div className="receipt-manual-block">
         <h3>Manual price entry</h3>
-        <p className="small-muted">Use this when OCR misses an item or the product name on the receipt is different.</p>
+        <p className="small-muted">Use this when you do not want to scan or when the receipt is too damaged.</p>
         <label>Receipt image URL<input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Optional image URL" /></label>
         <div className="receipt-line-builder">
           <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value ? Number(e.target.value) : '')}>
@@ -426,10 +626,14 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
             ))}
           </div>
         )}
-        <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Receipt notes" /></label>
-        <button className="primary full" onClick={saveReceipt} disabled={!lines.length}>Save manual receipt prices</button>
+        <button className="secondary full" onClick={saveReceipt} disabled={!lines.length}>Save manual receipt prices</button>
       </div>
-      {receipts.length > 0 && <small className="small-muted">Latest receipt: {receipts[0].store_name || 'Store'} • {new Date(receipts[0].created_at).toLocaleDateString()}</small>}
+      {receipts.length > 0 && (
+        <div className="receipt-history-preview">
+          <strong>Latest receipt</strong>
+          <span>{receipts[0].store_name || 'Store'} • {receipts[0].total_amount ? money(receipts[0].total_amount) : new Date(receipts[0].created_at).toLocaleDateString()} • {receipts[0].ocr_status?.split('_').join(' ')}</span>
+        </div>
+      )}
     </section>
   );
 }

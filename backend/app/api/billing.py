@@ -19,6 +19,7 @@ def plan_limits_out(plan):
         products_per_house=plan.limits.products_per_house,
         active_lists_per_house=plan.limits.active_lists_per_house,
         members_per_house=plan.limits.members_per_house,
+        receipt_scans_per_month=plan.limits.receipt_scans_per_month,
     )
 
 

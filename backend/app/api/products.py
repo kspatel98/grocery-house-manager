@@ -1,5 +1,6 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import difflib
 import re
 import shutil
 from uuid import uuid4
@@ -8,11 +9,12 @@ from sqlalchemy import asc, desc, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_product_limit
+from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Product, ProductStorePrice, Receipt, Section, User
-from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptParsedLineOut, ReceiptUploadOut
+from app.models import Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User
+from app.utils.receipt_ocr import local_receipt_scan, veryfi_receipt_scan
+from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut
 
 router = APIRouter(prefix="/houses/{house_id}", tags=["products"])
 
@@ -203,6 +205,7 @@ def update_product_via_post(house_id: int, product_id: int, payload: ProductUpda
 
 
 
+
 PRICE_PATTERN = re.compile(r"(?P<name>[A-Za-z][A-Za-z0-9 '&.,/-]{2,}?)\s+\$?(?P<price>\d{1,4}[.,]\d{2})\s*$")
 
 
@@ -213,75 +216,60 @@ def safe_upload_name(filename: str) -> str:
     return f"receipt-{uuid4().hex}{suffix}"
 
 
-def extract_receipt_text(path: Path) -> str:
-    """Best-effort OCR for receipt images. PDFs are stored but not OCR'd in this starter."""
-    if path.suffix.lower() == ".pdf":
-        return ""
-    try:
-        from PIL import Image
-        import pytesseract
-        return pytesseract.image_to_string(Image.open(path)) or ""
-    except Exception:
-        return ""
+def receipt_upload_size_ok(file: UploadFile) -> None:
+    # FastAPI's UploadFile does not expose content length reliably across all proxies,
+    # so the stream copy below is the final guard. This helper keeps the user-facing
+    # error in one place.
+    if file.content_type and not (
+        file.content_type.startswith("image/")
+        or file.content_type in {"application/pdf", "application/octet-stream"}
+    ):
+        raise HTTPException(status_code=400, detail="Upload a receipt image or PDF.")
 
 
-def parse_receipt_lines(text_value: str, products: list[Product], store_name: str | None, house_id: int, receipt_id: int, user_id: int, db: Session) -> tuple[list[ReceiptParsedLineOut], int]:
-    parsed: list[ReceiptParsedLineOut] = []
-    matched_count = 0
-    product_lookup = [(product, product.name.lower()) for product in products]
-    for raw_line in (text_value or "").splitlines():
-        line = " ".join(raw_line.strip().split())
-        if not line or len(line) < 5:
+def match_product_for_line(description: str, products: list[Product]) -> tuple[Product | None, float]:
+    clean = " ".join((description or "").lower().replace("*", " ").split())
+    if not clean:
+        return None, 0.0
+    best: Product | None = None
+    best_score = 0.0
+    for product in products:
+        product_name = " ".join(product.name.lower().split())
+        if not product_name:
             continue
-        match = PRICE_PATTERN.search(line)
-        if not match:
-            continue
-        item_name = match.group("name").strip(" -:.")
-        try:
-            item_price = float(match.group("price").replace(",", "."))
-        except ValueError:
-            continue
-        item_lower = item_name.lower()
-        matched_product = None
-        for product, product_lower in product_lookup:
-            if product_lower in item_lower or item_lower in product_lower:
-                matched_product = product
-                break
-        applied = False
-        if matched_product:
-            store = (store_name or matched_product.store_name or "Receipt store").strip()
-            existing = db.query(ProductStorePrice).filter(
-                ProductStorePrice.product_id == matched_product.id,
-                ProductStorePrice.store_name == store,
-            ).first()
-            if existing:
-                existing.price = item_price
-                existing.source = "receipt_ocr"
-                existing.receipt_id = receipt_id
-                existing.recorded_by_id = user_id
-            else:
-                db.add(ProductStorePrice(
-                    house_id=house_id,
-                    product_id=matched_product.id,
-                    store_name=store,
-                    price=item_price,
-                    source="receipt_ocr",
-                    receipt_id=receipt_id,
-                    recorded_by_id=user_id,
-                ))
-            matched_product.price = item_price
-            matched_product.store_name = store
-            matched_count += 1
-            applied = True
-        parsed.append(ReceiptParsedLineOut(
-            raw_text=line,
-            product_name=item_name,
-            matched_product_id=matched_product.id if matched_product else None,
-            matched_product_name=matched_product.name if matched_product else None,
-            price=item_price,
-            applied=applied,
-        ))
-    return parsed[:30], matched_count
+        if product_name in clean or clean in product_name:
+            score = 0.95
+        else:
+            score = difflib.SequenceMatcher(None, product_name, clean).ratio()
+        if product.barcode and product.barcode in clean:
+            score = max(score, 0.98)
+        if score > best_score:
+            best = product
+            best_score = score
+    if best_score < 0.62:
+        return None, best_score
+    return best, best_score
+
+
+def serialize_receipt_line_item(item: ReceiptLineItem) -> ReceiptLineItemOut:
+    return ReceiptLineItemOut(
+        id=item.id,
+        line_type=item.line_type,
+        description=item.description,
+        normalized_name=item.normalized_name,
+        sku=item.sku,
+        upc=item.upc,
+        quantity=item.quantity,
+        unit_price=item.unit_price,
+        discount_amount=item.discount_amount,
+        tax_amount=item.tax_amount,
+        line_total=item.line_total,
+        confidence=item.confidence,
+        needs_review=item.needs_review,
+        is_selected=item.is_selected,
+        matched_product_id=item.matched_product_id,
+        matched_product_name=item.matched_product.name if item.matched_product else None,
+    )
 
 
 def serialize_receipt(receipt: Receipt) -> ReceiptOut:
@@ -292,10 +280,77 @@ def serialize_receipt(receipt: Receipt) -> ReceiptOut:
         receipt_date=receipt.receipt_date,
         image_url=receipt.image_url,
         notes=receipt.notes,
+        ocr_provider=receipt.ocr_provider,
+        ocr_status=receipt.ocr_status,
+        ocr_confidence=receipt.ocr_confidence,
+        currency=receipt.currency,
+        subtotal_amount=receipt.subtotal_amount,
+        tax_amount=receipt.tax_amount,
+        discount_amount=receipt.discount_amount,
+        total_amount=receipt.total_amount,
+        receipt_number=receipt.receipt_number,
+        payment_method=receipt.payment_method,
+        reviewed_at=receipt.reviewed_at,
         created_at=receipt.created_at,
         uploaded_by=receipt.uploaded_by,
         price_entries=[serialize_store_price(price) for price in receipt.price_entries],
+        line_items=[serialize_receipt_line_item(item) for item in sorted(receipt.line_items, key=lambda line: (line.sort_order, line.id))] if getattr(receipt, "line_items", None) else [],
     )
+
+
+def parsed_line_from_item(item: ReceiptLineItem) -> ReceiptParsedLineOut:
+    return ReceiptParsedLineOut(
+        raw_text=item.description,
+        line_item_id=item.id,
+        product_name=item.description,
+        matched_product_id=item.matched_product_id,
+        matched_product_name=item.matched_product.name if item.matched_product else None,
+        quantity=item.quantity,
+        unit_price=item.unit_price,
+        price=item.line_total,
+        discount_amount=item.discount_amount,
+        confidence=item.confidence,
+        line_type=item.line_type,
+        needs_review=item.needs_review,
+        applied=False,
+    )
+
+
+def price_for_history(quantity: float | None, unit_price: float | None, line_total: float | None, discount: float | None) -> float | None:
+    if unit_price is not None and unit_price >= 0:
+        return round(float(unit_price), 2)
+    if line_total is not None and line_total >= 0:
+        qty = quantity or 1
+        if qty > 0:
+            return round(max((float(line_total) - float(discount or 0)) / qty, 0), 2)
+        return round(float(line_total), 2)
+    return None
+
+
+def upsert_store_price(db: Session, *, house_id: int, product: Product, store_name: str, price: float, source: str, receipt_id: int, user_id: int) -> None:
+    existing = db.query(ProductStorePrice).filter(
+        ProductStorePrice.product_id == product.id,
+        ProductStorePrice.store_name == store_name,
+    ).first()
+    if existing:
+        existing.price = price
+        existing.source = source
+        existing.receipt_id = receipt_id
+        existing.recorded_by_id = user_id
+        existing.recorded_at = datetime.now(timezone.utc)
+    else:
+        db.add(ProductStorePrice(
+            house_id=house_id,
+            product_id=product.id,
+            store_name=store_name,
+            price=price,
+            source=source,
+            receipt_id=receipt_id,
+            recorded_by_id=user_id,
+        ))
+    product.price = price
+    product.store_name = store_name
+    product.last_bought_at = datetime.now(timezone.utc)
 
 
 @router.get("/receipts", response_model=list[ReceiptOut])
@@ -303,7 +358,11 @@ def list_receipts(house_id: int, db: Session = Depends(get_db), user: User = Dep
     require_house_member(house_id, user, db)
     receipts = (
         db.query(Receipt)
-        .options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries))
+        .options(
+            joinedload(Receipt.uploaded_by),
+            joinedload(Receipt.price_entries),
+            joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product),
+        )
         .filter(Receipt.house_id == house_id)
         .order_by(Receipt.created_at.desc(), Receipt.id.desc())
         .limit(50)
@@ -322,37 +381,33 @@ def create_receipt(house_id: int, payload: ReceiptCreate, db: Session = Depends(
         receipt_date=payload.receipt_date,
         image_url=payload.image_url,
         notes=payload.notes,
+        ocr_status="saved_manual",
+        reviewed_at=datetime.now(timezone.utc),
     )
     db.add(receipt)
     db.flush()
 
     updated_products: list[str] = []
-    for line in payload.items:
+    for index, line in enumerate(payload.items):
         product = db.query(Product).filter(Product.id == line.product_id, Product.house_id == house_id).first()
         if not product:
             raise HTTPException(status_code=400, detail=f"Product {line.product_id} does not belong to this house")
         store = (line.store_name or payload.store_name or product.store_name or "Unknown store").strip()
-        existing = db.query(ProductStorePrice).filter(
-            ProductStorePrice.product_id == product.id,
-            ProductStorePrice.store_name == store,
-        ).first()
-        if existing:
-            existing.price = line.price
-            existing.source = "receipt"
-            existing.receipt_id = receipt.id
-            existing.recorded_by_id = user.id
-        else:
-            db.add(ProductStorePrice(
-                house_id=house_id,
-                product_id=product.id,
-                store_name=store,
-                price=line.price,
-                source="receipt",
-                receipt_id=receipt.id,
-                recorded_by_id=user.id,
-            ))
-        product.price = line.price
-        product.store_name = store
+        upsert_store_price(db, house_id=house_id, product=product, store_name=store, price=line.price, source="receipt", receipt_id=receipt.id, user_id=user.id)
+        db.add(ReceiptLineItem(
+            receipt_id=receipt.id,
+            house_id=house_id,
+            matched_product_id=product.id,
+            line_type="product",
+            description=product.name,
+            normalized_name=product.name,
+            quantity=1,
+            unit_price=line.price,
+            line_total=line.price,
+            needs_review=False,
+            is_selected=True,
+            sort_order=index,
+        ))
         updated_products.append(product.name)
 
     log_activity(
@@ -360,12 +415,12 @@ def create_receipt(house_id: int, payload: ReceiptCreate, db: Session = Depends(
         house_id=house_id,
         user=user,
         action="receipt_uploaded",
-        message=f"Receipt uploaded by {display_name(user)}. Updated prices for {len(updated_products)} product(s).",
+        message=f"Manual receipt saved by {display_name(user)}. Updated prices for {len(updated_products)} product(s).",
         entity_type="receipt",
         entity_id=receipt.id,
     )
     db.commit()
-    refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries)).filter(Receipt.id == receipt.id).first()
+    refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries), joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product)).filter(Receipt.id == receipt.id).first()
     return serialize_receipt(refreshed)
 
 
@@ -381,55 +436,170 @@ def upload_receipt_file(
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
+    ensure_receipt_scan_limit(db, house_id, user)
+    receipt_upload_size_ok(file)
     uploads_dir = Path(settings.upload_dir) / f"house-{house_id}"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     filename = safe_upload_name(file.filename or "receipt.jpg")
     destination = uploads_dir / filename
+    max_bytes = max(settings.receipt_upload_max_mb, 1) * 1024 * 1024
+    written = 0
     with destination.open("wb") as output:
-        shutil.copyfileobj(file.file, output)
+        while True:
+            chunk = file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > max_bytes:
+                output.close()
+                destination.unlink(missing_ok=True)
+                raise HTTPException(status_code=413, detail=f"Receipt file is too large. Upload a file up to {settings.receipt_upload_max_mb} MB.")
+            output.write(chunk)
     image_url = f"/uploads/house-{house_id}/{filename}"
 
-    extracted = (receipt_text or "").strip()
-    if not extracted:
-        extracted = extract_receipt_text(destination).strip()
-
+    scan = veryfi_receipt_scan(destination, filename, receipt_text)
+    products = db.query(Product).filter(Product.house_id == house_id).all()
     receipt = Receipt(
         house_id=house_id,
         uploaded_by_id=user.id,
-        store_name=(store_name or None),
-        receipt_date=receipt_date,
+        store_name=(store_name or scan.get("store_name") or None),
+        receipt_date=receipt_date or scan.get("receipt_date"),
         image_url=image_url,
-        notes=notes or ("Receipt uploaded with automatic OCR." if extracted else "Receipt uploaded. Add prices manually if OCR did not find products."),
+        notes=notes or "Receipt scanned. Review extracted data before saving to price history.",
+        ocr_provider=scan.get("provider"),
+        ocr_status=scan.get("status") or "review_ready",
+        ocr_confidence=scan.get("confidence"),
+        currency=scan.get("currency"),
+        subtotal_amount=scan.get("subtotal_amount"),
+        tax_amount=scan.get("tax_amount"),
+        discount_amount=scan.get("discount_amount"),
+        total_amount=scan.get("total_amount"),
+        receipt_number=scan.get("receipt_number"),
+        payment_method=scan.get("payment_method"),
+        raw_extracted_text=scan.get("raw_text"),
+        raw_extracted_json=scan.get("raw_json"),
     )
     db.add(receipt)
     db.flush()
 
-    products = db.query(Product).filter(Product.house_id == house_id).all()
-    parsed_lines, matched_count = parse_receipt_lines(extracted, products, store_name, house_id, receipt.id, user.id, db)
+    matched_count = 0
+    for index, line in enumerate(scan.get("line_items") or []):
+        matched_product, match_score = match_product_for_line(str(line.get("description") or ""), products)
+        if matched_product:
+            matched_count += 1
+        db.add(ReceiptLineItem(
+            receipt_id=receipt.id,
+            house_id=house_id,
+            matched_product_id=matched_product.id if matched_product else None,
+            line_type=line.get("line_type") or "product",
+            description=str(line.get("description") or f"Receipt item {index + 1}")[:500],
+            normalized_name=line.get("normalized_name"),
+            sku=line.get("sku"),
+            upc=line.get("upc"),
+            quantity=line.get("quantity"),
+            unit_price=line.get("unit_price"),
+            discount_amount=line.get("discount_amount"),
+            tax_amount=line.get("tax_amount"),
+            line_total=line.get("line_total"),
+            confidence=line.get("confidence") or match_score or None,
+            needs_review=bool(line.get("needs_review", True)) or not matched_product,
+            is_selected=(line.get("line_type") or "product") == "product",
+            sort_order=index,
+        ))
 
     log_activity(
         db,
         house_id=house_id,
         user=user,
-        action="receipt_file_uploaded",
-        message=f"Receipt photo uploaded by {display_name(user)}. Auto-updated {matched_count} product price(s).",
+        action="receipt_scanned",
+        message=f"Receipt scanned by {display_name(user)}. {len(scan.get('line_items') or [])} line item(s) are ready for review.",
         entity_type="receipt",
         entity_id=receipt.id,
     )
     db.commit()
-    refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries)).filter(Receipt.id == receipt.id).first()
-    message = (
-        f"Receipt uploaded. Auto-updated {matched_count} matched product price(s). Review unmatched lines before relying on them."
-        if extracted else
-        "Receipt uploaded. OCR did not find readable text, so add product prices manually from the receipt."
-    )
+    refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries), joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product)).filter(Receipt.id == receipt.id).first()
+    parsed = [parsed_line_from_item(item) for item in sorted(refreshed.line_items, key=lambda line: (line.sort_order, line.id))]
+    usage = receipt_scan_usage(db, house_id, user)
+    message = scan.get("message") or "Receipt scanned. Review every row before saving."
+    if usage.get("limit"):
+        message = f"{message} Monthly scans used: {usage.get('used')}/{usage.get('limit')}."
     return ReceiptUploadOut(
         receipt=serialize_receipt(refreshed),
-        extracted_text=extracted or None,
-        parsed_lines=parsed_lines,
+        extracted_text=refreshed.raw_extracted_text,
+        parsed_lines=parsed,
         matched_count=matched_count,
         message=message,
+        scan_status=refreshed.ocr_status,
     )
+
+
+@router.post("/receipts/{receipt_id}/confirm", response_model=ReceiptOut)
+def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptReviewSaveIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    receipt = (
+        db.query(Receipt)
+        .options(joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product), joinedload(Receipt.price_entries), joinedload(Receipt.uploaded_by))
+        .filter(Receipt.id == receipt_id, Receipt.house_id == house_id)
+        .first()
+    )
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+
+    receipt.store_name = payload.store_name or receipt.store_name or "Receipt store"
+    receipt.receipt_date = payload.receipt_date or receipt.receipt_date
+    receipt.receipt_number = payload.receipt_number or receipt.receipt_number
+    receipt.payment_method = payload.payment_method or receipt.payment_method
+    receipt.subtotal_amount = payload.subtotal_amount
+    receipt.tax_amount = payload.tax_amount
+    receipt.discount_amount = payload.discount_amount
+    receipt.total_amount = payload.total_amount
+    receipt.notes = payload.notes or receipt.notes
+    receipt.ocr_status = "saved_reviewed"
+    receipt.reviewed_at = datetime.now(timezone.utc)
+
+    by_id = {item.id: item for item in receipt.line_items}
+    updated_count = 0
+    for index, line in enumerate(payload.items):
+        item = by_id.get(line.id) if line.id else None
+        if item is None:
+            item = ReceiptLineItem(receipt_id=receipt.id, house_id=house_id, description=line.description, sort_order=index)
+            db.add(item)
+            db.flush()
+        item.description = line.description.strip()
+        item.normalized_name = line.description.strip()[:220]
+        item.line_type = line.line_type or "product"
+        item.quantity = line.quantity
+        item.unit_price = line.unit_price
+        item.line_total = line.line_total
+        item.discount_amount = line.discount_amount
+        item.tax_amount = line.tax_amount
+        item.is_selected = line.is_selected
+        item.sort_order = index
+        item.matched_product_id = line.product_id
+        item.needs_review = not (line.is_selected and line.product_id and (line.unit_price is not None or line.line_total is not None))
+        if not line.is_selected or line.line_type != "product" or not line.product_id:
+            continue
+        product = db.query(Product).filter(Product.id == line.product_id, Product.house_id == house_id).first()
+        if not product:
+            continue
+        price = price_for_history(line.quantity, line.unit_price, line.line_total, line.discount_amount)
+        if price is None:
+            continue
+        upsert_store_price(db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store", price=price, source="receipt_scan_reviewed", receipt_id=receipt.id, user_id=user.id)
+        updated_count += 1
+
+    log_activity(
+        db,
+        house_id=house_id,
+        user=user,
+        action="receipt_review_saved",
+        message=f"Receipt reviewed by {display_name(user)}. Updated price history for {updated_count} product(s).",
+        entity_type="receipt",
+        entity_id=receipt.id,
+    )
+    db.commit()
+    refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries), joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product)).filter(Receipt.id == receipt.id).first()
+    return serialize_receipt(refreshed)
 
 
 @router.delete("/products/{product_id}")

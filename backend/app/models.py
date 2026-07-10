@@ -225,11 +225,52 @@ class Receipt(Base):
     receipt_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    ocr_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ocr_status: Mapped[str] = mapped_column(String(50), default="manual", index=True)
+    ocr_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    subtotal_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tax_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    discount_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    receipt_number: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    payment_method: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    raw_extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_extracted_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     house: Mapped[House] = relationship(back_populates="receipts")
     uploaded_by: Mapped[User | None] = relationship(back_populates="receipts")
     price_entries: Mapped[list["ProductStorePrice"]] = relationship(back_populates="receipt", cascade="all, delete-orphan")
+    line_items: Mapped[list["ReceiptLineItem"]] = relationship(back_populates="receipt", cascade="all, delete-orphan")
+
+
+class ReceiptLineItem(Base):
+    __tablename__ = "receipt_line_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    receipt_id: Mapped[int] = mapped_column(ForeignKey("receipts.id", ondelete="CASCADE"), index=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    matched_product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True)
+    line_type: Mapped[str] = mapped_column(String(50), default="product", index=True)
+    description: Mapped[str] = mapped_column(Text)
+    normalized_name: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    sku: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    upc: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    unit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    discount_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tax_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    line_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_selected: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    receipt: Mapped[Receipt] = relationship(back_populates="line_items")
+    matched_product: Mapped[Product | None] = relationship()
 
 
 class ProductStorePrice(Base):

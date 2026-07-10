@@ -52,6 +52,18 @@ class Settings(BaseSettings):
     apify_price_timeout_seconds: int = 90
     market_max_compare_items: int = 12
 
+    # Professional receipt scanning. Veryfi returns structured receipt JSON
+    # including vendor/store, dates, line items, discounts, taxes, and totals.
+    # Leave disabled until credentials are configured.
+    receipt_ocr_provider: str = "local"  # local, veryfi
+    receipt_scan_review_required: bool = True
+    receipt_upload_max_mb: int = 20
+    veryfi_client_id: str | None = None
+    veryfi_username: str | None = None
+    veryfi_api_key: str | None = None
+    veryfi_api_url: str = "https://api.veryfi.com/api/v8/partner/documents"
+    veryfi_timeout_seconds: int = 60
+
     # Password reset email provider.
     # Recommended production value when SMTP 587/465 is blocked by hosting: resend.
     # Supported values: auto, resend, smtp. auto uses Resend when RESEND_API_KEY exists, otherwise SMTP.

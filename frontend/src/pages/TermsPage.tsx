@@ -41,7 +41,7 @@ export default function TermsPage() {
 
         <h2>Receipt scanning and product data</h2>
         <p>
-          Receipt scanning, OCR, price matching, and product suggestions are provided for convenience. Results may be incomplete or inaccurate. Users should review receipt details, product quantities, prices, and inventory updates before relying on them.
+          Receipt scanning, price matching, product suggestions, and extracted receipt fields are provided for convenience. Results may be incomplete or inaccurate. Users must review store names, product quantities, discounts, taxes, totals, and inventory updates before relying on them.
         </p>
 
         <h2>Acceptable use</h2>

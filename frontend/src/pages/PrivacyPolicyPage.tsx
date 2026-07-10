@@ -47,7 +47,7 @@ export default function PrivacyPolicyPage() {
 
         <h2>Receipts and OCR</h2>
         <p>
-          Receipt uploads may be processed to extract product names, store names, prices, and dates. OCR results can be imperfect, so users should review scanned receipt details before relying on them for inventory or price tracking.
+          Receipt uploads may be processed to extract store names, receipt dates, product rows, quantities, prices, discounts, taxes, totals, payment-related labels, and raw extracted text. Scan results can be imperfect, so users should review details before saving them to inventory or price tracking.
         </p>
 
         <h2>Sharing inside a house</h2>

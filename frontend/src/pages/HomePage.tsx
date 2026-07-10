@@ -39,7 +39,7 @@ const workflow = [
 ];
 
 const premiumTools = [
-  'Receipt photo/PDF upload and OCR-assisted scanning',
+  'Professional receipt scanning with item, discount, tax, and total review',
   'Store-specific price history for every product',
   'Personal receipt tracker and spending summary',
   'Best-store comparison for smarter shopping',

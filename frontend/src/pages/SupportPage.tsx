@@ -23,7 +23,7 @@ const supportItems = [
   },
   {
     title: 'Receipts and prices',
-    text: 'Receipt scanning helps extract prices, but always review OCR results before updating inventory or relying on store-price history.',
+    text: 'Professional receipt scanning can extract store name, item rows, discounts, taxes, and totals. Review the scan before saving trusted prices to household history.',
   },
 ]
 

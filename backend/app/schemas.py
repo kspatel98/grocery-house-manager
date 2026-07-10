@@ -283,6 +283,7 @@ class PlanLimitsOut(BaseModel):
     products_per_house: int
     active_lists_per_house: int
     members_per_house: int
+    receipt_scans_per_month: int = 0
 
 
 class PlanOut(BaseModel):
@@ -349,6 +350,25 @@ class ReceiptCreate(BaseModel):
     items: list[ReceiptLineCreate] = Field(default_factory=list)
 
 
+class ReceiptLineItemOut(BaseModel):
+    id: int
+    line_type: str = "product"
+    description: str
+    normalized_name: str | None = None
+    sku: str | None = None
+    upc: str | None = None
+    quantity: float | None = None
+    unit_price: float | None = None
+    discount_amount: float | None = None
+    tax_amount: float | None = None
+    line_total: float | None = None
+    confidence: float | None = None
+    needs_review: bool = True
+    is_selected: bool = True
+    matched_product_id: int | None = None
+    matched_product_name: str | None = None
+
+
 class ReceiptOut(BaseModel):
     id: int
     house_id: int
@@ -356,19 +376,38 @@ class ReceiptOut(BaseModel):
     receipt_date: date | None = None
     image_url: str | None = None
     notes: str | None = None
+    ocr_provider: str | None = None
+    ocr_status: str = "manual"
+    ocr_confidence: float | None = None
+    currency: str | None = None
+    subtotal_amount: float | None = None
+    tax_amount: float | None = None
+    discount_amount: float | None = None
+    total_amount: float | None = None
+    receipt_number: str | None = None
+    payment_method: str | None = None
+    reviewed_at: datetime | None = None
     created_at: datetime
     uploaded_by: UserOut | None = None
     price_entries: list[ProductStorePriceOut] = Field(default_factory=list)
+    line_items: list[ReceiptLineItemOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
 
 class ReceiptParsedLineOut(BaseModel):
     raw_text: str
+    line_item_id: int | None = None
     product_name: str | None = None
     matched_product_id: int | None = None
     matched_product_name: str | None = None
+    quantity: float | None = None
+    unit_price: float | None = None
     price: float | None = None
+    discount_amount: float | None = None
+    confidence: float | None = None
+    line_type: str = "product"
+    needs_review: bool = True
     applied: bool = False
 
 
@@ -378,6 +417,33 @@ class ReceiptUploadOut(BaseModel):
     parsed_lines: list[ReceiptParsedLineOut] = Field(default_factory=list)
     matched_count: int = 0
     message: str
+    scan_status: str = "review_ready"
+
+
+class ReceiptReviewLineIn(BaseModel):
+    id: int | None = None
+    description: str = Field(min_length=1, max_length=500)
+    product_id: int | None = None
+    quantity: float | None = Field(default=None, ge=0)
+    unit_price: float | None = Field(default=None, ge=0)
+    line_total: float | None = Field(default=None, ge=0)
+    discount_amount: float | None = Field(default=None, ge=0)
+    tax_amount: float | None = Field(default=None, ge=0)
+    line_type: str = Field(default="product", max_length=50)
+    is_selected: bool = True
+
+
+class ReceiptReviewSaveIn(BaseModel):
+    store_name: str | None = Field(default=None, max_length=150)
+    receipt_date: date | None = None
+    receipt_number: str | None = Field(default=None, max_length=120)
+    payment_method: str | None = Field(default=None, max_length=120)
+    subtotal_amount: float | None = Field(default=None, ge=0)
+    tax_amount: float | None = Field(default=None, ge=0)
+    discount_amount: float | None = Field(default=None, ge=0)
+    total_amount: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+    items: list[ReceiptReviewLineIn] = Field(default_factory=list)
 
 
 class PersonalInsightsOut(BaseModel):

@@ -56,7 +56,7 @@ def personal_insights_out(db: Session, user: User) -> PersonalInsightsOut:
         PlanName.basic: [
             "Personal receipt tracker",
             "Personal spending summary",
-            "Receipt photo upload and OCR-assisted price matching",
+            "Professional receipt scanning with item, discount, tax, and total review",
         ],
         PlanName.family: [
             "Everything in Basic Home",
@@ -115,6 +115,7 @@ def safe_subscription_out(db: Session, user: User) -> SubscriptionOut:
                 products_per_house=plan.limits.products_per_house,
                 active_lists_per_house=plan.limits.active_lists_per_house,
                 members_per_house=plan.limits.members_per_house,
+                receipt_scans_per_month=plan.limits.receipt_scans_per_month,
             ),
             usage={
                 "houses": 0,

@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from app.models import House, HouseMember, HouseRole, PlanName, Product, ShoppingList, User
+from app.models import House, HouseMember, HouseRole, PlanName, Product, Receipt, ShoppingList, User
 
 
 @dataclass(frozen=True)
@@ -10,6 +11,7 @@ class PlanLimits:
     products_per_house: int
     active_lists_per_house: int
     members_per_house: int
+    receipt_scans_per_month: int = 0
 
 
 @dataclass(frozen=True)
@@ -32,7 +34,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Free Starter",
         price_monthly_cad=0,
         tagline="Join a shared house for free. Upgrade to create and manage your own house.",
-        limits=PlanLimits(houses=0, products_per_house=0, active_lists_per_house=0, members_per_house=0),
+        limits=PlanLimits(houses=0, products_per_house=0, active_lists_per_house=0, members_per_house=0, receipt_scans_per_month=0),
         features=[
             "Join houses by invitation",
             "Use shared house features based on the owner's plan",
@@ -45,10 +47,10 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Basic Home",
         price_monthly_cad=1.99,
         tagline="Affordable plan for couples and small households.",
-        limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6),
+        limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6, receipt_scans_per_month=10),
         features=[
             "Create and manage your own houses",
-            "Receipt photo upload with OCR-assisted price matching",
+            "Professional receipt scanning with item, discount, tax, and total extraction",
             "Store-specific price history for each product",
             "Product lookup by barcode or product name",
             "Personal receipt tracker and spending summary",
@@ -61,13 +63,13 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Family Plus",
         price_monthly_cad=4.99,
         tagline="Best value for most families and roommates.",
-        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15),
+        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15, receipt_scans_per_month=50),
         features=[
             "Everything in Basic Home",
             "Best-store comparison across your grocery inventory",
             "Canadian grocery price comparison for supported retailers",
             "Monthly household expense view",
-            "Receipt archive for shared homes",
+            "Shared receipt archive with scan review and spending history",
             "Better for families, roommates, and weekly shopping routines",
         ],
         recommended=True,
@@ -77,7 +79,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Household Pro",
         price_monthly_cad=6.99,
         tagline="For large families, multiple homes, and heavy users.",
-        limits=PlanLimits(houses=15, products_per_house=3000, active_lists_per_house=50, members_per_house=35),
+        limits=PlanLimits(houses=15, products_per_house=3000, active_lists_per_house=50, members_per_house=35, receipt_scans_per_month=150),
         features=[
             "Everything in Family Plus",
             "Advanced price tracking for multiple stores",
@@ -184,6 +186,41 @@ def plan_usage(db: Session, user: User) -> dict:
         "active_lists_by_house": active_lists_by_house,
         "members_by_house": members_by_house,
     }
+
+
+def ensure_receipt_scan_limit(db: Session, house_id: int, user: User) -> None:
+    plan = get_house_plan(db, house_id)
+    if plan.key == PlanName.free or plan.limits.receipt_scans_per_month <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Professional receipt scanning requires the house owner to have Basic Home or higher. Free users can still use manual receipt entry inside houses they join.",
+        )
+    now = datetime.now(timezone.utc)
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    used = db.query(Receipt).filter(
+        Receipt.house_id == house_id,
+        Receipt.uploaded_by_id == user.id,
+        Receipt.created_at >= month_start,
+        Receipt.ocr_provider.isnot(None),
+    ).count()
+    if used >= plan.limits.receipt_scans_per_month:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"This house owner's {plan.name} plan includes {plan.limits.receipt_scans_per_month} receipt scan(s) per month. Upgrade the house plan or add this receipt manually.",
+        )
+
+
+def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int | str]:
+    plan = get_house_plan(db, house_id)
+    now = datetime.now(timezone.utc)
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    used = db.query(Receipt).filter(
+        Receipt.house_id == house_id,
+        Receipt.uploaded_by_id == user.id,
+        Receipt.created_at >= month_start,
+        Receipt.ocr_provider.isnot(None),
+    ).count()
+    return {"used": used, "limit": plan.limits.receipt_scans_per_month, "plan_name": plan.name}
 
 
 def house_plan_has_smart_market(db: Session, house_id: int) -> bool:

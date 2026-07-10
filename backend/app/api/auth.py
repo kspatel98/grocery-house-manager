@@ -327,7 +327,7 @@ def get_personal_insights(db: Session = Depends(get_db), user: User = Depends(ge
         PlanName.basic: [
             "Personal receipt tracker",
             "Personal spending summary",
-            "Receipt photo upload and OCR-assisted price matching",
+            "Professional receipt scanning with item, discount, tax, and total review",
         ],
         PlanName.family: [
             "Everything in Basic Home",
