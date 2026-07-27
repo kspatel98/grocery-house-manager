@@ -2782,3 +2782,111 @@ body {
     flex-direction: column;
   }
 }
+
+/* v38 receipt review and insights polish */
+.receipt-review-studio {
+  background:
+    radial-gradient(circle at top left, rgba(255, 107, 26, .10), transparent 28%),
+    linear-gradient(180deg, #ffffff, #f8fff9);
+}
+.receipt-review-header h3 {
+  color: #123428;
+  font-size: 1.25rem;
+}
+.receipt-line-table {
+  border: 1px solid #dcebe2;
+  border-radius: 20px;
+  background: #f8fbf7;
+  padding: .65rem;
+}
+.receipt-line-row {
+  min-width: 1380px;
+  grid-template-columns: 52px 1.25fr 1.05fr .42fr .42fr .55fr .55fr .55fr .55fr .75fr;
+  border-color: #dfe9e3;
+  box-shadow: 0 8px 24px rgba(18, 52, 40, .035);
+}
+.receipt-line-row:not(.receipt-line-head):hover {
+  border-color: #bfe7ce;
+  background: #fbfffc;
+}
+.receipt-line-row input,
+.receipt-line-row select {
+  border-color: #dce6df;
+  background: #fff;
+}
+.receipt-line-head {
+  background: linear-gradient(135deg, #123428, #0d5c3f);
+  color: white;
+  box-shadow: none;
+}
+.receipt-line-row.needs-review {
+  background: #fffaf2;
+  border-color: #ffcda9;
+}
+.receipt-create-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.6fr 1.1fr .9fr .7fr;
+  gap: .55rem;
+  align-items: center;
+  background: #ffffff;
+  border: 1px dashed #f6b785;
+  border-radius: 14px;
+  padding: .6rem;
+}
+.receipt-create-row strong {
+  color: #b45309;
+}
+.receipt-inventory-check {
+  gap: .25rem;
+  color: #0d5c3f;
+  font-weight: 900;
+}
+.badge.create {
+  background: #eef9f2;
+  color: #0d5c3f;
+  border-color: #bfe7ce;
+}
+.receipt-review-tip {
+  background: #effaf3;
+  border: 1px solid #cdebd8;
+  color: #123428;
+  border-radius: 16px;
+  padding: .85rem 1rem;
+  font-weight: 800;
+}
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+.reports-page .stat-card {
+  background: linear-gradient(180deg, #ffffff, #fbfffc);
+  border-color: #dcebe2;
+}
+.report-highlight-card {
+  display: grid;
+  gap: .5rem;
+  padding: 1rem;
+  border-radius: 20px;
+  border: 1px solid #dcebe2;
+  background: linear-gradient(135deg, #effaf3, #fffaf2);
+  margin: 1rem 0;
+}
+.report-highlight-card strong {
+  color: #0d5c3f;
+  font-size: 1.15rem;
+}
+@media (max-width: 900px) {
+  .receipt-create-row {
+    grid-template-columns: 1fr;
+  }
+  .report-actions {
+    justify-content: stretch;
+  }
+  .report-actions > * {
+    width: 100%;
+  }
+}

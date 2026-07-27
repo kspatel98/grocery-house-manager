@@ -182,6 +182,7 @@ export type ReceiptLineItem = {
   sku?: string | null;
   upc?: string | null;
   quantity?: number | null;
+  line_unit?: string | null;
   unit_price?: number | null;
   discount_amount?: number | null;
   tax_amount?: number | null;
@@ -233,6 +234,7 @@ export type ReceiptParsedLine = {
   matched_product_id?: number | null;
   matched_product_name?: string | null;
   quantity?: number | null;
+  line_unit?: string | null;
   unit_price?: number | null;
   price?: number | null;
   discount_amount?: number | null;

@@ -102,8 +102,74 @@ def _line_type(line: dict[str, Any]) -> str:
     return "product"
 
 
+UNIT_ALIASES = {
+    "kgs": "kg",
+    "kilogram": "kg",
+    "kilograms": "kg",
+    "grams": "g",
+    "gram": "g",
+    "lbs": "lb",
+    "pound": "lb",
+    "pounds": "lb",
+    "litre": "l",
+    "liter": "l",
+    "litres": "l",
+    "liters": "l",
+    "each": "each",
+    "ea": "each",
+    "pc": "pcs",
+    "piece": "pcs",
+    "pieces": "pcs",
+}
+
+
+def _normalize_unit(value: Any) -> str | None:
+    if value is None:
+        return None
+    raw = str(value).strip().lower().replace(".", "")
+    if not raw:
+        return None
+    return UNIT_ALIASES.get(raw, raw[:32])
+
+
+def _receipt_description_name(description: str) -> str:
+    text = " ".join((description or "").replace("$", " ").split()).strip(" -:.;")
+    # Walmart grocery receipts often include codes before the actual name, e.g.
+    # "OP # 009062 TE # CHEESE # 009C". Extract the readable name where possible.
+    coded_match = re.search(r"TE\s*#\s*(?P<name>[A-Z][A-Z0-9 '&/-]{2,}?)(?:\s*#|$)", text, re.I)
+    if coded_match:
+        return coded_match.group("name").strip(" -:#")[:220]
+    # Remove scale/weight details from the display name. The quantity/unit/price
+    # are stored separately so Bananas can be saved as $1.50/kg instead of $1.75.
+    text = re.sub(r"\b\d+(?:[.,]\d+)?\s*(?:kg|kgs|g|lb|lbs|l|ml)\s*@\s*\$?\s*\d+(?:[.,]\d+)?(?:\s*/\s*(?:kg|g|lb|l|ml|ea|each))?", "", text, flags=re.I)
+    text = re.sub(r"\s{2,}", " ", text).strip(" -:.;")
+    return text[:220] or (description or "Receipt item")[:220]
+
+
+def _parse_line_measurement(description: str) -> dict[str, Any]:
+    text = " ".join((description or "").replace(",", ".").split())
+    # Examples: "BANANAS 1.165 kg @ $1.50 /kg", "1.165 kg @ $ 1.50 /"
+    match = re.search(
+        r"(?P<qty>\d+(?:\.\d+)?)\s*(?P<unit>kg|kgs|g|lb|lbs|l|ml|ea|each|pc|pcs)\s*@\s*\$?\s*(?P<unit_price>\d+(?:\.\d+)?)(?:\s*/\s*(?P<price_unit>kg|kgs|g|lb|lbs|l|ml|ea|each|pc|pcs))?",
+        text,
+        flags=re.I,
+    )
+    if match:
+        unit = _normalize_unit(match.group("price_unit") or match.group("unit"))
+        return {
+            "quantity": _as_float(match.group("qty")),
+            "line_unit": unit,
+            "unit_price": _as_float(match.group("unit_price")),
+        }
+    # Examples: "2 @ 3.99" with no unit. Treat as pieces.
+    match = re.search(r"(?P<qty>\d+(?:\.\d+)?)\s*@\s*\$?\s*(?P<unit_price>\d+(?:\.\d+)?)", text, flags=re.I)
+    if match:
+        return {"quantity": _as_float(match.group("qty")), "line_unit": "pcs", "unit_price": _as_float(match.group("unit_price"))}
+    return {"quantity": None, "line_unit": None, "unit_price": None}
+
+
 def _normalize_line(line: dict[str, Any], index: int) -> dict[str, Any]:
-    description = _string(
+    raw_description = _string(
         line.get("description")
         or line.get("descClean")
         or line.get("desc")
@@ -113,15 +179,35 @@ def _normalize_line(line: dict[str, Any], index: int) -> dict[str, Any]:
         or line.get("raw_text")
         or f"Receipt item {index + 1}"
     ) or f"Receipt item {index + 1}"
-    quantity = _as_float(line.get("quantity") or line.get("qty"))
-    unit_price = _as_float(line.get("unit_price") or line.get("price") or line.get("unitPrice"))
+    measurement = _parse_line_measurement(raw_description)
+    description = _receipt_description_name(raw_description)
+    quantity = _as_float(line.get("quantity") or line.get("qty") or line.get("itemQty") or line.get("itemQuantity"))
+    line_unit = _normalize_unit(line.get("unit") or line.get("measure") or line.get("uom") or line.get("quantity_unit") or line.get("unitOfMeasure"))
+    unit_price = _as_float(line.get("unit_price") or line.get("unitPrice") or line.get("price_per_unit") or line.get("pricePerUnit"))
     total = _as_float(line.get("total") or line.get("line_total") or line.get("lineTotal") or line.get("subtotal"))
     discount = _as_float(line.get("discount") or line.get("discount_amount") or line.get("discountAmount"))
     tax = _as_float(line.get("tax") or line.get("tax_amount") or line.get("taxAmount"))
     confidence = _as_float(line.get("confidence") or line.get("ocr_confidence") or line.get("score"))
+
+    if quantity is None:
+        quantity = measurement.get("quantity")
+    if line_unit is None:
+        line_unit = measurement.get("line_unit")
+    if unit_price is None:
+        unit_price = measurement.get("unit_price")
+
+    line_type = _line_type(line)
+    if line_type == "product" and quantity is None:
+        quantity = 1.0
+    if line_type == "product" and line_unit is None:
+        line_unit = "pcs"
     if total is None and unit_price is not None:
         total = round(unit_price * (quantity or 1), 2)
-    line_type = _line_type(line)
+    if unit_price is None and total is not None and quantity and quantity > 0:
+        # If a receipt only gives a line total, calculate the best unit price we can.
+        # For scale items like bananas, parsed quantity makes this become $/kg.
+        unit_price = round(max((float(total) - float(discount or 0)) / float(quantity), 0), 2)
+
     return {
         "line_type": line_type,
         "description": description,
@@ -129,6 +215,7 @@ def _normalize_line(line: dict[str, Any], index: int) -> dict[str, Any]:
         "sku": _string(line.get("sku") or line.get("item_id") or line.get("productCode")),
         "upc": _string(line.get("upc") or line.get("barcode")),
         "quantity": quantity,
+        "line_unit": line_unit,
         "unit_price": unit_price,
         "discount_amount": discount,
         "tax_amount": tax,
@@ -159,6 +246,7 @@ def _fallback_lines(text: str) -> list[dict[str, Any]]:
             "sku": None,
             "upc": None,
             "quantity": 1,
+            "line_unit": "pcs",
             "unit_price": price,
             "discount_amount": None,
             "tax_amount": None,

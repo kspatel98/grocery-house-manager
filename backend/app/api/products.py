@@ -259,6 +259,7 @@ def serialize_receipt_line_item(item: ReceiptLineItem) -> ReceiptLineItemOut:
         sku=item.sku,
         upc=item.upc,
         quantity=item.quantity,
+        line_unit=item.line_unit,
         unit_price=item.unit_price,
         discount_amount=item.discount_amount,
         tax_amount=item.tax_amount,
@@ -305,6 +306,7 @@ def parsed_line_from_item(item: ReceiptLineItem) -> ReceiptParsedLineOut:
         matched_product_id=item.matched_product_id,
         matched_product_name=item.matched_product.name if item.matched_product else None,
         quantity=item.quantity,
+        line_unit=item.line_unit,
         unit_price=item.unit_price,
         price=item.line_total,
         discount_amount=item.discount_amount,
@@ -324,6 +326,44 @@ def price_for_history(quantity: float | None, unit_price: float | None, line_tot
             return round(max((float(line_total) - float(discount or 0)) / qty, 0), 2)
         return round(float(line_total), 2)
     return None
+
+
+def default_receipt_section(db: Session, house_id: int) -> Section:
+    section = db.query(Section).filter(Section.house_id == house_id).order_by(Section.sort_order.asc(), Section.id.asc()).first()
+    if section:
+        return section
+    section = Section(house_id=house_id, name="Receipt Items", icon="🧾", sort_order=999)
+    db.add(section)
+    db.flush()
+    return section
+
+
+def normalize_inventory_unit(value: str | None) -> str:
+    value = (value or "pcs").strip().lower()
+    aliases = {"ea": "each", "pc": "pcs", "piece": "pcs", "pieces": "pcs", "kgs": "kg", "lbs": "lb"}
+    return aliases.get(value, value or "pcs")[:32]
+
+
+def apply_receipt_inventory_update(product: Product, *, quantity: float | None, line_unit: str | None, store_name: str | None, price: float | None) -> None:
+    qty = quantity if quantity is not None and quantity > 0 else 1.0
+    receipt_unit = normalize_inventory_unit(line_unit)
+    product_unit = normalize_inventory_unit(product.unit)
+    if product_unit in {"pcs", "each"} and receipt_unit not in {"pcs", "each"}:
+        product.unit = receipt_unit
+        product_unit = receipt_unit
+    elif not product.unit:
+        product.unit = receipt_unit
+        product_unit = receipt_unit
+    # If the units differ, still record the quantity from the receipt and keep a note for review.
+    product.quantity = round(float(product.quantity or 0) + float(qty), 3)
+    if receipt_unit and receipt_unit != product_unit:
+        note = f"Receipt used {qty:g} {receipt_unit}; inventory unit is {product_unit}. Please review quantity if needed."
+        product.notes = f"{(product.notes or '').strip()}\n{note}".strip()[:4000]
+    if store_name:
+        product.store_name = store_name
+    if price is not None:
+        product.price = price
+    product.last_bought_at = datetime.now(timezone.utc)
 
 
 def upsert_store_price(db: Session, *, house_id: int, product: Product, store_name: str, price: float, source: str, receipt_id: int, user_id: int) -> None:
@@ -501,7 +541,8 @@ def upload_receipt_file(
             normalized_name=line.get("normalized_name"),
             sku=line.get("sku"),
             upc=line.get("upc"),
-            quantity=line.get("quantity"),
+            quantity=line.get("quantity") if line.get("quantity") is not None else 1,
+            line_unit=line.get("line_unit") or "pcs",
             unit_price=line.get("unit_price"),
             discount_amount=line.get("discount_amount"),
             tax_amount=line.get("tax_amount"),
@@ -551,6 +592,8 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
 
+    was_already_reviewed = receipt.reviewed_at is not None
+
     receipt.store_name = payload.store_name or receipt.store_name or "Receipt store"
     receipt.receipt_date = payload.receipt_date or receipt.receipt_date
     receipt.receipt_number = payload.receipt_number or receipt.receipt_number
@@ -565,41 +608,80 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
 
     by_id = {item.id: item for item in receipt.line_items}
     updated_count = 0
+    created_count = 0
+    inventory_count = 0
     for index, line in enumerate(payload.items):
         item = by_id.get(line.id) if line.id else None
         if item is None:
             item = ReceiptLineItem(receipt_id=receipt.id, house_id=house_id, description=line.description, sort_order=index)
             db.add(item)
             db.flush()
+
+        qty = line.quantity if line.quantity is not None and line.quantity > 0 else 1.0
+        line_unit = normalize_inventory_unit(line.line_unit or line.new_product_unit or "pcs")
+        unit_price = line.unit_price
+        if unit_price is None and line.line_total is not None and qty > 0:
+            unit_price = round(max((float(line.line_total) - float(line.discount_amount or 0)) / float(qty), 0), 2)
+
+        product_id = line.product_id
+        product: Product | None = None
+        if product_id:
+            product = db.query(Product).filter(Product.id == product_id, Product.house_id == house_id).first()
+        elif line.is_selected and line.line_type == "product" and line.create_product:
+            ensure_product_limit(db, house_id, user)
+            section = None
+            if line.new_product_section_id:
+                section = db.query(Section).filter(Section.id == line.new_product_section_id, Section.house_id == house_id).first()
+            if section is None:
+                section = default_receipt_section(db, house_id)
+            product_name = (line.new_product_name or line.description or "Receipt item").strip()[:180]
+            product = Product(
+                house_id=house_id,
+                section_id=section.id,
+                name=product_name,
+                icon="🧾",
+                quantity=0,
+                unit=line_unit,
+                price=price_for_history(qty, unit_price, line.line_total, line.discount_amount),
+                store_name=receipt.store_name or "Receipt store",
+                notes="Created from reviewed receipt item.",
+            )
+            db.add(product)
+            db.flush()
+            product_id = product.id
+            created_count += 1
+
         item.description = line.description.strip()
-        item.normalized_name = line.description.strip()[:220]
+        item.normalized_name = (line.new_product_name or line.description).strip()[:220]
         item.line_type = line.line_type or "product"
-        item.quantity = line.quantity
-        item.unit_price = line.unit_price
+        item.quantity = qty
+        item.line_unit = line_unit
+        item.unit_price = unit_price
         item.line_total = line.line_total
         item.discount_amount = line.discount_amount
         item.tax_amount = line.tax_amount
         item.is_selected = line.is_selected
         item.sort_order = index
-        item.matched_product_id = line.product_id
-        item.needs_review = not (line.is_selected and line.product_id and (line.unit_price is not None or line.line_total is not None))
-        if not line.is_selected or line.line_type != "product" or not line.product_id:
+        item.matched_product_id = product_id
+        item.needs_review = not (line.is_selected and product_id and (unit_price is not None or line.line_total is not None))
+
+        if not line.is_selected or line.line_type != "product" or not product:
             continue
-        product = db.query(Product).filter(Product.id == line.product_id, Product.house_id == house_id).first()
-        if not product:
-            continue
-        price = price_for_history(line.quantity, line.unit_price, line.line_total, line.discount_amount)
+        price = price_for_history(qty, unit_price, line.line_total, line.discount_amount)
         if price is None:
             continue
         upsert_store_price(db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store", price=price, source="receipt_scan_reviewed", receipt_id=receipt.id, user_id=user.id)
         updated_count += 1
+        if line.update_inventory and not was_already_reviewed:
+            apply_receipt_inventory_update(product, quantity=qty, line_unit=line_unit, store_name=receipt.store_name or "Receipt store", price=price)
+            inventory_count += 1
 
     log_activity(
         db,
         house_id=house_id,
         user=user,
         action="receipt_review_saved",
-        message=f"Receipt reviewed by {display_name(user)}. Updated price history for {updated_count} product(s).",
+        message=f"Receipt reviewed by {display_name(user)}. Updated price history for {updated_count} product(s), created {created_count} product(s), and updated inventory for {inventory_count} item(s).",
         entity_type="receipt",
         entity_id=receipt.id,
     )

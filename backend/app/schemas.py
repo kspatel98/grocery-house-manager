@@ -358,6 +358,7 @@ class ReceiptLineItemOut(BaseModel):
     sku: str | None = None
     upc: str | None = None
     quantity: float | None = None
+    line_unit: str | None = None
     unit_price: float | None = None
     discount_amount: float | None = None
     tax_amount: float | None = None
@@ -402,6 +403,7 @@ class ReceiptParsedLineOut(BaseModel):
     matched_product_id: int | None = None
     matched_product_name: str | None = None
     quantity: float | None = None
+    line_unit: str | None = None
     unit_price: float | None = None
     price: float | None = None
     discount_amount: float | None = None
@@ -442,12 +444,19 @@ class ReceiptReviewLineIn(BaseModel):
     description: str = Field(min_length=1, max_length=500)
     product_id: int | None = None
     quantity: float | None = Field(default=None, ge=0)
+    line_unit: str | None = Field(default=None, max_length=32)
     unit_price: float | None = Field(default=None, ge=0)
     line_total: float | None = Field(default=None, ge=0)
     discount_amount: float | None = Field(default=None, ge=0)
     tax_amount: float | None = Field(default=None, ge=0)
     line_type: str = Field(default="product", max_length=50)
     is_selected: bool = True
+    update_inventory: bool = True
+    create_product: bool = False
+    new_product_name: str | None = Field(default=None, max_length=180)
+    new_product_section_id: int | None = None
+    new_product_unit: str | None = Field(default=None, max_length=32)
+    new_product_quantity: float | None = Field(default=None, ge=0)
 
 
 class ReceiptReviewSaveIn(BaseModel):

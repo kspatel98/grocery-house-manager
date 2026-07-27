@@ -224,12 +224,12 @@ export default function HousePage() {
                   <small>{product.section_name} • {product.store_name || 'Any store'}</small>
                   <div className="product-meta">
                     <span>{product.quantity} {product.unit}</span>
-                    {product.price !== undefined && product.price !== null && <span>{money(product.price)}</span>}
+                    {product.price !== undefined && product.price !== null && <span>{money(product.price)} / {product.unit || 'unit'}</span>}
                   </div>
                   {product.store_prices?.length ? (
                     <div className="store-price-list">
                       {product.store_prices.slice(0, 3).map((price) => (
-                        <span key={price.id}>{price.store_name}: {money(price.price)}</span>
+                        <span key={price.id}>{price.store_name}: {money(price.price)} / {product.unit || 'unit'}</span>
                       ))}
                     </div>
                   ) : null}
@@ -250,7 +250,7 @@ export default function HousePage() {
 
         <aside>
           <ShoppingSummaryCard houseId={id} activeList={activeList} />
-          <ReceiptPanel houseId={id} products={products} receipts={receipts} onChange={loadShoppingAndActivity} />
+          <ReceiptPanel houseId={id} products={products} sections={sections} receipts={receipts} onChange={loadShoppingAndActivity} />
           <HouseActionsPanel house={house} memberCount={members.length} onLeave={leaveHouse} onDelete={deleteHouse} />
           <ActivityFeed activities={activities} onRefresh={loadShoppingAndActivity} />
         </aside>
@@ -306,31 +306,65 @@ type ReviewLine = {
   description: string;
   product_id: number | '';
   quantity: string;
+  line_unit: string;
   unit_price: string;
   line_total: string;
   discount_amount: string;
   tax_amount: string;
   line_type: string;
   is_selected: boolean;
+  update_inventory: boolean;
+  create_product: boolean;
+  new_product_name: string;
+  new_product_section_id: number | '';
+  new_product_unit: string;
   needs_review?: boolean;
   confidence?: number | null;
 };
 
+function displayUnitPrice(item: ReceiptLineItem) {
+  if (item.unit_price !== null && item.unit_price !== undefined) return String(item.unit_price);
+  if (item.line_total !== null && item.line_total !== undefined && item.quantity && item.quantity > 0) {
+    const discount = item.discount_amount || 0;
+    return String(Number(((item.line_total - discount) / item.quantity).toFixed(2)));
+  }
+  return '';
+}
+
 function lineFromReceiptItem(item: ReceiptLineItem): ReviewLine {
+  const productLine = item.line_type !== 'discount' && item.line_type !== 'tax' && item.line_type !== 'summary';
+  const hasMatch = Boolean(item.matched_product_id);
+  const qty = item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '1';
+  const unit = item.line_unit || 'pcs';
   return {
     id: item.id,
     description: item.description,
     product_id: item.matched_product_id || '',
-    quantity: item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '',
-    unit_price: item.unit_price !== null && item.unit_price !== undefined ? String(item.unit_price) : '',
+    quantity: qty,
+    line_unit: unit,
+    unit_price: displayUnitPrice(item),
     line_total: item.line_total !== null && item.line_total !== undefined ? String(item.line_total) : '',
     discount_amount: item.discount_amount !== null && item.discount_amount !== undefined ? String(item.discount_amount) : '',
     tax_amount: item.tax_amount !== null && item.tax_amount !== undefined ? String(item.tax_amount) : '',
     line_type: item.line_type || 'product',
-    is_selected: item.is_selected !== false && item.line_type !== 'discount' && item.line_type !== 'tax',
+    is_selected: item.is_selected !== false && productLine,
+    update_inventory: productLine,
+    create_product: productLine && !hasMatch,
+    new_product_name: item.normalized_name || item.description,
+    new_product_section_id: '',
+    new_product_unit: unit,
     needs_review: item.needs_review,
     confidence: item.confidence,
   };
+}
+
+function cleanUnit(value: string) {
+  const unit = (value || 'pcs').trim().toLowerCase();
+  if (unit === 'ea') return 'each';
+  if (unit === 'pc') return 'pcs';
+  if (unit === 'kgs') return 'kg';
+  if (unit === 'lbs') return 'lb';
+  return unit || 'pcs';
 }
 
 function numberOrNull(value: string) {
@@ -347,7 +381,7 @@ function confidenceLabel(value?: number | null) {
   return 'Review';
 }
 
-function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: number; products: Product[]; receipts: Receipt[]; onChange: () => void | Promise<void> }) {
+function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { houseId: number; products: Product[]; sections: Section[]; receipts: Receipt[]; onChange: () => void | Promise<void> }) {
   const [storeName, setStoreName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [notes, setNotes] = useState('');
@@ -460,12 +494,18 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
         description: '',
         product_id: '',
         quantity: '1',
+        line_unit: 'pcs',
         unit_price: '',
         line_total: '',
         discount_amount: '',
         tax_amount: '',
         line_type: 'product',
         is_selected: true,
+        update_inventory: true,
+        create_product: true,
+        new_product_name: '',
+        new_product_section_id: sections[0]?.id || '',
+        new_product_unit: 'pcs',
         needs_review: true,
       },
     ]);
@@ -497,13 +537,20 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
           id: line.id || null,
           description: line.description || 'Receipt item',
           product_id: line.product_id || null,
-          quantity: numberOrNull(line.quantity),
+          quantity: numberOrNull(line.quantity) || 1,
+          line_unit: cleanUnit(line.line_unit || line.new_product_unit),
           unit_price: numberOrNull(line.unit_price),
           line_total: numberOrNull(line.line_total),
           discount_amount: numberOrNull(line.discount_amount),
           tax_amount: numberOrNull(line.tax_amount),
           line_type: line.line_type || 'product',
           is_selected: line.is_selected,
+          update_inventory: line.update_inventory,
+          create_product: line.create_product && !line.product_id,
+          new_product_name: line.new_product_name || line.description,
+          new_product_section_id: line.new_product_section_id || sections[0]?.id || null,
+          new_product_unit: cleanUnit(line.new_product_unit || line.line_unit),
+          new_product_quantity: numberOrNull(line.quantity) || 1,
         })),
       });
       setUploadResult((prev) => prev ? { ...prev, receipt: data, message: 'Receipt reviewed and saved to price history.', scan_status: data.ocr_status } : prev);
@@ -612,31 +659,49 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
             <div className="receipt-line-row receipt-line-head">
               <span>Save</span>
               <span>Receipt item</span>
-              <span>Match product</span>
+              <span>Match or create</span>
               <span>Qty</span>
               <span>Unit</span>
-              <span>Total</span>
+              <span>Price/unit</span>
+              <span>Line total</span>
               <span>Discount</span>
+              <span>Inventory</span>
               <span>Status</span>
             </div>
-            {reviewLines.map((line, index) => (
-              <div className={`receipt-line-row ${line.needs_review ? 'needs-review' : ''}`} key={`${line.id || 'new'}-${index}`}>
-                <label className="inline-check"><input type="checkbox" checked={line.is_selected} onChange={(e) => updateReviewLine(index, { is_selected: e.target.checked })} /></label>
-                <input value={line.description} onChange={(e) => updateReviewLine(index, { description: e.target.value })} placeholder="Product name" />
-                <select value={line.product_id} onChange={(e) => updateReviewLine(index, { product_id: e.target.value ? Number(e.target.value) : '' })}>
-                  <option value="">No match</option>
-                  {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                </select>
-                <input type="number" min="0" step="0.01" value={line.quantity} onChange={(e) => updateReviewLine(index, { quantity: e.target.value })} />
-                <input type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateReviewLine(index, { unit_price: e.target.value })} />
-                <input type="number" min="0" step="0.01" value={line.line_total} onChange={(e) => updateReviewLine(index, { line_total: e.target.value })} />
-                <input type="number" min="0" step="0.01" value={line.discount_amount} onChange={(e) => updateReviewLine(index, { discount_amount: e.target.value })} />
-                <div className="receipt-line-status">
-                  <span className={line.needs_review || !line.product_id ? 'badge warn' : 'badge ok'}>{!line.product_id ? 'Match' : confidenceLabel(line.confidence)}</span>
-                  <button className="ghost tiny" type="button" onClick={() => removeReviewLine(index)}>Remove</button>
+            {reviewLines.map((line, index) => {
+              const rowWillCreate = line.is_selected && line.line_type === 'product' && !line.product_id && line.create_product;
+              return (
+                <div className={`receipt-line-row ${line.needs_review || rowWillCreate ? 'needs-review' : ''}`} key={`${line.id || 'new'}-${index}`}>
+                  <label className="inline-check"><input type="checkbox" checked={line.is_selected} onChange={(e) => updateReviewLine(index, { is_selected: e.target.checked })} /></label>
+                  <input value={line.description} onChange={(e) => updateReviewLine(index, { description: e.target.value, new_product_name: line.new_product_name || e.target.value })} placeholder="Product name" />
+                  <select value={line.product_id} onChange={(e) => updateReviewLine(index, { product_id: e.target.value ? Number(e.target.value) : '', create_product: !e.target.value, new_product_name: line.new_product_name || line.description })}>
+                    <option value="">Create / no match</option>
+                    {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                  </select>
+                  <input type="number" min="0" step="0.001" value={line.quantity} onChange={(e) => updateReviewLine(index, { quantity: e.target.value })} placeholder="1" />
+                  <input value={line.line_unit} onChange={(e) => updateReviewLine(index, { line_unit: e.target.value, new_product_unit: e.target.value })} placeholder="pcs/kg" />
+                  <input type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateReviewLine(index, { unit_price: e.target.value })} placeholder="$/unit" />
+                  <input type="number" min="0" step="0.01" value={line.line_total} onChange={(e) => updateReviewLine(index, { line_total: e.target.value })} placeholder="Total" />
+                  <input type="number" min="0" step="0.01" value={line.discount_amount} onChange={(e) => updateReviewLine(index, { discount_amount: e.target.value })} placeholder="0" />
+                  <label className="inline-check receipt-inventory-check"><input type="checkbox" checked={line.update_inventory} onChange={(e) => updateReviewLine(index, { update_inventory: e.target.checked })} /><small>Add</small></label>
+                  <div className="receipt-line-status">
+                    <span className={rowWillCreate ? 'badge create' : line.needs_review || !line.product_id ? 'badge warn' : 'badge ok'}>{rowWillCreate ? 'Create' : !line.product_id ? 'Match' : confidenceLabel(line.confidence)}</span>
+                    <button className="ghost tiny" type="button" onClick={() => removeReviewLine(index)}>Remove</button>
+                  </div>
+                  {rowWillCreate && (
+                    <div className="receipt-create-row">
+                      <span className="small-muted"><strong>New inventory item</strong> will be created when you save this receipt.</span>
+                      <input value={line.new_product_name} onChange={(e) => updateReviewLine(index, { new_product_name: e.target.value })} placeholder="Inventory product name" />
+                      <select value={line.new_product_section_id} onChange={(e) => updateReviewLine(index, { new_product_section_id: e.target.value ? Number(e.target.value) : '' })}>
+                        <option value="">Auto section</option>
+                        {sections.map((section) => <option key={section.id} value={section.id}>{section.icon ? `${section.icon} ` : ''}{section.name}</option>)}
+                      </select>
+                      <input value={line.new_product_unit} onChange={(e) => updateReviewLine(index, { new_product_unit: e.target.value, line_unit: e.target.value })} placeholder="Inventory unit" />
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <button className="primary full" type="button" onClick={saveReviewedReceipt} disabled={saveScanBusy || !reviewLines.length}>{saveScanBusy ? 'Saving reviewed receipt...' : 'Save reviewed receipt to price history'}</button>
         </div>

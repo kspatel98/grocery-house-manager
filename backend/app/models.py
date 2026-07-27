@@ -259,6 +259,7 @@ class ReceiptLineItem(Base):
     sku: Mapped[str | None] = mapped_column(String(120), nullable=True)
     upc: Mapped[str | None] = mapped_column(String(120), nullable=True)
     quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    line_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     unit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     discount_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     tax_amount: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -4,6 +4,23 @@ import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { AccountBootstrap, House, Product, Receipt } from '../types';
 
+function csvEscape(value: unknown) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+
 export default function ReportsPage() {
   const [houses, setHouses] = useState<House[]>([]);
   const [selectedHouseId, setSelectedHouseId] = useState<number | ''>('');
@@ -69,6 +86,39 @@ export default function ReportsPage() {
   const totalKnownPrices = products.reduce((sum, product) => sum + (product.store_prices?.length || 0), 0);
   const lowStock = products.filter((product) => product.is_low_stock).length;
   const expiring = products.filter((product) => product.is_expiring_soon).length;
+  const trackedSpend = receipts.reduce((sum, receipt) => sum + (receipt.total_amount || 0), 0);
+  const selectedHouse = houses.find((house) => house.id === Number(selectedHouseId));
+
+  function exportBestPrices() {
+    const rows = [
+      ['Product', 'Section', 'Best store', 'Best price', 'Unit', 'Other saved stores'],
+      ...bestPriceRows.map((row) => [
+        row.product.name,
+        row.product.section_name || 'Inventory',
+        row.best.store_name,
+        row.best.price,
+        row.product.unit || 'unit',
+        row.alternatives.map((entry) => `${entry.store_name}: ${money(entry.price)} / ${row.product.unit || 'unit'}`).join(' | '),
+      ]),
+    ];
+    downloadCsv(`grocery-house-manager-best-prices-${selectedHouse?.name || 'house'}.csv`, rows);
+  }
+
+  function exportReceiptInsights() {
+    const rows = [
+      ['Store', 'Date', 'Subtotal', 'Discount', 'Tax', 'Total', 'Status'],
+      ...receipts.map((receipt) => [
+        receipt.store_name || 'Store',
+        receipt.receipt_date || receipt.created_at.slice(0, 10),
+        receipt.subtotal_amount ?? '',
+        receipt.discount_amount ?? '',
+        receipt.tax_amount ?? '',
+        receipt.total_amount ?? '',
+        receipt.ocr_status,
+      ]),
+    ];
+    downloadCsv(`grocery-house-manager-receipts-${selectedHouse?.name || 'house'}.csv`, rows);
+  }
 
   return (
     <main className="page shell wide reports-page">
@@ -78,10 +128,12 @@ export default function ReportsPage() {
           <h1>Reports & store comparison</h1>
           <p>Clear premium insights from your saved products, receipts, and store price history.</p>
         </div>
-        <div className="topbar-actions">
+        <div className="topbar-actions report-actions">
           <select value={selectedHouseId} onChange={(e) => setSelectedHouseId(e.target.value ? Number(e.target.value) : '')}>
             {houses.map((house) => <option key={house.id} value={house.id}>{house.name}</option>)}
           </select>
+          <button className="secondary" type="button" onClick={exportBestPrices} disabled={!bestPriceRows.length}>Export price CSV</button>
+          <button className="primary" type="button" onClick={exportReceiptInsights} disabled={!receipts.length}>Export receipt insights</button>
         </div>
       </header>
       {error && <div className="error">{error}</div>}
@@ -90,8 +142,13 @@ export default function ReportsPage() {
       <section className="stats-grid four">
         <div className="stat-card"><strong>{products.length}</strong><span>Products</span></div>
         <div className="stat-card"><strong>{totalKnownPrices}</strong><span>Known store prices</span></div>
-        <div className="stat-card warning"><strong>{lowStock}</strong><span>Low stock</span></div>
-        <div className="stat-card danger"><strong>{expiring}</strong><span>Expiring soon</span></div>
+        <div className="stat-card"><strong>{money(trackedSpend)}</strong><span>Tracked receipt spend</span></div>
+        <div className="stat-card warning"><strong>{lowStock + expiring}</strong><span>Need attention</span></div>
+      </section>
+
+      <section className="report-highlight-card">
+        <strong>Export-ready personal insights</strong>
+        <span>Download your saved receipt history and best-known store prices as CSV files. Use them for budgeting, grocery planning, or your own spreadsheet analysis.</span>
       </section>
 
       <div className="reports-grid">
@@ -111,8 +168,8 @@ export default function ReportsPage() {
                   <tr key={row.product.id}>
                     <td><strong>{row.product.name}</strong><small>{row.product.section_name || 'Inventory'}</small></td>
                     <td>{row.best.store_name}</td>
-                    <td>{money(row.best.price)}</td>
-                    <td>{row.alternatives.map((entry) => `${entry.store_name}: ${money(entry.price)}`).join(' • ') || '-'}</td>
+                    <td>{money(row.best.price)} / {row.product.unit || 'unit'}</td>
+                    <td>{row.alternatives.map((entry) => `${entry.store_name}: ${money(entry.price)} / ${row.product.unit || 'unit'}`).join(' • ') || '-'}</td>
                   </tr>
                 ))}
                 {!bestPriceRows.length && <tr><td colSpan={4}>No store prices yet. Add product prices or upload receipts to build comparison reports.</td></tr>}

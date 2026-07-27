@@ -275,7 +275,7 @@ function ProductPicker({ products, selection, onToggle, onUpdate, onSearch }: { 
                 <input type="checkbox" checked={!!selected} onChange={() => onToggle(product)} />
                 <span>
                   {product.icon || '🛒'} {product.name}
-                  <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • ${money(product.price)}` : ''}</small>
+                  <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • ${money(product.price)} / ${product.unit || 'unit'}` : ''}</small>
                 </span>
               </label>
               {selected && (
