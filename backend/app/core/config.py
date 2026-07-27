@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     receipt_ocr_provider: str = "tabscanner"
     receipt_scan_review_required: bool = True
     receipt_upload_max_mb: int = 20
+    # Current Tabscanner account allowance. Set to 0 to disable the global safety cap.
+    tabscanner_monthly_account_scan_cap: int = 200
     tabscanner_api_key: str | None = None
     tabscanner_process_url: str = "https://api.tabscanner.com/api/2/process"
     tabscanner_result_url: str = "https://api.tabscanner.com/api/result"

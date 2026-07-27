@@ -242,8 +242,25 @@ export type ReceiptParsedLine = {
   applied: boolean;
 };
 
+export type ReceiptScanUsage = {
+  used: number;
+  limit: number;
+  remaining: number;
+  plan_name: string;
+  plan_key: PlanName;
+  month_label: string;
+  allowed: boolean;
+  is_last_available: boolean;
+  quota_scope: string;
+  quota_owner_id?: number | null;
+  quota_owner_name?: string | null;
+  message: string;
+  service_capacity_available: boolean;
+};
+
 export type ReceiptUploadResult = {
   receipt: Receipt;
+  usage?: ReceiptScanUsage | null;
   extracted_text?: string | null;
   parsed_lines: ReceiptParsedLine[];
   matched_count: number;

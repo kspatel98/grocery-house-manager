@@ -52,7 +52,7 @@ const planHighlights = [
     name: 'Basic Home',
     price: '$1.99',
     tag: 'For couples and small homes',
-    features: ['Create houses', 'Product lookup', 'Smart Receipt Scan limit'],
+    features: ['Create houses', 'Product lookup', '5 receipt scans/month'],
     locked: ['Canadian price comparison', 'Nearby store suggestions'],
   },
   {
@@ -60,7 +60,7 @@ const planHighlights = [
     name: 'Family Plus',
     price: '$4.99',
     tag: 'Best value for families',
-    features: ['More houses and members', 'More receipt scans', 'Canadian price comparison'],
+    features: ['More houses and members', '20 receipt scans/month', 'Canadian price comparison'],
     locked: ['Advanced nearby-store tools'],
   },
   {
@@ -68,7 +68,7 @@ const planHighlights = [
     name: 'Household Pro',
     price: '$6.99',
     tag: 'For large or serious tracking',
-    features: ['Highest limits', 'Nearby store suggestions', 'Advanced price history'],
+    features: ['50 receipt scans/month', 'Nearby store suggestions', 'Advanced price history'],
     locked: [],
   },
 ];

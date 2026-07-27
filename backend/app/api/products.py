@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models import Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User
 from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
-from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut
+from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut
 
 router = APIRouter(prefix="/houses/{house_id}", tags=["products"])
 
@@ -423,6 +423,12 @@ def create_receipt(house_id: int, payload: ReceiptCreate, db: Session = Depends(
     return serialize_receipt(refreshed)
 
 
+@router.get("/receipts/scan-usage", response_model=ReceiptScanUsageOut)
+def get_receipt_scan_usage(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    return receipt_scan_usage(db, house_id, user)
+
+
 @router.post("/receipts/upload", response_model=ReceiptUploadOut)
 def upload_receipt_file(
     house_id: int,
@@ -524,6 +530,7 @@ def upload_receipt_file(
         message = f"{message} Monthly scans used: {usage.get('used')}/{usage.get('limit')}."
     return ReceiptUploadOut(
         receipt=serialize_receipt(refreshed),
+        usage=usage,
         extracted_text=refreshed.raw_extracted_text,
         parsed_lines=parsed,
         matched_count=matched_count,

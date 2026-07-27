@@ -12,9 +12,9 @@ This update upgrades receipts from basic OCR-assisted price matching to a profes
 - Auto-matches receipt rows to existing inventory products, but does not update prices until the user confirms.
 - Adds monthly receipt scan limits by plan:
   - Free Starter: manual only
-  - Basic Home: 10 scans/month
-  - Family Plus: 50 scans/month
-  - Household Pro: 150 scans/month
+  - Basic Home: 5 Smart Receipt Scans/month
+  - Family Plus: 20 Smart Receipt Scans/month
+  - Household Pro: 50 Smart Receipt Scans/month
 
 ## Tabscanner setup
 

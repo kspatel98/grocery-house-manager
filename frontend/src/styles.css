@@ -2741,3 +2741,44 @@ body {
     flex-direction: column;
   }
 }
+
+/* v37 receipt scan quota visibility */
+.receipt-usage-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  background: #f3fbf6;
+  color: var(--text);
+}
+.receipt-usage-card strong {
+  display: block;
+  color: #0d5c3f;
+  margin-bottom: 0.25rem;
+}
+.receipt-usage-card span {
+  color: var(--muted);
+}
+.receipt-usage-card.last-scan {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+.receipt-usage-card.last-scan strong {
+  color: #c2410c;
+}
+.receipt-usage-card.locked {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.receipt-usage-card.locked strong {
+  color: #64748b;
+}
+@media (max-width: 720px) {
+  .receipt-usage-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

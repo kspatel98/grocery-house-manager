@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Product, Receipt, ReceiptLineItem, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
+import type { Activity, House, HouseMember, Product, Receipt, ReceiptLineItem, ReceiptScanUsage, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
@@ -356,6 +356,7 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
   const [lines, setLines] = useState<{ product_id: number; product_name: string; price: number; store_name?: string }[]>([]);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<ReceiptUploadResult | null>(null);
+  const [scanUsage, setScanUsage] = useState<ReceiptScanUsage | null>(null);
   const [reviewLines, setReviewLines] = useState<ReviewLine[]>([]);
   const [receiptDate, setReceiptDate] = useState('');
   const [receiptNumber, setReceiptNumber] = useState('');
@@ -367,6 +368,19 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
   const [uploadBusy, setUploadBusy] = useState(false);
   const [saveScanBusy, setSaveScanBusy] = useState(false);
   const [error, setError] = useState('');
+
+  async function loadScanUsage() {
+    try {
+      const { data } = await api.get<ReceiptScanUsage>(`/houses/${houseId}/receipts/scan-usage`, { params: { t: Date.now() } });
+      setScanUsage(data);
+    } catch {
+      setScanUsage(null);
+    }
+  }
+
+  useEffect(() => {
+    loadScanUsage();
+  }, [houseId]);
 
   function addLine() {
     const product = products.find((p) => p.id === Number(selectedProductId));
@@ -399,6 +413,14 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
       setError('Choose a JPG or PNG receipt image first.');
       return;
     }
+    if (scanUsage && !scanUsage.allowed) {
+      setError(scanUsage.message || 'Smart Receipt Scan is not available for this house right now.');
+      return;
+    }
+    if (scanUsage?.is_last_available) {
+      const confirmed = window.confirm(`This will use the last Smart Receipt Scan for ${scanUsage.plan_name} in ${scanUsage.month_label}. After this upload, 0 of ${scanUsage.limit} scans will remain this month. Continue?`);
+      if (!confirmed) return;
+    }
     const formData = new FormData();
     formData.append('file', receiptFile);
     if (storeName.trim()) formData.append('store_name', storeName.trim());
@@ -411,6 +433,7 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setUploadResult(data);
+      if (data.usage) setScanUsage(data.usage);
       hydrateScan(data);
       setReceiptFile(null);
       setError('');
@@ -519,6 +542,10 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
 
   const scannedProductRows = reviewLines.filter((line) => line.line_type === 'product');
   const matchedRows = scannedProductRows.filter((line) => line.product_id).length;
+  const scanLimitText = scanUsage
+    ? `${scanUsage.remaining} of ${scanUsage.limit} Smart Receipt Scans remaining`
+    : 'Checking Smart Receipt Scan limit...';
+  const scanButtonDisabled = uploadBusy || !receiptFile || !scanUsage || !scanUsage.allowed;
 
   return (
     <section className="panel receipt-panel premium-receipt-panel receipt-studio">
@@ -537,6 +564,13 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
         <span><strong>2</strong> Review extracted rows</span>
         <span><strong>3</strong> Save trusted prices</span>
       </div>
+      <div className={`receipt-usage-card ${scanUsage?.is_last_available ? 'last-scan' : ''} ${scanUsage && !scanUsage.allowed ? 'locked' : ''}`}>
+        <div>
+          <strong>{scanLimitText}</strong>
+          <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'}</span>
+        </div>
+        {scanUsage?.plan_name && <span className="badge">{scanUsage.plan_name}</span>}
+      </div>
       {error && <div className="error">{error}</div>}
       {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}
 
@@ -544,11 +578,12 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
         <div>
           <h3>Upload receipt</h3>
           <p className="small-muted">Best results: upload a clear JPG or PNG photo with the receipt flat, well-lit, fully visible, and no cropped totals.</p>
+          <p className="small-muted"><strong>{scanLimitText}</strong>. Manual receipt price entry stays available without using a scan.</p>
         </div>
         <label>Store name, optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
         <label>Attach receipt photo (JPG or PNG only)<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] || null; if (file && !['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) { setError('Please upload a JPG or PNG receipt image only.'); e.target.value = ''; setReceiptFile(null); return; } setError(''); setReceiptFile(file); }} /></label>
         <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything you want to remember about this receipt" /></label>
-        <button className="primary full" type="button" onClick={uploadReceipt} disabled={uploadBusy || !receiptFile}>{uploadBusy ? 'Scanning receipt...' : 'Scan receipt automatically'}</button>
+        <button className="primary full" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt...' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt automatically'}</button>
       </div>
 
       {uploadResult ? (

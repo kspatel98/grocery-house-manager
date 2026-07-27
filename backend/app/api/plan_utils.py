@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models import House, HouseMember, HouseRole, PlanName, Product, Receipt, ShoppingList, User
+from app.core.config import settings
 
 
 @dataclass(frozen=True)
@@ -47,9 +48,10 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Basic Home",
         price_monthly_cad=1.99,
         tagline="Affordable plan for couples and small households.",
-        limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6, receipt_scans_per_month=10),
+        limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6, receipt_scans_per_month=5),
         features=[
             "Create and manage your own houses",
+            "5 Smart Receipt Scans per month across houses you own",
             "Professional receipt scanning with item, discount, tax, and total extraction",
             "Store-specific price history for each product",
             "Product lookup by barcode or product name",
@@ -63,12 +65,13 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Family Plus",
         price_monthly_cad=4.99,
         tagline="Best value for most families and roommates.",
-        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15, receipt_scans_per_month=50),
+        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15, receipt_scans_per_month=20),
         features=[
             "Everything in Basic Home",
             "Best-store comparison across your grocery inventory",
             "Canadian grocery price comparison for supported retailers",
             "Monthly household expense view",
+            "20 Smart Receipt Scans per month across houses you own",
             "Shared receipt archive with scan review and spending history",
             "Better for families, roommates, and weekly shopping routines",
         ],
@@ -79,10 +82,11 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Household Pro",
         price_monthly_cad=6.99,
         tagline="For large families, multiple homes, and heavy users.",
-        limits=PlanLimits(houses=15, products_per_house=3000, active_lists_per_house=50, members_per_house=35, receipt_scans_per_month=150),
+        limits=PlanLimits(houses=15, products_per_house=3000, active_lists_per_house=50, members_per_house=35, receipt_scans_per_month=50),
         features=[
             "Everything in Family Plus",
             "Advanced price tracking for multiple stores",
+            "50 Smart Receipt Scans per month across houses you own",
             "Large receipt and inventory history",
             "Export-ready personal insights for serious tracking",
             "Smart shopping suggestions with nearby grocery store locations",
@@ -188,39 +192,96 @@ def plan_usage(db: Session, user: User) -> dict:
     }
 
 
+def _current_month_window() -> tuple[datetime, str]:
+    now = datetime.now(timezone.utc)
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    month_label = now.strftime("%B %Y")
+    return month_start, month_label
+
+
+def _owner_house_ids(db: Session, owner: User | None) -> list[int]:
+    if not owner:
+        return []
+    return [row[0] for row in db.query(House.id).filter(House.created_by_id == owner.id).all()]
+
+
+def _count_monthly_receipt_scans(db: Session, *, month_start: datetime, house_ids: list[int] | None = None) -> int:
+    query = db.query(Receipt).filter(
+        Receipt.created_at >= month_start,
+        Receipt.ocr_provider.isnot(None),
+    )
+    if house_ids is not None:
+        if not house_ids:
+            return 0
+        query = query.filter(Receipt.house_id.in_(house_ids))
+    return query.count()
+
+
+def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int | str | bool | None]:
+    """Return the shared monthly Smart Receipt Scan quota for the house owner's plan.
+
+    The scan quota is counted across every house owned by the paying house owner, not
+    separately for each member. This prevents one shared house from multiplying scans
+    for every invited member and keeps the current Tabscanner allowance under control.
+    """
+    owner = get_house_owner(db, house_id)
+    plan = get_user_plan(owner) if owner else PLANS[PlanName.free]
+    month_start, month_label = _current_month_window()
+    owned_house_ids = _owner_house_ids(db, owner)
+    used = _count_monthly_receipt_scans(db, month_start=month_start, house_ids=owned_house_ids)
+    limit = max(plan.limits.receipt_scans_per_month, 0)
+    remaining = max(limit - used, 0)
+
+    service_cap = max(getattr(settings, "tabscanner_monthly_account_scan_cap", 0), 0)
+    service_used = _count_monthly_receipt_scans(db, month_start=month_start, house_ids=None)
+    service_remaining = max(service_cap - service_used, 0) if service_cap else None
+    service_available = service_cap == 0 or service_remaining > 0
+
+    if limit <= 0:
+        message = f"Smart Receipt Scan is locked on {plan.name}. Use manual receipt entry or ask the house owner to upgrade."
+    elif not service_available:
+        message = "Smart Receipt Scan is temporarily unavailable because this month's scan capacity has been reached. You can still enter receipt prices manually."
+    elif remaining == 0:
+        message = f"0 of {limit} Smart Receipt Scans remaining for {plan.name} in {month_label}. Add this receipt manually or upgrade when more scans are needed."
+    elif remaining == 1:
+        message = f"1 of {limit} Smart Receipt Scans remaining for {plan.name} in {month_label}. The next upload will use the last scan for this month."
+    else:
+        message = f"{remaining} of {limit} Smart Receipt Scans remaining for {plan.name} in {month_label}."
+
+    return {
+        "used": used,
+        "limit": limit,
+        "remaining": remaining,
+        "plan_name": plan.name,
+        "plan_key": plan.key.value,
+        "month_label": month_label,
+        "allowed": limit > 0 and remaining > 0 and service_available,
+        "is_last_available": limit > 0 and remaining == 1 and service_available,
+        "quota_scope": "Shared across all houses owned by the house owner",
+        "quota_owner_id": owner.id if owner else None,
+        "quota_owner_name": owner.full_name or owner.email if owner else None,
+        "message": message,
+        "service_capacity_available": service_available,
+    }
+
+
 def ensure_receipt_scan_limit(db: Session, house_id: int, user: User) -> None:
-    plan = get_house_plan(db, house_id)
-    if plan.key == PlanName.free or plan.limits.receipt_scans_per_month <= 0:
+    usage = receipt_scan_usage(db, house_id, user)
+    if usage.get("limit", 0) <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Professional receipt scanning requires the house owner to have Basic Home or higher. Free users can still use manual receipt entry inside houses they join.",
+            detail=usage["message"],
         )
-    now = datetime.now(timezone.utc)
-    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    used = db.query(Receipt).filter(
-        Receipt.house_id == house_id,
-        Receipt.uploaded_by_id == user.id,
-        Receipt.created_at >= month_start,
-        Receipt.ocr_provider.isnot(None),
-    ).count()
-    if used >= plan.limits.receipt_scans_per_month:
+    if not usage.get("service_capacity_available", True):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=usage["message"],
+        )
+    if usage.get("remaining", 0) <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"This house owner's {plan.name} plan includes {plan.limits.receipt_scans_per_month} receipt scan(s) per month. Upgrade the house plan or add this receipt manually.",
+            detail=usage["message"],
         )
-
-
-def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int | str]:
-    plan = get_house_plan(db, house_id)
-    now = datetime.now(timezone.utc)
-    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    used = db.query(Receipt).filter(
-        Receipt.house_id == house_id,
-        Receipt.uploaded_by_id == user.id,
-        Receipt.created_at >= month_start,
-        Receipt.ocr_provider.isnot(None),
-    ).count()
-    return {"used": used, "limit": plan.limits.receipt_scans_per_month, "plan_name": plan.name}
 
 
 def house_plan_has_smart_market(db: Session, house_id: int) -> bool:

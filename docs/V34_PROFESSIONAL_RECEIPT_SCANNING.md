@@ -50,8 +50,8 @@ Set `RECEIPT_OCR_PROVIDER=veryfi` and fill Veryfi credentials only if you decide
 ## Plan access
 
 - Free Starter: manual receipt entry only
-- Basic Home: 10 professional scans/month
-- Family Plus: 50 professional scans/month
+- Basic Home: 5 Smart Receipt Scans/month
+- Family Plus: 20 Smart Receipt Scans/month
 - Household Pro: 150 professional scans/month
 
 The scan limit is counted per user per house per calendar month.

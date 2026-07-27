@@ -411,8 +411,25 @@ class ReceiptParsedLineOut(BaseModel):
     applied: bool = False
 
 
+class ReceiptScanUsageOut(BaseModel):
+    used: int = 0
+    limit: int = 0
+    remaining: int = 0
+    plan_name: str
+    plan_key: PlanName
+    month_label: str
+    allowed: bool = False
+    is_last_available: bool = False
+    quota_scope: str
+    quota_owner_id: int | None = None
+    quota_owner_name: str | None = None
+    message: str
+    service_capacity_available: bool = True
+
+
 class ReceiptUploadOut(BaseModel):
     receipt: ReceiptOut
+    usage: ReceiptScanUsageOut | None = None
     extracted_text: str | None = None
     parsed_lines: list[ReceiptParsedLineOut] = Field(default_factory=list)
     matched_count: int = 0
