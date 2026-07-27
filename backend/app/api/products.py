@@ -13,7 +13,7 @@ from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, 
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User
-from app.utils.receipt_ocr import local_receipt_scan, veryfi_receipt_scan
+from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
 from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut
 
 router = APIRouter(prefix="/houses/{house_id}", tags=["products"])
@@ -211,20 +211,19 @@ PRICE_PATTERN = re.compile(r"(?P<name>[A-Za-z][A-Za-z0-9 '&.,/-]{2,}?)\s+\$?(?P<
 
 def safe_upload_name(filename: str) -> str:
     suffix = Path(filename or "receipt").suffix.lower()
-    if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".pdf"}:
+    if suffix not in SUPPORTED_RECEIPT_IMAGE_SUFFIXES:
         suffix = ".jpg"
     return f"receipt-{uuid4().hex}{suffix}"
 
 
 def receipt_upload_size_ok(file: UploadFile) -> None:
-    # FastAPI's UploadFile does not expose content length reliably across all proxies,
-    # so the stream copy below is the final guard. This helper keeps the user-facing
-    # error in one place.
-    if file.content_type and not (
-        file.content_type.startswith("image/")
-        or file.content_type in {"application/pdf", "application/octet-stream"}
-    ):
-        raise HTTPException(status_code=400, detail="Upload a receipt image or PDF.")
+    # Tabscanner supports JPG/JPEG and PNG receipt images. Keep this strict so users
+    # do not upload PDFs or formats the scanner cannot process reliably.
+    suffix = Path(file.filename or "receipt").suffix.lower()
+    if suffix not in SUPPORTED_RECEIPT_IMAGE_SUFFIXES:
+        raise HTTPException(status_code=400, detail="Please upload a JPG or PNG receipt image only.")
+    if file.content_type and file.content_type not in SUPPORTED_RECEIPT_IMAGE_MIME_TYPES and file.content_type != "application/octet-stream":
+        raise HTTPException(status_code=400, detail="Please upload a JPG or PNG receipt image only.")
 
 
 def match_product_for_line(description: str, products: list[Product]) -> tuple[Product | None, float]:
@@ -457,7 +456,7 @@ def upload_receipt_file(
             output.write(chunk)
     image_url = f"/uploads/house-{house_id}/{filename}"
 
-    scan = veryfi_receipt_scan(destination, filename, receipt_text)
+    scan = scan_receipt(destination, filename, receipt_text)
     products = db.query(Product).filter(Product.house_id == house_id).all()
     receipt = Receipt(
         house_id=house_id,

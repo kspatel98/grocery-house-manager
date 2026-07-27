@@ -21,7 +21,7 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li>Account information, such as name, email address, login method, and profile image.</li>
           <li>Household workspace information, such as house names, members, grocery sections, products, store names, prices, quantities, shopping lists, messages, and activity records.</li>
-          <li>Receipt information uploaded by users, including receipt images, PDFs, extracted text, store names, prices, and dates.</li>
+          <li>Receipt information uploaded by users, including receipt JPG/PNG images, extracted text, store names, item rows, discounts, taxes, totals, prices, and dates.</li>
           <li>Subscription and billing status from Stripe. Card numbers and full payment details are handled by Stripe and are not stored by Grocery House Manager.</li>
           <li>Basic technical information required to keep the app secure and working, such as authentication tokens, request metadata, and local browser storage.</li>
         </ul>
@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
           If you sign in with Google, the app uses the information Google provides for authentication, such as your email, name, and profile image. The app does not request access to your Gmail, Google Drive, or other Google data.
         </p>
 
-        <h2>Receipts and OCR</h2>
+        <h2>Smart Receipt Scan</h2>
         <p>
           Receipt uploads may be processed to extract store names, receipt dates, product rows, quantities, prices, discounts, taxes, totals, payment-related labels, and raw extracted text. Scan results can be imperfect, so users should review details before saving them to inventory or price tracking.
         </p>

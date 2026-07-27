@@ -29,10 +29,10 @@ const PLAN_BADGE_LABELS: Record<PlanName, string> = {
 const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanName }[] = [
   { title: 'Join invited houses', description: 'Join a household and use features unlocked by the house owner.', minPlan: 'free' },
   { title: 'Create your own houses', description: 'Own and manage houses, members, inventory, and shopping lists.', minPlan: 'basic' },
-  { title: 'Professional receipt scanning', description: 'Extract store, item rows, discounts, taxes, totals, then review before saving prices.', minPlan: 'basic' },
+  { title: 'Smart Receipt Scan', description: 'Upload JPG/PNG receipt photos, review extracted store, item rows, discounts, taxes, and totals, then save trusted prices.', minPlan: 'basic' },
   { title: 'Product lookup', description: 'Search product details by barcode or name while building inventory.', minPlan: 'basic' },
   { title: 'Best-store comparison', description: 'Compare saved household prices across your stores.', minPlan: 'family' },
-  { title: 'Canadian price comparison', description: 'Compare supported Canadian retailers when live price data is available.', minPlan: 'family' },
+  { title: 'Canadian price comparison', description: 'Compare latest available prices from supported Canadian retailers with clear location and availability notes.', minPlan: 'family' },
   { title: 'Monthly household expense view', description: 'Understand shared grocery spending over time.', minPlan: 'family' },
   { title: 'Nearby store suggestions', description: 'Use your list and location to find nearby grocery store options.', minPlan: 'pro' },
   { title: 'Large household history and insights', description: 'Higher limits for large families, multiple houses, and serious tracking.', minPlan: 'pro' },

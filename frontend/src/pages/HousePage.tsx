@@ -396,7 +396,7 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
 
   async function uploadReceipt() {
     if (!receiptFile) {
-      setError('Choose a receipt photo, image, or PDF first.');
+      setError('Choose a JPG or PNG receipt image first.');
       return;
     }
     const formData = new FormData();
@@ -530,7 +530,7 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
         <span className="badge premium-badge">Professional scan</span>
       </div>
       <p>
-        Upload a receipt photo or PDF. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates price history.
+        Upload a JPG or PNG receipt photo. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates price history.
       </p>
       <div className="receipt-flow-cards">
         <span><strong>1</strong> Upload receipt</span>
@@ -543,10 +543,10 @@ function ReceiptPanel({ houseId, products, receipts, onChange }: { houseId: numb
       <div className="receipt-upload-card">
         <div>
           <h3>Upload receipt</h3>
-          <p className="small-muted">Best results: flat receipt, clear light, full receipt visible, no cropped totals.</p>
+          <p className="small-muted">Best results: upload a clear JPG or PNG photo with the receipt flat, well-lit, fully visible, and no cropped totals.</p>
         </div>
         <label>Store name, optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
-        <label>Attach receipt photo or PDF<input type="file" accept="image/*,.pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} /></label>
+        <label>Attach receipt photo (JPG or PNG only)<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] || null; if (file && !['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) { setError('Please upload a JPG or PNG receipt image only.'); e.target.value = ''; setReceiptFile(null); return; } setError(''); setReceiptFile(file); }} /></label>
         <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything you want to remember about this receipt" /></label>
         <button className="primary full" type="button" onClick={uploadReceipt} disabled={uploadBusy || !receiptFile}>{uploadBusy ? 'Scanning receipt...' : 'Scan receipt automatically'}</button>
       </div>

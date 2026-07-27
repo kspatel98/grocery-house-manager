@@ -9,44 +9,74 @@ const featureCards = [
   {
     icon: '🛒',
     title: 'Shopping lists',
-    text: 'Create multiple lists, check items into cart, and update stock after shopping.',
+    text: 'Create shared lists, mark cart items, and update stock after shopping.',
   },
   {
     icon: '🧾',
-    title: 'Receipts & spend',
-    text: 'Upload receipts, track spending, and keep grocery records in one place.',
+    title: 'Smart Receipt Scan',
+    text: 'Upload a clear JPG or PNG receipt, review extracted items, then save trusted prices.',
   },
   {
     icon: '🏷️',
-    title: 'Store prices',
-    text: 'Save different prices for the same product at different stores.',
+    title: 'Store price history',
+    text: 'Compare saved product prices by store so your household knows where items are usually cheaper.',
   },
 ];
 
 const dailyMoments = [
-  { icon: '🥛', title: 'Never buy duplicates', text: 'Check inventory before buying milk, eggs, bread, snacks, or household essentials.' },
-  { icon: '👨‍👩‍👧‍👦', title: 'Everyone stays updated', text: 'House members can see changes, shopping progress, and activity in real time.' },
-  { icon: '📸', title: 'Smarter receipts', text: 'Attach receipt photos/PDFs and keep price history connected to products.' },
-  { icon: '📉', title: 'Spend with clarity', text: 'Personal insights help premium members understand receipts, prices, stores, and spend.' },
+  { icon: '🥛', title: 'Prevent duplicate buying', text: 'Check what is already in stock before buying milk, eggs, bread, snacks, or household essentials.' },
+  { icon: '👨‍👩‍👧‍👦', title: 'Everyone stays updated', text: 'House members can see shopping progress, inventory changes, members, and activity in one place.' },
+  { icon: '🧾', title: 'Turn receipts into history', text: 'Save reviewed receipt items, discounts, tax, and totals to build useful store-price and spending records.' },
+  { icon: '📉', title: 'Spend with clarity', text: 'Premium tools help households understand prices, stores, receipts, and monthly grocery spending.' },
 ];
 
 const workflow = [
   'Create your account or sign in with Google.',
   'Join a house for free by invite, or upgrade to create your own house.',
-  'Add products using built-in icons, preset product images, or your own resized image.',
-  'Plan shopping together and update inventory after checkout.',
-  'Upload receipts and compare store prices over time.',
+  'Add products using built-in icons, preset product images, or your own photo.',
+  'Build shared shopping lists and update inventory after checkout.',
+  'Scan JPG/PNG receipts, review extracted rows, and save trusted prices.',
 ];
 
-const premiumTools = [
-  'Professional receipt scanning with item, discount, tax, and total review',
-  'Store-specific price history for every product',
-  'Personal receipt tracker and spending summary',
-  'Best-store comparison for smarter shopping',
-  'Product lookup by barcode or product name',
-  'Canadian price comparison for supported retailers',
-  'Low-stock and expiry reminders for household planning',
-  'Private coupons, launch offers, and transparent billing',
+const planHighlights = [
+  {
+    key: 'free',
+    name: 'Free Starter',
+    price: '$0',
+    tag: 'Join invited houses',
+    features: ['Join houses by invite', 'Use owner-plan house features', 'Activity and shared lists'],
+    locked: ['Create own house', 'Receipt scanning', 'Price comparison'],
+  },
+  {
+    key: 'basic',
+    name: 'Basic Home',
+    price: '$1.99',
+    tag: 'For couples and small homes',
+    features: ['Create houses', 'Product lookup', 'Smart Receipt Scan limit'],
+    locked: ['Canadian price comparison', 'Nearby store suggestions'],
+  },
+  {
+    key: 'family',
+    name: 'Family Plus',
+    price: '$4.99',
+    tag: 'Best value for families',
+    features: ['More houses and members', 'More receipt scans', 'Canadian price comparison'],
+    locked: ['Advanced nearby-store tools'],
+  },
+  {
+    key: 'pro',
+    name: 'Household Pro',
+    price: '$6.99',
+    tag: 'For large or serious tracking',
+    features: ['Highest limits', 'Nearby store suggestions', 'Advanced price history'],
+    locked: [],
+  },
+];
+
+const receiptRows = [
+  ['Milk 2%', '$5.49', '—', '$10.98'],
+  ['Chicken breast', '$13.50', '-$2.00', '$11.50'],
+  ['Greek yogurt', '$4.99', '-$2.50', '$7.48'],
 ];
 
 export default function HomePage() {
@@ -56,22 +86,22 @@ export default function HomePage() {
     <main className="marketing-page warm-marketing-page">
       <section className="landing-hero shell wide">
         <div className="landing-copy">
-          <p className="eyebrow warm-eyebrow">Inventory • lists • receipts • store prices</p>
+          <p className="eyebrow warm-eyebrow">Inventory • shopping • smart receipts • price history</p>
           <h1>Your household grocery system.</h1>
           <p className="hero-lede">
             Grocery House Manager helps families, couples, and roommates manage groceries together —
-            from what is already at home to what was bought, where it was cheaper, and who updated what.
+            from what is already at home to what was bought, where prices were saved, and who updated what.
           </p>
           <div className="hero-actions big-hero-actions">
             <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link">
               {loggedIn ? 'Open your dashboard' : 'Start free today'}
             </Link>
-            <Link to="/pricing" className="secondary warm-secondary center-link">View plans</Link>
+            <Link to="/pricing" className="secondary warm-secondary center-link">Compare plans</Link>
           </div>
           <div className="trust-row warm-trust-row" aria-label="Product highlights">
             <span>✓ Free invite joining</span>
             <span>✓ Shared shopping</span>
-            <span>✓ Receipt tracking</span>
+            <span>✓ JPG/PNG receipt scanning</span>
             <span>✓ Price tools by plan</span>
             <span>✓ Real-time updates</span>
           </div>
@@ -93,8 +123,8 @@ export default function HomePage() {
       <section className="shell wide marketing-section quick-benefits-section">
         <div className="section-heading centered">
           <p className="eyebrow warm-eyebrow">Built for real grocery habits</p>
-          <h2>Everything is placed where normal users expect it.</h2>
-          <p>Houses, inventory, shopping, receipts, members, and activity are easy to reach without technical confusion.</p>
+          <h2>Everything is placed where everyday users expect it.</h2>
+          <p>Houses, inventory, shopping, receipts, members, activity, and plan access are easy to reach without technical confusion.</p>
         </div>
         <div className="marketing-feature-grid visual-feature-grid">
           {featureCards.map((feature) => (
@@ -104,6 +134,52 @@ export default function HomePage() {
               <p>{feature.text}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="shell wide marketing-split panel warm-split-panel home-receipt-split">
+        <div>
+          <p className="eyebrow warm-eyebrow">Smart Receipt Scan</p>
+          <h2>Scan the receipt, review the details, then save trusted prices.</h2>
+          <p>
+            Upload a clear JPG or PNG receipt photo. The app prepares store, item, discount, tax, subtotal,
+            and total fields for review before anything updates inventory or price history.
+          </p>
+          <ul className="home-check-list">
+            <li>JPG and PNG receipt photos only</li>
+            <li>Review required before saving</li>
+            <li>Discounts and totals stay visible</li>
+            <li>Saved rows build household price history</li>
+          </ul>
+        </div>
+        <div className="receipt-preview-panel" aria-label="Example receipt review card">
+          <div className="receipt-preview-header">
+            <div>
+              <span className="mini-label">Store</span>
+              <strong>Walmart Supercentre</strong>
+            </div>
+            <span className="receipt-status-chip">Review ready</span>
+          </div>
+          <div className="receipt-preview-meta">
+            <span><small>Date</small> Jul 23, 2026</span>
+            <span><small>Discounts</small> -$4.50</span>
+            <span><small>Total</small> $50.83</span>
+          </div>
+          <div className="receipt-preview-table">
+            <div className="receipt-preview-row head"><span>Item</span><span>Price</span><span>Discount</span><span>Line</span></div>
+            {receiptRows.map(([item, price, discount, line]) => (
+              <div className="receipt-preview-row" key={item}>
+                <span>{item}</span>
+                <span>{price}</span>
+                <span className={discount === '—' ? 'muted-cell' : 'discount-cell'}>{discount}</span>
+                <span>{line}</span>
+              </div>
+            ))}
+          </div>
+          <div className="receipt-preview-actions">
+            <span>✓ Save after review</span>
+            <span>✎ Edit wrong rows</span>
+          </div>
         </div>
       </section>
 
@@ -125,7 +201,7 @@ export default function HomePage() {
       <section className="shell wide marketing-section">
         <div className="section-heading centered">
           <p className="eyebrow warm-eyebrow">Daily value</p>
-          <h2>Small features that make the app feel useful every day.</h2>
+          <h2>Small features that make the app useful every day.</h2>
         </div>
         <div className="daily-moments-grid">
           {dailyMoments.map((item) => (
@@ -144,7 +220,7 @@ export default function HomePage() {
           <h2>Designed so every household member can understand it quickly.</h2>
           <p>
             The app follows the way people shop: check inventory, build a list, shop together,
-            update the cart, save receipt prices, and keep everyone in the loop.
+            update the cart, review receipt prices, and keep everyone in the loop.
           </p>
           <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link split-cta">
             {loggedIn ? 'Go to dashboard' : 'Create your account'}
@@ -155,14 +231,29 @@ export default function HomePage() {
         </ol>
       </section>
 
-      <section className="shell wide marketing-section">
+      <section className="shell wide marketing-section home-plan-section">
         <div className="section-heading centered">
-          <p className="eyebrow warm-eyebrow">Premium value</p>
-          <h2>Paid plans unlock more than higher limits.</h2>
-          <p>House members share the owner’s house features, while their own plan unlocks personal tools and insights.</p>
+          <p className="eyebrow warm-eyebrow">Clear plan access</p>
+          <h2>Users can see what is unlocked and what needs an upgrade.</h2>
+          <p>Free users can join by invite. Paid plans unlock owned houses, Smart Receipt Scan, product lookup, Canadian price comparison, and advanced price tools.</p>
         </div>
-        <div className="premium-tools-grid premium-warm-grid">
-          {premiumTools.map((tool) => <div className="premium-tool" key={tool}>✓ {tool}</div>)}
+        <div className="home-plan-grid">
+          {planHighlights.map((plan) => (
+            <article className={`home-plan-card home-plan-${plan.key}`} key={plan.name}>
+              <div className="home-plan-header">
+                <span>{plan.name}</span>
+                <strong>{plan.price}</strong>
+              </div>
+              <p>{plan.tag}</p>
+              <div className="home-plan-feature-list">
+                {plan.features.map((feature) => <span className="unlocked-feature" key={feature}>✓ {feature}</span>)}
+                {plan.locked.map((feature) => <span className="locked-feature" key={feature}>🔒 {feature}</span>)}
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="centered plan-section-actions">
+          <Link to="/pricing" className="primary orange-cta center-link">See full plan comparison</Link>
         </div>
       </section>
 

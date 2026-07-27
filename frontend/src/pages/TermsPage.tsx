@@ -41,7 +41,7 @@ export default function TermsPage() {
 
         <h2>Receipt scanning and product data</h2>
         <p>
-          Receipt scanning, price matching, product suggestions, and extracted receipt fields are provided for convenience. Results may be incomplete or inaccurate. Users must review store names, product quantities, discounts, taxes, totals, and inventory updates before relying on them.
+          Smart Receipt Scan accepts supported receipt image formats such as JPG and PNG. Receipt scanning, price matching, product suggestions, and extracted receipt fields are provided for convenience. Results may be incomplete or inaccurate. Users must review store names, product quantities, discounts, taxes, totals, and inventory updates before relying on them.
         </p>
 
         <h2>Acceptable use</h2>

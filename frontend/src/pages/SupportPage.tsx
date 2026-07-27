@@ -23,7 +23,7 @@ const supportItems = [
   },
   {
     title: 'Receipts and prices',
-    text: 'Professional receipt scanning can extract store name, item rows, discounts, taxes, and totals. Review the scan before saving trusted prices to household history.',
+    text: 'Smart Receipt Scan accepts clear JPG or PNG receipt photos and can prepare store name, item rows, discounts, taxes, and totals for review before saving trusted prices to household history.',
   },
 ]
 
@@ -69,7 +69,7 @@ export default function SupportPage() {
         <ul>
           <li>For billing issues, include your account email and plan name.</li>
           <li>For house access issues, include the house name and whether you are owner or member.</li>
-          <li>For receipt or price-comparison issues, include the store name, city/postal code, item name, and whether the uploaded file was an image or PDF.</li>
+          <li>For receipt or price-comparison issues, include the store name, city/postal code, item name, and whether the uploaded file was a JPG or PNG image.</li>
           <li>Never send full card numbers, passwords, or sensitive payment details.</li>
         </ul>
       </section>

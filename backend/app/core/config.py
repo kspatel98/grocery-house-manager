@@ -52,12 +52,24 @@ class Settings(BaseSettings):
     apify_price_timeout_seconds: int = 90
     market_max_compare_items: int = 12
 
-    # Professional receipt scanning. Veryfi returns structured receipt JSON
-    # including vendor/store, dates, line items, discounts, taxes, and totals.
-    # Leave disabled until credentials are configured.
-    receipt_ocr_provider: str = "local"  # local, veryfi
+    # Smart receipt scanning. Tabscanner is the recommended default for grocery receipts.
+    # Supported provider values: local, tabscanner, veryfi.
+    # Tabscanner accepts JPG/JPEG and PNG receipt images. PDFs are intentionally blocked
+    # in the UI and backend because this provider does not support them.
+    receipt_ocr_provider: str = "tabscanner"
     receipt_scan_review_required: bool = True
     receipt_upload_max_mb: int = 20
+    tabscanner_api_key: str | None = None
+    tabscanner_process_url: str = "https://api.tabscanner.com/api/2/process"
+    tabscanner_result_url: str = "https://api.tabscanner.com/api/result"
+    tabscanner_region: str = "ca"
+    tabscanner_document_type: str = "receipt"
+    tabscanner_default_date_parsing: str = "m/d"
+    tabscanner_poll_interval_seconds: int = 1
+    tabscanner_timeout_seconds: int = 30
+    tabscanner_total_timeout_seconds: int = 75
+
+    # Optional backup provider. Leave blank unless using Veryfi instead of Tabscanner.
     veryfi_client_id: str | None = None
     veryfi_username: str | None = None
     veryfi_api_key: str | None = None

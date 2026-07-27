@@ -14,10 +14,10 @@ export default function AboutPage() {
       <section className="about-hero panel branded-hero">
         <div>
           <p className="eyebrow">Grocery House Manager • SupremDas Group</p>
-          <h2>Shared grocery inventory, shopping lists, and household collaboration in one professional platform.</h2>
+          <h2>Shared grocery inventory, shopping lists, smart receipt scanning, price history, and household collaboration in one professional platform.</h2>
           <p>
             Grocery House Manager helps families, roommates, and shared homes organize grocery inventory,
-            plan shopping lists, invite household members, and track activity in one secure place.
+            plan shopping lists, scan JPG/PNG receipts for review, compare saved prices, invite household members, and track activity in one secure place.
             SupremDas Group is the parent business behind the product.
           </p>
           <div className="hero-actions">
@@ -44,7 +44,7 @@ export default function AboutPage() {
           <p>
             SupremDas Group builds practical digital products that simplify daily life through clean design,
             reliable workflows, and user-friendly collaboration. Grocery House Manager is the company’s
-            grocery inventory and shopping-list product for households.
+            grocery inventory, receipt, shopping-list, and price-history product for households.
           </p>
         </article>
 
@@ -61,7 +61,9 @@ export default function AboutPage() {
             <li>Move products from “Products to buy” to “Added in cart,” then update inventory when shopping is done.</li>
             <li>Members and activity feed show who added, edited, removed, joined, or completed actions.</li>
             <li>Owner-plan based house limits, so members can use the features available to the house owner.</li>
+            <li>Smart Receipt Scan for JPG/PNG receipt photos, with review-before-save item rows, discounts, tax, subtotal, and total.</li>
             <li>Receipt price updates and multi-store product pricing, so one product can track prices from different stores.</li>
+            <li>Plan-based product lookup, Canadian price comparison, and nearby store suggestions.</li>
             <li>Subscription plans, Stripe Checkout, private coupon-code discounts, and non-stackable new-user offers.</li>
           </ul>
         </article>
@@ -76,7 +78,7 @@ export default function AboutPage() {
             <li>Add sections and products to build your grocery inventory.</li>
             <li>Create one or more shopping lists from existing products.</li>
             <li>While shopping, check items as they are added to the cart.</li>
-            <li>Enter bought store/price during shopping or from a receipt to update store-specific prices.</li>
+            <li>Scan a clear JPG or PNG receipt, review extracted items and totals, then save trusted prices.</li>
             <li>Tap “Shopping done” to update the real inventory automatically.</li>
           </ol>
         </article>
@@ -85,7 +87,7 @@ export default function AboutPage() {
           <h2>Best practices</h2>
           <ul className="feature-list roomy-list">
             <li>Use clear product names like “Milk bags,” “Apples,” or “Greek yogurt.”</li>
-            <li>Add store names and receipt prices so each product can keep a useful store-price history.</li>
+            <li>Add store names and reviewed receipt prices so each product can keep a useful store-price history.</li>
             <li>Use expiry dates for dairy, frozen food, fresh items, and household essentials.</li>
             <li>Use low-stock thresholds to quickly notice items that need refilling.</li>
             <li>Check the activity feed when multiple people are updating the same house.</li>

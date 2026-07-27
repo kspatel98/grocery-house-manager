@@ -1,11 +1,11 @@
-# v34 Professional Receipt Scanning
+# Professional Receipt Scanning
 
-This version replaces the old “OCR assisted” receipt behavior with a safer and more professional scan → review → save workflow.
+This version replaces the old basic receipt behavior with a safer and more professional scan → review → save workflow.
 
 ## What changed
 
 - Receipt uploads no longer auto-update product prices immediately.
-- The backend can call Veryfi Receipts/Invoices API when configured.
+- The backend can call Tabscanner by default, or Veryfi as an optional backup, when configured.
 - The receipt review screen shows:
   - store/vendor name
   - receipt date
@@ -22,20 +22,30 @@ This version replaces the old “OCR assisted” receipt behavior with a safer a
 - Only selected reviewed product rows update `product_store_prices` and product latest price.
 - The database stores receipt line items in `receipt_line_items`.
 
-## Required `.env` for Veryfi
+## Supported upload formats
+
+The recommended Tabscanner provider supports **JPG, JPEG, and PNG receipt images only**. The app blocks PDFs, WEBP, HEIC, and unsupported file types in both the frontend and backend.
+
+## Required `.env` for Tabscanner
 
 ```env
-RECEIPT_OCR_PROVIDER=veryfi
+RECEIPT_OCR_PROVIDER=tabscanner
 RECEIPT_SCAN_REVIEW_REQUIRED=true
 RECEIPT_UPLOAD_MAX_MB=20
-VERYFI_CLIENT_ID=your_client_id
-VERYFI_USERNAME=your_username
-VERYFI_API_KEY=your_api_key
-VERYFI_API_URL=https://api.veryfi.com/api/v8/partner/documents
-VERYFI_TIMEOUT_SECONDS=60
+TABSCANNER_API_KEY=your_tabscanner_api_key_here
+TABSCANNER_REGION=ca
+TABSCANNER_DOCUMENT_TYPE=receipt
+TABSCANNER_DEFAULT_DATE_PARSING=m/d
+TABSCANNER_POLL_INTERVAL_SECONDS=1
+TABSCANNER_TIMEOUT_SECONDS=30
+TABSCANNER_TOTAL_TIMEOUT_SECONDS=75
 ```
 
-If Veryfi is not configured, the app falls back to a basic local scan and clearly tells the user to review manually.
+If Tabscanner is not configured, the app falls back to a basic local scan and clearly tells the user to review manually.
+
+## Optional Veryfi backup
+
+Set `RECEIPT_OCR_PROVIDER=veryfi` and fill Veryfi credentials only if you decide to use Veryfi instead of Tabscanner.
 
 ## Plan access
 
@@ -46,10 +56,10 @@ If Veryfi is not configured, the app falls back to a basic local scan and clearl
 
 The scan limit is counted per user per house per calendar month.
 
-## Test Veryfi from backend container
+## Test receipt scanner from backend container
 
 ```bash
-docker compose exec backend python -m app.scripts.test_veryfi /app/public/uploads/sample-receipt.jpg
+docker compose exec backend python -m app.scripts.test_tabscanner /app/public/uploads/sample-receipt.jpg
 ```
 
 ## Why review is required
