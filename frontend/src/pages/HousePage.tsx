@@ -164,6 +164,7 @@ export default function HousePage() {
         <div className="topbar-actions">
           <Link to="/pricing" className="secondary center-link">Plans</Link>
           <Link to="/profile" className="secondary center-link">Profile</Link>
+          <Link to={`/houses/${id}/receipts`} className="secondary center-link">Receipt history</Link>
           <button onClick={() => setMembersOpen(true)} className="secondary">Members ({members.length})</button>
           <button onClick={createInvite} className="secondary">Copy invite link</button>
         </div>
@@ -253,6 +254,7 @@ export default function HousePage() {
         <aside>
           <ShoppingSummaryCard houseId={id} activeList={activeList} />
           <ReceiptPanel houseId={id} products={products} sections={sections} receipts={receipts} onChange={loadShoppingAndActivity} />
+          <ReceiptHistoryTeaser houseId={id} receipts={receipts} />
           <HouseActionsPanel house={house} memberCount={members.length} onLeave={leaveHouse} onDelete={deleteHouse} />
           <ActivityFeed activities={activities} onRefresh={loadShoppingAndActivity} />
         </aside>
@@ -737,60 +739,40 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
         )}
         <button className="secondary full" onClick={saveReceipt} disabled={!lines.length}>Save manual receipt prices</button>
       </div>
-      {receipts.length > 0 && (
-        <div className="receipt-history-panel">
-          <div className="receipt-history-title">
-            <div>
-              <strong>Saved receipt history</strong>
-              <span>Open any receipt to review the saved store, totals, extracted rows, matched products, and saved receipt details.</span>
-            </div>
-            <span className="badge">{receipts.length} saved</span>
-          </div>
-          <div className="receipt-history-list">
-            {receipts.slice(0, 12).map((receipt) => (
-              <details className="receipt-history-card" key={receipt.id}>
-                <summary>
-                  <span>
-                    <strong>{receipt.store_name || 'Receipt store'}</strong>
-                    <small>{receipt.receipt_date || new Date(receipt.created_at).toLocaleDateString()} • {receipt.ocr_status?.split('_').join(' ')}</small>
-                  </span>
-                  <span className="receipt-history-total">{receipt.total_amount ? money(receipt.total_amount) : `${receipt.line_items?.length || 0} rows`}</span>
-                </summary>
-                {receipt.image_url && (
-                  <div className="receipt-history-photo-wrap">
-                    <img src={receipt.image_url} alt={`${receipt.store_name || 'Receipt'} uploaded receipt`} />
-                    <span>Uploaded receipt photo</span>
-                  </div>
-                )}
-                <div className="receipt-history-meta">
-                  <span><strong>Subtotal</strong>{receipt.subtotal_amount !== null && receipt.subtotal_amount !== undefined ? money(receipt.subtotal_amount) : '-'}</span>
-                  <span><strong>Discount</strong>{receipt.discount_amount ? `-${money(receipt.discount_amount)}` : '-'}</span>
-                  <span><strong>Tax</strong>{receipt.tax_amount !== null && receipt.tax_amount !== undefined ? money(receipt.tax_amount) : '-'}</span>
-                  <span><strong>Payment</strong>{receipt.payment_method || '-'}</span>
-                </div>
-                <div className="receipt-history-lines">
-                  {(receipt.line_items || []).filter((line) => line.line_type === 'product').map((line) => (
-                    <div className="receipt-history-line" key={line.id}>
-                      <span>
-                        <strong>{line.matched_product_name || line.normalized_name || line.description}</strong>
-                        <small>{line.description}</small>
-                      </span>
-                      <span>{line.quantity || 1} {line.line_unit || 'pcs'}</span>
-                      <span>{line.unit_price !== null && line.unit_price !== undefined ? `${money(line.unit_price)} / ${line.line_unit || 'unit'}` : '-'}</span>
-                      <span>{line.line_total !== null && line.line_total !== undefined ? money(line.line_total) : '-'}</span>
-                    </div>
-                  ))}
-                  {!(receipt.line_items || []).some((line) => line.line_type === 'product') && <p className="small-muted">No saved product rows for this receipt yet.</p>}
-                </div>
-              </details>
-            ))}
-          </div>
+      <div className="receipt-history-shortcut">
+        <div>
+          <strong>Need older receipts?</strong>
+          <span>Open the separate receipt history page to see receipt photos, extracted rows, totals, dates, and saved prices.</span>
         </div>
-      )}
+        <Link className="secondary center-link" to={`/houses/${houseId}/receipts`}>Open receipt history</Link>
+      </div>
     </section>
   );
 }
 
+
+
+function ReceiptHistoryTeaser({ houseId, receipts }: { houseId: number; receipts: Receipt[] }) {
+  const latest = receipts[0];
+  const latestDate = latest?.receipt_date || (latest?.created_at ? new Date(latest.created_at).toLocaleDateString() : 'No receipts yet');
+  return (
+    <section className="panel receipt-history-teaser creative-mini-panel">
+      <div className="receipt-teaser-graphic" aria-hidden="true">
+        <span>🧾</span>
+      </div>
+      <div>
+        <p className="eyebrow">Receipt library</p>
+        <h2>Saved receipt history</h2>
+        <p>View receipt photos, extracted rows, totals, discounts, payment labels, and saved price history anytime.</p>
+        <div className="receipt-teaser-stats">
+          <span><strong>{receipts.length}</strong> receipts saved</span>
+          <span><strong>{latest ? latestDate : '-'}</strong> latest receipt date</span>
+        </div>
+      </div>
+      <Link className="primary full center-link" to={`/houses/${houseId}/receipts`}>Open receipt history</Link>
+    </section>
+  );
+}
 
 function HouseActionsPanel({ house, memberCount, onLeave, onDelete }: { house: House | null; memberCount: number; onLeave: () => void; onDelete: () => void }) {
   if (!house) return null;

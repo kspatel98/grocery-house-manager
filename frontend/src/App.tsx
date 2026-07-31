@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import HousesPage from './pages/HousesPage';
 import HousePage from './pages/HousePage';
+import ReceiptHistoryPage from './pages/ReceiptHistoryPage';
 import ShoppingPage from './pages/ShoppingPage';
 import JoinPage from './pages/JoinPage';
 import ProfilePage from './pages/ProfilePage';
@@ -48,6 +49,7 @@ export default function App() {
       <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
       <Route path="/houses/:houseId" element={<RequireAuth><HousePage /></RequireAuth>} />
       <Route path="/houses/:houseId/shopping" element={<RequireAuth><ShoppingPage /></RequireAuth>} />
+      <Route path="/houses/:houseId/receipts" element={<RequireAuth><ReceiptHistoryPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
