@@ -738,9 +738,47 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
         <button className="secondary full" onClick={saveReceipt} disabled={!lines.length}>Save manual receipt prices</button>
       </div>
       {receipts.length > 0 && (
-        <div className="receipt-history-preview">
-          <strong>Latest receipt</strong>
-          <span>{receipts[0].store_name || 'Store'} • {receipts[0].total_amount ? money(receipts[0].total_amount) : new Date(receipts[0].created_at).toLocaleDateString()} • {receipts[0].ocr_status?.split('_').join(' ')}</span>
+        <div className="receipt-history-panel">
+          <div className="receipt-history-title">
+            <div>
+              <strong>Saved receipt history</strong>
+              <span>Open any receipt to review the saved store, totals, extracted rows, matched products, and price-history content.</span>
+            </div>
+            <span className="badge">{receipts.length} saved</span>
+          </div>
+          <div className="receipt-history-list">
+            {receipts.slice(0, 12).map((receipt) => (
+              <details className="receipt-history-card" key={receipt.id}>
+                <summary>
+                  <span>
+                    <strong>{receipt.store_name || 'Receipt store'}</strong>
+                    <small>{receipt.receipt_date || new Date(receipt.created_at).toLocaleDateString()} • {receipt.ocr_status?.split('_').join(' ')}</small>
+                  </span>
+                  <span className="receipt-history-total">{receipt.total_amount ? money(receipt.total_amount) : `${receipt.line_items?.length || 0} rows`}</span>
+                </summary>
+                <div className="receipt-history-meta">
+                  <span><strong>Subtotal</strong>{receipt.subtotal_amount !== null && receipt.subtotal_amount !== undefined ? money(receipt.subtotal_amount) : '-'}</span>
+                  <span><strong>Discount</strong>{receipt.discount_amount ? `-${money(receipt.discount_amount)}` : '-'}</span>
+                  <span><strong>Tax</strong>{receipt.tax_amount !== null && receipt.tax_amount !== undefined ? money(receipt.tax_amount) : '-'}</span>
+                  <span><strong>Payment</strong>{receipt.payment_method || '-'}</span>
+                </div>
+                <div className="receipt-history-lines">
+                  {(receipt.line_items || []).filter((line) => line.line_type === 'product').map((line) => (
+                    <div className="receipt-history-line" key={line.id}>
+                      <span>
+                        <strong>{line.matched_product_name || line.normalized_name || line.description}</strong>
+                        <small>{line.description}</small>
+                      </span>
+                      <span>{line.quantity || 1} {line.line_unit || 'pcs'}</span>
+                      <span>{line.unit_price !== null && line.unit_price !== undefined ? `${money(line.unit_price)} / ${line.line_unit || 'unit'}` : '-'}</span>
+                      <span>{line.line_total !== null && line.line_total !== undefined ? money(line.line_total) : '-'}</span>
+                    </div>
+                  ))}
+                  {!(receipt.line_items || []).some((line) => line.line_type === 'product') && <p className="small-muted">No saved product rows for this receipt yet.</p>}
+                </div>
+              </details>
+            ))}
+          </div>
         </div>
       )}
     </section>

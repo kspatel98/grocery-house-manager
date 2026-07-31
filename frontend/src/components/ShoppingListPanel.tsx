@@ -65,7 +65,7 @@ function suggestedPrice(product: Product) {
   const bestSaved = withTime.sort((a, b) => a.price - b.price || b.time - a.time)[0];
   const chosen = recentReceipt || live || bestSaved;
   if (!chosen) return null;
-  let label = 'Saved price';
+  let label = 'Saved history';
   if (chosen.source?.startsWith('receipt') && now - chosen.time <= maxAgeMs) label = 'Last receipt';
   if (chosen.source?.includes('live') || chosen.source?.includes('apify')) label = 'Live compare';
   const days = chosen.time ? Math.max(Math.floor((now - chosen.time) / (24 * 60 * 60 * 1000)), 0) : null;
@@ -415,7 +415,7 @@ function ProductPicker({ houseId, sections, products, selection, onToggle, onUpd
               </label>
               <div className="shopping-suggestion-badges">
                 {stockBadge(product)}
-                {suggestion && <span className="store-suggestion-badge">{suggestion.store} • {money(suggestion.price)} / {product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label === 'Last receipt' ? ` ${suggestion.days}d` : ''}</em></span>}
+                {suggestion && <span className="store-suggestion-badge">{suggestion.store} • {money(suggestion.price)} / {product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label.includes('Last receipt') ? ` • ${suggestion.days}d ago` : ''}</em></span>}
               </div>
               {selected && (
                 <div className="pick-extra">
@@ -494,7 +494,7 @@ function ShoppingRow({ item, onUpdate, onStatusChange, onRemove }: { item: Shopp
       <div className="shopping-suggestion-badges cart-suggestion-badges">
         {stockBadge(item.product)}
         {suggestion ? (
-          <span className="store-suggestion-badge">Suggested: {suggestion.store} • {money(suggestion.price)} / {item.product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label === 'Last receipt' ? ` ${suggestion.days}d` : ''}</em></span>
+          <span className="store-suggestion-badge">Suggested: {suggestion.store} • {money(suggestion.price)} / {item.product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label.includes('Last receipt') ? ` • ${suggestion.days}d ago` : ''}</em></span>
         ) : <span className="store-suggestion-badge muted">No recent price yet</span>}
       </div>
       <div className="cart-grid">
