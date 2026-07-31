@@ -65,7 +65,10 @@ export type Product = {
   low_stock_threshold?: number;
   notes?: string;
   is_low_stock: boolean;
+  is_out_of_stock?: boolean;
   is_expiring_soon: boolean;
+  is_expired?: boolean;
+  stock_status?: 'in_stock' | 'low_stock' | 'out_of_stock' | 'expiring_soon' | 'expired';
   created_at: string;
   updated_at: string;
   store_prices?: ProductStorePrice[];
@@ -360,6 +363,9 @@ export type ShoppingItemSuggestion = {
   current_price?: number;
   best_known_store?: string;
   best_known_price?: number;
+  best_known_source?: string | null;
+  best_known_recorded_at?: string | null;
+  freshness_label?: string | null;
   savings_vs_current?: number;
   message: string;
 };

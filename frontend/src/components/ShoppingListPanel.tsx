@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { Product, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
+import type { Product, Section, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
 
 type Selection = Record<number, { selected: boolean; requested_quantity: number; message: string; bought_price?: number | null; bought_store_name?: string }>;
 type ItemUpdates = {
@@ -13,7 +13,73 @@ type ItemUpdates = {
   bought_store_name?: string | null;
 };
 
-export default function ShoppingListPanel({ houseId, products, activeList, onChange, onListCreated, onListUpdated, onProductSearch }: { houseId: number; products: Product[]; activeList: ShoppingList | null; onChange: () => void | Promise<void>; onListCreated?: (list: ShoppingList) => void; onListUpdated?: (list: ShoppingList) => void; onProductSearch?: (query: string) => void | Promise<void> }) {
+type ShoppingListPanelProps = {
+  houseId: number;
+  products: Product[];
+  sections: Section[];
+  activeList: ShoppingList | null;
+  onChange: () => void | Promise<void>;
+  onListCreated?: (list: ShoppingList) => void;
+  onListUpdated?: (list: ShoppingList) => void;
+  onProductSearch?: (query: string) => void | Promise<void>;
+};
+
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function smartSectionId(name: string, sections: Section[]): number | '' {
+  const text = normalizeText(name);
+  const matches: Array<[string[], string[]]> = [
+    [['dairy'], ['milk', 'cheese', 'paneer', 'yogurt', 'yoghurt', 'tofu', 'cream', 'butter', 'egg']],
+    [['fruits'], ['banana', 'apple', 'orange', 'grape', 'berry', 'mango', 'pear', 'melon']],
+    [['vegetables'], ['tomato', 'onion', 'potato', 'lettuce', 'spinach', 'pepper', 'carrot', 'cucumber']],
+    [['meat'], ['chicken', 'beef', 'pork', 'fish', 'salmon', 'turkey']],
+    [['bakery'], ['bread', 'bun', 'bagel', 'naan', 'tortilla']],
+    [['pantry'], ['rice', 'flour', 'sugar', 'oil', 'pasta', 'beans', 'lentil', 'cereal']],
+    [['snacks'], ['chips', 'cookie', 'snack', 'chocolate', 'candy']],
+    [['frozen'], ['frozen', 'ice cream', 'fries', 'pizza']],
+    [['household'], ['soap', 'detergent', 'tissue', 'paper', 'cleaner', 'bag', 'foil']],
+  ];
+  for (const [sectionNames, keywords] of matches) {
+    if (keywords.some((keyword) => text.includes(keyword))) {
+      const match = sections.find((section) => sectionNames.some((sectionName) => section.name.toLowerCase().includes(sectionName)));
+      if (match) return match.id;
+    }
+  }
+  return sections[0]?.id || '';
+}
+
+function suggestedPrice(product: Product) {
+  const prices = product.store_prices || [];
+  if (!prices.length) return null;
+  const now = Date.now();
+  const maxAgeMs = 21 * 24 * 60 * 60 * 1000;
+  const withTime = prices.map((entry) => ({ ...entry, time: new Date(entry.recorded_at).getTime() || 0 }));
+  const recentReceipt = withTime
+    .filter((entry) => entry.source?.startsWith('receipt') && now - entry.time <= maxAgeMs)
+    .sort((a, b) => a.price - b.price || b.time - a.time)[0];
+  const live = withTime
+    .filter((entry) => entry.source?.includes('live') || entry.source?.includes('apify'))
+    .sort((a, b) => a.price - b.price || b.time - a.time)[0];
+  const bestSaved = withTime.sort((a, b) => a.price - b.price || b.time - a.time)[0];
+  const chosen = recentReceipt || live || bestSaved;
+  if (!chosen) return null;
+  let label = 'Saved price';
+  if (chosen.source?.startsWith('receipt') && now - chosen.time <= maxAgeMs) label = 'Last receipt';
+  if (chosen.source?.includes('live') || chosen.source?.includes('apify')) label = 'Live compare';
+  const days = chosen.time ? Math.max(Math.floor((now - chosen.time) / (24 * 60 * 60 * 1000)), 0) : null;
+  return { store: chosen.store_name, price: chosen.price, label, days };
+}
+
+function stockBadge(product: Product) {
+  if (product.is_out_of_stock || product.quantity <= 0) return <span className="mini-status out">Out of stock</span>;
+  if (product.is_expired) return <span className="mini-status expired">Expired</span>;
+  if (product.is_low_stock) return <span className="mini-status low">Low stock</span>;
+  return null;
+}
+
+export default function ShoppingListPanel({ houseId, products, sections, activeList, onChange, onListCreated, onListUpdated, onProductSearch }: ShoppingListPanelProps) {
   const [selection, setSelection] = useState<Selection>({});
   const [title, setTitle] = useState('Grocery List');
   const [editedTitle, setEditedTitle] = useState(activeList?.title || 'Grocery List');
@@ -26,10 +92,21 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
   const productsNotInList = activeList ? products.filter((product) => !existingProductIds.has(product.id)) : products;
 
   useEffect(() => {
-    if (activeList?.title) {
-      setEditedTitle(activeList.title);
-    }
+    if (activeList?.title) setEditedTitle(activeList.title);
   }, [activeList?.id, activeList?.title]);
+
+  function selectProduct(product: Product, selected = true) {
+    setSelection((prev) => ({
+      ...prev,
+      [product.id]: {
+        selected,
+        requested_quantity: prev[product.id]?.requested_quantity || 1,
+        message: prev[product.id]?.message || '',
+        bought_price: prev[product.id]?.bought_price ?? product.price ?? null,
+        bought_store_name: prev[product.id]?.bought_store_name || product.store_name || '',
+      },
+    }));
+  }
 
   function toggleProduct(product: Product) {
     setSelection((prev) => ({
@@ -49,7 +126,7 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
         message: prev[productId]?.message || '',
         bought_price: prev[productId]?.bought_price ?? null,
         bought_store_name: prev[productId]?.bought_store_name || '',
-        [key]: key === 'requested_quantity' || key === 'bought_price' ? (value === '' ? null : Number(value)) : value,
+        [key]: key === 'requested_quantity' ? (value === '' ? 1 : Number(value)) : key === 'bought_price' ? (value === '' ? null : Number(value)) : value,
       },
     }));
   }
@@ -190,16 +267,21 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
   const inCart = activeList?.items.filter((item) => item.status === 'in_cart') || [];
 
   return (
-    <section className="panel shopping-panel">
-      <h2>Grocery list</h2>
-      <p>Select multiple products, set shopping-only quantity, add notes, then shop.</p>
+    <section className="panel shopping-panel polished-shopping-panel">
+      <div className="panel-title-row">
+        <div>
+          <p className="eyebrow">Shopping flow</p>
+          <h2>Grocery list</h2>
+          <p>Select products by category, use suggested store badges, then finish shopping to update inventory.</p>
+        </div>
+      </div>
       {error && <div className="error">{error}</div>}
       {busy && <div className="hint">Saving change...</div>}
 
       {!activeList && (
         <>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="List title" />
-          <ProductPicker products={products} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} />
+          <ProductPicker houseId={houseId} sections={sections} products={products} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} onCreated={selectProduct} />
           <button className="primary full" disabled={!selectedItems.length || busy} onClick={createList}>Create grocery list</button>
         </>
       )}
@@ -221,17 +303,21 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
               <h4>Add more products</h4>
               {productsNotInList.length ? (
                 <>
-                  <ProductPicker products={productsNotInList} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} />
+                  <ProductPicker houseId={houseId} sections={sections} products={productsNotInList} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} onCreated={selectProduct} />
                   <button className="primary full" disabled={!selectedItems.length || busy} onClick={addMoreProducts}>Add selected products</button>
                 </>
               ) : (
-                <p className="small-muted">Every visible inventory product is already on this list. Edit the quantity below to buy more of an existing item.</p>
+                <>
+                  <p className="small-muted">Every visible inventory product is already on this list. Search or create a new product below.</p>
+                  <ProductPicker houseId={houseId} sections={sections} products={[]} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} onCreated={selectProduct} />
+                  <button className="primary full" disabled={!selectedItems.length || busy} onClick={addMoreProducts}>Add selected products</button>
+                </>
               )}
             </div>
           )}
 
-          <Tag title="Products to buy" items={toBuy} onUpdate={updateItem} onStatusChange={updateItemStatus} onRemove={removeItem} />
-          <Tag title="Added in cart" items={inCart} onUpdate={updateItem} onStatusChange={updateItemStatus} onRemove={removeItem} />
+          <CategoryGroup title="Products to buy" items={toBuy} onUpdate={updateItem} onStatusChange={updateItemStatus} onRemove={removeItem} />
+          <CategoryGroup title="Added in cart" items={inCart} onUpdate={updateItem} onStatusChange={updateItemStatus} onRemove={removeItem} />
           <button className="primary full done" disabled={!inCart.length || busy} onClick={shoppingDone}>Shopping done</button>
           <p className="small-muted">Only items under “Added in cart” update real inventory.</p>
         </div>
@@ -240,16 +326,24 @@ export default function ShoppingListPanel({ houseId, products, activeList, onCha
   );
 }
 
-function ProductPicker({ products, selection, onToggle, onUpdate, onSearch }: { products: Product[]; selection: Selection; onToggle: (product: Product) => void; onUpdate: (productId: number, key: 'requested_quantity' | 'message' | 'bought_price' | 'bought_store_name', value: string) => void; onSearch?: (query: string) => void | Promise<void> }) {
+function ProductPicker({ houseId, sections, products, selection, onToggle, onUpdate, onSearch, onCreated }: { houseId: number; sections: Section[]; products: Product[]; selection: Selection; onToggle: (product: Product) => void; onUpdate: (productId: number, key: 'requested_quantity' | 'message' | 'bought_price' | 'bought_store_name', value: string) => void; onSearch?: (query: string) => void | Promise<void>; onCreated: (product: Product, selected?: boolean) => void }) {
   const [pickerSearch, setPickerSearch] = useState('');
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductUnit, setNewProductUnit] = useState('pcs');
+  const [newProductQuantity, setNewProductQuantity] = useState('0');
+  const [newProductSectionId, setNewProductSectionId] = useState<number | ''>('');
+  const [creating, setCreating] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     if (!onSearch) return;
-    const timer = window.setTimeout(() => {
-      onSearch(pickerSearch.trim());
-    }, 350);
+    const timer = window.setTimeout(() => { onSearch(pickerSearch.trim()); }, 350);
     return () => window.clearTimeout(timer);
   }, [pickerSearch, onSearch]);
+
+  useEffect(() => {
+    if (newProductName.trim()) setNewProductSectionId(smartSectionId(newProductName, sections));
+  }, [newProductName, sections]);
 
   const visibleProducts = useMemo(() => {
     const query = pickerSearch.trim().toLowerCase();
@@ -259,25 +353,70 @@ function ProductPicker({ products, selection, onToggle, onUpdate, onSearch }: { 
     return filtered.slice(0, 80);
   }, [products, pickerSearch]);
 
+  async function createInventoryProduct() {
+    const name = newProductName.trim();
+    if (!name) {
+      setMessage('Enter product name first.');
+      return;
+    }
+    try {
+      setCreating(true);
+      setMessage('');
+      const { data: matches } = await api.get<Product[]>(`/houses/${houseId}/products`, { params: { search: name, limit: 10 } });
+      const exact = matches.find((product) => normalizeText(product.name) === normalizeText(name));
+      if (exact) {
+        onCreated(exact, true);
+        setMessage(`${exact.name} already exists. It was selected instead of creating a duplicate.`);
+        return;
+      }
+      const sectionId = newProductSectionId || smartSectionId(name, sections) || sections[0]?.id;
+      if (!sectionId) {
+        setMessage('Create a section first, then add this product.');
+        return;
+      }
+      const { data } = await api.post<Product>(`/houses/${houseId}/sections/${sectionId}/products`, {
+        name,
+        quantity: Number(newProductQuantity) || 0,
+        unit: newProductUnit || 'pcs',
+        icon: sections.find((section) => section.id === sectionId)?.icon || '🛒',
+      });
+      onCreated(data, true);
+      await onSearch?.(name);
+      setNewProductName('');
+      setNewProductQuantity('0');
+      setNewProductUnit('pcs');
+      setMessage(`${data.name} was created, added to inventory, and selected for this list.`);
+    } catch (err) {
+      setMessage(errorMessage(err));
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <div className="product-picker-wrap">
       <div className="product-picker-toolbar">
         <input value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} placeholder="Search entire inventory..." />
         <small>{visibleProducts.length} shown{products.length > visibleProducts.length ? ` of ${products.length}` : ''}</small>
       </div>
-      <p className="small-muted">Search by product, brand, store, or barcode. Only the first 80 matches are shown so the list stays fast.</p>
+      <p className="small-muted">Search by product, brand, store, or barcode. You can also create a product here if it is not in inventory yet.</p>
       <div className="product-picker">
         {visibleProducts.map((product) => {
           const selected = selection[product.id]?.selected;
+          const suggestion = suggestedPrice(product);
           return (
             <div key={product.id} className={`pick-row ${selected ? 'selected' : ''}`}>
               <label>
                 <input type="checkbox" checked={!!selected} onChange={() => onToggle(product)} />
                 <span>
                   {product.icon || '🛒'} {product.name}
-                  <small className="picker-product-meta">{product.store_name || 'No store'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • ${money(product.price)} / ${product.unit || 'unit'}` : ''}</small>
+                  <small className="picker-product-meta">{product.section_name || 'Inventory'} • Inventory: {product.quantity} {product.unit}{product.price !== undefined && product.price !== null ? ` • ${money(product.price)} / ${product.unit || 'unit'}` : ''}</small>
                 </span>
               </label>
+              <div className="shopping-suggestion-badges">
+                {stockBadge(product)}
+                {suggestion && <span className="store-suggestion-badge">{suggestion.store} • {money(suggestion.price)} / {product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label === 'Last receipt' ? ` ${suggestion.days}d` : ''}</em></span>}
+              </div>
               {selected && (
                 <div className="pick-extra">
                   <input type="number" min="0.01" step="0.01" value={selection[product.id]?.requested_quantity || 1} onChange={(e) => onUpdate(product.id, 'requested_quantity', e.target.value)} />
@@ -290,38 +429,85 @@ function ProductPicker({ products, selection, onToggle, onUpdate, onSearch }: { 
           );
         })}
       </div>
+
+      <div className="quick-create-product-card">
+        <div>
+          <strong>Product not in inventory?</strong>
+          <small>Create it here and add it to this grocery list right away. We check existing inventory first to prevent duplicates.</small>
+        </div>
+        <div className="quick-create-grid">
+          <input value={newProductName} onChange={(e) => setNewProductName(e.target.value)} placeholder="New product name" />
+          <select value={newProductSectionId} onChange={(e) => setNewProductSectionId(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">Auto category</option>
+            {sections.map((section) => <option key={section.id} value={section.id}>{section.icon ? `${section.icon} ` : ''}{section.name}</option>)}
+          </select>
+          <input value={newProductUnit} onChange={(e) => setNewProductUnit(e.target.value)} placeholder="Unit e.g. pcs/kg" />
+          <input type="number" min="0" step="0.001" value={newProductQuantity} onChange={(e) => setNewProductQuantity(e.target.value)} placeholder="Inventory qty" />
+          <button className="secondary" type="button" onClick={createInventoryProduct} disabled={creating}>{creating ? 'Creating...' : 'Create + select'}</button>
+        </div>
+        {message && <div className={message.includes('created') || message.includes('selected') ? 'success compact-message' : 'hint compact-message'}>{message}</div>}
+      </div>
     </div>
   );
 }
 
-function Tag({ title, items, onUpdate, onStatusChange, onRemove }: { title: string; items: ShoppingListItem[]; onUpdate: (item: ShoppingListItem, updates: ItemUpdates) => void; onStatusChange: (item: ShoppingListItem, status: ShoppingItemStatus) => void; onRemove: (item: ShoppingListItem) => void }) {
+function CategoryGroup({ title, items, onUpdate, onStatusChange, onRemove }: { title: string; items: ShoppingListItem[]; onUpdate: (item: ShoppingListItem, updates: ItemUpdates) => void; onStatusChange: (item: ShoppingListItem, status: ShoppingItemStatus) => void; onRemove: (item: ShoppingListItem) => void }) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const groups = useMemo(() => {
+    const map = new Map<string, ShoppingListItem[]>();
+    for (const item of items) {
+      const key = item.product.section_name || 'Other';
+      map.set(key, [...(map.get(key) || []), item]);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [items]);
+
   return (
-    <div className="shopping-tag">
+    <div className="shopping-tag category-shopping-tag">
       <h4>{title}</h4>
       {!items.length && <p className="small-muted">No items here.</p>}
-      {items.map((item) => (
-        <article key={item.id} className="cart-item">
-          <label className="cart-line">
-            <input
-              type="checkbox"
-              checked={item.status === 'in_cart'}
-              onChange={(e) => onStatusChange(item, e.target.checked ? 'in_cart' : 'to_buy')}
-            />
-            <strong>{item.product.icon || '🛒'} {item.product.name}</strong>
-          </label>
-          <div className="cart-grid">
-            <label>Need<input type="number" min="0.01" step="0.01" value={item.requested_quantity} onChange={(e) => onUpdate(item, { requested_quantity: Number(e.target.value) })} /></label>
-            <label>Bought<input type="number" min="0.01" step="0.01" value={item.bought_quantity} onChange={(e) => onUpdate(item, { bought_quantity: Number(e.target.value) })} /></label>
-            <label>Store<input value={item.bought_store_name || ''} onChange={(e) => onUpdate(item, { bought_store_name: e.target.value || null })} /></label>
-            <label>Price<input type="number" min="0" step="0.01" value={item.bought_price ?? ''} onChange={(e) => onUpdate(item, { bought_price: e.target.value === '' ? null : Number(e.target.value) })} /></label>
-          </div>
-          <textarea value={item.message || ''} placeholder="Message for this item" onChange={(e) => onUpdate(item, { message: e.target.value })} />
-          <div className="cart-footer">
-            <small>Trip store: {item.bought_store_name || item.product.store_name || 'No store'} • Current inventory: {item.product.quantity} {item.product.unit}</small>
-            <button className="secondary small-button" onClick={() => onRemove(item)}>Remove</button>
-          </div>
-        </article>
+      {groups.map(([category, categoryItems]) => (
+        <section key={category} className="shopping-category-section">
+          <button className="category-toggle" type="button" onClick={() => setCollapsed((prev) => ({ ...prev, [category]: !prev[category] }))}>
+            <span>{collapsed[category] ? '▶' : '▼'} {category}</span>
+            <small>{categoryItems.length} item{categoryItems.length === 1 ? '' : 's'}</small>
+          </button>
+          {!collapsed[category] && categoryItems.map((item) => <ShoppingRow key={item.id} item={item} onUpdate={onUpdate} onStatusChange={onStatusChange} onRemove={onRemove} />)}
+        </section>
       ))}
     </div>
+  );
+}
+
+function ShoppingRow({ item, onUpdate, onStatusChange, onRemove }: { item: ShoppingListItem; onUpdate: (item: ShoppingListItem, updates: ItemUpdates) => void; onStatusChange: (item: ShoppingListItem, status: ShoppingItemStatus) => void; onRemove: (item: ShoppingListItem) => void }) {
+  const suggestion = suggestedPrice(item.product);
+  return (
+    <article className="cart-item polished-cart-item">
+      <label className="cart-line">
+        <input
+          type="checkbox"
+          checked={item.status === 'in_cart'}
+          onChange={(e) => onStatusChange(item, e.target.checked ? 'in_cart' : 'to_buy')}
+        />
+        <strong>{item.product.icon || '🛒'} {item.product.name}</strong>
+      </label>
+      <div className="shopping-suggestion-badges cart-suggestion-badges">
+        {stockBadge(item.product)}
+        {suggestion ? (
+          <span className="store-suggestion-badge">Suggested: {suggestion.store} • {money(suggestion.price)} / {item.product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label === 'Last receipt' ? ` ${suggestion.days}d` : ''}</em></span>
+        ) : <span className="store-suggestion-badge muted">No recent price yet</span>}
+      </div>
+      <div className="cart-grid">
+        <label>Need<input type="number" min="0.01" step="0.01" value={item.requested_quantity} onChange={(e) => onUpdate(item, { requested_quantity: Number(e.target.value) })} /></label>
+        <label>Bought<input type="number" min="0.01" step="0.01" value={item.bought_quantity} onChange={(e) => onUpdate(item, { bought_quantity: Number(e.target.value) })} /></label>
+        <label>Store<input value={item.bought_store_name || ''} onChange={(e) => onUpdate(item, { bought_store_name: e.target.value || null })} /></label>
+        <label>Price<input type="number" min="0" step="0.01" value={item.bought_price ?? ''} onChange={(e) => onUpdate(item, { bought_price: e.target.value === '' ? null : Number(e.target.value) })} /></label>
+      </div>
+      <textarea value={item.message || ''} placeholder="Message for this item" onChange={(e) => onUpdate(item, { message: e.target.value })} />
+      <div className="cart-footer">
+        <small>Trip store: {item.bought_store_name || item.product.store_name || 'No store'} • Current inventory: {item.product.quantity} {item.product.unit}</small>
+        <button className="secondary small-button" onClick={() => onRemove(item)}>Remove</button>
+      </div>
+    </article>
   );
 }

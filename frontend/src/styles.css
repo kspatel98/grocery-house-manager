@@ -2890,3 +2890,212 @@ body {
     width: 100%;
   }
 }
+
+/* v39 UX fixes: responsive reports, smarter shopping, receipt studio polish */
+.mini-status,
+.store-suggestion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border-radius: 999px;
+  border: 1px solid #dcebe2;
+  padding: .32rem .55rem;
+  font-size: .78rem;
+  font-weight: 900;
+  color: #123428;
+  background: #f8fff9;
+}
+.store-suggestion-badge em {
+  color: #0d5c3f;
+  font-style: normal;
+  padding-left: .25rem;
+}
+.store-suggestion-badge.muted {
+  color: #64748b;
+  background: #f8fafc;
+}
+.mini-status.out,
+.mini-status.expired {
+  background: #fff0ee;
+  border-color: #ffc5bf;
+  color: #8c1d18;
+}
+.mini-status.low {
+  background: #fff8d8;
+  border-color: #ffe28a;
+  color: #6d5200;
+}
+.shopping-suggestion-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: .55rem;
+}
+.cart-suggestion-badges {
+  margin-top: 0;
+}
+.quick-create-product-card {
+  display: grid;
+  gap: .75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px dashed #bfe7ce;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #f8fff9, #fffaf2);
+}
+.quick-create-product-card strong {
+  display: block;
+  color: #0d5c3f;
+}
+.quick-create-product-card small {
+  color: #607080;
+}
+.quick-create-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.3fr) minmax(140px, .8fr) 90px 110px auto;
+  gap: .55rem;
+  align-items: center;
+}
+.category-shopping-tag {
+  gap: .8rem;
+}
+.shopping-category-section {
+  display: grid;
+  gap: .55rem;
+  border: 1px solid #e5ebf2;
+  border-radius: 20px;
+  padding: .75rem;
+  background: #fbfffc;
+}
+.category-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  background: #eef9f2;
+  color: #123428;
+  border-radius: 16px;
+  padding: .65rem .8rem;
+  font-weight: 900;
+}
+.polished-cart-item {
+  background: #fff;
+  border-color: #dfe9e3;
+  box-shadow: 0 8px 26px rgba(18,52,40,.045);
+}
+.receipt-studio-hero {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 24px;
+  border: 1px solid #dcebe2;
+  background: radial-gradient(circle at top left, rgba(255,107,26,.16), transparent 34%), linear-gradient(135deg, #effaf3, #fffaf2);
+}
+.receipt-hero-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  background: #0d5c3f;
+  color: white;
+  font-size: 2rem;
+}
+.receipt-studio-hero strong {
+  display: block;
+  color: #123428;
+  font-size: 1.05rem;
+}
+.receipt-studio-hero span {
+  display: block;
+  color: #526171;
+  margin-top: .25rem;
+}
+.live-price-modal {
+  width: min(920px, 100%);
+}
+.live-price-scroll-list {
+  display: grid;
+  gap: .65rem;
+  max-height: 62vh;
+  overflow: auto;
+  padding: .25rem;
+}
+.live-price-result-card {
+  grid-template-columns: 1fr;
+}
+.reports-page .topbar {
+  align-items: stretch;
+}
+.reports-page .topbar-actions.report-actions {
+  min-width: min(100%, 520px);
+}
+.reports-page .topbar-actions.report-actions select,
+.reports-page .topbar-actions.report-actions button {
+  min-height: 44px;
+}
+.reports-page .stats-grid.four {
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+}
+.report-highlight-card {
+  grid-template-columns: minmax(0, .6fr) minmax(0, 1.4fr);
+  align-items: center;
+}
+.store-report-card {
+  border-color: #dcebe2;
+  background: linear-gradient(180deg, #ffffff, #fbfffc);
+}
+@media (max-width: 1100px) {
+  .quick-create-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .quick-create-grid button {
+    grid-column: 1 / -1;
+  }
+  .reports-page .topbar {
+    flex-direction: column;
+  }
+  .reports-page .stats-grid.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+  .report-highlight-card {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .quick-create-grid,
+  .pick-extra,
+  .cart-grid {
+    grid-template-columns: 1fr;
+  }
+  .receipt-studio-hero {
+    grid-template-columns: 1fr;
+  }
+  .reports-page .stats-grid.four {
+    grid-template-columns: 1fr;
+  }
+  .reports-page .topbar-actions.report-actions {
+    width: 100%;
+  }
+  .reports-page .topbar-actions.report-actions > * {
+    width: 100%;
+  }
+  .comparison-table-wrap,
+  .admin-table-wrap {
+    border-radius: 14px;
+  }
+  .admin-table {
+    min-width: 700px;
+  }
+  .live-price-modal {
+    max-height: 94vh;
+    padding: 16px;
+  }
+}

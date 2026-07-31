@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, LivePriceCompareResponse, Plan, Product, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
+import type { Activity, House, HouseMember, LivePriceCompareResponse, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
@@ -14,6 +14,7 @@ export default function ShoppingPage() {
   const id = Number(houseId);
   const [house, setHouse] = useState<House | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [activeLists, setActiveLists] = useState<ShoppingList[]>([]);
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
@@ -31,8 +32,9 @@ export default function ShoppingPage() {
 
   async function loadAll() {
     try {
-      const [houseRes, productsRes, listsRes, membersRes, activitiesRes, subscriptionRes, housePlanRes] = await Promise.all([
+      const [houseRes, sectionsRes, productsRes, listsRes, membersRes, activitiesRes, subscriptionRes, housePlanRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
+        api.get<Section[]>(`/houses/${id}/sections`),
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, limit: SHOPPING_PRODUCT_LIMIT } }),
         api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
@@ -41,6 +43,7 @@ export default function ShoppingPage() {
         api.get<Plan>(`/houses/${id}/plan`),
       ]);
       setHouse(houseRes.data);
+      setSections(sectionsRes.data);
       setProducts(productsRes.data);
       setActiveLists(listsRes.data);
       setMembers(membersRes.data);
@@ -175,6 +178,7 @@ export default function ShoppingPage() {
           <ShoppingListPanel
             houseId={id}
             products={products}
+            sections={sections}
             activeList={activeListForPanel}
             onChange={loadAll}
             onListUpdated={replaceActiveList}
@@ -226,6 +230,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
   const [lng, setLng] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<ShoppingSuggestions | null>(null);
   const [livePrices, setLivePrices] = useState<LivePriceCompareResponse | null>(null);
+  const [livePricesOpen, setLivePricesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -260,6 +265,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
         force_refresh: forceRefresh,
       });
       setLivePrices(data);
+      setLivePricesOpen(true);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -320,19 +326,32 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
         <button className="primary" type="button" onClick={() => compareCurrentList(false)} disabled={busy}>Compare live prices</button>
       </div>
 
-      {livePrices && (
-        <div className={livePrices.premium_required || !livePrices.configured ? 'hint' : 'suggestion-results live-price-summary'}>
-          <div className="compact-message">{livePrices.message}</div>
-          {livePrices.results.slice(0, 8).map((row, index) => (
-            <a key={`${row.item}-${row.retailer}-${index}`} href={row.source_url || '#'} target="_blank" rel="noreferrer" className="store-result-card">
-              <span>{row.item} • {row.banner || row.store_name || row.retailer || 'Store'}</span>
-              <small>
-                {(row.sale_price ?? row.price) != null ? money(row.sale_price ?? row.price, livePrices.currency_code) : 'Price unavailable'}
-                {row.unit_price ? ` • ${row.unit_price}` : ''}
-                {row.match_confidence ? ` • ${row.match_confidence}` : ''}
-              </small>
-            </a>
-          ))}
+      {livePrices && livePricesOpen && (
+        <div className="modal-backdrop live-price-modal-backdrop" onClick={() => setLivePricesOpen(false)}>
+          <section className="modal live-price-modal" role="dialog" aria-modal="true" aria-label="Live price comparison" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-title">
+              <div>
+                <p className="eyebrow">Live comparison</p>
+                <h2>All available price sources</h2>
+                <p>{livePrices.message}</p>
+              </div>
+              <button type="button" onClick={() => setLivePricesOpen(false)} aria-label="Close live price comparison">×</button>
+            </div>
+            <div className={livePrices.premium_required || !livePrices.configured ? 'hint' : 'live-price-scroll-list'}>
+              {livePrices.results.length > 0 ? livePrices.results.map((row, index) => (
+                <a key={`${row.item}-${row.retailer}-${index}`} href={row.source_url || '#'} target="_blank" rel="noreferrer" className="store-result-card live-price-result-card">
+                  <span>{row.item} • {row.banner || row.store_name || row.retailer || 'Store'}</span>
+                  <small>
+                    {(row.sale_price ?? row.price) != null ? money(row.sale_price ?? row.price, livePrices.currency_code) : 'Price unavailable'}
+                    {row.unit_price ? ` • ${row.unit_price}` : ''}
+                    {row.match_confidence ? ` • ${row.match_confidence}` : ''}
+                    {row.scraped_at ? ` • updated ${new Date(row.scraped_at).toLocaleDateString()}` : ''}
+                  </small>
+                </a>
+              )) : <p className="small-muted">No live price rows were returned. Saved receipt suggestions still work.</p>}
+            </div>
+            <button className="secondary full" type="button" onClick={() => compareCurrentList(true)} disabled={busy}>{busy ? 'Refreshing...' : 'Refresh live comparison'}</button>
+          </section>
         </div>
       )}
 
@@ -349,6 +368,8 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
                     {item.best_known_store
                       ? `${item.best_known_store} • ${money(item.best_known_price, suggestions.currency_code)}`
                       : 'No saved price yet'}
+                    {item.best_known_source ? ` • ${item.best_known_source}` : ''}
+                    {item.freshness_label ? ` • ${item.freshness_label}` : ''}
                     {item.savings_vs_current ? ` • save ${money(item.savings_vs_current, suggestions.currency_code)}` : ''}
                   </small>
                 </div>

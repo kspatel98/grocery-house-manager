@@ -207,7 +207,10 @@ class ProductOut(ProductBase):
     created_at: datetime
     updated_at: datetime
     is_low_stock: bool = False
+    is_out_of_stock: bool = False
     is_expiring_soon: bool = False
+    is_expired: bool = False
+    stock_status: str = "in_stock"
     store_prices: list[ProductStorePriceOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
@@ -596,6 +599,9 @@ class ShoppingItemSuggestionOut(BaseModel):
     current_price: float | None = None
     best_known_store: str | None = None
     best_known_price: float | None = None
+    best_known_source: str | None = None
+    best_known_recorded_at: datetime | None = None
+    freshness_label: str | None = None
     savings_vs_current: float | None = None
     message: str
 

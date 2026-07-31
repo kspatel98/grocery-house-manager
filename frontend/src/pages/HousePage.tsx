@@ -234,8 +234,10 @@ export default function HousePage() {
                     </div>
                   ) : null}
                   <div className="badges">
-                    {product.is_low_stock && <span className="badge warning">Low stock</span>}
-                    {product.is_expiring_soon && <span className="badge danger">Expiring soon</span>}
+                    {(product.is_out_of_stock || product.quantity <= 0) && <span className="badge danger">Out of stock</span>}
+                    {product.is_expired && <span className="badge danger">Expired</span>}
+                    {product.is_low_stock && !(product.is_out_of_stock || product.quantity <= 0) && <span className="badge warning">Low stock</span>}
+                    {product.is_expiring_soon && !product.is_expired && <span className="badge danger">Expiring soon</span>}
                   </div>
                   {product.notes && <p className="notes">{product.notes}</p>}
                 </div>
@@ -334,7 +336,7 @@ function displayUnitPrice(item: ReceiptLineItem) {
 function lineFromReceiptItem(item: ReceiptLineItem): ReviewLine {
   const productLine = item.line_type !== 'discount' && item.line_type !== 'tax' && item.line_type !== 'summary';
   const hasMatch = Boolean(item.matched_product_id);
-  const qty = item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : '1';
+  const qty = item.quantity !== null && item.quantity !== undefined && item.quantity > 0 ? String(item.quantity) : '1';
   const unit = item.line_unit || 'pcs';
   return {
     id: item.id,
@@ -606,6 +608,13 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
       <p>
         Upload a JPG or PNG receipt photo. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates price history.
       </p>
+      <div className="receipt-studio-hero">
+        <div className="receipt-hero-icon">🧾</div>
+        <div>
+          <strong>Smart scan + human review</strong>
+          <span>Quantity defaults to 1 when missing, duplicate product rows are combined, and weighted prices are saved correctly, like $1.50/kg for bananas.</span>
+        </div>
+      </div>
       <div className="receipt-flow-cards">
         <span><strong>1</strong> Upload receipt</span>
         <span><strong>2</strong> Review extracted rows</span>

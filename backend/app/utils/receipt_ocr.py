@@ -189,15 +189,15 @@ def _normalize_line(line: dict[str, Any], index: int) -> dict[str, Any]:
     tax = _as_float(line.get("tax") or line.get("tax_amount") or line.get("taxAmount"))
     confidence = _as_float(line.get("confidence") or line.get("ocr_confidence") or line.get("score"))
 
-    if quantity is None:
+    if quantity is None or quantity <= 0:
         quantity = measurement.get("quantity")
     if line_unit is None:
         line_unit = measurement.get("line_unit")
-    if unit_price is None:
+    if unit_price is None or unit_price <= 0:
         unit_price = measurement.get("unit_price")
 
     line_type = _line_type(line)
-    if line_type == "product" and quantity is None:
+    if line_type == "product" and (quantity is None or quantity <= 0):
         quantity = 1.0
     if line_type == "product" and line_unit is None:
         line_unit = "pcs"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import requests
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
@@ -286,19 +287,39 @@ def shopping_suggestions(
         )
         if not product:
             continue
-        prices = sorted(product.store_prices or [], key=lambda p: (float(p.price), p.store_name.lower()))
+        now = datetime.now(timezone.utc)
+        recent_cutoff = now - timedelta(days=21)
+        def aware(value):
+            if value is None:
+                return None
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        receipt_prices = [price for price in (product.store_prices or []) if str(price.source or "").startswith("receipt") and aware(price.recorded_at) and aware(price.recorded_at) >= recent_cutoff]
+        prices = sorted(receipt_prices or (product.store_prices or []), key=lambda p: (float(p.price), p.store_name.lower()))
         best = prices[0] if prices else None
         current_price = product.price
         current_store = product.store_name
         savings = None
+        source_label = None
+        freshness_label = None
         if best and current_price is not None:
             savings = round(max(float(current_price) - float(best.price), 0), 2)
         if best:
-            message = f"Best known saved price is {best.store_name}."
+            best_recorded = aware(best.recorded_at)
+            if str(best.source or "").startswith("receipt") and best_recorded and best_recorded >= recent_cutoff:
+                source_label = "Last receipt"
+                days = max((now - best_recorded).days, 0)
+                freshness_label = "today" if days == 0 else f"{days}d ago"
+            elif str(best.source or "").startswith("apify") or str(best.source or "").startswith("live"):
+                source_label = "Live compare"
+                freshness_label = "latest available"
+            else:
+                source_label = "Saved price"
+                freshness_label = "saved"
+            message = f"Suggested store: {best.store_name} at {float(best.price):.2f}. Source: {source_label}."
             if savings and savings > 0:
-                message += f" Estimated saving vs current product price: {savings:.2f}."
+                message += f" Save about {savings:.2f} vs current product price."
         else:
-            message = "No saved store-price history yet. Upload receipts or save prices to improve suggestions."
+            message = "No recent receipt price yet. Upload a receipt or use live comparison to improve suggestions."
         suggestions.append(
             ShoppingItemSuggestionOut(
                 product_id=product.id,
@@ -308,6 +329,9 @@ def shopping_suggestions(
                 current_price=current_price,
                 best_known_store=best.store_name if best else None,
                 best_known_price=float(best.price) if best else None,
+                best_known_source=source_label,
+                best_known_recorded_at=best.recorded_at if best else None,
+                freshness_label=freshness_label,
                 savings_vs_current=savings,
                 message=message,
             )

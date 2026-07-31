@@ -40,8 +40,21 @@ def serialize_store_price(price: ProductStorePrice) -> ProductStorePriceOut:
 
 def serialize_product(product: Product) -> ProductOut:
     today = date.today()
-    is_low_stock = product.low_stock_threshold is not None and product.quantity <= product.low_stock_threshold
-    is_expiring_soon = bool(product.expiry_date and product.expiry_date <= today + timedelta(days=7))
+    quantity = float(product.quantity or 0)
+    is_out_of_stock = quantity <= 0
+    is_expired = bool(product.expiry_date and product.expiry_date < today)
+    is_low_stock = (not is_out_of_stock) and product.low_stock_threshold is not None and quantity <= product.low_stock_threshold
+    is_expiring_soon = bool(product.expiry_date and product.expiry_date >= today and product.expiry_date <= today + timedelta(days=7))
+    if is_out_of_stock:
+        stock_status = "out_of_stock"
+    elif is_expired:
+        stock_status = "expired"
+    elif is_low_stock:
+        stock_status = "low_stock"
+    elif is_expiring_soon:
+        stock_status = "expiring_soon"
+    else:
+        stock_status = "in_stock"
     return ProductOut(
         id=product.id,
         house_id=product.house_id,
@@ -62,7 +75,10 @@ def serialize_product(product: Product) -> ProductOut:
         created_at=product.created_at,
         updated_at=product.updated_at,
         is_low_stock=is_low_stock,
+        is_out_of_stock=is_out_of_stock,
         is_expiring_soon=is_expiring_soon,
+        is_expired=is_expired,
+        stock_status=stock_status,
         store_prices=[serialize_store_price(price) for price in sorted(product.store_prices, key=lambda p: (p.price, p.store_name.lower()))] if hasattr(product, "store_prices") and product.store_prices else [],
     )
 
@@ -104,6 +120,9 @@ def create_product(house_id: int, section_id: int, payload: ProductCreate, db: S
     section = db.query(Section).filter(Section.id == section_id, Section.house_id == house_id).first()
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
+    existing_product = find_existing_product(db, house_id, payload.name)
+    if existing_product and normalize_name_key(existing_product.name) == normalize_name_key(payload.name):
+        raise HTTPException(status_code=409, detail=f"{existing_product.name} already exists in this inventory. Edit the existing product or add it to your shopping list instead.")
     product = Product(house_id=house_id, section_id=section_id, **payload.model_dump())
     db.add(product)
     db.flush()
@@ -249,6 +268,153 @@ def match_product_for_line(description: str, products: list[Product]) -> tuple[P
         return None, best_score
     return best, best_score
 
+
+
+
+CATEGORY_KEYWORDS = [
+    ("Dairy", "🥛", ["milk", "cheese", "paneer", "yogurt", "yoghurt", "tofu", "cream", "butter", "egg", "eggs"]),
+    ("Fruits", "🍎", ["banana", "apple", "orange", "grape", "berry", "mango", "pear", "peach", "melon"]),
+    ("Vegetables", "🥦", ["tomato", "onion", "potato", "lettuce", "spinach", "pepper", "carrot", "cucumber", "broccoli"]),
+    ("Meat", "🥩", ["chicken", "beef", "pork", "fish", "salmon", "turkey", "meat"]),
+    ("Bakery", "🍞", ["bread", "bun", "bagel", "naan", "tortilla", "cake"]),
+    ("Pantry", "🥫", ["rice", "flour", "sugar", "oil", "pasta", "beans", "lentil", "cereal", "sauce", "spice"]),
+    ("Snacks", "🍿", ["chips", "cookie", "cookies", "snack", "chocolate", "candy", "cracker"]),
+    ("Frozen", "🧊", ["frozen", "ice cream", "fries", "pizza"]),
+    ("Household", "🧽", ["soap", "detergent", "tissue", "paper", "cleaner", "bag", "foil"]),
+]
+
+
+def normalize_name_key(value: str | None) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", " ", (value or "").lower())
+    tokens = [token for token in cleaned.split() if token not in {"op", "te", "st", "tr", "rf", "no", "item", "items"}]
+    return " ".join(tokens).strip()
+
+
+def find_existing_product(db: Session, house_id: int, name: str | None) -> Product | None:
+    key = normalize_name_key(name)
+    if not key:
+        return None
+    products = db.query(Product).filter(Product.house_id == house_id).all()
+    for product in products:
+        if normalize_name_key(product.name) == key:
+            return product
+    best, score = match_product_for_line(name or "", products)
+    return best if best and score >= 0.86 else None
+
+
+def guess_section_for_product(db: Session, house_id: int, name: str | None) -> Section:
+    text = normalize_name_key(name)
+    sections = db.query(Section).filter(Section.house_id == house_id).all()
+    by_name = {section.name.lower(): section for section in sections}
+    for section_name, icon, keywords in CATEGORY_KEYWORDS:
+        if any(keyword in text for keyword in keywords):
+            existing = by_name.get(section_name.lower())
+            if existing:
+                return existing
+            sort_order = (max([section.sort_order for section in sections], default=0) + 1)
+            section = Section(house_id=house_id, name=section_name, icon=icon, sort_order=sort_order)
+            db.add(section)
+            db.flush()
+            return section
+    return default_receipt_section(db, house_id)
+
+
+def _positive_quantity(value: object, default: float = 1.0) -> float:
+    try:
+        qty = float(value) if value is not None and value != "" else default
+    except (TypeError, ValueError):
+        qty = default
+    return qty if qty > 0 else default
+
+
+def _sum_optional(current: float | None, value: object) -> float | None:
+    if value is None or value == "":
+        return current
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return current
+    return round(float(current or 0) + amount, 3)
+
+
+def _receipt_group_key(description: str, matched_product: Product | None, unit: str | None) -> str:
+    if matched_product:
+        return f"product:{matched_product.id}"
+    return f"name:{normalize_name_key(description)}:{normalize_inventory_unit(unit or 'pcs')}"
+
+
+def aggregate_scan_lines(scan_lines: list[dict], products: list[Product]) -> list[dict]:
+    grouped: dict[str, dict] = {}
+    order: list[str] = []
+    for index, line in enumerate(scan_lines or []):
+        if not isinstance(line, dict):
+            continue
+        line_type = line.get("line_type") or "product"
+        description = str(line.get("description") or f"Receipt item {index + 1}").strip()[:500]
+        matched_product, match_score = match_product_for_line(description, products)
+        qty = _positive_quantity(line.get("quantity"), 1.0) if line_type == "product" else line.get("quantity")
+        unit = normalize_inventory_unit(line.get("line_unit") or "pcs") if line_type == "product" else line.get("line_unit")
+        key = _receipt_group_key(description, matched_product, unit) if line_type == "product" else f"{line_type}:{index}"
+        if key not in grouped:
+            row = dict(line)
+            row["description"] = matched_product.name if matched_product else description
+            row["normalized_name"] = matched_product.name if matched_product else (line.get("normalized_name") or description)
+            row["quantity"] = qty
+            row["line_unit"] = unit
+            row["matched_product"] = matched_product
+            row["match_score"] = match_score
+            row["_source_descriptions"] = [description]
+            grouped[key] = row
+            order.append(key)
+        else:
+            row = grouped[key]
+            row["quantity"] = round(_positive_quantity(row.get("quantity"), 1.0) + _positive_quantity(qty, 1.0), 3)
+            row["line_total"] = _sum_optional(row.get("line_total"), line.get("line_total"))
+            row["discount_amount"] = _sum_optional(row.get("discount_amount"), line.get("discount_amount"))
+            row["tax_amount"] = _sum_optional(row.get("tax_amount"), line.get("tax_amount"))
+            row["needs_review"] = bool(row.get("needs_review")) or bool(line.get("needs_review"))
+            if description not in row["_source_descriptions"]:
+                row["_source_descriptions"].append(description)
+    result: list[dict] = []
+    for sort_order, key in enumerate(order):
+        row = grouped[key]
+        qty = _positive_quantity(row.get("quantity"), 1.0) if row.get("line_type", "product") == "product" else row.get("quantity")
+        line_total = row.get("line_total")
+        discount = row.get("discount_amount") or 0
+        if (row.get("unit_price") is None or float(row.get("unit_price") or 0) <= 0) and line_total is not None and qty and float(qty) > 0:
+            row["unit_price"] = round(max((float(line_total) - float(discount or 0)) / float(qty), 0), 2)
+        row["quantity"] = qty
+        row["sort_order"] = sort_order
+        if len(row.get("_source_descriptions", [])) > 1:
+            row["description"] = f"{row['description']} ({len(row['_source_descriptions'])} receipt lines combined)"
+            row["needs_review"] = True
+        result.append(row)
+    return result
+
+
+def aggregate_review_lines(lines) -> list:
+    grouped: dict[str, object] = {}
+    order: list[str] = []
+    for index, line in enumerate(lines):
+        if not getattr(line, "is_selected", True) or getattr(line, "line_type", "product") != "product":
+            key = f"skip:{index}"
+        elif getattr(line, "product_id", None):
+            key = f"product:{line.product_id}"
+        else:
+            key = f"new:{normalize_name_key(line.new_product_name or line.description)}:{normalize_inventory_unit(line.line_unit or line.new_product_unit or 'pcs')}"
+        if key not in grouped:
+            grouped[key] = line.model_copy(deep=True)
+            order.append(key)
+        else:
+            existing = grouped[key]
+            existing.quantity = round(_positive_quantity(existing.quantity, 1.0) + _positive_quantity(line.quantity, 1.0), 3)
+            existing.line_total = _sum_optional(existing.line_total, line.line_total)
+            existing.discount_amount = _sum_optional(existing.discount_amount, line.discount_amount)
+            existing.tax_amount = _sum_optional(existing.tax_amount, line.tax_amount)
+            if not existing.unit_price and existing.line_total is not None and existing.quantity:
+                existing.unit_price = round(max((float(existing.line_total) - float(existing.discount_amount or 0)) / float(existing.quantity), 0), 2)
+            existing.description = f"{existing.description} ({_positive_quantity(existing.quantity, 1.0):g} total qty from combined receipt lines)"[:500]
+    return [grouped[key] for key in order]
 
 def serialize_receipt_line_item(item: ReceiptLineItem) -> ReceiptLineItemOut:
     return ReceiptLineItemOut(
@@ -527,29 +693,33 @@ def upload_receipt_file(
     db.add(receipt)
     db.flush()
 
+    aggregated_lines = aggregate_scan_lines(scan.get("line_items") or [], products)
     matched_count = 0
-    for index, line in enumerate(scan.get("line_items") or []):
-        matched_product, match_score = match_product_for_line(str(line.get("description") or ""), products)
+    for index, line in enumerate(aggregated_lines):
+        matched_product = line.get("matched_product")
+        match_score = line.get("match_score")
         if matched_product:
             matched_count += 1
+        line_type = line.get("line_type") or "product"
+        qty = _positive_quantity(line.get("quantity"), 1.0) if line_type == "product" else line.get("quantity")
         db.add(ReceiptLineItem(
             receipt_id=receipt.id,
             house_id=house_id,
             matched_product_id=matched_product.id if matched_product else None,
-            line_type=line.get("line_type") or "product",
+            line_type=line_type,
             description=str(line.get("description") or f"Receipt item {index + 1}")[:500],
             normalized_name=line.get("normalized_name"),
             sku=line.get("sku"),
             upc=line.get("upc"),
-            quantity=line.get("quantity") if line.get("quantity") is not None else 1,
-            line_unit=line.get("line_unit") or "pcs",
+            quantity=qty,
+            line_unit=normalize_inventory_unit(line.get("line_unit") or "pcs") if line_type == "product" else line.get("line_unit"),
             unit_price=line.get("unit_price"),
             discount_amount=line.get("discount_amount"),
             tax_amount=line.get("tax_amount"),
             line_total=line.get("line_total"),
             confidence=line.get("confidence") or match_score or None,
             needs_review=bool(line.get("needs_review", True)) or not matched_product,
-            is_selected=(line.get("line_type") or "product") == "product",
+            is_selected=line_type == "product",
             sort_order=index,
         ))
 
@@ -558,7 +728,7 @@ def upload_receipt_file(
         house_id=house_id,
         user=user,
         action="receipt_scanned",
-        message=f"Receipt scanned by {display_name(user)}. {len(scan.get('line_items') or [])} line item(s) are ready for review.",
+        message=f"Receipt scanned by {display_name(user)}. {len(aggregated_lines)} reviewed item row(s) are ready. Duplicate receipt lines were combined where possible.",
         entity_type="receipt",
         entity_id=receipt.id,
     )
@@ -610,7 +780,7 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
     updated_count = 0
     created_count = 0
     inventory_count = 0
-    for index, line in enumerate(payload.items):
+    for index, line in enumerate(aggregate_review_lines(payload.items)):
         item = by_id.get(line.id) if line.id else None
         if item is None:
             item = ReceiptLineItem(receipt_id=receipt.id, house_id=house_id, description=line.description, sort_order=index)
@@ -627,29 +797,33 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
         product: Product | None = None
         if product_id:
             product = db.query(Product).filter(Product.id == product_id, Product.house_id == house_id).first()
-        elif line.is_selected and line.line_type == "product" and line.create_product:
-            ensure_product_limit(db, house_id, user)
-            section = None
-            if line.new_product_section_id:
-                section = db.query(Section).filter(Section.id == line.new_product_section_id, Section.house_id == house_id).first()
-            if section is None:
-                section = default_receipt_section(db, house_id)
+        elif line.is_selected and line.line_type == "product":
             product_name = (line.new_product_name or line.description or "Receipt item").strip()[:180]
-            product = Product(
-                house_id=house_id,
-                section_id=section.id,
-                name=product_name,
-                icon="🧾",
-                quantity=0,
-                unit=line_unit,
-                price=price_for_history(qty, unit_price, line.line_total, line.discount_amount),
-                store_name=receipt.store_name or "Receipt store",
-                notes="Created from reviewed receipt item.",
-            )
-            db.add(product)
-            db.flush()
-            product_id = product.id
-            created_count += 1
+            product = find_existing_product(db, house_id, product_name)
+            if product:
+                product_id = product.id
+            elif line.create_product:
+                ensure_product_limit(db, house_id, user)
+                section = None
+                if line.new_product_section_id:
+                    section = db.query(Section).filter(Section.id == line.new_product_section_id, Section.house_id == house_id).first()
+                if section is None:
+                    section = guess_section_for_product(db, house_id, product_name)
+                product = Product(
+                    house_id=house_id,
+                    section_id=section.id,
+                    name=product_name,
+                    icon=section.icon or "🧾",
+                    quantity=0,
+                    unit=line_unit,
+                    price=price_for_history(qty, unit_price, line.line_total, line.discount_amount),
+                    store_name=receipt.store_name or "Receipt store",
+                    notes="Created from reviewed receipt item.",
+                )
+                db.add(product)
+                db.flush()
+                product_id = product.id
+                created_count += 1
 
         item.description = line.description.strip()
         item.normalized_name = (line.new_product_name or line.description).strip()[:220]
