@@ -50,6 +50,11 @@ function smartSectionId(name: string, sections: Section[]): number | '' {
   return sections[0]?.id || '';
 }
 
+function formatShortDate(timestamp: number) {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 function suggestedPrice(product: Product) {
   const prices = product.store_prices || [];
   if (!prices.length) return null;
@@ -57,19 +62,40 @@ function suggestedPrice(product: Product) {
   const maxAgeMs = 21 * 24 * 60 * 60 * 1000;
   const withTime = prices.map((entry) => ({ ...entry, time: new Date(entry.recorded_at).getTime() || 0 }));
   const recentReceipt = withTime
-    .filter((entry) => entry.source?.startsWith('receipt') && now - entry.time <= maxAgeMs)
+    .filter((entry) => entry.source?.startsWith('receipt') && entry.time && now - entry.time <= maxAgeMs)
     .sort((a, b) => a.price - b.price || b.time - a.time)[0];
   const live = withTime
     .filter((entry) => entry.source?.includes('live') || entry.source?.includes('apify'))
     .sort((a, b) => a.price - b.price || b.time - a.time)[0];
-  const bestSaved = withTime.sort((a, b) => a.price - b.price || b.time - a.time)[0];
+  const bestSaved = [...withTime].sort((a, b) => a.price - b.price || b.time - a.time)[0];
   const chosen = recentReceipt || live || bestSaved;
   if (!chosen) return null;
-  let label = 'Saved history';
-  if (chosen.source?.startsWith('receipt') && now - chosen.time <= maxAgeMs) label = 'Last receipt';
-  if (chosen.source?.includes('live') || chosen.source?.includes('apify')) label = 'Live compare';
+  let label = 'Saved price';
+  let icon = '🏷️';
+  if (chosen.source?.startsWith('receipt') && chosen.time && now - chosen.time <= maxAgeMs) {
+    label = 'Receipt price';
+    icon = '🧾';
+  }
+  if (chosen.source?.includes('live') || chosen.source?.includes('apify')) {
+    label = 'Live compare';
+    icon = '⚡';
+  }
   const days = chosen.time ? Math.max(Math.floor((now - chosen.time) / (24 * 60 * 60 * 1000)), 0) : null;
-  return { store: chosen.store_name, price: chosen.price, label, days };
+  const dateLabel = chosen.time ? formatShortDate(chosen.time) : '';
+  return { store: chosen.store_name, price: chosen.price, label, icon, days, dateLabel };
+}
+
+function SuggestedPriceBadge({ suggestion, unit, prefix = 'Suggested' }: { suggestion: ReturnType<typeof suggestedPrice>; unit: string; prefix?: string }) {
+  if (!suggestion) return <span className="store-suggestion-badge muted">No recent price yet</span>;
+  const dateText = suggestion.label === 'Receipt price' && suggestion.dateLabel ? ` • ${suggestion.dateLabel}` : '';
+  const daysText = suggestion.label === 'Receipt price' && suggestion.days !== null ? ` • ${suggestion.days}d old` : '';
+  return (
+    <span className={`store-suggestion-badge graphical-source-badge ${suggestion.label === 'Live compare' ? 'live' : suggestion.label === 'Receipt price' ? 'receipt' : 'saved'}`}>
+      <strong>{suggestion.icon} {prefix}: {suggestion.store}</strong>
+      <span>{money(suggestion.price)} / {unit || 'unit'}</span>
+      <em>{suggestion.label}{dateText}{daysText}</em>
+    </span>
+  );
 }
 
 function stockBadge(product: Product) {
@@ -415,7 +441,7 @@ function ProductPicker({ houseId, sections, products, selection, onToggle, onUpd
               </label>
               <div className="shopping-suggestion-badges">
                 {stockBadge(product)}
-                {suggestion && <span className="store-suggestion-badge">{suggestion.store} • {money(suggestion.price)} / {product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label.includes('Last receipt') ? ` • ${suggestion.days}d ago` : ''}</em></span>}
+                {suggestion && <SuggestedPriceBadge suggestion={suggestion} unit={product.unit || 'unit'} />}
               </div>
               {selected && (
                 <div className="pick-extra">
@@ -493,9 +519,7 @@ function ShoppingRow({ item, onUpdate, onStatusChange, onRemove }: { item: Shopp
       </label>
       <div className="shopping-suggestion-badges cart-suggestion-badges">
         {stockBadge(item.product)}
-        {suggestion ? (
-          <span className="store-suggestion-badge">Suggested: {suggestion.store} • {money(suggestion.price)} / {item.product.unit || 'unit'} <em>{suggestion.label}{suggestion.days !== null && suggestion.label.includes('Last receipt') ? ` • ${suggestion.days}d ago` : ''}</em></span>
-        ) : <span className="store-suggestion-badge muted">No recent price yet</span>}
+        <SuggestedPriceBadge suggestion={suggestion} unit={item.product.unit || 'unit'} />
       </div>
       <div className="cart-grid">
         <label>Need<input type="number" min="0.01" step="0.01" value={item.requested_quantity} onChange={(e) => onUpdate(item, { requested_quantity: Number(e.target.value) })} /></label>

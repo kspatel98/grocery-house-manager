@@ -532,7 +532,16 @@ def apply_receipt_inventory_update(product: Product, *, quantity: float | None, 
     product.last_bought_at = datetime.now(timezone.utc)
 
 
-def upsert_store_price(db: Session, *, house_id: int, product: Product, store_name: str, price: float, source: str, receipt_id: int, user_id: int) -> None:
+def receipt_price_datetime(receipt: Receipt) -> datetime:
+    if receipt.receipt_date:
+        return datetime.combine(receipt.receipt_date, datetime.min.time(), tzinfo=timezone.utc)
+    return receipt.created_at if receipt.created_at and receipt.created_at.tzinfo else datetime.now(timezone.utc)
+
+
+def upsert_store_price(db: Session, *, house_id: int, product: Product, store_name: str, price: float, source: str, receipt_id: int, user_id: int, recorded_at: datetime | None = None) -> None:
+    price_date = recorded_at or datetime.now(timezone.utc)
+    if price_date.tzinfo is None:
+        price_date = price_date.replace(tzinfo=timezone.utc)
     existing = db.query(ProductStorePrice).filter(
         ProductStorePrice.product_id == product.id,
         ProductStorePrice.store_name == store_name,
@@ -542,7 +551,7 @@ def upsert_store_price(db: Session, *, house_id: int, product: Product, store_na
         existing.source = source
         existing.receipt_id = receipt_id
         existing.recorded_by_id = user_id
-        existing.recorded_at = datetime.now(timezone.utc)
+        existing.recorded_at = price_date
     else:
         db.add(ProductStorePrice(
             house_id=house_id,
@@ -552,10 +561,11 @@ def upsert_store_price(db: Session, *, house_id: int, product: Product, store_na
             source=source,
             receipt_id=receipt_id,
             recorded_by_id=user_id,
+            recorded_at=price_date,
         ))
     product.price = price
     product.store_name = store_name
-    product.last_bought_at = datetime.now(timezone.utc)
+    product.last_bought_at = price_date
 
 
 @router.get("/receipts", response_model=list[ReceiptOut])
@@ -598,7 +608,7 @@ def create_receipt(house_id: int, payload: ReceiptCreate, db: Session = Depends(
         if not product:
             raise HTTPException(status_code=400, detail=f"Product {line.product_id} does not belong to this house")
         store = (line.store_name or payload.store_name or product.store_name or "Unknown store").strip()
-        upsert_store_price(db, house_id=house_id, product=product, store_name=store, price=line.price, source="receipt", receipt_id=receipt.id, user_id=user.id)
+        upsert_store_price(db, house_id=house_id, product=product, store_name=store, price=line.price, source="receipt", receipt_id=receipt.id, user_id=user.id, recorded_at=receipt_price_datetime(receipt))
         db.add(ReceiptLineItem(
             receipt_id=receipt.id,
             house_id=house_id,
@@ -844,7 +854,7 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
         price = price_for_history(qty, unit_price, line.line_total, line.discount_amount)
         if price is None:
             continue
-        upsert_store_price(db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store", price=price, source="receipt_scan_reviewed", receipt_id=receipt.id, user_id=user.id)
+        upsert_store_price(db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store", price=price, source="receipt_scan_reviewed", receipt_id=receipt.id, user_id=user.id, recorded_at=receipt_price_datetime(receipt))
         updated_count += 1
         if line.update_inventory and not was_already_reviewed:
             apply_receipt_inventory_update(product, quantity=qty, line_unit=line_unit, store_name=receipt.store_name or "Receipt store", price=price)

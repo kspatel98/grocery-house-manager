@@ -601,7 +601,7 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
       <div className="panel-title-row">
         <div>
           <p className="eyebrow">Smart receipt studio</p>
-          <h2>Scan, review & save receipt prices</h2>
+          <h2>Scan receipts and save trusted prices</h2>
         </div>
         <span className="badge premium-badge">Professional scan</span>
       </div>
@@ -611,7 +611,7 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
       <div className="receipt-studio-hero">
         <div className="receipt-hero-icon">🧾</div>
         <div>
-          <strong>Smart scan + human review</strong>
+          <strong>Smart scan with your final approval</strong>
           <span>Quantity defaults to 1 when missing, duplicate product rows are combined, and weighted prices are saved correctly, like $1.50/kg for bananas.</span>
         </div>
       </div>
@@ -639,7 +639,7 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
         <label>Store name, optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
         <label>Attach receipt photo (JPG or PNG only)<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] || null; if (file && !['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) { setError('Please upload a JPG or PNG receipt image only.'); e.target.value = ''; setReceiptFile(null); return; } setError(''); setReceiptFile(file); }} /></label>
         <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything you want to remember about this receipt" /></label>
-        <button className="primary full" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt...' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt automatically'}</button>
+        <button className="primary full" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt...' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt'}</button>
       </div>
 
       {uploadResult ? (
@@ -681,22 +681,22 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
               const rowWillCreate = line.is_selected && line.line_type === 'product' && !line.product_id && line.create_product;
               return (
                 <div className={`receipt-line-row ${line.needs_review || rowWillCreate ? 'needs-review' : ''}`} key={`${line.id || 'new'}-${index}`}>
-                  <label className="inline-check"><input type="checkbox" checked={line.is_selected} onChange={(e) => updateReviewLine(index, { is_selected: e.target.checked })} /></label>
-                  <input value={line.description} onChange={(e) => updateReviewLine(index, { description: e.target.value, new_product_name: line.new_product_name || e.target.value })} placeholder="Product name" />
-                  <select value={line.product_id} onChange={(e) => updateReviewLine(index, { product_id: e.target.value ? Number(e.target.value) : '', create_product: !e.target.value, new_product_name: line.new_product_name || line.description })}>
+                  <div className="receipt-mobile-field save-field" data-label="Save"><label className="inline-check"><input type="checkbox" checked={line.is_selected} onChange={(e) => updateReviewLine(index, { is_selected: e.target.checked })} /><small>Save</small></label></div>
+                  <div className="receipt-mobile-field" data-label="Receipt item"><input value={line.description} onChange={(e) => updateReviewLine(index, { description: e.target.value, new_product_name: line.new_product_name || e.target.value })} placeholder="Product name" /></div>
+                  <div className="receipt-mobile-field" data-label="Match or create"><select value={line.product_id} onChange={(e) => updateReviewLine(index, { product_id: e.target.value ? Number(e.target.value) : '', create_product: !e.target.value, new_product_name: line.new_product_name || line.description })}>
                     <option value="">Create / no match</option>
                     {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                  </select>
-                  <input type="number" min="0" step="0.001" value={line.quantity} onChange={(e) => updateReviewLine(index, { quantity: e.target.value })} placeholder="1" />
-                  <input value={line.line_unit} onChange={(e) => updateReviewLine(index, { line_unit: e.target.value, new_product_unit: e.target.value })} placeholder="pcs/kg" />
-                  <input type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateReviewLine(index, { unit_price: e.target.value })} placeholder="$/unit" />
-                  <input type="number" min="0" step="0.01" value={line.line_total} onChange={(e) => updateReviewLine(index, { line_total: e.target.value })} placeholder="Total" />
-                  <input type="number" min="0" step="0.01" value={line.discount_amount} onChange={(e) => updateReviewLine(index, { discount_amount: e.target.value })} placeholder="0" />
-                  <label className="inline-check receipt-inventory-check"><input type="checkbox" checked={line.update_inventory} onChange={(e) => updateReviewLine(index, { update_inventory: e.target.checked })} /><small>Add</small></label>
-                  <div className="receipt-line-status">
+                  </select></div>
+                  <div className="receipt-mobile-field" data-label="Qty"><input type="number" min="0" step="0.001" value={line.quantity} onChange={(e) => updateReviewLine(index, { quantity: e.target.value })} placeholder="1" /></div>
+                  <div className="receipt-mobile-field" data-label="Unit"><input value={line.line_unit} onChange={(e) => updateReviewLine(index, { line_unit: e.target.value, new_product_unit: e.target.value })} placeholder="pcs/kg" /></div>
+                  <div className="receipt-mobile-field" data-label="Price/unit"><input type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateReviewLine(index, { unit_price: e.target.value })} placeholder="$/unit" /></div>
+                  <div className="receipt-mobile-field" data-label="Line total"><input type="number" min="0" step="0.01" value={line.line_total} onChange={(e) => updateReviewLine(index, { line_total: e.target.value })} placeholder="Total" /></div>
+                  <div className="receipt-mobile-field" data-label="Discount"><input type="number" min="0" step="0.01" value={line.discount_amount} onChange={(e) => updateReviewLine(index, { discount_amount: e.target.value })} placeholder="0" /></div>
+                  <div className="receipt-mobile-field" data-label="Inventory"><label className="inline-check receipt-inventory-check"><input type="checkbox" checked={line.update_inventory} onChange={(e) => updateReviewLine(index, { update_inventory: e.target.checked })} /><small>Update inventory</small></label></div>
+                  <div className="receipt-mobile-field status-field" data-label="Status"><div className="receipt-line-status">
                     <span className={rowWillCreate ? 'badge create' : line.needs_review || !line.product_id ? 'badge warn' : 'badge ok'}>{rowWillCreate ? 'Create' : !line.product_id ? 'Match' : confidenceLabel(line.confidence)}</span>
                     <button className="ghost tiny" type="button" onClick={() => removeReviewLine(index)}>Remove</button>
-                  </div>
+                  </div></div>
                   {rowWillCreate && (
                     <div className="receipt-create-row">
                       <span className="small-muted"><strong>New inventory item</strong> will be created when you save this receipt.</span>
@@ -712,7 +712,7 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
               );
             })}
           </div>
-          <button className="primary full" type="button" onClick={saveReviewedReceipt} disabled={saveScanBusy || !reviewLines.length}>{saveScanBusy ? 'Saving reviewed receipt...' : 'Save reviewed receipt to price history'}</button>
+          <button className="primary full" type="button" onClick={saveReviewedReceipt} disabled={saveScanBusy || !reviewLines.length}>{saveScanBusy ? 'Saving reviewed receipt...' : 'Save reviewed receipt'}</button>
         </div>
       ) : null}
 
@@ -742,7 +742,7 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
           <div className="receipt-history-title">
             <div>
               <strong>Saved receipt history</strong>
-              <span>Open any receipt to review the saved store, totals, extracted rows, matched products, and price-history content.</span>
+              <span>Open any receipt to review the saved store, totals, extracted rows, matched products, and saved receipt details.</span>
             </div>
             <span className="badge">{receipts.length} saved</span>
           </div>
@@ -756,6 +756,12 @@ function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { hou
                   </span>
                   <span className="receipt-history-total">{receipt.total_amount ? money(receipt.total_amount) : `${receipt.line_items?.length || 0} rows`}</span>
                 </summary>
+                {receipt.image_url && (
+                  <div className="receipt-history-photo-wrap">
+                    <img src={receipt.image_url} alt={`${receipt.store_name || 'Receipt'} uploaded receipt`} />
+                    <span>Uploaded receipt photo</span>
+                  </div>
+                )}
                 <div className="receipt-history-meta">
                   <span><strong>Subtotal</strong>{receipt.subtotal_amount !== null && receipt.subtotal_amount !== undefined ? money(receipt.subtotal_amount) : '-'}</span>
                   <span><strong>Discount</strong>{receipt.discount_amount ? `-${money(receipt.discount_amount)}` : '-'}</span>

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 import json
@@ -49,12 +49,41 @@ def _as_float(value: Any) -> float | None:
 
 
 def _as_date(value: Any) -> date | None:
+    """Parse OCR receipt dates safely.
+
+    Providers can return ISO dates or receipt-style values like 04/11/26.
+    We use the provider's ISO value first, then common receipt formats. Two-digit
+    years are treated as 20xx. The slash-date order follows TABSCANNER_DEFAULT_DATE_PARSING.
+    """
     if not value:
         return None
-    try:
-        return date.fromisoformat(str(value)[:10])
-    except ValueError:
+    text = str(value).strip()
+    if not text:
         return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        pass
+    match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", text)
+    if match:
+        first, second, year = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        if year < 100:
+            year += 2000
+        mode = (settings.tabscanner_default_date_parsing or "m/d").lower()
+        day, month = (first, second) if mode.startswith("d") else (second, first)
+        try:
+            return date(year, month, day)
+        except ValueError:
+            try:
+                return date(year, second, first)
+            except ValueError:
+                return None
+    for fmt in ("%b %d, %Y", "%B %d, %Y", "%d %b %Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
 
 
 def _string(value: Any) -> str | None:
