@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import logging
 import difflib
 import re
 import shutil
@@ -12,11 +13,12 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User
+from app.models import HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingListItem
 from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
 from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut, ReceiptDeleteOut
 
 router = APIRouter(prefix="/houses/{house_id}", tags=["products"])
+logger = logging.getLogger(__name__)
 
 SORT_FIELDS = {
     "name": Product.name,
@@ -919,7 +921,7 @@ def delete_receipt(house_id: int, receipt_id: int, db: Session = Depends(get_db)
     membership = require_house_member(house_id, user, db)
     receipt = (
         db.query(Receipt)
-        .options(joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product), joinedload(Receipt.price_entries))
+        .options(joinedload(Receipt.line_items), joinedload(Receipt.price_entries))
         .filter(Receipt.id == receipt_id, Receipt.house_id == house_id)
         .first()
     )
@@ -928,61 +930,115 @@ def delete_receipt(house_id: int, receipt_id: int, db: Session = Depends(get_db)
     if receipt.uploaded_by_id not in {None, user.id} and membership.role not in {HouseRole.owner, HouseRole.admin}:
         raise HTTPException(status_code=403, detail="Only the uploader, house owner, or house admin can delete this receipt.")
 
-    affected_products: dict[int, Product] = {}
+    image_path = _local_upload_path_from_url(receipt.image_url)
+    receipt_line_snapshots = []
+    for item in list(receipt.line_items or []):
+        receipt_line_snapshots.append({
+            "id": item.id,
+            "matched_product_id": item.matched_product_id,
+            "line_type": item.line_type,
+            "is_selected": item.is_selected,
+            "inventory_applied": bool(getattr(item, "inventory_applied", False)),
+            "inventory_quantity_applied": item.inventory_quantity_applied,
+            "quantity": item.quantity,
+            "created_product_from_receipt": bool(getattr(item, "created_product_from_receipt", False)),
+        })
+
     inventory_adjusted = 0
     products_deleted = 0
+    prices_deleted = 0
+    product_ids_to_refresh: set[int] = set()
+    product_ids_to_delete: set[int] = set()
 
-    for item in list(receipt.line_items or []):
-        product = item.matched_product
-        if not product and item.matched_product_id:
-            product = db.query(Product).filter(Product.id == item.matched_product_id, Product.house_id == house_id).first()
-        if not product or item.line_type != "product" or not item.is_selected:
-            continue
+    try:
+        # Roll inventory back first using a snapshot of receipt rows.
+        # This avoids foreign-key/order problems while still using the reviewed receipt data.
+        for item in receipt_line_snapshots:
+            product_id = item.get("matched_product_id")
+            if not product_id or item.get("line_type") != "product" or not item.get("is_selected"):
+                continue
+            product = db.query(Product).filter(Product.id == product_id, Product.house_id == house_id).first()
+            if not product:
+                continue
 
-        qty_to_remove = None
-        if getattr(item, "inventory_applied", False):
-            qty_to_remove = item.inventory_quantity_applied or item.quantity or 1.0
-        elif receipt.reviewed_at is not None:
-            # Backward compatibility for older reviewed receipts saved before inventory_applied was tracked.
-            qty_to_remove = item.quantity or 1.0
+            qty_to_remove = None
+            if item.get("inventory_applied"):
+                qty_to_remove = item.get("inventory_quantity_applied") or item.get("quantity") or 1.0
+            elif receipt.reviewed_at is not None:
+                # Backward compatibility for reviewed receipts saved before inventory_applied was tracked.
+                qty_to_remove = item.get("quantity") or 1.0
 
-        if qty_to_remove and qty_to_remove > 0:
-            product.quantity = round(max(float(product.quantity or 0) - float(qty_to_remove), 0), 3)
-            inventory_adjusted += 1
+            if qty_to_remove and float(qty_to_remove) > 0:
+                product.quantity = round(max(float(product.quantity or 0) - float(qty_to_remove), 0), 3)
+                inventory_adjusted += 1
 
-        was_created_by_this_receipt = bool(getattr(item, "created_product_from_receipt", False)) or "Created from reviewed receipt item." in (product.notes or "")
-        if was_created_by_this_receipt and float(product.quantity or 0) <= 0:
+            was_created_by_this_receipt = bool(item.get("created_product_from_receipt")) or "Created from reviewed receipt item." in (product.notes or "")
+            if was_created_by_this_receipt and float(product.quantity or 0) <= 0:
+                product_ids_to_delete.add(product.id)
+            else:
+                product_ids_to_refresh.add(product.id)
+
+        # Remove prices created by this receipt before refreshing current product prices.
+        prices_deleted = db.query(ProductStorePrice).filter(
+            ProductStorePrice.house_id == house_id,
+            ProductStorePrice.receipt_id == receipt.id,
+        ).delete(synchronize_session=False) or 0
+
+        for product_id in list(product_ids_to_refresh):
+            product = db.query(Product).filter(Product.id == product_id, Product.house_id == house_id).first()
+            if product:
+                _refresh_product_current_price(db, product, receipt.id)
+
+        # Explicit child cleanup makes deletion safe even if an older database was created
+        # before ON DELETE CASCADE/SET NULL constraints were applied.
+        db.query(ReceiptLineItem).filter(ReceiptLineItem.receipt_id == receipt.id).delete(synchronize_session=False)
+        db.query(ProductStorePrice).filter(ProductStorePrice.receipt_id == receipt.id).update({ProductStorePrice.receipt_id: None}, synchronize_session=False)
+
+        db.delete(receipt)
+        db.flush()
+
+        # Delete inventory products that were created only from this receipt and have no stock left.
+        for product_id in product_ids_to_delete:
+            product = db.query(Product).filter(Product.id == product_id, Product.house_id == house_id).first()
+            if not product:
+                continue
+            # Avoid FK issues in older databases by explicitly deleting related rows first.
+            db.query(ProductStorePrice).filter(ProductStorePrice.product_id == product.id).delete(synchronize_session=False)
+            db.query(ShoppingListItem).filter(ShoppingListItem.product_id == product.id).delete(synchronize_session=False)
             db.delete(product)
             products_deleted += 1
-        else:
-            affected_products[product.id] = product
 
-    prices_deleted = db.query(ProductStorePrice).filter(ProductStorePrice.house_id == house_id, ProductStorePrice.receipt_id == receipt.id).delete(synchronize_session=False)
-    for product in affected_products.values():
-        _refresh_product_current_price(db, product, receipt.id)
+        log_activity(
+            db,
+            house_id=house_id,
+            user=user,
+            action="receipt_deleted",
+            message=f"Receipt deleted by {display_name(user)}. Inventory was adjusted for {inventory_adjusted} item(s).",
+            entity_type="receipt",
+            entity_id=receipt_id,
+        )
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Receipt delete failed", extra={"house_id": house_id, "receipt_id": receipt_id, "user_id": user.id})
+        raise HTTPException(
+            status_code=500,
+            detail="We could not delete this receipt safely. Please refresh and try again. If it still fails, contact support.",
+        ) from exc
 
-    image_path = _local_upload_path_from_url(receipt.image_url)
-    db.delete(receipt)
-    log_activity(
-        db,
-        house_id=house_id,
-        user=user,
-        action="receipt_deleted",
-        message=f"Receipt deleted by {display_name(user)}. Inventory was adjusted for {inventory_adjusted} item(s).",
-        entity_type="receipt",
-        entity_id=receipt_id,
-    )
-    db.commit()
     if image_path:
-        image_path.unlink(missing_ok=True)
+        try:
+            image_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Receipt image file could not be removed", extra={"path": str(image_path), "receipt_id": receipt_id})
+
     return ReceiptDeleteOut(
         ok=True,
         message="Receipt deleted. Related receipt rows, receipt prices, and the uploaded photo were removed. Inventory was adjusted where this receipt had updated stock.",
         inventory_adjusted=inventory_adjusted,
         products_deleted=products_deleted,
-        prices_deleted=prices_deleted or 0,
+        prices_deleted=prices_deleted,
     )
-
 
 @router.delete("/products/{product_id}")
 def delete_product(house_id: int, product_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
