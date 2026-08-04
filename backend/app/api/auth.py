@@ -9,10 +9,10 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.api.activity_utils import display_name, log_activity
-from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordHistory, PasswordResetCode, User, Receipt, ProductStorePrice, PlanName
+from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordHistory, PasswordResetCode, RegistrationVerificationCode, User, Receipt, ProductStorePrice, PlanName
 from app.utils.location import currency_for_country, normalize_country
-from app.utils.emailer import email_configured, send_password_reset_code
-from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, ForgotPasswordRequestIn, ForgotPasswordRequestOut, ForgotPasswordResetIn, ForgotPasswordVerifyIn, ForgotPasswordVerifyOut, GoogleLoginIn, LoginIn, PasswordChangeIn, RegisterIn, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
+from app.utils.emailer import email_configured, send_password_reset_code, send_account_confirmation_code
+from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, ForgotPasswordRequestIn, ForgotPasswordRequestOut, ForgotPasswordResetIn, ForgotPasswordVerifyIn, ForgotPasswordVerifyOut, GoogleLoginIn, LoginIn, PasswordChangeIn, RegisterConfirmIn, RegisterIn, RegisterRequestOut, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -65,6 +65,34 @@ def reset_code_message() -> str:
 
 def generate_reset_code() -> str:
     return f"{secrets.randbelow(1000000):06d}"
+
+
+
+
+def find_matching_registration_code(db: Session, email: str, code: str) -> RegistrationVerificationCode | None:
+    now = datetime.now(timezone.utc)
+    records = (
+        db.query(RegistrationVerificationCode)
+        .filter(
+            RegistrationVerificationCode.email == email.lower(),
+            RegistrationVerificationCode.used_at.is_(None),
+            RegistrationVerificationCode.expires_at >= now,
+            RegistrationVerificationCode.attempts < 5,
+        )
+        .order_by(RegistrationVerificationCode.created_at.desc(), RegistrationVerificationCode.id.desc())
+        .limit(5)
+        .all()
+    )
+    clean_code = code.strip()
+    for record in records:
+        try:
+            if verify_password(clean_code, record.code_hash):
+                return record
+        except Exception:
+            continue
+        record.attempts = int(record.attempts or 0) + 1
+    db.commit()
+    return None
 
 
 def find_matching_reset_code(db: Session, user: User, code: str) -> PasswordResetCode | None:
@@ -128,25 +156,83 @@ def issue_token(user: User) -> TokenOut:
     return TokenOut(access_token=token, user=user_out(user))
 
 
-@router.post("/register", response_model=TokenOut)
-def register(payload: RegisterIn, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == payload.email.lower()).first()
+@router.post("/register/request", response_model=RegisterRequestOut)
+def request_registration(payload: RegisterIn, db: Session = Depends(get_db)):
+    email = payload.email.lower().strip()
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(
-        full_name=payload.full_name,
-        email=payload.email.lower(),
-        password_hash=get_password_hash(payload.password),
-        auth_provider=AuthProvider.email,
+        raise HTTPException(status_code=400, detail="This email is already registered. Please log in or reset your password.")
+    if not email_configured() and (settings.environment or "development").lower() == "production":
+        raise HTTPException(status_code=503, detail="Account confirmation email is not available right now. Please try again later or contact support@grocery-house-manager.com.")
+
+    code = generate_reset_code()
+    db.query(RegistrationVerificationCode).filter(
+        RegistrationVerificationCode.email == email,
+        RegistrationVerificationCode.used_at.is_(None),
+    ).delete(synchronize_session=False)
+    pending = RegistrationVerificationCode(
+        email=email,
+        full_name=payload.full_name.strip(),
         country=normalize_country(payload.country),
         city=normalize_country(payload.city),
+        password_hash=get_password_hash(payload.password),
+        code_hash=get_password_hash(code),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+    )
+    db.add(pending)
+    db.commit()
+
+    sent = False
+    try:
+        sent = send_account_confirmation_code(email, payload.full_name, code)
+    except Exception:
+        sent = False
+    debug_code = None
+    if not sent:
+        if (settings.environment or "development").lower() != "production":
+            debug_code = code
+        else:
+            raise HTTPException(status_code=503, detail="We could not send the account confirmation code right now. Please try again in a few minutes or contact support@grocery-house-manager.com.")
+
+    return RegisterRequestOut(ok=True, message="We sent a confirmation code to your email. Enter the code to finish creating your account.", debug_code=debug_code)
+
+
+@router.post("/register/confirm", response_model=TokenOut)
+def confirm_registration(payload: RegisterConfirmIn, db: Session = Depends(get_db)):
+    email = payload.email.lower().strip()
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="This email is already registered. Please log in.")
+    record = find_matching_registration_code(db, email, payload.code)
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired confirmation code.")
+    user = User(
+        full_name=record.full_name,
+        email=email,
+        password_hash=record.password_hash,
+        auth_provider=AuthProvider.email,
+        country=record.country,
+        city=record.city,
     )
     db.add(user)
     db.flush()
     remember_password_hash(db, user, user.password_hash)
+    record.used_at = datetime.now(timezone.utc)
+    db.query(RegistrationVerificationCode).filter(
+        RegistrationVerificationCode.email == email,
+        RegistrationVerificationCode.id != record.id,
+        RegistrationVerificationCode.used_at.is_(None),
+    ).delete(synchronize_session=False)
     db.commit()
     db.refresh(user)
     return issue_token(user)
+
+
+@router.post("/register")
+def register(payload: RegisterIn, db: Session = Depends(get_db)):
+    # Email/password accounts must be confirmed before they are created.
+    request_registration(payload, db)
+    return {"ok": True, "message": "We sent a confirmation code to your email. Enter the code to finish creating your account."}
 
 
 @router.post("/login", response_model=TokenOut)

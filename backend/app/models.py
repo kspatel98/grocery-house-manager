@@ -69,6 +69,7 @@ class User(Base):
     receipts: Mapped[list["Receipt"]] = relationship(back_populates="uploaded_by")
     price_entries: Mapped[list["ProductStorePrice"]] = relationship(back_populates="recorded_by")
     password_reset_codes: Mapped[list["PasswordResetCode"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    registration_verification_codes: Mapped[list["RegistrationVerificationCode"]] = relationship(back_populates="existing_user", cascade="all, delete-orphan")
     password_history: Mapped[list["PasswordHistory"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
@@ -95,6 +96,25 @@ class PasswordResetCode(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     user: Mapped[User] = relationship(back_populates="password_reset_codes")
+
+
+class RegistrationVerificationCode(Base):
+    __tablename__ = "registration_verification_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    full_name: Mapped[str] = mapped_column(String(255))
+    country: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    code_hash: Mapped[str] = mapped_column(String(255))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    existing_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    existing_user: Mapped[User | None] = relationship(back_populates="registration_verification_codes")
 
 
 class House(Base):
@@ -267,6 +287,10 @@ class ReceiptLineItem(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     needs_review: Mapped[bool] = mapped_column(Boolean, default=True)
     is_selected: Mapped[bool] = mapped_column(Boolean, default=True)
+    inventory_applied: Mapped[bool] = mapped_column(Boolean, default=False)
+    inventory_quantity_applied: Mapped[float | None] = mapped_column(Float, nullable=True)
+    inventory_unit_applied: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_product_from_receipt: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 

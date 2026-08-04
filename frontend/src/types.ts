@@ -195,6 +195,10 @@ export type ReceiptLineItem = {
   is_selected: boolean;
   matched_product_id?: number | null;
   matched_product_name?: string | null;
+  inventory_applied?: boolean;
+  inventory_quantity_applied?: number | null;
+  inventory_unit_applied?: string | null;
+  created_product_from_receipt?: boolean;
 };
 
 export type Receipt = {

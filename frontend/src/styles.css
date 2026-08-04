@@ -4099,3 +4099,44 @@ button:hover {
     transition-duration: .01ms !important;
   }
 }
+
+/* v43: confirmation registration and receipt delete polish */
+.account-confirm-card {
+  border: 1px solid rgba(13, 92, 63, .18);
+  border-radius: 24px;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ffffff, #f2fff7);
+}
+.receipt-delete-button {
+  width: 100%;
+  margin-top: .85rem;
+  border-radius: 18px;
+  justify-content: center;
+}
+.receipt-detail-summary .receipt-delete-button {
+  box-shadow: 0 12px 28px rgba(220, 38, 38, .12);
+}
+.market-price-table td,
+.market-price-table th {
+  vertical-align: top;
+}
+.market-tool-card .hint,
+.market-tool-card .market-results {
+  max-width: 100%;
+  overflow: hidden;
+}
+@media (max-width: 760px) {
+  .market-table-wrap {
+    max-height: 70vh;
+    overflow: auto;
+    border: 1px solid var(--ghm-line);
+    border-radius: 20px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .market-price-table {
+    min-width: 760px;
+  }
+  .receipt-delete-button {
+    min-height: 48px;
+  }
+}

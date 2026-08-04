@@ -12,9 +12,9 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User
+from app.models import HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User
 from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
-from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut
+from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut, ReceiptDeleteOut
 
 router = APIRouter(prefix="/houses/{house_id}", tags=["products"])
 
@@ -435,6 +435,10 @@ def serialize_receipt_line_item(item: ReceiptLineItem) -> ReceiptLineItemOut:
         is_selected=item.is_selected,
         matched_product_id=item.matched_product_id,
         matched_product_name=item.matched_product.name if item.matched_product else None,
+        inventory_applied=bool(getattr(item, "inventory_applied", False)),
+        inventory_quantity_applied=getattr(item, "inventory_quantity_applied", None),
+        inventory_unit_applied=getattr(item, "inventory_unit_applied", None),
+        created_product_from_receipt=bool(getattr(item, "created_product_from_receipt", False)),
     )
 
 
@@ -805,6 +809,7 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
 
         product_id = line.product_id
         product: Product | None = None
+        product_created_for_line = False
         if product_id:
             product = db.query(Product).filter(Product.id == product_id, Product.house_id == house_id).first()
         elif line.is_selected and line.line_type == "product":
@@ -833,6 +838,7 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
                 db.add(product)
                 db.flush()
                 product_id = product.id
+                product_created_for_line = True
                 created_count += 1
 
         item.description = line.description.strip()
@@ -847,6 +853,8 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
         item.is_selected = line.is_selected
         item.sort_order = index
         item.matched_product_id = product_id
+        if product_created_for_line:
+            item.created_product_from_receipt = True
         item.needs_review = not (line.is_selected and product_id and (unit_price is not None or line.line_total is not None))
 
         if not line.is_selected or line.line_type != "product" or not product:
@@ -858,6 +866,9 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
         updated_count += 1
         if line.update_inventory and not was_already_reviewed:
             apply_receipt_inventory_update(product, quantity=qty, line_unit=line_unit, store_name=receipt.store_name or "Receipt store", price=price)
+            item.inventory_applied = True
+            item.inventory_quantity_applied = qty
+            item.inventory_unit_applied = line_unit
             inventory_count += 1
 
     log_activity(
@@ -872,6 +883,105 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
     db.commit()
     refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries), joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product)).filter(Receipt.id == receipt.id).first()
     return serialize_receipt(refreshed)
+
+
+def _local_upload_path_from_url(image_url: str | None) -> Path | None:
+    if not image_url or not image_url.startswith("/uploads/"):
+        return None
+    relative = image_url.replace("/uploads/", "", 1).lstrip("/")
+    candidate = (Path(settings.upload_dir) / relative).resolve()
+    base = Path(settings.upload_dir).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _refresh_product_current_price(db: Session, product: Product, deleted_receipt_id: int) -> None:
+    remaining = (
+        db.query(ProductStorePrice)
+        .filter(ProductStorePrice.product_id == product.id, or_(ProductStorePrice.receipt_id.is_(None), ProductStorePrice.receipt_id != deleted_receipt_id))
+        .order_by(ProductStorePrice.recorded_at.desc(), ProductStorePrice.id.desc())
+        .first()
+    )
+    if remaining:
+        product.price = remaining.price
+        product.store_name = remaining.store_name
+        product.last_bought_at = remaining.recorded_at
+    else:
+        product.price = None
+        product.store_name = None
+
+
+@router.delete("/receipts/{receipt_id}", response_model=ReceiptDeleteOut)
+def delete_receipt(house_id: int, receipt_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    membership = require_house_member(house_id, user, db)
+    receipt = (
+        db.query(Receipt)
+        .options(joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product), joinedload(Receipt.price_entries))
+        .filter(Receipt.id == receipt_id, Receipt.house_id == house_id)
+        .first()
+    )
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    if receipt.uploaded_by_id not in {None, user.id} and membership.role not in {HouseRole.owner, HouseRole.admin}:
+        raise HTTPException(status_code=403, detail="Only the uploader, house owner, or house admin can delete this receipt.")
+
+    affected_products: dict[int, Product] = {}
+    inventory_adjusted = 0
+    products_deleted = 0
+
+    for item in list(receipt.line_items or []):
+        product = item.matched_product
+        if not product and item.matched_product_id:
+            product = db.query(Product).filter(Product.id == item.matched_product_id, Product.house_id == house_id).first()
+        if not product or item.line_type != "product" or not item.is_selected:
+            continue
+
+        qty_to_remove = None
+        if getattr(item, "inventory_applied", False):
+            qty_to_remove = item.inventory_quantity_applied or item.quantity or 1.0
+        elif receipt.reviewed_at is not None:
+            # Backward compatibility for older reviewed receipts saved before inventory_applied was tracked.
+            qty_to_remove = item.quantity or 1.0
+
+        if qty_to_remove and qty_to_remove > 0:
+            product.quantity = round(max(float(product.quantity or 0) - float(qty_to_remove), 0), 3)
+            inventory_adjusted += 1
+
+        was_created_by_this_receipt = bool(getattr(item, "created_product_from_receipt", False)) or "Created from reviewed receipt item." in (product.notes or "")
+        if was_created_by_this_receipt and float(product.quantity or 0) <= 0:
+            db.delete(product)
+            products_deleted += 1
+        else:
+            affected_products[product.id] = product
+
+    prices_deleted = db.query(ProductStorePrice).filter(ProductStorePrice.house_id == house_id, ProductStorePrice.receipt_id == receipt.id).delete(synchronize_session=False)
+    for product in affected_products.values():
+        _refresh_product_current_price(db, product, receipt.id)
+
+    image_path = _local_upload_path_from_url(receipt.image_url)
+    db.delete(receipt)
+    log_activity(
+        db,
+        house_id=house_id,
+        user=user,
+        action="receipt_deleted",
+        message=f"Receipt deleted by {display_name(user)}. Inventory was adjusted for {inventory_adjusted} item(s).",
+        entity_type="receipt",
+        entity_id=receipt_id,
+    )
+    db.commit()
+    if image_path:
+        image_path.unlink(missing_ok=True)
+    return ReceiptDeleteOut(
+        ok=True,
+        message="Receipt deleted. Related receipt rows, receipt prices, and the uploaded photo were removed. Inventory was adjusted where this receipt had updated stock.",
+        inventory_adjusted=inventory_adjusted,
+        products_deleted=products_deleted,
+        prices_deleted=prices_deleted or 0,
+    )
 
 
 @router.delete("/products/{product_id}")

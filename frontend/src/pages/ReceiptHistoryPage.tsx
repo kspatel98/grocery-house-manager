@@ -42,6 +42,7 @@ export default function ReceiptHistoryPage() {
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   async function loadReceipts() {
     try {
@@ -60,6 +61,30 @@ export default function ReceiptHistoryPage() {
       if (message.includes('not a member')) navigate('/houses');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function deleteReceipt(receipt: Receipt) {
+    const store = receipt.store_name || 'this receipt';
+    const confirmed = window.confirm(
+      `Delete ${store}? This will remove the receipt photo, extracted rows, saved prices from this receipt, and adjust inventory quantities that were added by this receipt. This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    try {
+      setDeletingId(receipt.id);
+      const { data } = await api.delete<{ ok: boolean; message: string; inventory_adjusted: number; products_deleted: number; prices_deleted: number }>(`/houses/${id}/receipts/${receipt.id}`);
+      setReceipts((current) => current.filter((item) => item.id !== receipt.id));
+      setSelectedId((current) => {
+        if (current !== receipt.id) return current;
+        const next = receipts.find((item) => item.id !== receipt.id);
+        return next?.id || null;
+      });
+      setError('');
+      window.alert(data.message || 'Receipt deleted successfully.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -167,6 +192,9 @@ export default function ReceiptHistoryPage() {
                     <span>Total</span>
                     <strong>{selectedReceipt.total_amount !== null && selectedReceipt.total_amount !== undefined ? money(selectedReceipt.total_amount) : 'Not saved'}</strong>
                   </div>
+                  <button className="danger receipt-delete-button" type="button" disabled={deletingId === selectedReceipt.id} onClick={() => deleteReceipt(selectedReceipt)}>
+                    {deletingId === selectedReceipt.id ? 'Deleting...' : 'Delete receipt'}
+                  </button>
                 </div>
               </div>
 

@@ -17,6 +17,12 @@ type ForgotRequestResponse = {
   debug_code?: string | null;
 };
 
+type RegisterRequestResponse = {
+  ok: boolean;
+  message: string;
+  debug_code?: string | null;
+};
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const [isRegister, setIsRegister] = useState(false);
@@ -37,6 +43,10 @@ export default function LoginPage() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [authBusy, setAuthBusy] = useState(false);
+  const [registerConfirmStep, setRegisterConfirmStep] = useState(false);
+  const [registerCode, setRegisterCode] = useState('');
+  const [registerMessage, setRegisterMessage] = useState('');
+  const [registerCooldown, setRegisterCooldown] = useState(0);
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
@@ -81,17 +91,47 @@ export default function LoginPage() {
     return () => window.clearInterval(timer);
   }, [resendCooldown]);
 
+  useEffect(() => {
+    if (registerCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setRegisterCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [registerCooldown]);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setLoginError("");
+    setRegisterMessage("");
     setResetMessage("");
     try {
       setAuthBusy(true);
-      const endpoint = isRegister ? "/auth/register" : "/auth/login";
-      const payload = isRegister
-        ? { full_name: fullName, email, password, country, city }
-        : { email, password };
-      const { data } = await api.post<AuthResponse>(endpoint, payload);
+      if (isRegister) {
+        const { data } = await api.post<RegisterRequestResponse>("/auth/register/request", { full_name: fullName, email, password, country, city });
+        setRegisterMessage(
+          data.debug_code
+            ? `${data.message} Dev code: ${data.debug_code}`
+            : `${data.message} Check your inbox, spam, and promotions folder.`,
+        );
+        setRegisterConfirmStep(true);
+        setRegisterCooldown(60);
+        return;
+      }
+      const { data } = await api.post<AuthResponse>("/auth/login", { email, password });
+      saveAuth(data);
+    } catch (err) {
+      setLoginError(errorMessage(err));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function confirmRegistration(event: React.FormEvent) {
+    event.preventDefault();
+    setLoginError("");
+    try {
+      setAuthBusy(true);
+      const { data } = await api.post<AuthResponse>("/auth/register/confirm", { email, code: registerCode });
       saveAuth(data);
     } catch (err) {
       setLoginError(errorMessage(err));
@@ -231,6 +271,25 @@ export default function LoginPage() {
             )}
 
             <div className="divider"><span>or</span></div>
+            {isRegister && registerConfirmStep ? (
+              <form onSubmit={confirmRegistration} className="stack account-confirm-card">
+                <div className="hint form-message">
+                  <strong>Check your email to finish registration.</strong><br />
+                  Enter the confirmation code sent to {email}. Your account will be created only after this step.
+                </div>
+                <label>
+                  Confirmation code
+                  <input inputMode="numeric" value={registerCode} onChange={(e) => setRegisterCode(e.target.value)} placeholder="6-digit code" required />
+                </label>
+                {registerMessage && <div className="success form-message">{registerMessage}</div>}
+                {loginError && <div className="error form-message">{loginError}</div>}
+                <button className="primary" disabled={authBusy}>{authBusy ? 'Creating account...' : 'Confirm and create account'}</button>
+                <button type="button" className="secondary" disabled={authBusy || registerCooldown > 0} onClick={submit as any}>
+                  {registerCooldown > 0 ? `Send new code in ${registerCooldown}s` : 'Send a new code'}
+                </button>
+                <button type="button" className="link-button" onClick={() => { setRegisterConfirmStep(false); setRegisterCode(''); setLoginError(''); }}>Edit registration details</button>
+              </form>
+            ) : (
             <form onSubmit={submit} className="stack">
               {isRegister && (
                 <>
@@ -259,13 +318,15 @@ export default function LoginPage() {
                 <input type="password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required />
               </label>
               {loginError && <div className="error form-message">{loginError}</div>}
+              {registerMessage && <div className="success form-message">{registerMessage}</div>}
               {resetMessage && <div className="success form-message">{resetMessage}</div>}
-              <button className="primary" type="submit" disabled={authBusy}>{authBusy ? "Please wait..." : isRegister ? "Create account" : "Login"}</button>
+              <button className="primary" type="submit" disabled={authBusy}>{authBusy ? "Please wait..." : isRegister ? "Send confirmation code" : "Login"}</button>
             </form>
+            )}
             {!isRegister && (
               <button className="link-button forgot-link" onClick={openForgotPassword}>Forgot password?</button>
             )}
-            <button className="link-button" onClick={() => { setIsRegister(!isRegister); setLoginError(""); }}>
+            <button className="link-button" onClick={() => { setIsRegister(!isRegister); setRegisterConfirmStep(false); setRegisterCode(''); setRegisterMessage(''); setLoginError(""); }}>
               {isRegister ? "Already have an account? Login" : "New here? Create account"}
             </button>
           </>

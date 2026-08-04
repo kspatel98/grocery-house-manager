@@ -292,6 +292,111 @@ def _send_password_reset_via_smtp(to_email: str, full_name: str | None, code: st
     return True
 
 
+def _account_confirmation_subject() -> str:
+    return "Confirm your Grocery House Manager account"
+
+
+def _account_confirmation_text(full_name: str | None, code: str) -> str:
+    greeting = full_name.strip() if full_name else "there"
+    return f"""Hi {greeting},
+
+Your Grocery House Manager account confirmation code is:
+
+{code}
+
+This code expires in 15 minutes. If you did not try to create an account, you can ignore this email.
+
+SupremDas Group
+Grocery House Manager
+"""
+
+
+def _account_confirmation_html(full_name: str | None, code: str) -> str:
+    greeting = full_name.strip() if full_name else "there"
+    return f"""
+<div style=\"font-family: Arial, sans-serif; color: #111827; line-height: 1.5;\">
+  <p>Hi {greeting},</p>
+  <p>Use this code to confirm your Grocery House Manager account:</p>
+  <div style=\"font-size: 28px; font-weight: 700; letter-spacing: 6px; background: #ecfdf5; color: #0d5c3f; padding: 14px 18px; border-radius: 10px; display: inline-block;\">{code}</div>
+  <p>This code expires in 15 minutes.</p>
+  <p>If you did not try to create an account, you can ignore this email.</p>
+  <p>SupremDas Group<br/>Grocery House Manager</p>
+</div>
+"""
+
+
+def _send_resend_email(to_email: str, subject: str, html: str, text: str) -> bool:
+    if not resend_configured():
+        logger.warning("Resend email is not fully configured. Missing: %s", ", ".join(smtp_status_details()["resend_missing"]))
+        return False
+    from_email = settings.resend_from_email or settings.smtp_from_email
+    from_name = settings.resend_from_name or settings.smtp_from_name or "Grocery House Manager"
+    payload = {
+        "from": _from_header(from_name, from_email),
+        "to": [to_email],
+        "subject": subject,
+        "html": html,
+        "text": text,
+    }
+    headers = {"Authorization": f"Bearer {settings.resend_api_key}", "Content-Type": "application/json"}
+    try:
+        response = requests.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=20)
+        if 200 <= response.status_code < 300:
+            logger.info("Email sent to %s using Resend API: %s", to_email, subject)
+            return True
+        logger.error("Resend email failed for %s: status=%s body=%s", to_email, response.status_code, response.text[:1000])
+        return False
+    except requests.RequestException as exc:
+        logger.exception("Resend email failed for %s: %s", to_email, exc)
+        return False
+
+
+def _send_smtp_email(to_email: str, subject: str, html: str, text: str) -> bool:
+    if not smtp_configured():
+        logger.warning("SMTP is not fully configured. Missing: %s", ", ".join(smtp_status_details()["smtp_missing"]))
+        return False
+    message = EmailMessage()
+    message["From"] = _from_header(settings.smtp_from_name, settings.smtp_from_email or "")
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(text)
+    message.add_alternative(html, subtype="html")
+    smtp_class = _smtp_client_class()
+    context = ssl.create_default_context()
+    try:
+        if settings.smtp_use_tls:
+            with smtp_class(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
+                smtp.ehlo(); smtp.starttls(context=context); smtp.ehlo()
+                smtp.login(settings.smtp_username, settings.smtp_password or "")
+                smtp.send_message(message)
+        else:
+            with smtp_class(settings.smtp_host, settings.smtp_port, timeout=30, context=context) as smtp:
+                smtp.login(settings.smtp_username, settings.smtp_password or "")
+                smtp.send_message(message)
+        logger.info("Email sent to %s using SMTP: %s", to_email, subject)
+        return True
+    except Exception as exc:
+        logger.exception(
+            "SMTP email failed for %s: %s | host=%s port=%s tls=%s force_ipv4=%s from=%s username=%s | hint=%s",
+            to_email, exc, settings.smtp_host, settings.smtp_port, settings.smtp_use_tls, settings.smtp_force_ipv4,
+            settings.smtp_from_email, settings.smtp_username, _network_hint(exc),
+        )
+        return False
+
+
+def send_account_confirmation_code(to_email: str, full_name: str | None, code: str) -> bool:
+    provider = email_provider()
+    subject = _account_confirmation_subject()
+    html = _account_confirmation_html(full_name, code)
+    text_body = _account_confirmation_text(full_name, code)
+    if provider == "resend":
+        return _send_resend_email(to_email, subject, html, text_body)
+    if provider == "smtp":
+        return _send_smtp_email(to_email, subject, html, text_body)
+    logger.error("Unsupported EMAIL_PROVIDER=%s. Use auto, resend, or smtp.", settings.email_provider)
+    return False
+
+
 def send_password_reset_code(to_email: str, full_name: str | None, code: str) -> bool:
     """Send a password reset verification code.
 

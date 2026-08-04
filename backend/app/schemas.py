@@ -44,6 +44,17 @@ class RegisterIn(BaseModel):
     city: str = Field(min_length=1, max_length=120)
 
 
+class RegisterRequestOut(BaseModel):
+    ok: bool = True
+    message: str
+    debug_code: str | None = None
+
+
+class RegisterConfirmIn(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=4, max_length=12)
+
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
@@ -371,6 +382,10 @@ class ReceiptLineItemOut(BaseModel):
     is_selected: bool = True
     matched_product_id: int | None = None
     matched_product_name: str | None = None
+    inventory_applied: bool = False
+    inventory_quantity_applied: float | None = None
+    inventory_unit_applied: str | None = None
+    created_product_from_receipt: bool = False
 
 
 class ReceiptOut(BaseModel):
@@ -440,6 +455,14 @@ class ReceiptUploadOut(BaseModel):
     matched_count: int = 0
     message: str
     scan_status: str = "review_ready"
+
+
+class ReceiptDeleteOut(BaseModel):
+    ok: bool = True
+    message: str
+    inventory_adjusted: int = 0
+    products_deleted: int = 0
+    prices_deleted: int = 0
 
 
 class ReceiptReviewLineIn(BaseModel):

@@ -8,7 +8,7 @@ const retailerLabels: Record<string, string> = {
   loblaws: 'Loblaws',
   superstore: 'Real Canadian Superstore',
   nofrills: 'No Frills',
-  saveonfoods: 'Save-On-Foods',
+  saveon: 'Save-On-Foods',
   pricesmart: 'PriceSmart Foods',
   tnt: 'T&T Supermarket',
 };
@@ -49,7 +49,7 @@ export default function MarketPage() {
   useEffect(() => { load(); }, []);
 
   const activeRetailers = useMemo(
-    () => capabilities?.supported_retailers?.length ? capabilities.supported_retailers : ['loblaws', 'superstore', 'nofrills', 'saveonfoods', 'pricesmart', 'tnt'],
+    () => capabilities?.supported_retailers?.length ? capabilities.supported_retailers : ['loblaws', 'superstore', 'nofrills', 'saveon', 'pricesmart', 'tnt'],
     [capabilities],
   );
 
@@ -180,7 +180,7 @@ export default function MarketPage() {
             </div>
             <span className="badge access-family">Family Plus+</span>
           </div>
-          <p>Compare a small basket across supported Canadian retailers. Saved results are reused for a short time so the page stays fast.</p>
+          <p>Compare a small basket across supported Canadian retailers. Saved results are reused for a short time so the page stays fast. Try a postal code if a city search returns no products.</p>
           <label>Location or postal code<input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Hamilton, ON or L8P" /></label>
           <label>Items, one per line<textarea value={itemsText} onChange={(e) => setItemsText(e.target.value)} rows={5} /></label>
           <div className="retailer-chip-grid">

@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.models import ExternalPriceCache
 from app.schemas import LivePriceResultOut, ProductLookupResultOut
 
-SUPPORTED_CANADA_RETAILERS = ["loblaws", "superstore", "nofrills", "saveonfoods", "pricesmart", "tnt"]
+SUPPORTED_CANADA_RETAILERS = ["loblaws", "superstore", "nofrills", "saveon", "pricesmart", "tnt"]
 
 
 def _headers() -> dict[str, str]:
@@ -122,14 +122,22 @@ def _make_cache_key(items: list[str], location: str | None, retailers: list[str]
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _looks_like_canadian_postal_code(value: str | None) -> bool:
+    if not value:
+        return False
+    compact = str(value).replace(" ", "").upper()
+    return len(compact) in {3, 6} and any(ch.isdigit() for ch in compact) and any(ch.isalpha() for ch in compact)
+
+
 def _normalize_retailers(retailers: list[str] | None) -> list[str]:
     if not retailers:
         return []
     normalized = []
     aliases = {
-        "saveon": "saveonfoods",
-        "save-on-foods": "saveonfoods",
-        "save on foods": "saveonfoods",
+        "saveonfoods": "saveon",
+        "saveon": "saveon",
+        "save-on-foods": "saveon",
+        "save on foods": "saveon",
         "no frills": "nofrills",
         "real canadian superstore": "superstore",
         "price smart": "pricesmart",
@@ -227,23 +235,37 @@ def compare_canadian_grocery_prices(
 
     actor_id = (settings.apify_canada_price_actor_id or "sunny_eternity/canada-grocery-price-comparison").replace("/", "~")
     url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items"
+    loc = (location or "Canada").strip()
     payload: dict[str, Any] = {
         "items": clean_items,
-        "location": location or "Canada",
+        "queries": clean_items,
+        "location": loc,
         "mode": settings.apify_price_output_mode or "comparison",
+        "output_mode": settings.apify_price_output_mode or "comparison",
     }
+    if _looks_like_canadian_postal_code(loc):
+        payload["postal_code"] = loc
+    elif loc and loc.lower() != "canada":
+        payload["region"] = loc
     if clean_retailers:
         payload["retailers"] = clean_retailers
 
     response = requests.post(
         url,
-        params={"token": settings.apify_api_token},
+        params={"token": settings.apify_api_token, "timeout": max(20, settings.apify_price_timeout_seconds)},
         json=payload,
-        headers={"Content-Type": "application/json"},
-        timeout=max(20, settings.apify_price_timeout_seconds),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        timeout=max(30, settings.apify_price_timeout_seconds + 15),
     )
     response.raise_for_status()
     raw_items = response.json()
+    if isinstance(raw_items, dict):
+        for key in ("items", "results", "comparison", "data"):
+            if isinstance(raw_items.get(key), list):
+                raw_items = raw_items[key]
+                break
+        else:
+            raw_items = [raw_items]
     if not isinstance(raw_items, list):
         raw_items = []
     rows = _flatten_apify_items(raw_items)
