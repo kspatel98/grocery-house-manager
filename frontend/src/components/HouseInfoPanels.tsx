@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Activity, HouseMember } from '../types';
 
 type MembersPanelProps = {
@@ -99,6 +99,16 @@ export function HouseMembersBar({ members, currentUserId, onOpen }: { members: H
 
 export function MembersDrawer({ open, onClose, members, currentUserId, houseRole, onRemoveMember, onCreateInvite, inviteUrl }: MembersDrawerProps) {
   const [query, setQuery] = useState('');
+  const drawerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => {
+      drawerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'end' });
+      drawerRef.current?.focus({ preventScroll: true });
+    });
+  }, [open]);
+
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return members;
@@ -109,7 +119,7 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
 
   return (
     <div className="side-drawer-backdrop" role="presentation" onClick={onClose}>
-      <aside className="side-drawer members-drawer" role="dialog" aria-modal="true" aria-label="House members" onClick={(event) => event.stopPropagation()}>
+      <aside ref={drawerRef} tabIndex={-1} className="side-drawer members-drawer action-focus-panel" role="dialog" aria-modal="true" aria-label="House members" onClick={(event) => event.stopPropagation()}>
         <div className="drawer-header">
           <div>
             <p className="eyebrow">House members</p>
@@ -148,14 +158,23 @@ function activityIcon(action: string) {
 
 export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]; onRefresh: () => void }) {
   const [showAll, setShowAll] = useState(false);
+  const modalRef = useRef<HTMLElement | null>(null);
   const recentActivities = useMemo(() => activities.slice(0, 5), [activities]);
+
+  useEffect(() => {
+    if (!showAll) return;
+    requestAnimationFrame(() => {
+      modalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      modalRef.current?.focus({ preventScroll: true });
+    });
+  }, [showAll]);
 
   return (
     <section className="panel activity-panel compact-activity-panel">
       <div className="panel-title-row">
         <div>
           <h2>Recent activity</h2>
-          <p>Latest updates from this house.</p>
+          <p>Quick updates from this house. Tap See all to open the full activity list.</p>
         </div>
         <button className="secondary" onClick={onRefresh}>Refresh</button>
       </div>
@@ -171,7 +190,7 @@ export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]
 
       {showAll && (
         <div className="modal-backdrop activity-modal-backdrop" onClick={() => setShowAll(false)}>
-          <section className="modal activity-modal" role="dialog" aria-modal="true" aria-label="All house activity" onClick={(event) => event.stopPropagation()}>
+          <section ref={modalRef} tabIndex={-1} className="modal activity-modal action-focus-panel" role="dialog" aria-modal="true" aria-label="All house activity" onClick={(event) => event.stopPropagation()}>
             <div className="modal-title">
               <div>
                 <p className="eyebrow">House activity</p>

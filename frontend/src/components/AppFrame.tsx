@@ -22,6 +22,10 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
+
+  useEffect(() => {
     let cancelled = false;
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -75,12 +79,12 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           <div>
             <strong>Grocery House Manager</strong>
             <p>
-              A household grocery inventory and shopping-list SaaS product from SupremDas Group.
+              Smart grocery management for organized homes.
             </p>
           </div>
           <div className="footer-brand-stack" aria-label="Company and product">
-            <span>Company: <strong>SupremDas Group</strong></span>
-            <span>Product: <strong>Grocery House Manager</strong></span>
+            <span>Built by <strong>SupremDas Group</strong></span>
+            <span>Made for <strong>families, couples, and roommates</strong></span>
           </div>
           <div className="footer-links">
             <Link to="/about">About</Link>

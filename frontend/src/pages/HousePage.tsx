@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
@@ -33,6 +33,19 @@ export default function HousePage() {
   const [error, setError] = useState('');
   const [membersOpen, setMembersOpen] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const topRef = useRef<HTMLDivElement | null>(null);
+  const inviteMessageRef = useRef<HTMLDivElement | null>(null);
+
+  function focusTop() {
+    requestAnimationFrame(() => {
+      topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function openMembersPanel() {
+    setMembersOpen(true);
+    focusTop();
+  }
 
   async function loadAll() {
     try {
@@ -65,7 +78,11 @@ export default function HousePage() {
       const { data } = await api.post(`/houses/${id}/invite`);
       setInviteUrl(data.join_url);
       await navigator.clipboard?.writeText(data.join_url);
-      loadAll();
+      await loadAll();
+      requestAnimationFrame(() => {
+        inviteMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        inviteMessageRef.current?.focus({ preventScroll: true });
+      });
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -127,6 +144,7 @@ export default function HousePage() {
 
   return (
     <main className="page shell wide house-dashboard-page cinematic-page">
+      <div ref={topRef} tabIndex={-1} className="sr-focus-target" aria-hidden="true" />
       <header className="page-hero creative-hero house-main-hero">
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
@@ -142,11 +160,11 @@ export default function HousePage() {
         </div>
       </header>
 
-      {inviteUrl && <div className="success">Invite copied: {inviteUrl}</div>}
+      {inviteUrl && <div className="success focus-result-card" ref={inviteMessageRef} tabIndex={-1}>Invite copied: {inviteUrl}</div>}
       {error && <div className="error">{error}</div>}
       {initialLoading && <section className="panel skeleton-panel">Loading house dashboard...</section>}
 
-      <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
+      <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={openMembersPanel} />
 
       <section className="stats-grid four stats-ribbon">
         <div className="stat-card"><strong>{stats.totalProducts}</strong><span>Inventory products</span></div>
@@ -206,16 +224,7 @@ export default function HousePage() {
       </section>
 
       <div className="house-dashboard-bottom-grid">
-        <section className="panel activity-glass-panel">
-          <div className="panel-title-row">
-            <div>
-              <h2>Recent activity</h2>
-              <p>Only the latest actions are shown here. Open each section for detailed work.</p>
-            </div>
-            <button className="secondary" onClick={loadAll}>Refresh</button>
-          </div>
-          <ActivityFeed activities={activities} onRefresh={loadAll} />
-        </section>
+        <ActivityFeed activities={activities} onRefresh={loadAll} />
 
         <section className="panel danger-zone creative-danger-zone">
           <h2>House access</h2>
@@ -235,7 +244,7 @@ export default function HousePage() {
       </div>
 
       <div className="floating-house-actions" aria-label="Quick house actions">
-        <button onClick={() => setMembersOpen(true)} className="secondary">👥 Members</button>
+        <button onClick={openMembersPanel} className="secondary">👥 Members</button>
         <button onClick={createInvite} className="secondary">🔗 Invite</button>
       </div>
 

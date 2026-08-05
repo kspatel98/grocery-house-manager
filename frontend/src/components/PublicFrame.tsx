@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const publicNavItems = [
@@ -11,6 +12,10 @@ const publicNavItems = [
 export default function PublicFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
   const loggedIn = Boolean(localStorage.getItem('token'));
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname]);
 
   return (
     <div className="app-frame public-frame">
@@ -46,11 +51,11 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
         <div className="shell wide site-footer-inner">
           <div>
             <strong>Grocery House Manager</strong>
-            <p>A shared grocery inventory, shopping-list, receipt, and price-tracking SaaS product from SupremDas Group.</p>
+            <p>Smart grocery management for organized homes.</p>
           </div>
           <div className="footer-brand-stack" aria-label="Company and product">
-            <span>Company: <strong>SupremDas Group</strong></span>
-            <span>Product: <strong>Grocery House Manager</strong></span>
+            <span>Built by <strong>SupremDas Group</strong></span>
+            <span>Made for <strong>families, couples, and roommates</strong></span>
             <span>Website: <strong>grocery-house-manager.com</strong></span>
           </div>
           <div className="footer-links">
