@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import { money } from '../currency';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, Product, Receipt, ReceiptLineItem, ReceiptScanUsage, ReceiptUploadResult, Section, ShoppingList, User } from '../types';
-import ProductModal from '../components/ProductModal';
-import SectionManager from '../components/SectionManager';
+import type { Activity, House, HouseMember, Product, Receipt, ShoppingList, User } from '../types';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 
 const PRODUCT_PAGE_LIMIT = 240;
+
+type DashboardStats = {
+  totalProducts: number;
+  lowStock: number;
+  outOfStock: number;
+  expired: number;
+  expiringSoon: number;
+  receiptCount: number;
+  activeListItems: number;
+  activeListCart: number;
+};
 
 export default function HousePage() {
   const { houseId } = useParams();
@@ -16,17 +24,11 @@ export default function HousePage() {
   const id = Number(houseId);
   const currentUser: User | null = JSON.parse(localStorage.getItem('user') || 'null');
   const [house, setHouse] = useState<House | null>(null);
-  const [sections, setSections] = useState<Section[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [activeList, setActiveList] = useState<ShoppingList | null>(null);
   const [members, setMembers] = useState<HouseMember[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [sortBy, setSortBy] = useState('name');
-  const [direction, setDirection] = useState('asc');
-  const [search, setSearch] = useState('');
-  const [sectionFilter, setSectionFilter] = useState<number | ''>('');
-  const [productModal, setProductModal] = useState<{ mode: 'create' | 'edit'; product?: Product; sectionId?: number } | null>(null);
   const [inviteUrl, setInviteUrl] = useState('');
   const [error, setError] = useState('');
   const [membersOpen, setMembersOpen] = useState(false);
@@ -34,17 +36,15 @@ export default function HousePage() {
 
   async function loadAll() {
     try {
-      const [houseRes, sectionsRes, productsRes, listRes, membersRes, activitiesRes, receiptsRes] = await Promise.all([
+      const [houseRes, productsRes, listRes, membersRes, activitiesRes, receiptsRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
-        api.get<Section[]>(`/houses/${id}/sections`),
-        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT } }),
+        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: 'name', direction: 'asc', limit: PRODUCT_PAGE_LIMIT } }),
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
-        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
+        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 10 } }),
         api.get<Receipt[]>(`/houses/${id}/receipts`),
       ]);
       setHouse(houseRes.data);
-      setSections(sectionsRes.data);
       setProducts(productsRes.data);
       setActiveList(listRes.data);
       setMembers(membersRes.data);
@@ -60,52 +60,12 @@ export default function HousePage() {
     }
   }
 
-  async function loadProducts() {
-    try {
-      const { data } = await api.get<Product[]>(`/houses/${id}/products`, {
-        params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT },
-      });
-      setProducts(data);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
-
-  async function loadShoppingAndActivity() {
-    try {
-      const [listRes, productsRes, activitiesRes, membersRes, receiptsRes] = await Promise.all([
-        api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
-        api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT } }),
-        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
-        api.get<HouseMember[]>(`/houses/${id}/members`),
-        api.get<Receipt[]>(`/houses/${id}/receipts`),
-      ]);
-      setActiveList(listRes.data);
-      setProducts(productsRes.data);
-      setActivities(activitiesRes.data);
-      setReceipts(receiptsRes.data);
-      setMembers(membersRes.data);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
-
   async function createInvite() {
     try {
       const { data } = await api.post(`/houses/${id}/invite`);
       setInviteUrl(data.join_url);
       await navigator.clipboard?.writeText(data.join_url);
-      loadShoppingAndActivity();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
-
-  async function removeProduct(productId: number) {
-    if (!confirm('Delete this product from inventory?')) return;
-    try {
-      await api.delete(`/houses/${id}/products/${productId}`);
-      loadShoppingAndActivity();
+      loadAll();
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -122,7 +82,7 @@ export default function HousePage() {
   }
 
   async function deleteHouse() {
-    if (!confirm('Delete this house permanently? This removes all sections, products, grocery lists, and activities.')) return;
+    if (!confirm('Delete this house permanently? This removes all sections, products, grocery lists, receipts, and activities.')) return;
     try {
       await api.delete(`/houses/${id}`);
       navigate('/houses');
@@ -136,139 +96,148 @@ export default function HousePage() {
     if (!confirm(`Kick ${label} out of this house? They will lose access immediately.`)) return;
     try {
       await api.delete(`/houses/${id}/members/${member.id}`);
-      await loadShoppingAndActivity();
+      await loadAll();
     } catch (err) {
       setError(errorMessage(err));
     }
   }
 
-  const lowStockProducts = useMemo(() => products.filter((p) => p.is_low_stock), [products]);
-  const expiringProducts = useMemo(() => products.filter((p) => p.is_expiring_soon), [products]);
+  const stats: DashboardStats = useMemo(() => {
+    const activeListItems = activeList?.items.filter((item) => item.status === 'to_buy').length || 0;
+    const activeListCart = activeList?.items.filter((item) => item.status === 'in_cart').length || 0;
+    return {
+      totalProducts: products.length,
+      lowStock: products.filter((p) => p.is_low_stock && !(p.is_out_of_stock || p.quantity <= 0)).length,
+      outOfStock: products.filter((p) => p.is_out_of_stock || p.quantity <= 0).length,
+      expired: products.filter((p) => p.is_expired).length,
+      expiringSoon: products.filter((p) => p.is_expiring_soon && !p.is_expired).length,
+      receiptCount: receipts.length,
+      activeListItems,
+      activeListCart,
+    };
+  }, [products, receipts, activeList]);
+
+  const latestReceipt = receipts[0];
+  const latestReceiptDate = latestReceipt?.receipt_date || (latestReceipt?.created_at ? new Date(latestReceipt.created_at).toLocaleDateString() : 'No saved receipts yet');
+  const isOwner = house?.role === 'owner';
+  const canDelete = isOwner && members.length === 1;
 
   useEffect(() => { loadAll(); }, [id]);
-  useHouseLiveRefresh(id, loadShoppingAndActivity);
-  useEffect(() => {
-    const timer = window.setTimeout(() => { loadProducts(); }, 300);
-    return () => window.clearTimeout(timer);
-  }, [sortBy, direction, sectionFilter, search]);
+  useHouseLiveRefresh(id, loadAll);
 
   return (
-    <main className="page shell wide">
-      <header className="topbar">
+    <main className="page shell wide house-dashboard-page cinematic-page">
+      <header className="page-hero creative-hero house-main-hero">
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
-          <h1>{house?.name || 'House'}</h1>
-          <p>Shared inventory, shopping lists, receipts, store prices, members, and recent activity in one simple house dashboard.</p>
+          <p className="eyebrow">House control center</p>
+          <h1>{house?.name || 'House dashboard'}</h1>
+          <p>Choose what you want to work on. Inventory, receipt scanning, grocery lists, receipt history, and price tools now live in clean separate sections.</p>
           {house?.owner_name && <small className="small-muted">Owner: {house.owner_name}{house.owner_plan_name ? ` • Owner plan: ${house.owner_plan_name}` : ''}</small>}
         </div>
-        <div className="topbar-actions">
-          <Link to="/pricing" className="secondary center-link">Plans</Link>
-          <Link to="/profile" className="secondary center-link">Profile</Link>
-          <Link to={`/houses/${id}/receipts`} className="secondary center-link">Receipt history</Link>
-          <button onClick={() => setMembersOpen(true)} className="secondary">Members ({members.length})</button>
-          <button onClick={createInvite} className="secondary">Copy invite link</button>
+        <div className="hero-orb-card home-orb" aria-hidden="true">
+          <span>🏡</span>
+          <strong>{members.length} members</strong>
+          <small>{house?.role || 'member'} access</small>
         </div>
       </header>
 
       {inviteUrl && <div className="success">Invite copied: {inviteUrl}</div>}
       {error && <div className="error">{error}</div>}
-      {initialLoading && <div className="panel muted-panel">Loading house dashboard...</div>}
+      {initialLoading && <section className="panel skeleton-panel">Loading house dashboard...</section>}
 
       <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
 
-      <section className="stats-grid four">
-        <div className="stat-card"><strong>{products.length}</strong><span>Total products</span></div>
-        <div className="stat-card warning"><strong>{lowStockProducts.length}</strong><span>Low stock</span></div>
-        <div className="stat-card danger"><strong>{expiringProducts.length}</strong><span>Expiring soon</span></div>
-        <div className="stat-card"><strong>{members.length}</strong><span>House members</span></div>
+      <section className="stats-grid four stats-ribbon">
+        <div className="stat-card"><strong>{stats.totalProducts}</strong><span>Inventory products</span></div>
+        <div className="stat-card warning"><strong>{stats.lowStock}</strong><span>Low stock</span></div>
+        <div className="stat-card danger"><strong>{stats.outOfStock}</strong><span>Out of stock</span></div>
+        <div className="stat-card"><strong>{stats.receiptCount}</strong><span>Saved receipts</span></div>
       </section>
 
-      <div className="two-column">
-        <section>
-          <SectionManager houseId={id} sections={sections} onChange={loadAll} />
-          <div className="panel inventory-header">
+      <section className="house-module-grid" aria-label="House sections">
+        <Link to={`/houses/${id}/inventory`} className="module-card inventory-module">
+          <span className="module-icon">📦</span>
+          <small>Separate section</small>
+          <strong>Inventory</strong>
+          <p>Manage products, sections, expiry dates, low stock, out-of-stock items, and store-specific prices.</p>
+          <em>{stats.totalProducts} products • {stats.expired} expired</em>
+        </Link>
+
+        <Link to={`/houses/${id}/shopping`} className="module-card shopping-module">
+          <span className="module-icon">🛒</span>
+          <small>Separate section</small>
+          <strong>Grocery lists</strong>
+          <p>Create shopping lists, add new products directly, group items by category, and compare live prices in a popup.</p>
+          <em>{stats.activeListItems} to buy • {stats.activeListCart} in cart</em>
+        </Link>
+
+        <Link to={`/houses/${id}/scan`} className="module-card receipt-module featured-module">
+          <span className="module-icon">🧾</span>
+          <small>Smart Receipt Studio</small>
+          <strong>Scan receipt</strong>
+          <p>Upload JPG or PNG receipts, review extracted rows, then save trusted prices and inventory updates.</p>
+          <em>Review before saving</em>
+        </Link>
+
+        <Link to={`/houses/${id}/receipts`} className="module-card history-module">
+          <span className="module-icon">🗂️</span>
+          <small>Separate page</small>
+          <strong>Receipt history</strong>
+          <p>View uploaded receipt photos, extracted content, totals, payment labels, and delete receipts safely.</p>
+          <em>Latest: {latestReceiptDate}</em>
+        </Link>
+
+        <Link to="/market" className="module-card prices-module">
+          <span className="module-icon">🏷️</span>
+          <small>Premium tool</small>
+          <strong>Prices</strong>
+          <p>Look up products and compare latest available Canadian grocery prices when your plan allows it.</p>
+          <em>Receipt + live price signals</em>
+        </Link>
+
+        <Link to="/reports" className="module-card reports-module">
+          <span className="module-icon">📈</span>
+          <small>Insights</small>
+          <strong>Reports</strong>
+          <p>Review spending, store history, receipt totals, price insights, and export your household data.</p>
+          <em>{stats.receiptCount} receipt records</em>
+        </Link>
+      </section>
+
+      <div className="house-dashboard-bottom-grid">
+        <section className="panel activity-glass-panel">
+          <div className="panel-title-row">
             <div>
-              <h2>Inventory</h2>
-              <p>Add, edit, remove, filter, and sort your grocery products.</p>
+              <h2>Recent activity</h2>
+              <p>Only the latest actions are shown here. Open each section for detailed work.</p>
             </div>
-            <button className="primary" onClick={() => setProductModal({ mode: 'create', sectionId: sections[0]?.id })}>Add product</button>
+            <button className="secondary" onClick={loadAll}>Refresh</button>
           </div>
-
-          <div className="filters">
-            <input placeholder="Search product..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && loadProducts()} />
-            <select value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value ? Number(e.target.value) : '')}>
-              <option value="">All sections</option>
-              {sections.map((s) => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
-            </select>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="name">Product name</option>
-              <option value="store_name">Store name</option>
-              <option value="price">Price</option>
-              <option value="quantity">Quantity</option>
-              <option value="expiry_date">Expiry date</option>
-              <option value="created_at">Newest</option>
-            </select>
-            <select value={direction} onChange={(e) => setDirection(e.target.value)}>
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
-            <button onClick={loadProducts} className="secondary">Search</button>
-          </div>
-          <p className="small-muted inventory-result-note">Showing up to {PRODUCT_PAGE_LIMIT} products for speed. Use search or filters to find more items.</p>
-
-          <div className="products-grid">
-            {products.map((product) => (
-              <article key={product.id} className="product-card">
-                <ProductVisual product={product} />
-                <div className="product-body">
-                  <strong>{product.name}</strong>
-                  <small>{product.section_name} • {product.store_name || 'Any store'}</small>
-                  <div className="product-meta">
-                    <span>{product.quantity} {product.unit}</span>
-                    {product.price !== undefined && product.price !== null && <span>{money(product.price)} / {product.unit || 'unit'}</span>}
-                  </div>
-                  {product.store_prices?.length ? (
-                    <div className="store-price-list">
-                      {product.store_prices.slice(0, 3).map((price) => (
-                        <span key={price.id}>{price.store_name}: {money(price.price)} / {product.unit || 'unit'}</span>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="badges">
-                    {(product.is_out_of_stock || product.quantity <= 0) && <span className="badge danger">Out of stock</span>}
-                    {product.is_expired && <span className="badge danger">Expired</span>}
-                    {product.is_low_stock && !(product.is_out_of_stock || product.quantity <= 0) && <span className="badge warning">Low stock</span>}
-                    {product.is_expiring_soon && !product.is_expired && <span className="badge danger">Expiring soon</span>}
-                  </div>
-                  {product.notes && <p className="notes">{product.notes}</p>}
-                </div>
-                <div className="card-actions">
-                  <button onClick={() => setProductModal({ mode: 'edit', product })}>Edit</button>
-                  <button onClick={() => removeProduct(product.id)}>Remove</button>
-                </div>
-              </article>
-            ))}
-          </div>
+          <ActivityFeed activities={activities} onRefresh={loadAll} />
         </section>
 
-        <aside>
-          <ShoppingSummaryCard houseId={id} activeList={activeList} />
-          <ReceiptPanel houseId={id} products={products} sections={sections} receipts={receipts} onChange={loadShoppingAndActivity} />
-          <ReceiptHistoryTeaser houseId={id} receipts={receipts} />
-          <HouseActionsPanel house={house} memberCount={members.length} onLeave={leaveHouse} onDelete={deleteHouse} />
-          <ActivityFeed activities={activities} onRefresh={loadShoppingAndActivity} />
-        </aside>
+        <section className="panel danger-zone creative-danger-zone">
+          <h2>House access</h2>
+          {isOwner ? (
+            <>
+              <p>You are the owner. Keep the delete action here on the main dashboard so it is easy to find but still protected.</p>
+              <button className="danger full" onClick={deleteHouse} disabled={!canDelete}>Delete house</button>
+              {!canDelete && <small className="small-muted">Remove all other members first. Current members: {members.length}</small>}
+            </>
+          ) : (
+            <>
+              <p>You are a member. You can leave this house, but only the owner can delete it.</p>
+              <button className="danger full" onClick={leaveHouse}>Leave house</button>
+            </>
+          )}
+        </section>
       </div>
 
-      {productModal && (
-        <ProductModal
-          houseId={id}
-          sections={sections}
-          modal={productModal}
-          onClose={() => setProductModal(null)}
-          onSaved={() => { setProductModal(null); loadShoppingAndActivity(); }}
-        />
-      )}
+      <div className="floating-house-actions" aria-label="Quick house actions">
+        <button onClick={() => setMembersOpen(true)} className="secondary">👥 Members</button>
+        <button onClick={createInvite} className="secondary">🔗 Invite</button>
+      </div>
 
       <MembersDrawer
         open={membersOpen}
@@ -281,548 +250,5 @@ export default function HousePage() {
         inviteUrl={inviteUrl}
       />
     </main>
-  );
-}
-
-function ProductVisual({ product }: { product: Product }) {
-  const [failed, setFailed] = useState(false);
-  const hasImage = Boolean(product.image_url && !failed);
-  return (
-    <div className={`product-media ${hasImage ? 'has-image' : 'icon-only'}`}>
-      {hasImage ? (
-        <img
-          src={product.image_url}
-          alt={`${product.name} product image`}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <span className="product-media-emoji" aria-hidden="true">{product.icon || '🛒'}</span>
-      )}
-    </div>
-  );
-}
-
-type ReviewLine = {
-  id?: number;
-  description: string;
-  product_id: number | '';
-  quantity: string;
-  line_unit: string;
-  unit_price: string;
-  line_total: string;
-  discount_amount: string;
-  tax_amount: string;
-  line_type: string;
-  is_selected: boolean;
-  update_inventory: boolean;
-  create_product: boolean;
-  new_product_name: string;
-  new_product_section_id: number | '';
-  new_product_unit: string;
-  needs_review?: boolean;
-  confidence?: number | null;
-};
-
-function displayUnitPrice(item: ReceiptLineItem) {
-  if (item.unit_price !== null && item.unit_price !== undefined) return String(item.unit_price);
-  if (item.line_total !== null && item.line_total !== undefined && item.quantity && item.quantity > 0) {
-    const discount = item.discount_amount || 0;
-    return String(Number(((item.line_total - discount) / item.quantity).toFixed(2)));
-  }
-  return '';
-}
-
-function lineFromReceiptItem(item: ReceiptLineItem): ReviewLine {
-  const productLine = item.line_type !== 'discount' && item.line_type !== 'tax' && item.line_type !== 'summary';
-  const hasMatch = Boolean(item.matched_product_id);
-  const qty = item.quantity !== null && item.quantity !== undefined && item.quantity > 0 ? String(item.quantity) : '1';
-  const unit = item.line_unit || 'pcs';
-  return {
-    id: item.id,
-    description: item.description,
-    product_id: item.matched_product_id || '',
-    quantity: qty,
-    line_unit: unit,
-    unit_price: displayUnitPrice(item),
-    line_total: item.line_total !== null && item.line_total !== undefined ? String(item.line_total) : '',
-    discount_amount: item.discount_amount !== null && item.discount_amount !== undefined ? String(item.discount_amount) : '',
-    tax_amount: item.tax_amount !== null && item.tax_amount !== undefined ? String(item.tax_amount) : '',
-    line_type: item.line_type || 'product',
-    is_selected: item.is_selected !== false && productLine,
-    update_inventory: productLine,
-    create_product: productLine && !hasMatch,
-    new_product_name: item.normalized_name || item.description,
-    new_product_section_id: '',
-    new_product_unit: unit,
-    needs_review: item.needs_review,
-    confidence: item.confidence,
-  };
-}
-
-function cleanUnit(value: string) {
-  const unit = (value || 'pcs').trim().toLowerCase();
-  if (unit === 'ea') return 'each';
-  if (unit === 'pc') return 'pcs';
-  if (unit === 'kgs') return 'kg';
-  if (unit === 'lbs') return 'lb';
-  return unit || 'pcs';
-}
-
-function numberOrNull(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function confidenceLabel(value?: number | null) {
-  if (value === null || value === undefined) return 'Review';
-  if (value >= 0.85) return 'High';
-  if (value >= 0.65) return 'Medium';
-  return 'Review';
-}
-
-function ReceiptPanel({ houseId, products, sections, receipts, onChange }: { houseId: number; products: Product[]; sections: Section[]; receipts: Receipt[]; onChange: () => void | Promise<void> }) {
-  const [storeName, setStoreName] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [notes, setNotes] = useState('');
-  const [selectedProductId, setSelectedProductId] = useState<number | ''>('');
-  const [price, setPrice] = useState('');
-  const [lines, setLines] = useState<{ product_id: number; product_name: string; price: number; store_name?: string }[]>([]);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [uploadResult, setUploadResult] = useState<ReceiptUploadResult | null>(null);
-  const [scanUsage, setScanUsage] = useState<ReceiptScanUsage | null>(null);
-  const [reviewLines, setReviewLines] = useState<ReviewLine[]>([]);
-  const [receiptDate, setReceiptDate] = useState('');
-  const [receiptNumber, setReceiptNumber] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [subtotal, setSubtotal] = useState('');
-  const [tax, setTax] = useState('');
-  const [discount, setDiscount] = useState('');
-  const [total, setTotal] = useState('');
-  const [uploadBusy, setUploadBusy] = useState(false);
-  const [saveScanBusy, setSaveScanBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  async function loadScanUsage() {
-    try {
-      const { data } = await api.get<ReceiptScanUsage>(`/houses/${houseId}/receipts/scan-usage`, { params: { t: Date.now() } });
-      setScanUsage(data);
-    } catch {
-      setScanUsage(null);
-    }
-  }
-
-  useEffect(() => {
-    loadScanUsage();
-  }, [houseId]);
-
-  function addLine() {
-    const product = products.find((p) => p.id === Number(selectedProductId));
-    const parsedPrice = Number(price);
-    if (!product || !Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      setError('Choose a product and enter a valid price.');
-      return;
-    }
-    setLines((prev) => [...prev, { product_id: product.id, product_name: product.name, price: parsedPrice, store_name: storeName || product.store_name }]);
-    setSelectedProductId('');
-    setPrice('');
-    setError('');
-  }
-
-  function hydrateScan(result: ReceiptUploadResult) {
-    const receipt = result.receipt;
-    setStoreName(receipt.store_name || '');
-    setReceiptDate(receipt.receipt_date || '');
-    setReceiptNumber(receipt.receipt_number || '');
-    setPaymentMethod(receipt.payment_method || '');
-    setSubtotal(receipt.subtotal_amount !== null && receipt.subtotal_amount !== undefined ? String(receipt.subtotal_amount) : '');
-    setTax(receipt.tax_amount !== null && receipt.tax_amount !== undefined ? String(receipt.tax_amount) : '');
-    setDiscount(receipt.discount_amount !== null && receipt.discount_amount !== undefined ? String(receipt.discount_amount) : '');
-    setTotal(receipt.total_amount !== null && receipt.total_amount !== undefined ? String(receipt.total_amount) : '');
-    setReviewLines((receipt.line_items || []).map(lineFromReceiptItem));
-  }
-
-  async function uploadReceipt() {
-    if (!receiptFile) {
-      setError('Choose a JPG or PNG receipt image first.');
-      return;
-    }
-    if (scanUsage && !scanUsage.allowed) {
-      setError(scanUsage.message || 'Smart Receipt Scan is not available for this house right now.');
-      return;
-    }
-    if (scanUsage?.is_last_available) {
-      const confirmed = window.confirm(`This will use the last Smart Receipt Scan for ${scanUsage.plan_name} in ${scanUsage.month_label}. After this upload, 0 of ${scanUsage.limit} scans will remain this month. Continue?`);
-      if (!confirmed) return;
-    }
-    const formData = new FormData();
-    formData.append('file', receiptFile);
-    if (storeName.trim()) formData.append('store_name', storeName.trim());
-    if (notes.trim()) formData.append('notes', notes.trim());
-    try {
-      setUploadBusy(true);
-      setUploadResult(null);
-      setReviewLines([]);
-      const { data } = await api.post<ReceiptUploadResult>(`/houses/${houseId}/receipts/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setUploadResult(data);
-      if (data.usage) setScanUsage(data.usage);
-      hydrateScan(data);
-      setReceiptFile(null);
-      setError('');
-      await onChange();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setUploadBusy(false);
-    }
-  }
-
-  function updateReviewLine(index: number, patch: Partial<ReviewLine>) {
-    setReviewLines((prev) => prev.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)));
-  }
-
-  function removeReviewLine(index: number) {
-    setReviewLines((prev) => prev.filter((_, lineIndex) => lineIndex !== index));
-  }
-
-  function addReviewLine() {
-    setReviewLines((prev) => [
-      ...prev,
-      {
-        description: '',
-        product_id: '',
-        quantity: '1',
-        line_unit: 'pcs',
-        unit_price: '',
-        line_total: '',
-        discount_amount: '',
-        tax_amount: '',
-        line_type: 'product',
-        is_selected: true,
-        update_inventory: true,
-        create_product: true,
-        new_product_name: '',
-        new_product_section_id: sections[0]?.id || '',
-        new_product_unit: 'pcs',
-        needs_review: true,
-      },
-    ]);
-  }
-
-  async function saveReviewedReceipt() {
-    if (!uploadResult?.receipt?.id) {
-      setError('Scan a receipt first.');
-      return;
-    }
-    const selectedLines = reviewLines.filter((line) => line.is_selected && line.line_type === 'product');
-    if (!selectedLines.length) {
-      setError('Select at least one product row before saving.');
-      return;
-    }
-    try {
-      setSaveScanBusy(true);
-      const { data } = await api.post<Receipt>(`/houses/${houseId}/receipts/${uploadResult.receipt.id}/confirm`, {
-        store_name: storeName || null,
-        receipt_date: receiptDate || null,
-        receipt_number: receiptNumber || null,
-        payment_method: paymentMethod || null,
-        subtotal_amount: numberOrNull(subtotal),
-        tax_amount: numberOrNull(tax),
-        discount_amount: numberOrNull(discount),
-        total_amount: numberOrNull(total),
-        notes: notes || null,
-        items: reviewLines.map((line) => ({
-          id: line.id || null,
-          description: line.description || 'Receipt item',
-          product_id: line.product_id || null,
-          quantity: numberOrNull(line.quantity) || 1,
-          line_unit: cleanUnit(line.line_unit || line.new_product_unit),
-          unit_price: numberOrNull(line.unit_price),
-          line_total: numberOrNull(line.line_total),
-          discount_amount: numberOrNull(line.discount_amount),
-          tax_amount: numberOrNull(line.tax_amount),
-          line_type: line.line_type || 'product',
-          is_selected: line.is_selected,
-          update_inventory: line.update_inventory,
-          create_product: line.create_product && !line.product_id,
-          new_product_name: line.new_product_name || line.description,
-          new_product_section_id: line.new_product_section_id || sections[0]?.id || null,
-          new_product_unit: cleanUnit(line.new_product_unit || line.line_unit),
-          new_product_quantity: numberOrNull(line.quantity) || 1,
-        })),
-      });
-      setUploadResult((prev) => prev ? { ...prev, receipt: data, message: 'Receipt reviewed and saved to price history.', scan_status: data.ocr_status } : prev);
-      setReviewLines((data.line_items || []).map(lineFromReceiptItem));
-      setError('');
-      await onChange();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaveScanBusy(false);
-    }
-  }
-
-  async function saveReceipt() {
-    if (!lines.length) {
-      setError('Add at least one product price from the receipt.');
-      return;
-    }
-    try {
-      await api.post(`/houses/${houseId}/receipts`, {
-        store_name: storeName || null,
-        image_url: imageUrl || null,
-        notes: notes || null,
-        items: lines.map((line) => ({ product_id: line.product_id, price: line.price, store_name: line.store_name || storeName || null })),
-      });
-      setStoreName('');
-      setImageUrl('');
-      setNotes('');
-      setLines([]);
-      setError('');
-      await onChange();
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
-
-  const scannedProductRows = reviewLines.filter((line) => line.line_type === 'product');
-  const matchedRows = scannedProductRows.filter((line) => line.product_id).length;
-  const scanLimitText = scanUsage
-    ? `${scanUsage.remaining} of ${scanUsage.limit} Smart Receipt Scans remaining`
-    : 'Checking Smart Receipt Scan limit...';
-  const scanButtonDisabled = uploadBusy || !receiptFile || !scanUsage || !scanUsage.allowed;
-
-  return (
-    <section className="panel receipt-panel premium-receipt-panel receipt-studio">
-      <div className="panel-title-row">
-        <div>
-          <p className="eyebrow">Smart receipt studio</p>
-          <h2>Scan receipts and save trusted prices</h2>
-        </div>
-        <span className="badge premium-badge">Professional scan</span>
-      </div>
-      <p>
-        Upload a JPG or PNG receipt photo. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates price history.
-      </p>
-      <div className="receipt-studio-hero">
-        <div className="receipt-hero-icon">🧾</div>
-        <div>
-          <strong>Smart scan with your final approval</strong>
-          <span>Quantity defaults to 1 when missing, duplicate product rows are combined, and weighted prices are saved correctly, like $1.50/kg for bananas.</span>
-        </div>
-      </div>
-      <div className="receipt-flow-cards">
-        <span><strong>1</strong> Upload receipt</span>
-        <span><strong>2</strong> Review extracted rows</span>
-        <span><strong>3</strong> Save trusted prices</span>
-      </div>
-      <div className={`receipt-usage-card ${scanUsage?.is_last_available ? 'last-scan' : ''} ${scanUsage && !scanUsage.allowed ? 'locked' : ''}`}>
-        <div>
-          <strong>{scanLimitText}</strong>
-          <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'}</span>
-        </div>
-        {scanUsage?.plan_name && <span className="badge">{scanUsage.plan_name}</span>}
-      </div>
-      {error && <div className="error">{error}</div>}
-      {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}
-
-      <div className="receipt-upload-card">
-        <div>
-          <h3>Upload receipt</h3>
-          <p className="small-muted">Best results: upload a clear JPG or PNG photo with the receipt flat, well-lit, fully visible, and no cropped totals.</p>
-          <p className="small-muted"><strong>{scanLimitText}</strong>. Manual receipt price entry stays available without using a scan.</p>
-        </div>
-        <label>Store name, optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
-        <label>Attach receipt photo (JPG or PNG only)<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] || null; if (file && !['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) { setError('Please upload a JPG or PNG receipt image only.'); e.target.value = ''; setReceiptFile(null); return; } setError(''); setReceiptFile(file); }} /></label>
-        <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything you want to remember about this receipt" /></label>
-        <button className="primary full" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt...' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt'}</button>
-      </div>
-
-      {uploadResult ? (
-        <div className="receipt-review-studio">
-          <div className="receipt-review-header">
-            <div>
-              <p className="eyebrow">Review before saving</p>
-              <h3>{storeName || 'Receipt store'} {total ? `• ${money(Number(total))}` : ''}</h3>
-              <p className="small-muted">{scannedProductRows.length} product row(s), {matchedRows} matched to your inventory. Edit wrong rows before saving.</p>
-            </div>
-            <button className="secondary" type="button" onClick={addReviewLine}>Add missing row</button>
-          </div>
-
-          <div className="receipt-meta-grid">
-            <label>Store<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Store name" /></label>
-            <label>Date<input type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} /></label>
-            <label>Receipt #<input value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} placeholder="Optional" /></label>
-            <label>Payment<input value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder="Visa, Debit, Cash" /></label>
-            <label>Subtotal<input type="number" min="0" step="0.01" value={subtotal} onChange={(e) => setSubtotal(e.target.value)} /></label>
-            <label>Discount<input type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} /></label>
-            <label>Tax<input type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} /></label>
-            <label>Total<input type="number" min="0" step="0.01" value={total} onChange={(e) => setTotal(e.target.value)} /></label>
-          </div>
-
-          <div className="receipt-line-table">
-            <div className="receipt-line-row receipt-line-head">
-              <span>Save</span>
-              <span>Receipt item</span>
-              <span>Match or create</span>
-              <span>Qty</span>
-              <span>Unit</span>
-              <span>Price/unit</span>
-              <span>Line total</span>
-              <span>Discount</span>
-              <span>Inventory</span>
-              <span>Status</span>
-            </div>
-            {reviewLines.map((line, index) => {
-              const rowWillCreate = line.is_selected && line.line_type === 'product' && !line.product_id && line.create_product;
-              return (
-                <div className={`receipt-line-row ${line.needs_review || rowWillCreate ? 'needs-review' : ''}`} key={`${line.id || 'new'}-${index}`}>
-                  <div className="receipt-mobile-field save-field" data-label="Save"><label className="inline-check"><input type="checkbox" checked={line.is_selected} onChange={(e) => updateReviewLine(index, { is_selected: e.target.checked })} /><small>Save</small></label></div>
-                  <div className="receipt-mobile-field" data-label="Receipt item"><input value={line.description} onChange={(e) => updateReviewLine(index, { description: e.target.value, new_product_name: line.new_product_name || e.target.value })} placeholder="Product name" /></div>
-                  <div className="receipt-mobile-field" data-label="Match or create"><select value={line.product_id} onChange={(e) => updateReviewLine(index, { product_id: e.target.value ? Number(e.target.value) : '', create_product: !e.target.value, new_product_name: line.new_product_name || line.description })}>
-                    <option value="">Create / no match</option>
-                    {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                  </select></div>
-                  <div className="receipt-mobile-field" data-label="Qty"><input type="number" min="0" step="0.001" value={line.quantity} onChange={(e) => updateReviewLine(index, { quantity: e.target.value })} placeholder="1" /></div>
-                  <div className="receipt-mobile-field" data-label="Unit"><input value={line.line_unit} onChange={(e) => updateReviewLine(index, { line_unit: e.target.value, new_product_unit: e.target.value })} placeholder="pcs/kg" /></div>
-                  <div className="receipt-mobile-field" data-label="Price/unit"><input type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateReviewLine(index, { unit_price: e.target.value })} placeholder="$/unit" /></div>
-                  <div className="receipt-mobile-field" data-label="Line total"><input type="number" min="0" step="0.01" value={line.line_total} onChange={(e) => updateReviewLine(index, { line_total: e.target.value })} placeholder="Total" /></div>
-                  <div className="receipt-mobile-field" data-label="Discount"><input type="number" min="0" step="0.01" value={line.discount_amount} onChange={(e) => updateReviewLine(index, { discount_amount: e.target.value })} placeholder="0" /></div>
-                  <div className="receipt-mobile-field" data-label="Inventory"><label className="inline-check receipt-inventory-check"><input type="checkbox" checked={line.update_inventory} onChange={(e) => updateReviewLine(index, { update_inventory: e.target.checked })} /><small>Update inventory</small></label></div>
-                  <div className="receipt-mobile-field status-field" data-label="Status"><div className="receipt-line-status">
-                    <span className={rowWillCreate ? 'badge create' : line.needs_review || !line.product_id ? 'badge warn' : 'badge ok'}>{rowWillCreate ? 'Create' : !line.product_id ? 'Match' : confidenceLabel(line.confidence)}</span>
-                    <button className="ghost tiny" type="button" onClick={() => removeReviewLine(index)}>Remove</button>
-                  </div></div>
-                  {rowWillCreate && (
-                    <div className="receipt-create-row">
-                      <span className="small-muted"><strong>New inventory item</strong> will be created when you save this receipt.</span>
-                      <input value={line.new_product_name} onChange={(e) => updateReviewLine(index, { new_product_name: e.target.value })} placeholder="Inventory product name" />
-                      <select value={line.new_product_section_id} onChange={(e) => updateReviewLine(index, { new_product_section_id: e.target.value ? Number(e.target.value) : '' })}>
-                        <option value="">Auto section</option>
-                        {sections.map((section) => <option key={section.id} value={section.id}>{section.icon ? `${section.icon} ` : ''}{section.name}</option>)}
-                      </select>
-                      <input value={line.new_product_unit} onChange={(e) => updateReviewLine(index, { new_product_unit: e.target.value, line_unit: e.target.value })} placeholder="Inventory unit" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <button className="primary full" type="button" onClick={saveReviewedReceipt} disabled={saveScanBusy || !reviewLines.length}>{saveScanBusy ? 'Saving reviewed receipt...' : 'Save reviewed receipt'}</button>
-        </div>
-      ) : null}
-
-      <div className="receipt-manual-block">
-        <h3>Manual price entry</h3>
-        <p className="small-muted">Use this when you do not want to scan or when the receipt is too damaged.</p>
-        <label>Receipt image URL<input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Optional image URL" /></label>
-        <div className="receipt-line-builder">
-          <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value ? Number(e.target.value) : '')}>
-            <option value="">Select product</option>
-            {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-          </select>
-          <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price" />
-          <button className="secondary" type="button" onClick={addLine}>Add</button>
-        </div>
-        {lines.length > 0 && (
-          <div className="receipt-lines">
-            {lines.map((line, index) => (
-              <span key={`${line.product_id}-${index}`}>{line.product_name} • {line.store_name || storeName || 'Store'} • {money(line.price)}</span>
-            ))}
-          </div>
-        )}
-        <button className="secondary full" onClick={saveReceipt} disabled={!lines.length}>Save manual receipt prices</button>
-      </div>
-      <div className="receipt-history-shortcut">
-        <div>
-          <strong>Need older receipts?</strong>
-          <span>Open the separate receipt history page to see receipt photos, extracted rows, totals, dates, and saved prices.</span>
-        </div>
-        <Link className="secondary center-link" to={`/houses/${houseId}/receipts`}>Open receipt history</Link>
-      </div>
-    </section>
-  );
-}
-
-
-
-function ReceiptHistoryTeaser({ houseId, receipts }: { houseId: number; receipts: Receipt[] }) {
-  const latest = receipts[0];
-  const latestDate = latest?.receipt_date || (latest?.created_at ? new Date(latest.created_at).toLocaleDateString() : 'No receipts yet');
-  return (
-    <section className="panel receipt-history-teaser creative-mini-panel">
-      <div className="receipt-teaser-graphic" aria-hidden="true">
-        <span>🧾</span>
-      </div>
-      <div>
-        <p className="eyebrow">Receipt library</p>
-        <h2>Saved receipt history</h2>
-        <p>View receipt photos, extracted rows, totals, discounts, payment labels, and saved price history anytime.</p>
-        <div className="receipt-teaser-stats">
-          <span><strong>{receipts.length}</strong> receipts saved</span>
-          <span><strong>{latest ? latestDate : '-'}</strong> latest receipt date</span>
-        </div>
-      </div>
-      <Link className="primary full center-link" to={`/houses/${houseId}/receipts`}>Open receipt history</Link>
-    </section>
-  );
-}
-
-function HouseActionsPanel({ house, memberCount, onLeave, onDelete }: { house: House | null; memberCount: number; onLeave: () => void; onDelete: () => void }) {
-  if (!house) return null;
-  const isOwner = house.role === 'owner';
-  const canDelete = isOwner && memberCount === 1;
-
-  return (
-    <section className="panel danger-zone">
-      <h2>House access</h2>
-      {isOwner ? (
-        <>
-          <p>You are the owner. You can kick other members out, but you can delete the house only when you are the only member left.</p>
-          <button className="danger full" onClick={onDelete} disabled={!canDelete}>
-            Delete house
-          </button>
-          {!canDelete && <small className="small-muted">Remove all other members first. Current members: {memberCount}</small>}
-        </>
-      ) : (
-        <>
-          <p>You are a member. You can leave this house, but only the owner can remove other users or delete the house.</p>
-          <button className="danger full" onClick={onLeave}>Leave house</button>
-        </>
-      )}
-    </section>
-  );
-}
-
-function ShoppingSummaryCard({ houseId, activeList }: { houseId: number; activeList: ShoppingList | null }) {
-  const toBuy = activeList?.items.filter((item) => item.status === 'to_buy').length || 0;
-  const inCart = activeList?.items.filter((item) => item.status === 'in_cart').length || 0;
-
-  return (
-    <section className="panel shopping-summary-card">
-      <div className="panel-title-row">
-        <div>
-          <h2>Grocery shopping</h2>
-          <p>Open the full shopping page to create or manage multiple lists.</p>
-        </div>
-      </div>
-      {activeList ? (
-        <div className="summary-list-card">
-          <strong>{activeList.title}</strong>
-          <small>{toBuy} products to buy • {inCart} added in cart</small>
-        </div>
-      ) : (
-        <p className="small-muted">No active grocery list yet.</p>
-      )}
-      <Link className="primary full center-link" to={`/houses/${houseId}/shopping`}>
-        Open grocery lists
-      </Link>
-    </section>
   );
 }
