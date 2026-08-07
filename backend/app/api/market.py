@@ -3,16 +3,17 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import requests
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, house_plan_has_product_lookup, house_plan_has_external_price_comparison
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Product, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
-from app.schemas import MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
+from app.models import Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
+from app.schemas import MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
-from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts
+from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, WALMART_ALIASES, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_walmart_canada_product, normalize_canadian_postal_code, safe_market_error
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -87,12 +88,14 @@ def get_nearby_store_results(user: User, city: str | None, country: str | None, 
 
 @router.get("/capabilities", response_model=MarketCapabilitiesOut)
 def market_capabilities(user: User = Depends(get_current_user)):
+    connected = bool(settings.apify_api_token)
     return MarketCapabilitiesOut(
         product_lookup_available=True,
-        live_price_compare_available=bool(settings.apify_api_token),
-        apify_configured=bool(settings.apify_api_token),
+        live_price_compare_available=connected,
+        apify_configured=connected,
+        live_price_status="connected" if connected else "not_connected",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        message="Market tools are available by plan: Basic Home unlocks product lookup, Family Plus unlocks Canadian price comparison, and Household Pro unlocks nearby store suggestions.",
+        message="Product lookup is available by plan. Canadian live price comparison works best with a Canadian postal code and needs the live-price connection to be configured.",
     )
 
 
@@ -101,34 +104,155 @@ def product_lookup(
     house_id: int,
     barcode: str | None = Query(default=None, max_length=120),
     query: str | None = Query(default=None, max_length=120),
+    store_name: str | None = Query(default=None, max_length=80),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
     house_plan = get_house_plan(db, house_id)
+    store_filter = (store_name or "").strip()
+    normalized_store = store_filter.lower()
     if not house_plan_has_product_lookup(db, house_id):
         return ProductLookupOut(
             premium_required=True,
             configured=True,
+            store_filter=store_filter or None,
             message=f"Product lookup is a Basic Home or higher house feature. This house is on the owner's {house_plan.name} plan.",
             results=[],
         )
     if not barcode and not query:
-        return ProductLookupOut(message="Enter a barcode or product name to search.", results=[])
+        return ProductLookupOut(store_filter=store_filter or None, message="Enter a barcode, Walmart item number, or product name to search.", results=[])
+
+    if store_filter:
+        if normalized_store in WALMART_ALIASES:
+            results = lookup_walmart_canada_product(product_id=barcode, query=query, limit=8)
+            if not results:
+                return ProductLookupOut(
+                    premium_required=False,
+                    configured=True,
+                    store_filter="Walmart",
+                    message="No Walmart product was found for that number/name. Try the Walmart item number, product name, or search without a store filter.",
+                    results=[],
+                )
+            return ProductLookupOut(
+                premium_required=False,
+                configured=True,
+                store_filter="Walmart",
+                message="Walmart product details found. Review before adding it to inventory.",
+                results=results,
+            )
+
+        return ProductLookupOut(
+            premium_required=False,
+            configured=True,
+            store_filter=store_filter,
+            message=f"Store-specific lookup is not connected for {store_filter} yet. Remove the store name to search the universal product database.",
+            results=[],
+        )
+
     results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)
     if not results:
         return ProductLookupOut(
             premium_required=False,
             configured=True,
+            store_filter=None,
             message="No matching product details were found. You can still add the product manually.",
             results=[],
         )
     return ProductLookupOut(
         premium_required=False,
         configured=True,
-        message="Product details found. Please review the details before saving them to your inventory.",
+        store_filter=None,
+        message="Product details found from the universal database. Please review before saving to inventory.",
         results=results,
     )
+
+
+def _reverse_geocode_postal_code(lat: float | None, lng: float | None) -> tuple[str | None, str | None, str | None]:
+    if lat is None or lng is None or not settings.google_places_api_key:
+        return None, None, None
+    try:
+        response = requests.get(
+            "https://maps.googleapis.com/maps/api/geocode/json",
+            params={"latlng": f"{lat},{lng}", "key": settings.google_places_api_key, "result_type": "postal_code"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        data = response.json()
+        for result in data.get("results") or []:
+            postal = city = province = None
+            for component in result.get("address_components") or []:
+                types = component.get("types") or []
+                if "postal_code" in types:
+                    postal = component.get("long_name")
+                elif "locality" in types:
+                    city = component.get("long_name")
+                elif "administrative_area_level_1" in types:
+                    province = component.get("short_name") or component.get("long_name")
+            if postal:
+                return normalize_canadian_postal_code(postal), city, province
+    except Exception:
+        return None, None, None
+    return None, None, None
+
+
+def _profile_location_label(user: User, city: str | None = None, province: str | None = None) -> str:
+    parts = [city or user.city, province, user.country or "Canada"]
+    return ", ".join(str(part).strip() for part in parts if part and str(part).strip()) or "Canada"
+
+
+def _recent_saved_price_rows(db: Session, house_id: int, items: list[str], *, max_age_days: int = 21) -> list[LivePriceResultOut]:
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=max_age_days)
+    rows: list[LivePriceResultOut] = []
+    seen: set[str] = set()
+    for item in items:
+        term = item.strip()
+        if not term:
+            continue
+        pattern = f"%{term}%"
+        price = (
+            db.query(ProductStorePrice)
+            .join(Product, Product.id == ProductStorePrice.product_id)
+            .filter(
+                ProductStorePrice.house_id == house_id,
+                Product.name.ilike(pattern),
+                or_(
+                    ProductStorePrice.recorded_at >= cutoff,
+                    ProductStorePrice.source.in_(["manual", "saved", "live_compare", "apify_canada"]),
+                ),
+            )
+            .order_by(ProductStorePrice.price.asc(), ProductStorePrice.recorded_at.desc())
+            .first()
+        )
+        if not price or not price.product:
+            continue
+        key = f"{term.lower()}::{price.product_id}::{price.store_name.lower()}"
+        if key in seen:
+            continue
+        seen.add(key)
+        is_recent_receipt = str(price.source or "").startswith("receipt") and price.recorded_at and (price.recorded_at if price.recorded_at.tzinfo else price.recorded_at.replace(tzinfo=timezone.utc)) >= cutoff
+        source_label = "recent_receipt" if is_recent_receipt else "saved_price"
+        confidence = "Saved" if is_recent_receipt else "Saved history"
+        rows.append(LivePriceResultOut(
+            item=term,
+            retailer=None,
+            banner=price.store_name,
+            store_name=price.store_name,
+            store_address=None,
+            matched_product_name=price.product.name,
+            price=float(price.price),
+            unit_price=f"per {price.product.unit}" if price.product.unit else None,
+            match_confidence=confidence,
+            confidence_explanation=(
+                "This price came from a receipt dated within the last 3 weeks."
+                if is_recent_receipt else
+                "This price came from your saved household price history. Review before relying on it."
+            ),
+            scraped_at=price.recorded_at,
+            raw_source=source_label,
+        ))
+    return rows
 
 
 @router.post("/houses/{house_id}/price-compare", response_model=LivePriceCompareOut)
@@ -140,23 +264,15 @@ def price_compare(
 ):
     require_house_member(house_id, user, db)
     house_plan = get_house_plan(db, house_id)
-    location_parts = [payload.location, payload.postal_code, payload.city, payload.province]
-    location = next((str(part).strip() for part in location_parts if part and str(part).strip()), None)
-    if payload.city and payload.province and not payload.location and not payload.postal_code:
-        location = f"{payload.city}, {payload.province}"
-    elif payload.city and not location:
-        location = f"{payload.city}, Canada"
 
-    if not house_plan_has_external_price_comparison(db, house_id):
-        return LivePriceCompareOut(
-            premium_required=True,
-            configured=bool(settings.apify_api_token),
-            currency_code="CAD",
-            location_label=location,
-            message=f"Canadian live price comparison is a Family Plus or Household Pro house feature. This house is on the owner's {house_plan.name} plan.",
-            supported_retailers=SUPPORTED_CANADA_RETAILERS,
-            results=[],
-        )
+    postal_code = normalize_canadian_postal_code(payload.postal_code or payload.location)
+    resolved_city = payload.city
+    resolved_province = payload.province
+    if not postal_code and payload.lat is not None and payload.lng is not None:
+        postal_code, geocode_city, geocode_province = _reverse_geocode_postal_code(payload.lat, payload.lng)
+        resolved_city = resolved_city or geocode_city
+        resolved_province = resolved_province or geocode_province
+    location_label = postal_code or _profile_location_label(user, resolved_city, resolved_province)
 
     items = [item.strip() for item in payload.items if item and item.strip()]
     if payload.product_ids:
@@ -165,59 +281,96 @@ def price_compare(
         for product in products:
             if product.name and product.name.lower() not in existing_names:
                 items.append(product.name)
-
     items = items[: settings.market_max_compare_items]
+
+    if not house_plan_has_external_price_comparison(db, house_id):
+        fallback = _recent_saved_price_rows(db, house_id, items) if items else []
+        return LivePriceCompareOut(
+            premium_required=True,
+            configured=bool(settings.apify_api_token),
+            connection_status="connected" if settings.apify_api_token else "not_connected",
+            currency_code="CAD",
+            location_label=location_label,
+            used_fallback=bool(fallback),
+            message=f"Canadian live price comparison is a Family Plus or Household Pro house feature. This house is on the owner's {house_plan.name} plan. Saved household prices are shown when available.",
+            supported_retailers=SUPPORTED_CANADA_RETAILERS,
+            results=fallback,
+        )
+
     if not items:
         return LivePriceCompareOut(
             configured=bool(settings.apify_api_token),
+            connection_status="connected" if settings.apify_api_token else "not_connected",
             currency_code="CAD",
-            location_label=location,
+            location_label=location_label,
             message="Choose at least one product or enter item names to compare.",
             supported_retailers=SUPPORTED_CANADA_RETAILERS,
             results=[],
         )
+
+    fallback_rows = _recent_saved_price_rows(db, house_id, items)
     if not settings.apify_api_token:
         return LivePriceCompareOut(
             configured=False,
+            connection_status="not_connected",
             currency_code="CAD",
-            location_label=location,
-            message="Live Canadian price comparison is included with this plan, but it is not turned on yet. Please contact support if you need help.",
+            location_label=location_label,
+            failure_reason="APIFY_API_TOKEN is missing on the backend server.",
+            used_fallback=bool(fallback_rows),
+            message="Live Canadian price comparison is not connected yet. Showing saved receipt/inventory prices when available.",
             supported_retailers=SUPPORTED_CANADA_RETAILERS,
-            results=[],
+            results=fallback_rows,
         )
 
     try:
         cached, rows = compare_canadian_grocery_prices(
             db,
             items=items,
-            location=location or "Canada",
+            location=location_label,
+            postal_code=postal_code,
             retailers=payload.retailers,
             force_refresh=payload.force_refresh,
         )
     except Exception as exc:
+        reason = safe_market_error(exc)
         return LivePriceCompareOut(
             configured=True,
             cached=False,
+            connection_status="connected",
             currency_code="CAD",
-            location_label=location,
-            message="Live price comparison could not be loaded right now. Saved household prices still work. Please try again later.",
+            location_label=location_label,
+            failure_reason=reason,
+            used_fallback=bool(fallback_rows),
+            message="Live price comparison could not be loaded. Showing saved receipt/inventory prices when available.",
             supported_retailers=SUPPORTED_CANADA_RETAILERS,
-            results=[],
+            results=fallback_rows,
         )
 
-    message = "Showing cached Canadian grocery price results." if cached else "Showing latest available Canadian grocery price results. Prices may vary by store, location, loyalty offers, and availability."
-    if not rows:
-        message = "No live price rows were returned for these items/location. Try fewer items, a postal code, or different supported retailers."
+    if rows:
+        message = "Showing cached Canadian grocery price results." if cached else "Showing latest available Canadian grocery price results for the selected postal code."
+        return LivePriceCompareOut(
+            configured=True,
+            cached=cached,
+            connection_status="connected",
+            currency_code="CAD",
+            location_label=location_label,
+            message=message,
+            supported_retailers=SUPPORTED_CANADA_RETAILERS,
+            results=rows,
+        )
+
     return LivePriceCompareOut(
         configured=True,
-        cached=cached,
+        cached=False,
+        connection_status="connected",
         currency_code="CAD",
-        location_label=location,
-        message=message,
+        location_label=location_label,
+        used_fallback=bool(fallback_rows),
+        failure_reason="The live provider returned no rows for this basket/postal code.",
+        message="No live price rows were returned for this postal code. Showing saved receipt/inventory prices when available.",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        results=rows,
+        results=fallback_rows,
     )
-
 
 @router.get("/nearby-stores", response_model=ShoppingSuggestionsOut)
 def nearby_stores(

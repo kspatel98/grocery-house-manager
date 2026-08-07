@@ -387,6 +387,7 @@ export type MarketCapabilities = {
   product_lookup_available: boolean;
   live_price_compare_available: boolean;
   apify_configured: boolean;
+  live_price_status?: 'connected' | 'not_connected' | string;
   supported_retailers: string[];
   message: string;
 };
@@ -400,12 +401,16 @@ export type ProductLookupResult = {
   categories: string[];
   nutrition_grade?: string | null;
   quantity?: string | null;
+  store_name?: string | null;
+  product_url?: string | null;
+  price?: number | null;
   found: boolean;
 };
 
 export type ProductLookupResponse = {
   premium_required: boolean;
   configured: boolean;
+  store_filter?: string | null;
   message: string;
   results: ProductLookupResult[];
 };
@@ -415,6 +420,8 @@ export type LivePriceResult = {
   retailer?: string | null;
   banner?: string | null;
   store_name?: string | null;
+  store_address?: string | null;
+  store_url?: string | null;
   matched_product_name?: string | null;
   brand?: string | null;
   price?: number | null;
@@ -424,6 +431,7 @@ export type LivePriceResult = {
   availability?: string | null;
   is_on_sale?: boolean | null;
   match_confidence?: string | null;
+  confidence_explanation?: string | null;
   source_url?: string | null;
   scraped_at?: string | null;
   raw_source: string;
@@ -436,6 +444,9 @@ export type LivePriceCompareResponse = {
   currency_code: string;
   location_label?: string | null;
   source: string;
+  connection_status?: 'connected' | 'not_connected' | string;
+  failure_reason?: string | null;
+  used_fallback?: boolean;
   message: string;
   supported_retailers: string[];
   results: LivePriceResult[];

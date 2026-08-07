@@ -228,6 +228,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
   const [country, setCountry] = useState(initial.country || 'Canada');
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
+  const [postalCode, setPostalCode] = useState('');
   const [suggestions, setSuggestions] = useState<ShoppingSuggestions | null>(null);
   const [livePrices, setLivePrices] = useState<LivePriceCompareResponse | null>(null);
   const [livePricesOpen, setLivePricesOpen] = useState(false);
@@ -252,17 +253,19 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
 
 
 
-  async function compareCurrentList(forceRefresh = false) {
+  async function submitLiveCompare(options: { forceRefresh?: boolean; postal?: string; lat?: number; lng?: number; useProfileCity?: boolean }) {
     if (!selectedList) return;
     try {
       setBusy(true);
       setError('');
       const productIds = selectedList.items.map((item) => item.product_id);
-      const location = city && country ? `${city}, ${country}` : city || country || 'Canada';
       const { data } = await api.post<LivePriceCompareResponse>(`/market/houses/${houseId}/price-compare`, {
         product_ids: productIds,
-        location,
-        force_refresh: forceRefresh,
+        postal_code: options.postal || undefined,
+        lat: options.lat,
+        lng: options.lng,
+        city: options.useProfileCity ? city || undefined : undefined,
+        force_refresh: options.forceRefresh || false,
       });
       setLivePrices(data);
       setLivePricesOpen(true);
@@ -271,6 +274,31 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
     } finally {
       setBusy(false);
     }
+  }
+
+  async function compareCurrentList(forceRefresh = false) {
+    if (!selectedList) return;
+    const typedPostal = postalCode.trim();
+    if (typedPostal) {
+      await submitLiveCompare({ postal: typedPostal, forceRefresh });
+      return;
+    }
+    if (!navigator.geolocation) {
+      await submitLiveCompare({ useProfileCity: true, forceRefresh });
+      return;
+    }
+    setBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setBusy(false);
+        submitLiveCompare({ lat: position.coords.latitude, lng: position.coords.longitude, forceRefresh });
+      },
+      () => {
+        setBusy(false);
+        submitLiveCompare({ useProfileCity: true, forceRefresh });
+      },
+      { enableHighAccuracy: false, timeout: 9000 },
+    );
   }
 
   function useCurrentLocation() {
@@ -317,9 +345,11 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
       <p>Get store suggestions using your saved receipt/product prices plus nearby grocery locations. Live product prices depend on available retailer data.</p>
       {error && <div className="error">{error}</div>}
       <div className="form-row compact-location-row">
-        <label>City<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Hamilton" /></label>
+        <label>Postal code for live prices<input value={postalCode} onChange={(e) => setPostalCode(e.target.value.toUpperCase())} placeholder="Example: L8P 1A1" /></label>
+        <label>City for nearby stores<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Hamilton" /></label>
         <label>Country<input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Canada" /></label>
       </div>
+      <p className="small-muted location-note">For live prices, postal code gives the best result. If it is blank, the app asks for current location; if denied, it uses your profile city.</p>
       <div className="location-actions">
         <button className="secondary" type="button" onClick={useCurrentLocation} disabled={busy}>Use my location</button>
         <button className="secondary" type="button" onClick={() => loadSuggestions()} disabled={busy}>{busy ? 'Checking...' : 'Get suggestions'}</button>
@@ -334,6 +364,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
                 <p className="eyebrow">Live comparison</p>
                 <h2>All available price sources</h2>
                 <p>{livePrices.message}</p>
+                {livePrices.failure_reason && <p className="small-muted"><strong>Reason:</strong> {livePrices.failure_reason}</p>}
               </div>
               <button type="button" onClick={() => setLivePricesOpen(false)} aria-label="Close live price comparison">×</button>
             </div>
@@ -344,7 +375,9 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
                   <small>
                     {(row.sale_price ?? row.price) != null ? money(row.sale_price ?? row.price, livePrices.currency_code) : 'Price unavailable'}
                     {row.unit_price ? ` • ${row.unit_price}` : ''}
-                    {row.match_confidence ? ` • ${row.match_confidence}` : ''}
+                    {row.store_address ? ` • ${row.store_address}` : ''}
+                    {row.match_confidence ? ` • confidence: ${row.match_confidence}` : ''}
+                    {row.confidence_explanation ? ` • ${row.confidence_explanation}` : ''}
                     {row.scraped_at ? ` • updated ${new Date(row.scraped_at).toLocaleDateString()}` : ''}
                   </small>
                 </a>

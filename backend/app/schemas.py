@@ -648,12 +648,16 @@ class ProductLookupResultOut(BaseModel):
     categories: list[str] = Field(default_factory=list)
     nutrition_grade: str | None = None
     quantity: str | None = None
+    store_name: str | None = None
+    product_url: str | None = None
+    price: float | None = None
     found: bool = True
 
 
 class ProductLookupOut(BaseModel):
     premium_required: bool = False
     configured: bool = True
+    store_filter: str | None = None
     message: str
     results: list[ProductLookupResultOut] = Field(default_factory=list)
 
@@ -665,6 +669,8 @@ class PriceCompareIn(BaseModel):
     city: str | None = Field(default=None, max_length=120)
     province: str | None = Field(default=None, max_length=80)
     postal_code: str | None = Field(default=None, max_length=20)
+    lat: float | None = None
+    lng: float | None = None
     retailers: list[str] = Field(default_factory=list, max_length=8)
     force_refresh: bool = False
 
@@ -674,6 +680,8 @@ class LivePriceResultOut(BaseModel):
     retailer: str | None = None
     banner: str | None = None
     store_name: str | None = None
+    store_address: str | None = None
+    store_url: str | None = None
     matched_product_name: str | None = None
     brand: str | None = None
     price: float | None = None
@@ -683,6 +691,7 @@ class LivePriceResultOut(BaseModel):
     availability: str | None = None
     is_on_sale: bool | None = None
     match_confidence: str | None = None
+    confidence_explanation: str | None = None
     source_url: str | None = None
     scraped_at: datetime | None = None
     raw_source: str = "apify_canada"
@@ -695,6 +704,9 @@ class LivePriceCompareOut(BaseModel):
     currency_code: str = "CAD"
     location_label: str | None = None
     source: str = "apify_canada"
+    connection_status: str = "not_connected"
+    failure_reason: str | None = None
+    used_fallback: bool = False
     message: str
     supported_retailers: list[str] = Field(default_factory=list)
     results: list[LivePriceResultOut] = Field(default_factory=list)
@@ -704,5 +716,6 @@ class MarketCapabilitiesOut(BaseModel):
     product_lookup_available: bool
     live_price_compare_available: bool
     apify_configured: bool
+    live_price_status: str = "not_connected"
     supported_retailers: list[str] = Field(default_factory=list)
     message: str
