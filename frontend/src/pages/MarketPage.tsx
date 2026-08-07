@@ -20,6 +20,7 @@ function statusLabel(connected: boolean) {
 
 function storeSourceLabel(source: string) {
   if (source === 'walmart_ca') return 'Walmart Canada';
+  if (source.includes('internet')) return 'Official web result';
   if (source === 'open_food_facts') return 'Universal product database';
   if (source.endsWith('_website')) {
     return source.replace('_website', '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -272,11 +273,11 @@ export default function MarketPage() {
             </div>
             <span className="badge access-basic">Basic Home+</span>
           </div>
-          <p>Search the universal database, or enter a store name like Walmart, No Frills, Superstore, Loblaws, Save-On-Foods, Metro, Food Basics, FreshCo, or Costco for a best-effort store website lookup.</p>
+          <p>Search a product by barcode, store item number, or name. Add a store name like Costco or Walmart to search official store pages first; blank store searches the universal product database.</p>
           <form onSubmit={runLookup} className="market-lookup-form market-form-v47">
             <label>Barcode or store item number<input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Example: UPC, Walmart item #, or store product #" /></label>
             <label>Product name<input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Example: milk, rice, cereal" /></label>
-            <label>Store name optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Example: Walmart, No Frills, Metro. Blank = universal search" /></label>
+            <label>Store name optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Example: Costco, Walmart, No Frills. Blank = universal search" /></label>
             <button className="primary" disabled={lookupBusy || !selectedHouseId}>{lookupBusy ? 'Searching...' : 'Search product'}</button>
           </form>
           {addFeedback && <div className={addFeedback.includes('added') ? 'success compact-message' : 'hint'}>{addFeedback}</div>}
@@ -296,6 +297,7 @@ export default function MarketPage() {
                       <strong>{item.name}</strong>
                       <small>{[item.brand, item.quantity, item.barcode].filter(Boolean).join(' • ') || 'Review details before saving'}</small>
                       <small>{item.categories?.slice(0, 4).join(', ') || 'Category can be edited later'}{item.nutrition_grade ? ` • Nutri-Score ${item.nutrition_grade.toUpperCase()}` : ''}</small>
+                      {item.lookup_note && <small className="lookup-note-v49">{item.lookup_note}</small>}
                       {item.price != null && <small>Found price: {money(item.price, 'CAD')}</small>}
                       <div className="lookup-actions-row">
                         {item.product_url && <a className="secondary center-link" href={item.product_url} target="_blank" rel="noreferrer">Open product</a>}

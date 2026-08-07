@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import html as html_lib
 import json
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import quote_plus
+from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlparse
 
 import requests
 from sqlalchemy.orm import Session
@@ -464,6 +465,304 @@ def _meta_store_result(html: str, *, profile: dict[str, Any], term: str, source_
     )
 
 
+
+def _profile_domains(profile: dict[str, Any]) -> list[str]:
+    domains: list[str] = []
+    for template in profile.get("search_urls") or []:
+        try:
+            parsed = urlparse(str(template).format(term="test"))
+            host = (parsed.netloc or "").lower().replace("www.", "")
+            if host and host not in domains:
+                domains.append(host)
+        except Exception:
+            continue
+    display = str(profile.get("display") or "").lower()
+    if "costco" in display and "costco.ca" not in domains:
+        domains.append("costco.ca")
+    if "walmart" in display and "walmart.ca" not in domains:
+        domains.append("walmart.ca")
+    if "freshco" in display:
+        for host in ("freshco.com", "voila.ca"):
+            if host not in domains:
+                domains.append(host)
+    return domains
+
+
+def _url_is_official_store_result(url: str, profile: dict[str, Any]) -> bool:
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    host = (parsed.netloc or "").lower().replace("www.", "")
+    if not host:
+        return False
+    return any(host == domain or host.endswith(f".{domain}") for domain in _profile_domains(profile))
+
+
+def _clean_search_title(title: str, profile: dict[str, Any]) -> str:
+    text = html_lib.unescape(re.sub(r"<[^>]+>", " ", title or ""))
+    text = re.sub(r"\s+", " ", text).strip()
+    display = str(profile.get("display") or "")
+    for suffix in [display, "Costco", "Costco Canada", "Walmart", "Walmart Canada", "No Frills", "Loblaws", "Metro", "Food Basics", "FreshCo"]:
+        text = re.sub(rf"\s*[|\-–—:]\s*{re.escape(suffix)}\s*$", "", text, flags=re.I).strip()
+    return text[:180]
+
+
+def _decode_search_href(href: str) -> str | None:
+    href = html_lib.unescape(href or "").strip()
+    if not href:
+        return None
+    if href.startswith("//"):
+        href = "https:" + href
+    if href.startswith("/"):
+        # DuckDuckGo redirect links contain the real URL in uddg.
+        query = parse_qs(urlparse(href).query)
+        if query.get("uddg"):
+            href = unquote(query["uddg"][0])
+        else:
+            return None
+    if "duckduckgo.com/l/" in href:
+        query = parse_qs(urlparse(href).query)
+        if query.get("uddg"):
+            href = unquote(query["uddg"][0])
+    if not href.startswith(("http://", "https://")):
+        return None
+    return href
+
+
+def _store_web_search_queries(profile: dict[str, Any], term: str) -> list[str]:
+    display = str(profile.get("display") or "store")
+    domains = _profile_domains(profile)
+    quoted = f'"{term}"' if len(term.split()) <= 4 else term
+    queries: list[str] = []
+    for domain in domains[:3]:
+        queries.append(f"site:{domain} {quoted} {display}")
+        queries.append(f"site:{domain} {quoted} product")
+    # Item numbers often appear in snippets as "Item 1953954" rather than in the title.
+    if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term):
+        for domain in domains[:3]:
+            queries.append(f"site:{domain} item {term}")
+            queries.append(f"site:{domain} product {term}")
+    deduped: list[str] = []
+    for query in queries:
+        if query not in deduped:
+            deduped.append(query)
+    return deduped[:6]
+
+
+def _search_with_bing_api(query: str, limit: int) -> list[dict[str, str]]:
+    if not settings.bing_web_search_api_key:
+        return []
+    response = requests.get(
+        "https://api.bing.microsoft.com/v7.0/search",
+        params={"q": query, "mkt": "en-CA", "count": min(max(limit, 1), 10), "responseFilter": "Webpages"},
+        headers={"Ocp-Apim-Subscription-Key": settings.bing_web_search_api_key, **_headers()},
+        timeout=12,
+    )
+    response.raise_for_status()
+    data = response.json()
+    hits: list[dict[str, str]] = []
+    for row in ((data.get("webPages") or {}).get("value") or []):
+        url = str(row.get("url") or "")
+        title = str(row.get("name") or "")
+        snippet = str(row.get("snippet") or "")
+        if url and title:
+            hits.append({"url": url, "title": title, "snippet": snippet, "provider": "bing_api"})
+    return hits[:limit]
+
+
+def _search_with_google_cse(query: str, limit: int) -> list[dict[str, str]]:
+    if not (settings.google_search_api_key and settings.google_search_cx):
+        return []
+    response = requests.get(
+        "https://www.googleapis.com/customsearch/v1",
+        params={"key": settings.google_search_api_key, "cx": settings.google_search_cx, "q": query, "num": min(max(limit, 1), 10), "gl": "ca", "hl": "en"},
+        headers=_headers(),
+        timeout=12,
+    )
+    response.raise_for_status()
+    data = response.json()
+    hits: list[dict[str, str]] = []
+    for row in data.get("items") or []:
+        url = str(row.get("link") or "")
+        title = str(row.get("title") or "")
+        snippet = str(row.get("snippet") or "")
+        if url and title:
+            hits.append({"url": url, "title": title, "snippet": snippet, "provider": "google_cse"})
+    return hits[:limit]
+
+
+def _search_with_duckduckgo_html(query: str, limit: int) -> list[dict[str, str]]:
+    response = requests.get(
+        "https://duckduckgo.com/html/",
+        params={"q": query, "kl": "ca-en"},
+        headers={**_headers(), "User-Agent": "Mozilla/5.0 (compatible; GroceryHouseManager/1.0; +https://grocery-house-manager.com)"},
+        timeout=14,
+    )
+    response.raise_for_status()
+    html = response.text
+    hits: list[dict[str, str]] = []
+    for match in re.finditer(r'<a[^>]+class=["\']result__a["\'][^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', html, flags=re.I | re.S):
+        url = _decode_search_href(match.group(1))
+        title = html_lib.unescape(re.sub(r"<[^>]+>", " ", match.group(2)))
+        if not url or not title:
+            continue
+        snippet = ""
+        tail = html[match.end(): match.end() + 1200]
+        snippet_match = re.search(r'<a[^>]+class=["\']result__snippet["\'][^>]*>(.*?)</a>|<div[^>]+class=["\']result__snippet["\'][^>]*>(.*?)</div>', tail, flags=re.I | re.S)
+        if snippet_match:
+            snippet = html_lib.unescape(re.sub(r"<[^>]+>", " ", snippet_match.group(1) or snippet_match.group(2) or ""))
+        hits.append({"url": url, "title": re.sub(r"\s+", " ", title).strip(), "snippet": re.sub(r"\s+", " ", snippet).strip(), "provider": "duckduckgo_html"})
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def _search_with_bing_html(query: str, limit: int) -> list[dict[str, str]]:
+    response = requests.get(
+        "https://www.bing.com/search",
+        params={"q": query, "cc": "ca", "setlang": "en-CA"},
+        headers={**_headers(), "User-Agent": "Mozilla/5.0 (compatible; GroceryHouseManager/1.0; +https://grocery-house-manager.com)"},
+        timeout=14,
+    )
+    response.raise_for_status()
+    html = response.text
+    hits: list[dict[str, str]] = []
+    for block in re.findall(r'<li class="b_algo".*?</li>', html, flags=re.I | re.S):
+        link = re.search(r'<h2>\s*<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', block, flags=re.I | re.S)
+        if not link:
+            continue
+        url = _decode_search_href(link.group(1))
+        title = html_lib.unescape(re.sub(r"<[^>]+>", " ", link.group(2)))
+        snippet_match = re.search(r'<p[^>]*>(.*?)</p>', block, flags=re.I | re.S)
+        snippet = html_lib.unescape(re.sub(r"<[^>]+>", " ", snippet_match.group(1))) if snippet_match else ""
+        if url and title:
+            hits.append({"url": url, "title": re.sub(r"\s+", " ", title).strip(), "snippet": re.sub(r"\s+", " ", snippet).strip(), "provider": "bing_html"})
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def _web_search_store_product_pages(profile: dict[str, Any], term: str, limit: int = 8) -> list[dict[str, str]]:
+    if not settings.store_lookup_web_search_enabled:
+        return []
+    hits: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+    for query in _store_web_search_queries(profile, term):
+        providers = (_search_with_bing_api, _search_with_google_cse, _search_with_duckduckgo_html, _search_with_bing_html)
+        for provider in providers:
+            try:
+                found = provider(query, limit=max(limit * 2, 6))
+            except Exception:
+                found = []
+            for hit in found:
+                url = hit.get("url") or ""
+                if not _url_is_official_store_result(url, profile):
+                    continue
+                normalized_url = url.split("#", 1)[0]
+                if normalized_url in seen_urls:
+                    continue
+                seen_urls.add(normalized_url)
+                hit["url"] = normalized_url
+                hit["query"] = query
+                hits.append(hit)
+                if len(hits) >= limit:
+                    return hits
+            # If a keyed API returns official results, do not continue to scrape search engines for the same query.
+            if hits and provider in (_search_with_bing_api, _search_with_google_cse):
+                break
+    return hits[:limit]
+
+
+def _page_result_from_url(*, url: str, profile: dict[str, Any], term: str) -> ProductLookupResultOut | None:
+    try:
+        response = requests.get(
+            url,
+            headers={**_headers(), "User-Agent": "Mozilla/5.0 (compatible; GroceryHouseManager/1.0; +https://grocery-house-manager.com)"},
+            timeout=14,
+        )
+        response.raise_for_status()
+        page_html = response.text
+    except Exception:
+        return None
+
+    if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) and term.lower() not in f"{url} {page_html}".lower():
+        return None
+
+    # Try structured data first.
+    for payload in _extract_json_blobs(page_html):
+        for node in _walk_json(payload):
+            if not isinstance(node, dict):
+                continue
+            parsed = _generic_store_result_from_dict(node, profile=profile, term=term, source_url=url)
+            if parsed:
+                parsed.source = f"{profile.get('source')}_internet"
+                parsed.lookup_note = f"Found from the official {profile.get('display')} product page. Open the product to confirm price and availability."
+                return parsed
+
+    meta_result = _meta_store_result(page_html, profile=profile, term=term, source_url=url)
+    if meta_result:
+        meta_result.source = f"{profile.get('source')}_internet"
+        meta_result.lookup_note = f"Found from the official {profile.get('display')} product page. Open the product to confirm price and availability."
+        return meta_result
+    return None
+
+
+def _result_from_search_hit(hit: dict[str, str], *, profile: dict[str, Any], term: str) -> ProductLookupResultOut | None:
+    title = _clean_search_title(hit.get("title") or "", profile)
+    snippet = html_lib.unescape(hit.get("snippet") or "")
+    url = hit.get("url") or ""
+    if not title or not url:
+        return None
+    content = f"{title} {snippet} {url}"
+    # For plain item numbers, require the number to appear in the search hit text/URL.
+    if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) and term.lower() not in content.lower():
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) and not _looks_relevant_name(title, term):
+        return None
+    price_match = re.search(r"\$\s*([0-9]+(?:[\.,][0-9]{2})?)", snippet)
+    return ProductLookupResultOut(
+        source=f"{profile.get('source')}_internet",
+        barcode=term if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) else None,
+        name=title[:180],
+        brand=None,
+        image_url=None,
+        categories=[str(profile.get("display") or "Store"), "Official web result"],
+        quantity=f"Item # {term}" if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) else None,
+        store_name=str(profile.get("display") or "Store"),
+        product_url=url,
+        price=_safe_float(price_match.group(1)) if price_match else None,
+        lookup_note=(
+            f"Found by searching the web for this item on the official {profile.get('display')} site. "
+            "Open the product to confirm size, price, and availability."
+        ),
+        found=True,
+    )
+
+
+def _lookup_internet_store_pages(*, profile: dict[str, Any], term: str, limit: int = 8) -> list[ProductLookupResultOut]:
+    hits = _web_search_store_product_pages(profile, term, limit=limit)
+    results: list[ProductLookupResultOut] = []
+    seen: set[str] = set()
+    for hit in hits:
+        url = hit.get("url") or ""
+        if not url or url.lower().endswith((".pdf", ".jpg", ".png", ".gif")):
+            continue
+        parsed = _page_result_from_url(url=url, profile=profile, term=term)
+        if not parsed:
+            parsed = _result_from_search_hit(hit, profile=profile, term=term)
+        if not parsed:
+            continue
+        key = (parsed.name.lower(), parsed.product_url or "", parsed.barcode or "")
+        if str(key) in seen:
+            continue
+        seen.add(str(key))
+        results.append(parsed)
+        if len(results) >= limit:
+            break
+    return results[:limit]
+
+
 def _lookup_public_store_pages(*, profile: dict[str, Any], term: str, limit: int = 8) -> list[ProductLookupResultOut]:
     results: list[ProductLookupResultOut] = []
     seen: set[str] = set()
@@ -517,12 +816,19 @@ def lookup_store_product(*, store_name: str | None, product_id: str | None = Non
     if not term:
         return key, str(profile["display"]), []
     if key == "walmart":
-        # Keep the Walmart-specific parser first because it handles Walmart item numbers better.
+        # Keep the Walmart-specific parser first because it handles Walmart item numbers better when Walmart returns JSON.
         results = lookup_walmart_canada_product(product_id=product_id, query=query, limit=limit)
         if results:
             return key, str(profile["display"]), results
     results = _lookup_public_store_pages(profile=profile, term=term, limit=limit)
-    return key, str(profile["display"]), results
+    if results:
+        return key, str(profile["display"]), results
+
+    # Many Canadian retailers render search pages with browser JavaScript or block server-side
+    # product cards. When direct store parsing fails, search the web for official store pages
+    # such as: site:costco.ca item 1953954, then parse/open the official result.
+    internet_results = _lookup_internet_store_pages(profile=profile, term=term, limit=limit)
+    return key, str(profile["display"]), internet_results
 
 
 def _make_cache_key(items: list[str], location: str | None, retailers: list[str]) -> str:

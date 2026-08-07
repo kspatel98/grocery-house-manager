@@ -38,9 +38,17 @@ class Settings(BaseSettings):
     google_places_api_key: str | None = None
 
     # Grocery market/product data integrations.
-    # Open Food Facts is used for barcode/product details. It does not provide live store pricing.
+    # Open Food Facts is used for universal barcode/product details. It does not provide live store pricing.
     open_food_facts_base_url: str = "https://world.openfoodfacts.org"
     open_food_facts_user_agent: str = "GroceryHouseManager/1.0 (support@grocery-house-manager.com)"
+
+    # Store-specific product lookup. The app first checks public store pages, then can use
+    # a web-search provider to find official product pages by store item number/name.
+    # Bing/Google keys are optional but recommended for reliable production lookups.
+    store_lookup_web_search_enabled: bool = True
+    bing_web_search_api_key: str | None = None
+    google_search_api_key: str | None = None
+    google_search_cx: str | None = None
 
     # Apify Canadian grocery price comparison actor. Uses HTTPS 443, not SMTP.
     # Actor docs currently support input like:

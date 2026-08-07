@@ -651,6 +651,7 @@ class ProductLookupResultOut(BaseModel):
     store_name: str | None = None
     product_url: str | None = None
     price: float | None = None
+    lookup_note: str | None = None
     found: bool = True
 
 

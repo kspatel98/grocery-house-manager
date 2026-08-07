@@ -83,3 +83,27 @@ Then visit:
 /market is in the nav as Prices
 ```
 
+
+## v49 official store product lookup
+
+When a user enters a store name, product lookup now searches that store first instead of falling back to the universal product database. It tries the public store search page, then official-site web search results such as `site:costco.ca "1953954" Costco Canada`.
+
+Example:
+
+```text
+Store: Costco
+Item number: 1953954
+```
+
+The app can return the official Costco product page link when search finds it. Current price/availability may still require the user to open the product page because stores sometimes hide price until a postal code, warehouse, delivery area, or login is selected.
+
+Optional production keys:
+
+```env
+STORE_LOOKUP_WEB_SEARCH_ENABLED=true
+BING_WEB_SEARCH_API_KEY=
+GOOGLE_SEARCH_API_KEY=
+GOOGLE_SEARCH_CX=
+```
+
+Without these keys, the backend uses best-effort public search-page parsing, which may be blocked by search engines. Bing Web Search API or Google Programmable Search Engine is recommended for reliable production store item-number lookup.

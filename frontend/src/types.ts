@@ -404,6 +404,7 @@ export type ProductLookupResult = {
   store_name?: string | null;
   product_url?: string | null;
   price?: number | null;
+  lookup_note?: string | null;
   found: boolean;
 };
 

@@ -5287,3 +5287,29 @@ html, body, #root { overflow-x: hidden; }
   .market-hero-v47::after,
   .animated-card-lift { animation: none !important; }
 }
+
+/* v49: clearer official-store product lookup note */
+.lookup-note-v49 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  color: #1d4ed8;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.lookup-note-v49::before {
+  content: '🔎';
+}
+@media (max-width: 700px) {
+  .lookup-note-v49 {
+    width: 100%;
+    box-sizing: border-box;
+    align-items: flex-start;
+  }
+}

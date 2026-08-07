@@ -95,7 +95,7 @@ def market_capabilities(user: User = Depends(get_current_user)):
         apify_configured=connected,
         live_price_status="connected" if connected else "not_connected",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        message=f"Product lookup is available by plan. Store website lookup supports: {', '.join(supported_product_lookup_stores())}. Canadian live price comparison works best with a Canadian postal code and needs the live-price connection to be configured.",
+        message=f"Product lookup is available by plan. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. When a store is entered, the app searches official store pages and official web results before showing a result. Canadian live price comparison works best with a Canadian postal code.",
     )
 
 
@@ -137,14 +137,14 @@ def product_lookup(
                 premium_required=False,
                 configured=True,
                 store_filter=display_store,
-                message=f"No product was found on {display_store} for that number/name. Try the exact item number, UPC/barcode, product name, or search without a store filter.",
+                message=f"No official {display_store} product page was found for that number/name. Try the exact item number, UPC/barcode, product name, or remove the store name to search the universal product database.",
                 results=[],
             )
         return ProductLookupOut(
             premium_required=False,
             configured=True,
             store_filter=display_store,
-            message=f"{display_store} product details found from the store website. Review before adding it to inventory.",
+            message=f"Official {display_store} product result found. Open the product page to confirm size, price, and availability before adding it to inventory.",
             results=results,
         )
 

@@ -725,8 +725,21 @@ This package adds a new **Prices** page at `/market` plus shopping-list live pri
 
 Feature access by owner plan:
 
-- **Basic Home+**: Open Food Facts barcode/product lookup.
+- **Basic Home+**: universal product lookup plus official-store item-number lookup when a store name is entered.
 - **Family Plus+**: Canadian grocery price comparison through the Apify actor when `APIFY_API_TOKEN` is configured.
 - **Household Pro**: existing smart nearby store suggestions plus the new live Canadian price comparison.
 
 See `MARKET_API_FEATURES.md` for setup, supported retailers, and deployment notes.
+
+### Official store product lookup
+
+Store-specific lookup can find official product pages by store item number/name, for example Costco item `1953954`. Add optional search keys for more reliable production results:
+
+```env
+STORE_LOOKUP_WEB_SEARCH_ENABLED=true
+BING_WEB_SEARCH_API_KEY=
+GOOGLE_SEARCH_API_KEY=
+GOOGLE_SEARCH_CX=
+```
+
+Without these keys, the app uses a best-effort public search fallback. Some stores may hide current price until the user selects a postal code, warehouse, or delivery location.
