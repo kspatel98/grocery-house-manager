@@ -249,6 +249,282 @@ def lookup_walmart_canada_product(*, product_id: str | None = None, query: str |
     return results[:limit]
 
 
+
+CANADIAN_STORE_LOOKUP_PROFILES: dict[str, dict[str, Any]] = {
+    "walmart": {
+        "display": "Walmart",
+        "aliases": {"walmart", "walmart canada", "walmart ca", "wal-mart"},
+        "source": "walmart_ca",
+        "search_urls": ["https://www.walmart.ca/search?q={term}"],
+    },
+    "nofrills": {
+        "display": "No Frills",
+        "aliases": {"nofrills", "no frills", "no-frills"},
+        "source": "nofrills_website",
+        "search_urls": ["https://www.nofrills.ca/search?search-bar={term}", "https://www.nofrills.ca/en/search?search-bar={term}"],
+    },
+    "superstore": {
+        "display": "Real Canadian Superstore",
+        "aliases": {"superstore", "real canadian superstore", "rcss"},
+        "source": "superstore_website",
+        "search_urls": ["https://www.realcanadiansuperstore.ca/search?search-bar={term}", "https://www.realcanadiansuperstore.ca/en/search?search-bar={term}"],
+    },
+    "loblaws": {
+        "display": "Loblaws",
+        "aliases": {"loblaws", "loblaw"},
+        "source": "loblaws_website",
+        "search_urls": ["https://www.loblaws.ca/search?search-bar={term}", "https://www.loblaws.ca/en/search?search-bar={term}"],
+    },
+    "saveon": {
+        "display": "Save-On-Foods",
+        "aliases": {"saveon", "save on foods", "save-on-foods", "saveonfoods"},
+        "source": "saveonfoods_website",
+        "search_urls": ["https://www.saveonfoods.com/search?search_term={term}", "https://www.saveonfoods.com/sm/planning/rsid/1982/results?q={term}"],
+    },
+    "metro": {
+        "display": "Metro",
+        "aliases": {"metro", "metro canada"},
+        "source": "metro_website",
+        "search_urls": ["https://www.metro.ca/en/online-grocery/search?filter={term}"],
+    },
+    "foodbasics": {
+        "display": "Food Basics",
+        "aliases": {"food basics", "foodbasics"},
+        "source": "foodbasics_website",
+        "search_urls": ["https://www.foodbasics.ca/search?filter={term}"],
+    },
+    "freshco": {
+        "display": "FreshCo",
+        "aliases": {"freshco", "fresh co", "fresh-co"},
+        "source": "freshco_website",
+        "search_urls": ["https://voila.ca/search?search={term}", "https://www.freshco.com/search?search={term}"],
+    },
+    "costco": {
+        "display": "Costco Canada",
+        "aliases": {"costco", "costco canada"},
+        "source": "costco_website",
+        "search_urls": ["https://www.costco.ca/CatalogSearch?keyword={term}", "https://www.costco.ca/s?keyword={term}"],
+    },
+}
+
+
+def normalize_store_lookup_key(store_name: str | None) -> str | None:
+    clean = re.sub(r"[^a-z0-9]+", " ", (store_name or "").lower()).strip()
+    if not clean:
+        return None
+    for key, profile in CANADIAN_STORE_LOOKUP_PROFILES.items():
+        aliases = profile.get("aliases") or set()
+        if clean in aliases or clean == key:
+            return key
+    compact = clean.replace(" ", "")
+    for key, profile in CANADIAN_STORE_LOOKUP_PROFILES.items():
+        aliases = {str(alias).replace(" ", "") for alias in (profile.get("aliases") or set())}
+        if compact in aliases:
+            return key
+    return None
+
+
+def supported_product_lookup_stores() -> list[str]:
+    return [str(profile["display"]) for profile in CANADIAN_STORE_LOOKUP_PROFILES.values()]
+
+
+def _category_texts_from_dict(data: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for key in ("category", "categoryName", "categoryPath", "categories", "breadcrumbs", "department", "aisle"):
+        value = data.get(key)
+        if not value:
+            continue
+        if isinstance(value, str):
+            values.extend([part.strip() for part in re.split(r"[>/,|]", value) if part.strip()])
+        elif isinstance(value, list):
+            for child in value[:8]:
+                if isinstance(child, str) and child.strip():
+                    values.append(child.strip())
+                elif isinstance(child, dict):
+                    found = _first(child, "name", "label", "title", "categoryName")
+                    if found:
+                        values.append(str(found).strip())
+        elif isinstance(value, dict):
+            found = _first(value, "name", "label", "title", "categoryName")
+            if found:
+                values.append(str(found).strip())
+    cleaned: list[str] = []
+    for item in values:
+        item = re.sub(r"\s+", " ", item).strip()
+        if item and item.lower() not in {"grocery", "search", "products", "home"} and item not in cleaned:
+            cleaned.append(item[:80])
+    return cleaned[:6]
+
+
+def _term_tokens(term: str) -> set[str]:
+    return {token for token in re.sub(r"[^a-z0-9]+", " ", term.lower()).split() if len(token) >= 3 and not token.isdigit()}
+
+
+def _looks_relevant_name(name: str, term: str) -> bool:
+    tokens = _term_tokens(term)
+    if not tokens:
+        return True
+    clean_name = re.sub(r"[^a-z0-9]+", " ", name.lower())
+    return any(token in clean_name for token in tokens)
+
+
+def _generic_store_result_from_dict(data: dict[str, Any], *, profile: dict[str, Any], term: str, source_url: str | None = None) -> ProductLookupResultOut | None:
+    raw_name = _first(data, "name", "productName", "title", "displayName", "description")
+    if not raw_name:
+        return None
+    name = re.sub(r"\s+", " ", str(raw_name)).strip()
+    if len(name) < 2 or len(name) > 220 or name.lower() in {"search", "products", str(profile.get("display", "")).lower()}:
+        return None
+    if not _looks_relevant_name(name, term) and not re.search(re.escape(term), json.dumps(data, default=str), flags=re.I):
+        return None
+
+    brand = _first(data, "brand", "brandName", "manufacturer")
+    if isinstance(brand, dict):
+        brand = _first(brand, "name", "brandName")
+    offers = data.get("offers") if isinstance(data.get("offers"), dict) else {}
+    price = _safe_float(_first(data, "price", "currentPrice", "salePrice", "regularPrice", "priceInfo") or _first(offers, "price", "lowPrice", "highPrice"))
+    product_url = _first(data, "url", "canonicalUrl", "productUrl", "pdpUrl", "link") or source_url
+    if product_url and str(product_url).startswith("/"):
+        base = str(source_url or "").split("/", 3)
+        if len(base) >= 3:
+            product_url = f"{base[0]}//{base[2]}{product_url}"
+    image_url = _image_from_value(_first(data, "image", "imageUrl", "thumbnailUrl", "images", "smallImage"))
+    quantity = _first(data, "size", "packageSize", "netContent", "weight", "quantity", "itemSize")
+    barcode = _first(data, "upc", "gtin13", "gtin", "sku", "itemId", "productId", "articleNumber", "code")
+    if not (price is not None or image_url or product_url):
+        return None
+    return ProductLookupResultOut(
+        source=str(profile.get("source") or "store_website"),
+        barcode=str(barcode) if barcode else (term if re.fullmatch(r"[A-Za-z0-9_-]{5,40}", term) else None),
+        name=name[:180],
+        brand=str(brand).strip() if brand else None,
+        image_url=image_url,
+        categories=_category_texts_from_dict(data) or [str(profile.get("display") or "Store website")],
+        quantity=str(quantity).strip() if quantity else None,
+        store_name=str(profile.get("display") or "Store"),
+        product_url=str(product_url) if product_url else None,
+        price=price,
+        found=True,
+    )
+
+
+def _extract_json_blobs(html: str) -> list[Any]:
+    payloads: list[Any] = []
+    for match in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html, flags=re.I | re.S):
+        try:
+            payloads.append(json.loads(match.group(1).strip()))
+        except Exception:
+            continue
+    for pattern in [
+        r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+        r'<script[^>]+id=["\']ng-state["\'][^>]*>(.*?)</script>',
+    ]:
+        for match in re.finditer(pattern, html, flags=re.I | re.S):
+            try:
+                payloads.append(json.loads(match.group(1).strip()))
+            except Exception:
+                continue
+    return payloads
+
+
+def _meta_content(html: str, property_name: str) -> str | None:
+    patterns = [
+        rf'<meta[^>]+property=["\']{re.escape(property_name)}["\'][^>]+content=["\']([^"\']+)["\']',
+        rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']{re.escape(property_name)}["\']',
+        rf'<meta[^>]+name=["\']{re.escape(property_name)}["\'][^>]+content=["\']([^"\']+)["\']',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, html, flags=re.I)
+        if match:
+            return re.sub(r"\s+", " ", match.group(1)).strip()
+    return None
+
+
+def _meta_store_result(html: str, *, profile: dict[str, Any], term: str, source_url: str) -> ProductLookupResultOut | None:
+    title = _meta_content(html, "og:title") or _meta_content(html, "twitter:title")
+    if not title:
+        return None
+    title = re.sub(r"\s*[|-].*$", "", title).strip()
+    if not _looks_relevant_name(title, term):
+        return None
+    image = _meta_content(html, "og:image") or _meta_content(html, "twitter:image")
+    canonical = _meta_content(html, "og:url") or source_url
+    return ProductLookupResultOut(
+        source=str(profile.get("source") or "store_website"),
+        barcode=term if re.fullmatch(r"[A-Za-z0-9_-]{5,40}", term) else None,
+        name=title[:180],
+        brand=None,
+        image_url=image,
+        categories=[str(profile.get("display") or "Store website")],
+        quantity=None,
+        store_name=str(profile.get("display") or "Store"),
+        product_url=canonical,
+        price=None,
+        found=True,
+    )
+
+
+def _lookup_public_store_pages(*, profile: dict[str, Any], term: str, limit: int = 8) -> list[ProductLookupResultOut]:
+    results: list[ProductLookupResultOut] = []
+    seen: set[str] = set()
+    encoded = quote_plus(term)
+    for template in profile.get("search_urls") or []:
+        url = str(template).format(term=encoded)
+        try:
+            response = requests.get(url, headers={**_headers(), "User-Agent": "Mozilla/5.0 (compatible; GroceryHouseManager/1.0; +https://grocery-house-manager.com)"}, timeout=16)
+            response.raise_for_status()
+            html = response.text
+        except Exception:
+            continue
+        for payload in _extract_json_blobs(html):
+            for node in _walk_json(payload):
+                if not isinstance(node, dict):
+                    continue
+                if not (_first(node, "name", "productName", "title", "displayName") and (_first(node, "price", "currentPrice", "priceInfo", "imageUrl", "image", "thumbnailUrl", "url", "productUrl") or node.get("offers"))):
+                    continue
+                parsed = _generic_store_result_from_dict(node, profile=profile, term=term, source_url=url)
+                if not parsed:
+                    continue
+                key = (parsed.name.lower(), parsed.barcode or "", parsed.product_url or "")
+                if str(key) in seen:
+                    continue
+                seen.add(str(key))
+                results.append(parsed)
+                if len(results) >= limit:
+                    return results
+        if not results:
+            meta_result = _meta_store_result(html, profile=profile, term=term, source_url=url)
+            if meta_result:
+                key = meta_result.name.lower()
+                if key not in seen:
+                    seen.add(key)
+                    results.append(meta_result)
+    return results[:limit]
+
+
+def lookup_store_product(*, store_name: str | None, product_id: str | None = None, query: str | None = None, limit: int = 8) -> tuple[str | None, str | None, list[ProductLookupResultOut]]:
+    """Best-effort public website product lookup for Canadian grocery stores.
+
+    This is intentionally conservative: it only reads public store pages and parses structured
+    data that the store page already returns. Some retailers block automated requests or render
+    product cards in browser-only JavaScript, so callers should show a friendly fallback message.
+    """
+    key = normalize_store_lookup_key(store_name)
+    if not key:
+        return None, None, []
+    profile = CANADIAN_STORE_LOOKUP_PROFILES[key]
+    term = (product_id or query or "").strip()
+    if not term:
+        return key, str(profile["display"]), []
+    if key == "walmart":
+        # Keep the Walmart-specific parser first because it handles Walmart item numbers better.
+        results = lookup_walmart_canada_product(product_id=product_id, query=query, limit=limit)
+        if results:
+            return key, str(profile["display"]), results
+    results = _lookup_public_store_pages(profile=profile, term=term, limit=limit)
+    return key, str(profile["display"]), results
+
+
 def _make_cache_key(items: list[str], location: str | None, retailers: list[str]) -> str:
     normalized = {
         "items": sorted([item.strip().lower() for item in items if item.strip()]),

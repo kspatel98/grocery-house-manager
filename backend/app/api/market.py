@@ -13,7 +13,7 @@ from app.db.session import get_db
 from app.models import Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
 from app.schemas import MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
-from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, WALMART_ALIASES, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_walmart_canada_product, normalize_canadian_postal_code, safe_market_error
+from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -95,7 +95,7 @@ def market_capabilities(user: User = Depends(get_current_user)):
         apify_configured=connected,
         live_price_status="connected" if connected else "not_connected",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        message="Product lookup is available by plan. Canadian live price comparison works best with a Canadian postal code and needs the live-price connection to be configured.",
+        message=f"Product lookup is available by plan. Store website lookup supports: {', '.join(supported_product_lookup_stores())}. Canadian live price comparison works best with a Canadian postal code and needs the live-price connection to be configured.",
     )
 
 
@@ -111,7 +111,6 @@ def product_lookup(
     require_house_member(house_id, user, db)
     house_plan = get_house_plan(db, house_id)
     store_filter = (store_name or "").strip()
-    normalized_store = store_filter.lower()
     if not house_plan_has_product_lookup(db, house_id):
         return ProductLookupOut(
             premium_required=True,
@@ -121,33 +120,32 @@ def product_lookup(
             results=[],
         )
     if not barcode and not query:
-        return ProductLookupOut(store_filter=store_filter or None, message="Enter a barcode, Walmart item number, or product name to search.", results=[])
+        return ProductLookupOut(store_filter=store_filter or None, message="Enter a barcode, store item number, or product name to search.", results=[])
 
     if store_filter:
-        if normalized_store in WALMART_ALIASES:
-            results = lookup_walmart_canada_product(product_id=barcode, query=query, limit=8)
-            if not results:
-                return ProductLookupOut(
-                    premium_required=False,
-                    configured=True,
-                    store_filter="Walmart",
-                    message="No Walmart product was found for that number/name. Try the Walmart item number, product name, or search without a store filter.",
-                    results=[],
-                )
+        store_key, display_store, results = lookup_store_product(store_name=store_filter, product_id=barcode, query=query, limit=8)
+        if store_key is None:
             return ProductLookupOut(
                 premium_required=False,
                 configured=True,
-                store_filter="Walmart",
-                message="Walmart product details found. Review before adding it to inventory.",
-                results=results,
+                store_filter=store_filter,
+                message=f"Store website lookup is not ready for {store_filter} yet. Supported stores: {', '.join(supported_product_lookup_stores())}. Remove the store name to search the universal product database.",
+                results=[],
             )
-
+        if not results:
+            return ProductLookupOut(
+                premium_required=False,
+                configured=True,
+                store_filter=display_store,
+                message=f"No product was found on {display_store} for that number/name. Try the exact item number, UPC/barcode, product name, or search without a store filter.",
+                results=[],
+            )
         return ProductLookupOut(
             premium_required=False,
             configured=True,
-            store_filter=store_filter,
-            message=f"Store-specific lookup is not connected for {store_filter} yet. Remove the store name to search the universal product database.",
-            results=[],
+            store_filter=display_store,
+            message=f"{display_store} product details found from the store website. Review before adding it to inventory.",
+            results=results,
         )
 
     results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)

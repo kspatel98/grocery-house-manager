@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { Product, Section, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
+import { normalizeText, smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 
 type Selection = Record<number, { selected: boolean; requested_quantity: number; message: string; bought_price?: number | null; bought_store_name?: string }>;
 type ItemUpdates = {
@@ -23,32 +24,6 @@ type ShoppingListPanelProps = {
   onListUpdated?: (list: ShoppingList) => void;
   onProductSearch?: (query: string) => void | Promise<void>;
 };
-
-function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function smartSectionId(name: string, sections: Section[]): number | '' {
-  const text = normalizeText(name);
-  const matches: Array<[string[], string[]]> = [
-    [['dairy'], ['milk', 'cheese', 'paneer', 'yogurt', 'yoghurt', 'tofu', 'cream', 'butter', 'egg']],
-    [['fruits'], ['banana', 'apple', 'orange', 'grape', 'berry', 'mango', 'pear', 'melon']],
-    [['vegetables'], ['tomato', 'onion', 'potato', 'lettuce', 'spinach', 'pepper', 'carrot', 'cucumber']],
-    [['meat'], ['chicken', 'beef', 'pork', 'fish', 'salmon', 'turkey']],
-    [['bakery'], ['bread', 'bun', 'bagel', 'naan', 'tortilla']],
-    [['pantry'], ['rice', 'flour', 'sugar', 'oil', 'pasta', 'beans', 'lentil', 'cereal']],
-    [['snacks'], ['chips', 'cookie', 'snack', 'chocolate', 'candy']],
-    [['frozen'], ['frozen', 'ice cream', 'fries', 'pizza']],
-    [['household'], ['soap', 'detergent', 'tissue', 'paper', 'cleaner', 'bag', 'foil']],
-  ];
-  for (const [sectionNames, keywords] of matches) {
-    if (keywords.some((keyword) => text.includes(keyword))) {
-      const match = sections.find((section) => sectionNames.some((sectionName) => section.name.toLowerCase().includes(sectionName)));
-      if (match) return match.id;
-    }
-  }
-  return sections[0]?.id || '';
-}
 
 function formatShortDate(timestamp: number) {
   if (!timestamp) return '';
@@ -403,8 +378,8 @@ function ProductPicker({ houseId, sections, products, selection, onToggle, onUpd
       const { data } = await api.post<Product>(`/houses/${houseId}/sections/${sectionId}/products`, {
         name,
         quantity: Number(newProductQuantity) || 0,
-        unit: newProductUnit || 'pcs',
-        icon: sections.find((section) => section.id === sectionId)?.icon || '🛒',
+        unit: newProductUnit || smartProductUnit(name),
+        icon: sections.find((section) => section.id === sectionId)?.icon || smartProductIcon(name),
       });
       onCreated(data, true);
       await onSearch?.(name);

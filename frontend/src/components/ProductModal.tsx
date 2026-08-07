@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { Product, Section } from '../types';
+import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 
 type Props = {
   houseId: number;
@@ -93,9 +94,28 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   const [error, setError] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
   const [previewBroken, setPreviewBroken] = useState(false);
+  const categoryManuallyChosen = useRef(Boolean(product?.section_id || modal.sectionId));
+
+  useEffect(() => {
+    if (modal.mode !== 'create' || categoryManuallyChosen.current || !form.name.trim()) return;
+    const suggestedSection = smartSectionId(form.name, sections);
+    if (suggestedSection && suggestedSection !== form.section_id) {
+      setForm((prev) => ({ ...prev, section_id: suggestedSection }));
+    }
+  }, [form.name, form.section_id, modal.mode, sections]);
 
   function setField(key: string, value: string | number) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    if (key === 'section_id') categoryManuallyChosen.current = true;
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (modal.mode === 'create' && key === 'name' && !categoryManuallyChosen.current) {
+        const suggestedSection = smartSectionId(String(value), sections);
+        if (suggestedSection) next.section_id = suggestedSection;
+        if (!next.icon) next.icon = smartProductIcon(String(value));
+        if (!next.unit || next.unit === 'pcs') next.unit = smartProductUnit(String(value));
+      }
+      return next;
+    });
     if (key === 'image_url') setPreviewBroken(false);
   }
 
@@ -106,13 +126,18 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   }
 
   function applyPreset(preset: ProductPreset) {
-    setForm((prev) => ({
-      ...prev,
-      name: prev.name || preset.label,
-      icon: preset.icon,
-      image_url: preset.image,
-      unit: prev.unit && prev.unit !== 'pcs' ? prev.unit : preset.unit,
-    }));
+    setForm((prev) => {
+      const nextName = prev.name || preset.label;
+      const suggestedSection = modal.mode === 'create' && !categoryManuallyChosen.current ? smartSectionId(nextName, sections) : prev.section_id;
+      return {
+        ...prev,
+        section_id: suggestedSection || prev.section_id,
+        name: nextName,
+        icon: preset.icon,
+        image_url: preset.image,
+        unit: prev.unit && prev.unit !== 'pcs' ? prev.unit : preset.unit,
+      };
+    });
     setPreviewBroken(false);
   }
 
@@ -218,7 +243,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
           </section>
 
           <div className="form-row">
-            <label>Section<select value={form.section_id} onChange={(e) => setField('section_id', Number(e.target.value))}>{sections.map((s) => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></label>
+            <label>Category<select value={form.section_id} onChange={(e) => setField('section_id', Number(e.target.value))}>{sections.map((s) => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select><small>Auto-selected from the product name. You can change it anytime.</small></label>
             <label>Name<input value={form.name} onChange={(e) => setField('name', e.target.value)} required /></label>
           </div>
 

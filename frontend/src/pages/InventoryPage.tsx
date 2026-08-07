@@ -87,7 +87,7 @@ export default function InventoryPage() {
           <h1>Organized grocery inventory</h1>
           <p>Search, filter, update, and monitor stock without mixing inventory work with receipt scanning or shopping lists.</p>
         </div>
-        <button className="primary glow-action" onClick={() => setProductModal({ mode: 'create', sectionId: sections[0]?.id })}>+ Add product</button>
+        <button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button>
       </header>
 
       <nav className="house-mini-nav" aria-label="House sections">

@@ -274,15 +274,19 @@ def match_product_for_line(description: str, products: list[Product]) -> tuple[P
 
 
 CATEGORY_KEYWORDS = [
-    ("Dairy", "🥛", ["milk", "cheese", "paneer", "yogurt", "yoghurt", "tofu", "cream", "butter", "egg", "eggs"]),
-    ("Fruits", "🍎", ["banana", "apple", "orange", "grape", "berry", "mango", "pear", "peach", "melon"]),
-    ("Vegetables", "🥦", ["tomato", "onion", "potato", "lettuce", "spinach", "pepper", "carrot", "cucumber", "broccoli"]),
-    ("Meat", "🥩", ["chicken", "beef", "pork", "fish", "salmon", "turkey", "meat"]),
-    ("Bakery", "🍞", ["bread", "bun", "bagel", "naan", "tortilla", "cake"]),
-    ("Pantry", "🥫", ["rice", "flour", "sugar", "oil", "pasta", "beans", "lentil", "cereal", "sauce", "spice"]),
-    ("Snacks", "🍿", ["chips", "cookie", "cookies", "snack", "chocolate", "candy", "cracker"]),
-    ("Frozen", "🧊", ["frozen", "ice cream", "fries", "pizza"]),
-    ("Household", "🧽", ["soap", "detergent", "tissue", "paper", "cleaner", "bag", "foil"]),
+    ("Dairy", "🥛", ["milk", "cheese", "paneer", "yogurt", "yoghurt", "tofu", "cream", "butter", "egg", "eggs", "sour cream", "cottage cheese"]),
+    ("Fruits", "🍎", ["banana", "apple", "orange", "grape", "berry", "berries", "mango", "pear", "peach", "melon", "kiwi", "avocado", "pineapple"]),
+    ("Vegetables", "🥦", ["tomato", "onion", "potato", "lettuce", "spinach", "pepper", "carrot", "cucumber", "broccoli", "cauliflower", "cilantro", "coriander"]),
+    ("Meat", "🥩", ["chicken", "beef", "pork", "fish", "salmon", "turkey", "shrimp", "meat", "ham", "sausage"]),
+    ("Bakery", "🍞", ["bread", "bun", "bagel", "naan", "tortilla", "cake", "muffin", "croissant"]),
+    ("Pantry", "🥫", ["rice", "flour", "sugar", "oil", "pasta", "beans", "lentil", "cereal", "sauce", "spice", "salt", "pepper", "can", "noodle"]),
+    ("Snacks", "🍿", ["chips", "cookie", "cookies", "snack", "chocolate", "candy", "cracker", "popcorn"]),
+    ("Frozen", "🧊", ["frozen", "ice cream", "fries", "pizza", "nuggets"]),
+    ("Beverages", "🧃", ["juice", "pop", "soda", "water", "coffee", "tea", "drink", "beverage", "coke", "pepsi"]),
+    ("Household", "🧽", ["soap", "detergent", "tissue", "paper towel", "toilet paper", "cleaner", "bag", "foil", "dish", "laundry", "garbage"]),
+    ("Personal Care", "🧴", ["shampoo", "toothpaste", "toothbrush", "deodorant", "lotion", "body wash", "conditioner", "razor"]),
+    ("Baby", "🍼", ["baby", "diaper", "diapers", "wipes", "formula"]),
+    ("Pets", "🐾", ["dog food", "cat food", "pet", "litter", "treats"]),
 ]
 
 

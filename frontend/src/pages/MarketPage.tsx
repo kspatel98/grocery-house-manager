@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { AccountBootstrap, House, LivePriceCompareResponse, MarketCapabilities, ProductLookupResult, ProductLookupResponse, Section, User } from '../types';
+import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 
 const retailerLabels: Record<string, string> = {
   loblaws: 'Loblaws',
@@ -13,32 +14,6 @@ const retailerLabels: Record<string, string> = {
   tnt: 'T&T Supermarket',
 };
 
-function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function smartSectionId(name: string, sections: Section[]): number | '' {
-  const text = normalizeText(name);
-  const rules: Array<[string[], string[]]> = [
-    [['dairy'], ['milk', 'cheese', 'paneer', 'yogurt', 'yoghurt', 'cream', 'butter', 'egg']],
-    [['fruits'], ['banana', 'apple', 'orange', 'grape', 'berry', 'mango', 'pear', 'melon']],
-    [['vegetables'], ['tomato', 'onion', 'potato', 'lettuce', 'spinach', 'pepper', 'carrot', 'cucumber']],
-    [['meat'], ['chicken', 'beef', 'pork', 'fish', 'salmon', 'turkey']],
-    [['bakery'], ['bread', 'bun', 'bagel', 'naan', 'tortilla']],
-    [['pantry'], ['rice', 'flour', 'sugar', 'oil', 'pasta', 'beans', 'lentil', 'cereal']],
-    [['snacks'], ['chips', 'cookie', 'snack', 'chocolate', 'candy']],
-    [['frozen'], ['frozen', 'ice cream', 'fries', 'pizza']],
-    [['household'], ['soap', 'detergent', 'tissue', 'paper', 'cleaner', 'bag', 'foil']],
-  ];
-  for (const [sectionNames, keywords] of rules) {
-    if (keywords.some((keyword) => text.includes(keyword))) {
-      const match = sections.find((section) => sectionNames.some((sectionName) => section.name.toLowerCase().includes(sectionName)));
-      if (match) return match.id;
-    }
-  }
-  return sections[0]?.id || '';
-}
-
 function statusLabel(connected: boolean) {
   return connected ? 'Connected' : 'Not connected';
 }
@@ -46,6 +21,9 @@ function statusLabel(connected: boolean) {
 function storeSourceLabel(source: string) {
   if (source === 'walmart_ca') return 'Walmart Canada';
   if (source === 'open_food_facts') return 'Universal product database';
+  if (source.endsWith('_website')) {
+    return source.replace('_website', '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
   return source.replace(/_/g, ' ');
 }
 
@@ -157,7 +135,7 @@ export default function MarketPage() {
       return;
     }
     const key = `${item.source}-${item.barcode || item.name}`;
-    const sectionId = smartSectionId(item.name, sections);
+    const sectionId = smartSectionId(item.name, sections, item.categories || []);
     if (!sectionId) {
       setAddFeedback('Create at least one inventory section first, then add this product.');
       return;
@@ -168,9 +146,9 @@ export default function MarketPage() {
       await api.post(`/houses/${selectedHouseId}/sections/${sectionId}/products`, {
         name: item.name,
         image_url: item.image_url || null,
-        icon: '🛒',
+        icon: smartProductIcon(item.name, '🛒', item.categories || []),
         quantity: 0,
-        unit: 'pcs',
+        unit: smartProductUnit(item.name, 'pcs', item.categories || []),
         price: item.price ?? null,
         store_name: item.store_name && item.store_name !== 'Universal product database' ? item.store_name : null,
         brand: item.brand || null,
@@ -294,11 +272,11 @@ export default function MarketPage() {
             </div>
             <span className="badge access-basic">Basic Home+</span>
           </div>
-          <p>Search universal product data or enter Walmart in the store field to search by Walmart item/product number.</p>
+          <p>Search the universal database, or enter a store name like Walmart, No Frills, Superstore, Loblaws, Save-On-Foods, Metro, Food Basics, FreshCo, or Costco for a best-effort store website lookup.</p>
           <form onSubmit={runLookup} className="market-lookup-form market-form-v47">
-            <label>Barcode or Walmart item number<input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Example: 3017624010701 or Walmart item #" /></label>
+            <label>Barcode or store item number<input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Example: UPC, Walmart item #, or store product #" /></label>
             <label>Product name<input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Example: milk, rice, cereal" /></label>
-            <label>Store name optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Example: Walmart. Blank = universal search" /></label>
+            <label>Store name optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Example: Walmart, No Frills, Metro. Blank = universal search" /></label>
             <button className="primary" disabled={lookupBusy || !selectedHouseId}>{lookupBusy ? 'Searching...' : 'Search product'}</button>
           </form>
           {addFeedback && <div className={addFeedback.includes('added') ? 'success compact-message' : 'hint'}>{addFeedback}</div>}
