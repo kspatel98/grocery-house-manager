@@ -530,25 +530,72 @@ def _decode_search_href(href: str) -> str | None:
     return href
 
 
+def _extract_site_search_from_query(query: str) -> tuple[str | None, str]:
+    match = re.search(r"\bsite:([A-Za-z0-9.-]+)\b", query or "")
+    if not match:
+        return None, query
+    domain = match.group(1).strip().lower()
+    cleaned = re.sub(r"\bsite:[A-Za-z0-9.-]+\b", "", query or "", flags=re.I)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return domain, cleaned or query
+
+
+def _append_lookup_detail(details: list[str] | None, message: str) -> None:
+    if details is None:
+        return
+    safe = re.sub(r"\s+", " ", message).strip()
+    if safe and safe not in details and len(details) < 12:
+        details.append(safe[:240])
+
+
+def store_lookup_search_status() -> list[str]:
+    details: list[str] = []
+    if not settings.store_lookup_web_search_enabled:
+        details.append("Store internet search is turned off. Set STORE_LOOKUP_WEB_SEARCH_ENABLED=true.")
+    if settings.google_search_api_key and settings.google_search_cx:
+        details.append("Google product search is connected. If it still returns 0 results, make sure the Search Engine ID can search store domains such as costco.ca and walmart.ca, not only your own website.")
+    elif settings.google_search_api_key and not settings.google_search_cx:
+        details.append("Google API key is present, but GOOGLE_SEARCH_CX / Search Engine ID is missing.")
+    elif settings.google_search_cx and not settings.google_search_api_key:
+        details.append("Google Search Engine ID is present, but GOOGLE_SEARCH_API_KEY is missing.")
+    else:
+        details.append("Google product search is not configured. Add both GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX.")
+    if settings.bing_web_search_api_key:
+        details.append("Bing product search is connected as backup.")
+    return details
+
+
 def _store_web_search_queries(profile: dict[str, Any], term: str) -> list[str]:
     display = str(profile.get("display") or "store")
     domains = _profile_domains(profile)
+    term = (term or "").strip()
     quoted = f'"{term}"' if len(term.split()) <= 4 else term
     queries: list[str] = []
     for domain in domains[:3]:
+        # Query exactly the way a person would search Google. Keeping site: inside q is
+        # important because some Programmable Search engines ignore/over-filter siteSearch.
+        queries.append(f"site:{domain} {quoted}")
         queries.append(f"site:{domain} {quoted} {display}")
         queries.append(f"site:{domain} {quoted} product")
-    # Item numbers often appear in snippets as "Item 1953954" rather than in the title.
+        queries.append(f"{quoted} {domain}")
+    # Item numbers often appear as "Item 1953954", "Item #1953954", "Item Number 1953954",
+    # or only in the indexed page body. Try human-style searches first.
     if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term):
         for domain in domains[:3]:
+            queries.append(f"site:{domain} \"Item {term}\"")
+            queries.append(f"site:{domain} \"Item # {term}\"")
+            queries.append(f"site:{domain} \"Item #{term}\"")
+            queries.append(f"site:{domain} \"Item Number {term}\"")
             queries.append(f"site:{domain} item {term}")
-            queries.append(f"site:{domain} product {term}")
+            queries.append(f"site:{domain} item number {term}")
+            queries.append(f"site:{domain} partNumber {term}")
+            queries.append(f"\"{term}\" \"{display}\"")
+            queries.append(f"\"{term}\" \"{domain}\"")
     deduped: list[str] = []
     for query in queries:
         if query not in deduped:
             deduped.append(query)
-    return deduped[:6]
-
+    return deduped[:18]
 
 def _search_with_bing_api(query: str, limit: int) -> list[dict[str, str]]:
     if not settings.bing_web_search_api_key:
@@ -571,26 +618,87 @@ def _search_with_bing_api(query: str, limit: int) -> list[dict[str, str]]:
     return hits[:limit]
 
 
+def _raise_google_error(response: requests.Response) -> None:
+    try:
+        payload = response.json()
+        message = ((payload.get("error") or {}).get("message") or response.text or "Google search failed")
+    except Exception:
+        message = response.text or "Google search failed"
+    message = re.sub(r"\s+", " ", str(message)).strip()
+    raise RuntimeError(f"Google Custom Search error {response.status_code}: {message[:260]}")
+
+
 def _search_with_google_cse(query: str, limit: int) -> list[dict[str, str]]:
     if not (settings.google_search_api_key and settings.google_search_cx):
         return []
-    response = requests.get(
-        "https://www.googleapis.com/customsearch/v1",
-        params={"key": settings.google_search_api_key, "cx": settings.google_search_cx, "q": query, "num": min(max(limit, 1), 10), "gl": "ca", "hl": "en"},
-        headers=_headers(),
-        timeout=12,
-    )
-    response.raise_for_status()
-    data = response.json()
-    hits: list[dict[str, str]] = []
-    for row in data.get("items") or []:
-        url = str(row.get("link") or "")
-        title = str(row.get("title") or "")
-        snippet = str(row.get("snippet") or "")
-        if url and title:
-            hits.append({"url": url, "title": title, "snippet": snippet, "provider": "google_cse"})
-    return hits[:limit]
+    site_domain, clean_query = _extract_site_search_from_query(query)
 
+    # Try multiple safe request shapes. Some Programmable Search Engines return nothing
+    # when siteSearch is used, while others work better with siteSearch than with site: in q.
+    # We merge both so a good official result is not lost because of one setting.
+    variants: list[dict[str, Any]] = []
+    base = {
+        "key": settings.google_search_api_key,
+        "cx": settings.google_search_cx,
+        "num": min(max(limit, 1), 10),
+        "gl": "ca",
+        "hl": "en",
+        "safe": "off",
+        "filter": "0",
+    }
+    variants.append({**base, "q": query})
+    if site_domain:
+        variants.append({**base, "q": clean_query, "siteSearch": site_domain, "siteSearchFilter": "i"})
+        variants.append({**base, "q": f"{clean_query} site:{site_domain}"})
+        # A broader variant helps when the user's CSE emphasizes selected sites and a site:
+        # operator gets over-filtered.
+        variants.append({**base, "q": f"{clean_query} {site_domain}"})
+    else:
+        variants.append({**base, "q": clean_query})
+
+    hits: list[dict[str, str]] = []
+    seen: set[str] = set()
+    last_total = "0"
+    for params in variants:
+        response = requests.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params=params,
+            headers=_headers(),
+            timeout=14,
+        )
+        if response.status_code >= 400:
+            _raise_google_error(response)
+        data = response.json()
+        last_total = str((data.get("searchInformation") or {}).get("totalResults") or last_total or "0")
+        for row in data.get("items") or []:
+            url = str(row.get("link") or "")
+            title = str(row.get("title") or "")
+            snippet = str(row.get("snippet") or "")
+            image_url = None
+            pagemap = row.get("pagemap") if isinstance(row.get("pagemap"), dict) else {}
+            images = pagemap.get("cse_image") or pagemap.get("metatags") or []
+            if isinstance(images, list):
+                for image_row in images[:3]:
+                    if not isinstance(image_row, dict):
+                        continue
+                    image_url = image_row.get("src") or image_row.get("og:image") or image_row.get("twitter:image")
+                    if image_url:
+                        break
+            normalized = url.split("#", 1)[0]
+            if normalized and title and normalized not in seen:
+                seen.add(normalized)
+                hits.append({
+                    "url": normalized,
+                    "title": title,
+                    "snippet": snippet,
+                    "provider": "google_cse",
+                    "image_url": str(image_url or ""),
+                    "google_total_results": last_total,
+                    "google_query_used": str(params.get("q") or ""),
+                })
+            if len(hits) >= limit:
+                return hits[:limit]
+    return hits[:limit]
 
 def _search_with_duckduckgo_html(query: str, limit: int) -> list[dict[str, str]]:
     response = requests.get(
@@ -643,22 +751,37 @@ def _search_with_bing_html(query: str, limit: int) -> list[dict[str, str]]:
     return hits
 
 
-def _web_search_store_product_pages(profile: dict[str, Any], term: str, limit: int = 8) -> list[dict[str, str]]:
+def _web_search_store_product_pages(profile: dict[str, Any], term: str, limit: int = 8, diagnostics: list[str] | None = None) -> list[dict[str, str]]:
     if not settings.store_lookup_web_search_enabled:
+        _append_lookup_detail(diagnostics, "Store internet search is turned off in backend settings.")
         return []
+    for detail in store_lookup_search_status():
+        _append_lookup_detail(diagnostics, detail)
     hits: list[dict[str, str]] = []
     seen_urls: set[str] = set()
+    api_providers = (_search_with_bing_api, _search_with_google_cse)
+    html_providers = (_search_with_duckduckgo_html, _search_with_bing_html)
     for query in _store_web_search_queries(profile, term):
-        providers = (_search_with_bing_api, _search_with_google_cse, _search_with_duckduckgo_html, _search_with_bing_html)
+        providers = api_providers + html_providers
         for provider in providers:
+            provider_name = provider.__name__.replace("_search_with_", "").replace("_", " ").title()
             try:
                 found = provider(query, limit=max(limit * 2, 6))
-            except Exception:
+                if provider in api_providers:
+                    _append_lookup_detail(diagnostics, f"{provider_name} checked official {profile.get('display')} results for: {query}. Returned {len(found)} result(s).")
+            except Exception as exc:
+                if provider in api_providers:
+                    message = str(exc)
+                    if len(message) > 120:
+                        message = message[:120] + "..."
+                    _append_lookup_detail(diagnostics, f"{provider_name} could not search right now: {message}")
                 found = []
+            official_count = 0
             for hit in found:
                 url = hit.get("url") or ""
                 if not _url_is_official_store_result(url, profile):
                     continue
+                official_count += 1
                 normalized_url = url.split("#", 1)[0]
                 if normalized_url in seen_urls:
                     continue
@@ -667,10 +790,15 @@ def _web_search_store_product_pages(profile: dict[str, Any], term: str, limit: i
                 hit["query"] = query
                 hits.append(hit)
                 if len(hits) >= limit:
+                    _append_lookup_detail(diagnostics, f"Found {len(hits)} official {profile.get('display')} product link(s).")
                     return hits
-            # If a keyed API returns official results, do not continue to scrape search engines for the same query.
-            if hits and provider in (_search_with_bing_api, _search_with_google_cse):
+            if provider in api_providers and found and official_count == 0:
+                _append_lookup_detail(diagnostics, f"{provider_name} returned results, but none were official {profile.get('display')} links.")
+            # If a keyed API returns official results, use it first and do not scrape search pages for the same query.
+            if hits and provider in api_providers:
                 break
+    if not hits:
+        _append_lookup_detail(diagnostics, f"No official {profile.get('display')} product link was found for {term}. Check that Google Programmable Search is enabled for the entire web, not restricted to another site.")
     return hits[:limit]
 
 
@@ -715,8 +843,11 @@ def _result_from_search_hit(hit: dict[str, str], *, profile: dict[str, Any], ter
     if not title or not url:
         return None
     content = f"{title} {snippet} {url}"
-    # For plain item numbers, require the number to appear in the search hit text/URL.
-    if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) and term.lower() not in content.lower():
+    official_product_url = bool(re.search(r"/(product|p/|ip/|item|products|CatalogSearch|s\?)", url, flags=re.I))
+    # For plain item numbers, prefer the number in title/snippet/URL, but do not throw away
+    # an official product page from a site-restricted search just because Google did not include
+    # the item number in the snippet. Costco often returns a product page title without the item #.
+    if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) and term.lower() not in content.lower() and not official_product_url:
         return None
     if not re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) and not _looks_relevant_name(title, term):
         return None
@@ -726,7 +857,7 @@ def _result_from_search_hit(hit: dict[str, str], *, profile: dict[str, Any], ter
         barcode=term if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) else None,
         name=title[:180],
         brand=None,
-        image_url=None,
+        image_url=hit.get("image_url") or None,
         categories=[str(profile.get("display") or "Store"), "Official web result"],
         quantity=f"Item # {term}" if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) else None,
         store_name=str(profile.get("display") or "Store"),
@@ -740,8 +871,8 @@ def _result_from_search_hit(hit: dict[str, str], *, profile: dict[str, Any], ter
     )
 
 
-def _lookup_internet_store_pages(*, profile: dict[str, Any], term: str, limit: int = 8) -> list[ProductLookupResultOut]:
-    hits = _web_search_store_product_pages(profile, term, limit=limit)
+def _lookup_internet_store_pages(*, profile: dict[str, Any], term: str, limit: int = 8, diagnostics: list[str] | None = None) -> list[ProductLookupResultOut]:
+    hits = _web_search_store_product_pages(profile, term, limit=limit, diagnostics=diagnostics)
     results: list[ProductLookupResultOut] = []
     seen: set[str] = set()
     for hit in hits:
@@ -801,34 +932,79 @@ def _lookup_public_store_pages(*, profile: dict[str, Any], term: str, limit: int
     return results[:limit]
 
 
-def lookup_store_product(*, store_name: str | None, product_id: str | None = None, query: str | None = None, limit: int = 8) -> tuple[str | None, str | None, list[ProductLookupResultOut]]:
-    """Best-effort public website product lookup for Canadian grocery stores.
 
-    This is intentionally conservative: it only reads public store pages and parses structured
-    data that the store page already returns. Some retailers block automated requests or render
-    product cards in browser-only JavaScript, so callers should show a friendly fallback message.
+def _official_store_search_url(profile: dict[str, Any], term: str) -> str:
+    encoded = quote_plus(term)
+    templates = profile.get("search_urls") or []
+    if templates:
+        return str(templates[0]).format(term=encoded)
+    domains = _profile_domains(profile)
+    if domains:
+        return f"https://www.google.com/search?q={quote_plus(f'site:{domains[0]} {term}') }"
+    return f"https://www.google.com/search?q={quote_plus(term)}"
+
+
+def _fallback_store_search_result(*, profile: dict[str, Any], term: str, diagnostics: list[str]) -> ProductLookupResultOut:
+    domains = ", ".join(_profile_domains(profile)[:2]) or str(profile.get("display") or "store")
+    return ProductLookupResultOut(
+        source=f"{profile.get('source')}_search_link",
+        barcode=term if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) else None,
+        name=f"Open {profile.get('display')} search for {term}",
+        brand=None,
+        image_url=None,
+        categories=[str(profile.get("display") or "Store"), "Search link"],
+        quantity=f"Item # {term}" if re.fullmatch(r"[A-Za-z0-9_-]{4,40}", term) else None,
+        store_name=str(profile.get("display") or "Store"),
+        product_url=_official_store_search_url(profile, term),
+        price=None,
+        lookup_note=(
+            f"The app could not read an official product card from {domains}. Open this search link to check the store page. "
+            "This is not saved as a product until you confirm the details."
+        ),
+        found=False,
+    )
+
+def lookup_store_product(*, store_name: str | None, product_id: str | None = None, query: str | None = None, limit: int = 8) -> tuple[str | None, str | None, list[ProductLookupResultOut], list[str]]:
+    """Best-effort official-store product lookup for Canadian grocery/retail stores.
+
+    The app searches direct public store pages first, then official web search results.
+    Store websites change often, so this function returns user-safe diagnostics that explain
+    whether Google/Bing are connected, whether the Search Engine ID is missing, and whether
+    official links were found.
     """
+    diagnostics: list[str] = []
     key = normalize_store_lookup_key(store_name)
     if not key:
-        return None, None, []
+        return None, None, [], diagnostics
     profile = CANADIAN_STORE_LOOKUP_PROFILES[key]
     term = (product_id or query or "").strip()
     if not term:
-        return key, str(profile["display"]), []
+        return key, str(profile["display"]), [], diagnostics
+
     if key == "walmart":
         # Keep the Walmart-specific parser first because it handles Walmart item numbers better when Walmart returns JSON.
         results = lookup_walmart_canada_product(product_id=product_id, query=query, limit=limit)
         if results:
-            return key, str(profile["display"]), results
+            diagnostics.append("Found product details directly from Walmart Canada pages.")
+            return key, str(profile["display"]), results, diagnostics
+        diagnostics.append("Walmart direct page search did not return readable product data, so internet search was used next.")
+
     results = _lookup_public_store_pages(profile=profile, term=term, limit=limit)
     if results:
-        return key, str(profile["display"]), results
+        diagnostics.append(f"Found product details directly from public {profile.get('display')} pages.")
+        return key, str(profile["display"]), results, diagnostics
+    diagnostics.append(f"Direct {profile.get('display')} page search did not return readable product data, so official internet search was used next.")
 
     # Many Canadian retailers render search pages with browser JavaScript or block server-side
     # product cards. When direct store parsing fails, search the web for official store pages
     # such as: site:costco.ca item 1953954, then parse/open the official result.
-    internet_results = _lookup_internet_store_pages(profile=profile, term=term, limit=limit)
-    return key, str(profile["display"]), internet_results
+    internet_results = _lookup_internet_store_pages(profile=profile, term=term, limit=limit, diagnostics=diagnostics)
+    if internet_results:
+        return key, str(profile["display"]), internet_results, diagnostics
+    diagnostics.append(
+        "No readable official product card came back. This usually means the Google Search Engine ID is restricted to another site, the store blocks server reading, or the item is not available online."
+    )
+    return key, str(profile["display"]), [_fallback_store_search_result(profile=profile, term=term, diagnostics=diagnostics)], diagnostics
 
 
 def _make_cache_key(items: list[str], location: str | None, retailers: list[str]) -> str:

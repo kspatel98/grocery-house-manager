@@ -283,7 +283,18 @@ export default function MarketPage() {
           {addFeedback && <div className={addFeedback.includes('added') ? 'success compact-message' : 'hint'}>{addFeedback}</div>}
           {lookup && (
             <div ref={lookupResultsRef} className={lookup.premium_required ? 'hint' : 'market-results lookup-results-grid'}>
-              <p>{lookup.message}</p>
+              <div className="lookup-status-panel-v50">
+                {lookup.lookup_status && <span className={lookup.results.length ? 'market-status-pill connected' : 'market-status-pill offline'}><span className="status-dot" /> {lookup.lookup_status}</span>}
+                <p>{lookup.message}</p>
+                {lookup.lookup_details && lookup.lookup_details.length > 0 && (
+                  <div className="lookup-debug-v51">
+                    <strong>Lookup check</strong>
+                    <ul>
+                      {lookup.lookup_details.map((detail, index) => <li key={`${detail}-${index}`}>{detail}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
               {lookup.results.map((item) => {
                 const key = `${item.source}-${item.barcode || item.name}`;
                 return (
@@ -300,10 +311,14 @@ export default function MarketPage() {
                       {item.lookup_note && <small className="lookup-note-v49">{item.lookup_note}</small>}
                       {item.price != null && <small>Found price: {money(item.price, 'CAD')}</small>}
                       <div className="lookup-actions-row">
-                        {item.product_url && <a className="secondary center-link" href={item.product_url} target="_blank" rel="noreferrer">Open product</a>}
-                        <button className="primary" type="button" disabled={addBusyKey === key || !selectedHouseId} onClick={() => addLookupToInventory(item)}>
-                          {addBusyKey === key ? 'Adding...' : 'Add to inventory'}
-                        </button>
+                        {item.product_url && <a className="secondary center-link" href={item.product_url} target="_blank" rel="noreferrer">{item.found === false ? 'Open store search' : 'Open product'}</a>}
+                        {item.found === false ? (
+                          <span className="hint tiny-hint">Confirm details on the store page first.</span>
+                        ) : (
+                          <button className="primary" type="button" disabled={addBusyKey === key || !selectedHouseId} onClick={() => addLookupToInventory(item)}>
+                            {addBusyKey === key ? 'Adding...' : 'Add to inventory'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

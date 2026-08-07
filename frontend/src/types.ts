@@ -413,6 +413,8 @@ export type ProductLookupResponse = {
   configured: boolean;
   store_filter?: string | null;
   message: string;
+  lookup_status?: string | null;
+  lookup_details?: string[];
   results: ProductLookupResult[];
 };
 

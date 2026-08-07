@@ -5313,3 +5313,93 @@ html, body, #root { overflow-x: hidden; }
     align-items: flex-start;
   }
 }
+
+/* v50: official store lookup visibility + Google Search diagnostics */
+.lookup-status-panel-v50 {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(59, 130, 246, 0.14), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.9));
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+}
+.lookup-status-panel-v50 p { margin: 0; color: var(--text); }
+.lookup-debug-v50 {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+}
+.lookup-debug-v50 summary {
+  cursor: pointer;
+  padding: 11px 14px;
+  font-weight: 800;
+  color: #0f172a;
+  list-style-position: inside;
+}
+.lookup-debug-v50 ul {
+  margin: 0;
+  padding: 0 16px 14px 34px;
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.92rem;
+}
+.lookup-debug-v50 li { overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .lookup-status-panel-v50 {
+    border-radius: 18px;
+    padding: 13px;
+  }
+  .lookup-debug-v50 summary { padding: 10px 12px; }
+  .lookup-debug-v50 ul { padding: 0 12px 12px 28px; }
+}
+
+/* v51 product lookup diagnostics */
+.lookup-debug-v51 {
+  margin-top: 0.85rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(59, 130, 246, 0.24);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,0.92), rgba(239,246,255,0.88));
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+.lookup-debug-v51 strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+  color: #1d4ed8;
+}
+.lookup-debug-v51 strong::before {
+  content: '🔎';
+}
+.lookup-debug-v51 ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+.lookup-debug-v51 li {
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.tiny-hint {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 0.78rem;
+  color: #475569;
+}

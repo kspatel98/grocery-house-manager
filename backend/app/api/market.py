@@ -13,7 +13,7 @@ from app.db.session import get_db
 from app.models import Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
 from app.schemas import MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
-from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores
+from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores, store_lookup_search_status
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -95,7 +95,7 @@ def market_capabilities(user: User = Depends(get_current_user)):
         apify_configured=connected,
         live_price_status="connected" if connected else "not_connected",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        message=f"Product lookup is available by plan. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. When a store is entered, the app searches official store pages and official web results before showing a result. Canadian live price comparison works best with a Canadian postal code.",
+        message=f"Product lookup is available by plan. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. {' '.join(store_lookup_search_status())} Canadian live price comparison works best with a Canadian postal code.",
     )
 
 
@@ -123,13 +123,15 @@ def product_lookup(
         return ProductLookupOut(store_filter=store_filter or None, message="Enter a barcode, store item number, or product name to search.", results=[])
 
     if store_filter:
-        store_key, display_store, results = lookup_store_product(store_name=store_filter, product_id=barcode, query=query, limit=8)
+        store_key, display_store, results, details = lookup_store_product(store_name=store_filter, product_id=barcode, query=query, limit=8)
         if store_key is None:
             return ProductLookupOut(
                 premium_required=False,
                 configured=True,
                 store_filter=store_filter,
-                message=f"Store website lookup is not ready for {store_filter} yet. Supported stores: {', '.join(supported_product_lookup_stores())}. Remove the store name to search the universal product database.",
+                lookup_status="Store not supported",
+                lookup_details=details or store_lookup_search_status(),
+                message=f"Store lookup is not ready for {store_filter} yet. Supported stores: {', '.join(supported_product_lookup_stores())}. Remove the store name to search the universal product database.",
                 results=[],
             )
         if not results:
@@ -137,13 +139,28 @@ def product_lookup(
                 premium_required=False,
                 configured=True,
                 store_filter=display_store,
-                message=f"No official {display_store} product page was found for that number/name. Try the exact item number, UPC/barcode, product name, or remove the store name to search the universal product database.",
+                lookup_status="No official product found",
+                lookup_details=details,
+                message=f"No official {display_store} product page was found for that number/name. Check the Lookup check details below, or remove the store name to search the universal product database.",
                 results=[],
+            )
+        has_confirmed_product = any(getattr(item, "found", True) for item in results)
+        if not has_confirmed_product:
+            return ProductLookupOut(
+                premium_required=False,
+                configured=True,
+                store_filter=display_store,
+                lookup_status="Store search opened",
+                lookup_details=details,
+                message=f"I could not read product details automatically from {display_store}. Open the official store search link below, then add the product manually after confirming the details.",
+                results=results,
             )
         return ProductLookupOut(
             premium_required=False,
             configured=True,
             store_filter=display_store,
+            lookup_status="Official store result found",
+            lookup_details=details,
             message=f"Official {display_store} product result found. Open the product page to confirm size, price, and availability before adding it to inventory.",
             results=results,
         )

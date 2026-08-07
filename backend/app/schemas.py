@@ -660,6 +660,8 @@ class ProductLookupOut(BaseModel):
     configured: bool = True
     store_filter: str | None = None
     message: str
+    lookup_status: str | None = None
+    lookup_details: list[str] = Field(default_factory=list)
     results: list[ProductLookupResultOut] = Field(default_factory=list)
 
 
