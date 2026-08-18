@@ -68,6 +68,7 @@ class User(Base):
     activities: Mapped[list["Activity"]] = relationship(back_populates="user")
     receipts: Mapped[list["Receipt"]] = relationship(back_populates="uploaded_by")
     price_entries: Mapped[list["ProductStorePrice"]] = relationship(back_populates="recorded_by")
+    reviews: Mapped[list["SiteReview"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     password_reset_codes: Mapped[list["PasswordResetCode"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     registration_verification_codes: Mapped[list["RegistrationVerificationCode"]] = relationship(back_populates="existing_user", cascade="all, delete-orphan")
     password_history: Mapped[list["PasswordHistory"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -329,6 +330,20 @@ class ExternalPriceCache(Base):
     payload_json: Mapped[str] = mapped_column(Text)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class SiteReview(Base):
+    __tablename__ = "site_reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    rating: Mapped[int] = mapped_column(Integer, default=5, index=True)
+    comment: Mapped[str] = mapped_column(Text)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped[User | None] = relationship(back_populates="reviews")
 
 
 class Activity(Base):

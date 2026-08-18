@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '../api';
-import type { AccountBootstrap } from '../types';
+import type { AccountBootstrap, UserProfile } from '../types';
 
 const baseNavItems = [
   { to: '/houses', label: 'Houses' },
@@ -10,16 +10,33 @@ const baseNavItems = [
   { to: '/reports', label: 'Reports' },
   { to: '/pricing', label: 'Plans' },
   { to: '/support', label: 'Support' },
-  { to: '/profile', label: 'Profile' },
 ];
 
 function cachedAdminFlag() {
   return localStorage.getItem('account_is_admin') === 'true';
 }
 
+function cachedProfile(): UserProfile | null {
+  const raw = localStorage.getItem('account_profile_cache') || localStorage.getItem('user');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as UserProfile;
+  } catch {
+    return null;
+  }
+}
+
+function initialsFor(profile: UserProfile | null) {
+  const name = profile?.full_name || profile?.email || 'AI';
+  const parts = name.replace(/@.*/, '').split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0]?.slice(0, 2) || 'AI').toUpperCase();
+}
+
 export default function AppFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
+  const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -34,6 +51,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       .then(({ data }) => {
         if (cancelled) return;
         setIsAdmin(Boolean(data.is_admin));
+        setProfile(data.user);
         localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
         localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
       })
@@ -46,6 +64,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   }, []);
 
   const navItems = isAdmin ? [...baseNavItems, { to: '/admin', label: 'Admin' }] : baseNavItems;
+  const profileName = profile?.full_name || profile?.email || 'Profile';
 
   return (
     <div className="app-frame">
@@ -58,17 +77,31 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               <small>A SupremDas Group product</small>
             </span>
           </Link>
-          <nav className="site-nav" aria-label="Primary navigation">
-            {navItems.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={location.pathname.startsWith(item.to) ? 'active' : ''}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="site-nav-wrap">
+            <nav className="site-nav" aria-label="Primary navigation">
+              {navItems.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={location.pathname.startsWith(item.to) ? 'active' : ''}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <Link
+              to="/profile"
+              className={`profile-orb-link ${location.pathname.startsWith('/profile') ? 'active' : ''}`}
+              aria-label={`Open profile for ${profileName}`}
+              title="Profile"
+            >
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" />
+              ) : (
+                <span className="ai-avatar" aria-hidden="true"><em>{initialsFor(profile)}</em></span>
+              )}
+            </Link>
+          </div>
         </div>
       </header>
 

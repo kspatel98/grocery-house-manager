@@ -22,7 +22,6 @@ def main() -> None:
             "STORE_LOOKUP_WEB_SEARCH_ENABLED": settings.store_lookup_web_search_enabled,
             "GOOGLE_SEARCH_API_KEY_SET": bool(settings.google_search_api_key),
             "GOOGLE_SEARCH_CX_SET": bool(settings.google_search_cx),
-            "BING_WEB_SEARCH_API_KEY_SET": bool(settings.bing_web_search_api_key),
         },
         "status": store_lookup_search_status(),
         "details": details,

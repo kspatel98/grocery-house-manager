@@ -1,7 +1,70 @@
-import { useEffect, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AccountBootstrap, House, Subscription } from '../types';
+import type { AccountBootstrap, House, SiteReview, SiteReviewSummary, Subscription } from '../types';
+
+function isPaidStatus(status?: string) {
+  return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'admin_granted'].includes((status || '').toLowerCase());
+}
+
+function daysLeftUntil(dateValue?: string | null) {
+  if (!dateValue) return 0;
+  const ms = new Date(dateValue).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+}
+
+function starText(value?: number | null) {
+  const rating = Math.max(0, Math.min(5, Math.round(value || 0)));
+  return '★'.repeat(rating) + '☆'.repeat(5 - rating);
+}
+
+type NotificationSlide = {
+  key: string;
+  content: ReactNode;
+};
+
+function NotificationSlider({ slides }: { slides: NotificationSlide[] }) {
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    if (slides.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActive((current) => (current + 1) % slides.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (active >= slides.length) setActive(0);
+  }, [active, slides.length]);
+
+  if (!slides.length) return null;
+
+  return (
+    <section className="notification-showcase" aria-label="Important updates">
+      <div className="notification-window">
+        <div className="notification-track" style={{ transform: `translateX(-${active * 100}%)` }}>
+          {slides.map((slide) => (
+            <div className="notification-slide" key={slide.key}>{slide.content}</div>
+          ))}
+        </div>
+      </div>
+      {slides.length > 1 && (
+        <div className="notification-dots" aria-label="Notification controls">
+          {slides.map((slide, index) => (
+            <button
+              key={slide.key}
+              className={index === active ? 'active' : ''}
+              aria-label={`Show notification ${index + 1}`}
+              onClick={() => setActive(index)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export default function HousesPage() {
   const [houses, setHouses] = useState<House[]>([]);
@@ -9,7 +72,29 @@ export default function HousesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [stats, setStats] = useState<SiteReviewSummary | null>(null);
+  const [reviews, setReviews] = useState<SiteReview[]>([]);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [reviewError, setReviewError] = useState('');
   const navigate = useNavigate();
+
+  async function loadReviews() {
+    try {
+      const [summaryRes, reviewsRes] = await Promise.all([
+        api.get<SiteReviewSummary>('/reviews/summary'),
+        api.get<SiteReview[]>('/reviews'),
+      ]);
+      setStats(summaryRes.data);
+      setReviews(Array.isArray(reviewsRes.data) ? reviewsRes.data : []);
+    } catch {
+      // Reviews are helpful, not required for the houses dashboard to work.
+      setStats(null);
+      setReviews([]);
+    }
+  }
 
   async function load() {
     try {
@@ -20,6 +105,7 @@ export default function HousesPage() {
       setSubscription(data.subscription);
       localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
       localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
+      await loadReviews();
     } catch (err) {
       setError(errorMessage(err));
       setHouses([]);
@@ -28,7 +114,7 @@ export default function HousesPage() {
     }
   }
 
-  async function createHouse(event: React.FormEvent) {
+  async function createHouse(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) return;
     try {
@@ -41,35 +127,115 @@ export default function HousesPage() {
     }
   }
 
+  async function submitReview(event: FormEvent) {
+    event.preventDefault();
+    setReviewError('');
+    setReviewMessage('');
+    if (reviewComment.trim().length < 8) {
+      setReviewError('Please write a short review before submitting.');
+      return;
+    }
+    try {
+      setReviewBusy(true);
+      await api.post('/reviews', {
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+        is_public: true,
+      });
+      setReviewComment('');
+      setReviewRating(5);
+      setReviewMessage('Thank you. Your review is saved.');
+      await loadReviews();
+    } catch (err) {
+      setReviewError(errorMessage(err));
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   useEffect(() => { load(); }, []);
 
   const ownedHouseCount = Number(subscription?.usage?.houses || 0);
   const canCreateHouse = !!subscription && subscription.limits.houses > ownedHouseCount;
   const isFreePlan = subscription?.plan_name === 'free';
+  const offer = subscription?.new_user_offer;
+  const offerDaysLeft = daysLeftUntil(offer?.eligible_until);
+  const shouldShowOffer = Boolean(offer?.active && !isPaidStatus(subscription?.subscription_status) && offerDaysLeft > 0);
+
+  const slides: NotificationSlide[] = useMemo(() => {
+    const items: NotificationSlide[] = [];
+    if (shouldShowOffer) {
+      items.push({
+        key: 'basic-offer',
+        content: (
+          <div className="notification-picture offer-picture">
+            <div className="notification-glow" aria-hidden="true" />
+            <div className="notification-copy">
+              <span className="notification-label">Limited new-user offer</span>
+              <h2>65% off Basic Home</h2>
+              <p>Start Basic for the first 2 billing months and unlock house creation, smart receipt tools, and a cleaner grocery routine.</p>
+              <div className="offer-countdown-card">
+                <strong>{offerDaysLeft}</strong>
+                <span>{offerDaysLeft === 1 ? 'day left to claim' : 'days left to claim'}</span>
+              </div>
+            </div>
+            <Link to="/pricing" className="notification-action">Claim offer</Link>
+          </div>
+        ),
+      });
+    }
+    items.push({
+      key: 'community-stats',
+      content: (
+        <div className="notification-picture stats-picture">
+          <div className="notification-glow" aria-hidden="true" />
+          <div className="notification-copy">
+            <span className="notification-label">Community snapshot</span>
+            <h2>{stats?.total_users ?? 0}+ users organizing groceries</h2>
+            <div className="stats-picture-grid">
+              <div><strong>{stats?.new_users_this_month ?? 0}</strong><span>new this month</span></div>
+              <div><strong>{stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}</strong><span>{starText(stats?.average_rating)}</span></div>
+              <div><strong>{stats?.review_count ?? 0}</strong><span>reviews saved</span></div>
+            </div>
+            <blockquote>
+              “{stats?.best_positive_comment || 'Be one of the first users to share how Grocery House Manager helps your home.'}”
+              {stats?.best_reviewer_name && <cite>— {stats.best_reviewer_name}</cite>}
+            </blockquote>
+          </div>
+        </div>
+      ),
+    });
+    return items;
+  }, [offerDaysLeft, shouldShowOffer, stats]);
 
   return (
-    <main className="page shell">
-      <header className="topbar">
+    <main className="page shell houses-page-v54 cinematic-page">
+      <header className="topbar houses-hero-v54">
         <div>
+          <p className="eyebrow">House dashboard</p>
           <h1>Your houses</h1>
-          <p>Create one house for your family or roommates and invite them with a link.</p>
+          <p>Create a shared space for your family, roommates, or couple grocery routine. Everything starts from one clean home dashboard.</p>
         </div>
         <div className="topbar-actions">
           <button className="secondary" onClick={load}>Refresh</button>
         </div>
       </header>
 
-      <section className="panel create-house-panel">
+      <NotificationSlider slides={slides} />
+
+      <section className="panel create-house-panel creative-create-house">
         <div className="panel-title-row">
           <div>
+            <p className="eyebrow">Start a household</p>
             <h2>Create a house</h2>
-            <p>{isFreePlan ? 'Free Starter can join invited houses, but creating a house requires Basic Home or higher.' : 'Create one house for a household you own or manage.'}</p>
+            <p>{isFreePlan ? 'Free Starter can join invited houses. Upgrade to create and manage your own house.' : 'Create one house for a household you own or manage.'}</p>
           </div>
           {subscription && <span className="plan-pill">{subscription.plan_name} • {ownedHouseCount}/{subscription.limits.houses} owned houses</span>}
         </div>
         {isFreePlan ? (
-          <div className="upgrade-callout">
-            <strong>Upgrade to create a house.</strong> Members can still join houses for free by invitation. The house features are controlled by the owner's plan.
+          <div className="upgrade-callout graphical-callout">
+            <strong>Upgrade to create a house.</strong>
+            <span>Members can still join houses for free by invitation. The house features follow the owner’s plan.</span>
             <Link to="/pricing" className="primary center-link">View plans</Link>
           </div>
         ) : (
@@ -83,24 +249,83 @@ export default function HousesPage() {
       {error && <div className="error">{error}</div>}
       {loading && <div className="panel muted-panel">Loading your houses...</div>}
       {!loading && !error && houses.length === 0 && (
-        <section className="panel empty-state">
+        <section className="panel empty-state creative-empty-state">
+          <span className="empty-state-icon">🏡</span>
           <h2>No houses found for this account</h2>
-          <p>
-            If you already created a house, make sure you are logged in with the same email/account and using
-            <strong> grocery-house-manager.com</strong>, not a different www/non-www address.
-          </p>
+          <p>If you already created a house, make sure you are logged in with the same email/account and using grocery-house-manager.com.</p>
           <button className="secondary" onClick={load}>Check again</button>
         </section>
       )}
-      <div className="grid houses-grid">
+
+      <div className="grid houses-grid creative-houses-grid">
         {houses.map((house) => (
-          <Link to={`/houses/${house.id}`} key={house.id} className="house-card">
+          <Link to={`/houses/${house.id}`} key={house.id} className="house-card creative-house-card">
+            <span className="house-card-aura" aria-hidden="true" />
             <span className="house-icon">🏠</span>
             <strong>{house.name}</strong>
-            <small>{house.role}</small>
+            <small>{house.role} access • open control center</small>
           </Link>
         ))}
       </div>
+
+      <section className="panel review-hub-panel">
+        <div className="panel-title-row review-hub-title">
+          <div>
+            <p className="eyebrow">User reviews</p>
+            <h2>Share your Grocery House Manager experience</h2>
+            <p>Reviews help new users trust the app and help us improve what matters most.</p>
+          </div>
+          <span className="review-rating-pill">{stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'} ★ average</span>
+        </div>
+
+        <div className="review-hub-grid">
+          <form onSubmit={submitReview} className="review-form-card">
+            <label>
+              Rating
+              <select value={reviewRating} onChange={(event) => setReviewRating(Number(event.target.value))}>
+                <option value={5}>★★★★★ Excellent</option>
+                <option value={4}>★★★★ Good</option>
+                <option value={3}>★★★ Okay</option>
+                <option value={2}>★★ Needs work</option>
+                <option value={1}>★ Poor</option>
+              </select>
+            </label>
+            <label>
+              Your review
+              <textarea
+                value={reviewComment}
+                onChange={(event) => setReviewComment(event.target.value)}
+                placeholder="Example: This helped my family stop buying duplicate groceries."
+              />
+            </label>
+            {reviewError && <div className="error form-message">{reviewError}</div>}
+            {reviewMessage && <div className="success form-message">{reviewMessage}</div>}
+            <button className="primary" disabled={reviewBusy}>{reviewBusy ? 'Saving...' : 'Save review'}</button>
+          </form>
+
+          <div className="review-cards-stack">
+            {reviews.length === 0 ? (
+              <div className="review-card-v54 empty-review-card">
+                <strong>No reviews yet</strong>
+                <p>Be the first person to share your experience.</p>
+              </div>
+            ) : reviews.slice(0, 3).map((review) => (
+              <article className="review-card-v54" key={review.id}>
+                <div className="review-card-top">
+                  <span className="review-avatar-v54">
+                    {review.user_avatar_url ? <img src={review.user_avatar_url} alt="" /> : (review.user_name || 'AI').slice(0, 2).toUpperCase()}
+                  </span>
+                  <div>
+                    <strong>{review.user_name || 'Grocery House Manager user'}</strong>
+                    <small>{starText(review.rating)} • {new Date(review.created_at).toLocaleDateString()}</small>
+                  </div>
+                </div>
+                <p>“{review.comment}”</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

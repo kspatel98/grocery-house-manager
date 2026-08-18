@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     bing_web_search_api_key: str | None = None
     google_search_api_key: str | None = None
     google_search_cx: str | None = None
+    # Recommended backup for store item-number search when Google Custom Search returns 403
+    # or Bing does not index a store item page. Serper returns normal Google-style web results.
+    # Optional LLM-friendly web search provider. Needs a Jina Reader/Search API key.
+    # Optional Brave Search API provider.
 
     # Apify Canadian grocery price comparison actor. Uses HTTPS 443, not SMTP.
     # Actor docs currently support input like:

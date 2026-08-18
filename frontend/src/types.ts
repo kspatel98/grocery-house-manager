@@ -454,3 +454,23 @@ export type LivePriceCompareResponse = {
   supported_retailers: string[];
   results: LivePriceResult[];
 };
+
+export type SiteReview = {
+  id: number;
+  rating: number;
+  comment: string;
+  is_public: boolean;
+  created_at: string;
+  user_name?: string | null;
+  user_avatar_url?: string | null;
+};
+
+export type SiteReviewSummary = {
+  total_users: number;
+  new_users_this_month: number;
+  average_rating: number;
+  review_count: number;
+  best_positive_comment?: string | null;
+  best_reviewer_name?: string | null;
+  best_rating?: number | null;
+};

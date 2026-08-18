@@ -114,6 +114,11 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE TABLE IF NOT EXISTS external_price_cache (id SERIAL PRIMARY KEY, cache_key VARCHAR(255) UNIQUE NOT NULL, source VARCHAR(80) DEFAULT 'apify_canada', query TEXT NOT NULL, location VARCHAR(180), retailers TEXT, payload_json TEXT NOT NULL, fetched_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), expires_at TIMESTAMP WITH TIME ZONE NOT NULL)",
         "CREATE INDEX IF NOT EXISTS ix_external_price_cache_cache_key ON external_price_cache(cache_key)",
         "CREATE INDEX IF NOT EXISTS ix_external_price_cache_expires_at ON external_price_cache(expires_at)",
+        "CREATE TABLE IF NOT EXISTS site_reviews (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, rating INTEGER DEFAULT 5, comment TEXT NOT NULL, is_public BOOLEAN DEFAULT TRUE, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE INDEX IF NOT EXISTS ix_site_reviews_user_id ON site_reviews(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_site_reviews_rating ON site_reviews(rating)",
+        "CREATE INDEX IF NOT EXISTS ix_site_reviews_is_public ON site_reviews(is_public)",
+        "CREATE INDEX IF NOT EXISTS ix_site_reviews_created_at ON site_reviews(created_at)",
     ]
     with engine.begin() as connection:
         for statement in statements:

@@ -722,3 +722,28 @@ class MarketCapabilitiesOut(BaseModel):
     live_price_status: str = "not_connected"
     supported_retailers: list[str] = Field(default_factory=list)
     message: str
+
+class SiteReviewCreateIn(BaseModel):
+    rating: int = Field(default=5, ge=1, le=5)
+    comment: str = Field(min_length=8, max_length=700)
+    is_public: bool = True
+
+
+class SiteReviewOut(BaseModel):
+    id: int
+    rating: int
+    comment: str
+    is_public: bool = True
+    created_at: datetime
+    user_name: str | None = None
+    user_avatar_url: str | None = None
+
+
+class SiteReviewSummaryOut(BaseModel):
+    total_users: int = 0
+    new_users_this_month: int = 0
+    average_rating: float = 0
+    review_count: int = 0
+    best_positive_comment: str | None = None
+    best_reviewer_name: str | None = None
+    best_rating: int | None = None
