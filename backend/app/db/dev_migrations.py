@@ -125,6 +125,14 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_receipt_scan_purchases_user_id ON receipt_scan_purchases(user_id)",
         "CREATE INDEX IF NOT EXISTS ix_receipt_scan_purchases_stripe_session_id ON receipt_scan_purchases(stripe_session_id)",
         "CREATE INDEX IF NOT EXISTS ix_receipt_scan_purchases_created_at ON receipt_scan_purchases(created_at)",
+        "CREATE TABLE IF NOT EXISTS admin_user_offers (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL, offer_kind VARCHAR(40) NOT NULL, plan_name VARCHAR(40), title VARCHAR(180) NOT NULL, message TEXT, discount_percent INTEGER, stripe_coupon_id VARCHAR(255), stripe_promotion_code_id VARCHAR(255), stripe_promotion_code VARCHAR(120), stripe_duration VARCHAR(40), duration_months INTEGER, access_duration_days INTEGER, access_lifetime BOOLEAN DEFAULT FALSE, use_limit INTEGER, status VARCHAR(40) DEFAULT 'pending', expires_at TIMESTAMP WITH TIME ZONE NOT NULL, accepted_at TIMESTAMP WITH TIME ZONE, declined_at TIMESTAMP WITH TIME ZONE, cancelled_at TIMESTAMP WITH TIME ZONE, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_user_id ON admin_user_offers(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_created_by_id ON admin_user_offers(created_by_id)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_offer_kind ON admin_user_offers(offer_kind)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_plan_name ON admin_user_offers(plan_name)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_status ON admin_user_offers(status)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_expires_at ON admin_user_offers(expires_at)",
+        "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_created_at ON admin_user_offers(created_at)",
     ]
     with engine.begin() as connection:
         for statement in statements:

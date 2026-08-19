@@ -2,7 +2,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AccountBootstrap, House, SiteReview, SiteReviewSummary, Subscription } from '../types';
+import type { AccountBootstrap, AdminOfferAction, AdminUserOffer, House, PlanName, SiteReview, SiteReviewSummary, Subscription } from '../types';
 
 function isPaidStatus(status?: string) {
   return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'admin_granted'].includes((status || '').toLowerCase());
@@ -114,6 +114,10 @@ export default function HousesPage() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewMessage, setReviewMessage] = useState('');
   const [reviewError, setReviewError] = useState('');
+  const [adminOffers, setAdminOffers] = useState<AdminUserOffer[]>([]);
+  const [offerBusy, setOfferBusy] = useState<number | null>(null);
+  const [offerMessage, setOfferMessage] = useState('');
+  const [selectedOfferPlans, setSelectedOfferPlans] = useState<Record<number, PlanName>>({});
   const navigate = useNavigate();
 
   async function loadReviews() {
@@ -140,6 +144,15 @@ export default function HousesPage() {
     }
   }
 
+  async function loadOffers() {
+    try {
+      const { data } = await api.get<AdminUserOffer[]>('/offers/mine', { params: { t: Date.now() } });
+      setAdminOffers(Array.isArray(data) ? data : []);
+    } catch {
+      setAdminOffers([]);
+    }
+  }
+
   async function load() {
     try {
       setLoading(true);
@@ -149,7 +162,7 @@ export default function HousesPage() {
       setSubscription(data.subscription);
       localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
       localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
-      await loadReviews();
+      await Promise.all([loadReviews(), loadOffers()]);
     } catch (err) {
       setError(errorMessage(err));
       setHouses([]);
@@ -221,6 +234,39 @@ export default function HousesPage() {
     }
   }
 
+  async function acceptAdminOffer(offer: AdminUserOffer) {
+    try {
+      setOfferBusy(offer.id);
+      setOfferMessage('');
+      const payload = offer.universal ? { plan_name: selectedOfferPlans[offer.id] || 'basic' } : {};
+      const { data } = await api.post<AdminOfferAction>(`/offers/${offer.id}/accept`, payload);
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+      setOfferMessage(data.message || 'Offer accepted.');
+      await load();
+    } catch (err) {
+      setOfferMessage(errorMessage(err));
+    } finally {
+      setOfferBusy(null);
+    }
+  }
+
+  async function declineAdminOffer(offer: AdminUserOffer) {
+    try {
+      setOfferBusy(offer.id);
+      setOfferMessage('');
+      await api.post(`/offers/${offer.id}/decline`);
+      setAdminOffers((prev) => prev.filter((item) => item.id !== offer.id));
+      setOfferMessage('Offer dismissed.');
+    } catch (err) {
+      setOfferMessage(errorMessage(err));
+    } finally {
+      setOfferBusy(null);
+    }
+  }
+
   useEffect(() => { load(); }, []);
 
   const ownedHouseCount = Number(subscription?.usage?.houses || 0);
@@ -254,6 +300,44 @@ export default function HousesPage() {
         ),
       });
     }
+    adminOffers.forEach((adminOffer) => {
+      items.push({
+        key: `admin-offer-${adminOffer.id}`,
+        content: (
+          <div className={`notification-picture admin-offer-slide ${adminOffer.offer_kind === 'discount' ? 'discount-offer-slide' : 'access-offer-slide'}`}>
+            <div className="notification-glow" aria-hidden="true" />
+            <div className="notification-copy">
+              <span className="notification-label">Personal offer</span>
+              <CountdownBadge until={adminOffer.expires_at} />
+              <h2>{adminOffer.title}</h2>
+              <p>{adminOffer.message || adminOffer.summary}</p>
+              <div className="admin-offer-detail-grid">
+                <span><strong>Offer</strong>{adminOffer.summary}</span>
+                <span><strong>Plan</strong>{adminOffer.universal ? 'Choose any paid plan' : adminOffer.plan_label || adminOffer.plan_name}</span>
+                <span><strong>Use limit</strong>{adminOffer.use_limit ? `${adminOffer.use_limit} use(s)` : 'Unlimited'}</span>
+              </div>
+              {adminOffer.universal && (
+                <label className="offer-plan-picker">
+                  Choose plan
+                  <select value={selectedOfferPlans[adminOffer.id] || 'basic'} onChange={(event) => setSelectedOfferPlans((prev) => ({ ...prev, [adminOffer.id]: event.target.value as PlanName }))}>
+                    <option value="basic">Basic Home</option>
+                    <option value="family">Family Plus</option>
+                    <option value="pro">Household Pro</option>
+                  </select>
+                </label>
+              )}
+              {offerMessage && <div className="compact-message hint">{offerMessage}</div>}
+            </div>
+            <div className="notification-side-stack admin-offer-actions">
+              <button className="notification-action" disabled={offerBusy === adminOffer.id} onClick={() => acceptAdminOffer(adminOffer)}>
+                {offerBusy === adminOffer.id ? 'Opening...' : adminOffer.offer_kind === 'discount' ? 'Accept discount' : 'Accept access'}
+              </button>
+              <button className="secondary" disabled={offerBusy === adminOffer.id} onClick={() => declineAdminOffer(adminOffer)}>Not now</button>
+            </div>
+          </div>
+        ),
+      });
+    });
     items.push({
       key: 'extra-scans',
       content: (
@@ -300,7 +384,7 @@ export default function HousesPage() {
       ),
     });
     return items;
-  }, [offer?.eligible_until, shouldShowOffer, stats]);
+  }, [adminOffers, offer?.eligible_until, offerBusy, offerMessage, selectedOfferPlans, shouldShowOffer, stats]);
 
   return (
     <main className="page shell houses-page-v54 cinematic-page">

@@ -7,7 +7,7 @@ from app.api.deps import get_current_user
 from app.api.plan_utils import PLANS, get_user_plan, plan_usage
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
-from app.models import PlanName, User, ReceiptScanPurchase
+from app.models import PlanName, User, ReceiptScanPurchase, AdminUserOffer
 from app.schemas import CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -343,6 +343,17 @@ def apply_checkout_session_event(db: Session, session: dict) -> None:
 
     if subscription_id:
         user.stripe_subscription_id = subscription_id
+
+    admin_offer_id = metadata.get("admin_offer_id")
+    if admin_offer_id:
+        try:
+            admin_offer = db.get(AdminUserOffer, int(admin_offer_id))
+        except (TypeError, ValueError):
+            admin_offer = None
+        if admin_offer:
+            admin_offer.status = "accepted"
+            admin_offer.accepted_at = datetime.now(timezone.utc)
+            admin_offer.updated_at = datetime.now(timezone.utc)
 
     # Prefer the full subscription object so we can read the real price/status.
     if subscription_id:

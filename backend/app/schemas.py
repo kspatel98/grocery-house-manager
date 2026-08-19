@@ -765,3 +765,58 @@ class SiteReviewSummaryOut(BaseModel):
     best_positive_comment: str | None = None
     best_reviewer_name: str | None = None
     best_rating: int | None = None
+
+
+class AdminOfferCreateIn(BaseModel):
+    user_id: int
+    offer_kind: str = Field(pattern="^(discount|free_plan_access)$")
+    plan_name: PlanName | None = None  # null means universal discount; required for free plan access
+    title: str = Field(min_length=3, max_length=180)
+    message: str | None = Field(default=None, max_length=700)
+    discount_percent: int | None = Field(default=None, ge=1, le=100)
+    stripe_duration: str | None = Field(default="once", pattern="^(once|repeating|forever)$")
+    duration_months: int | None = Field(default=None, ge=1, le=36)
+    access_duration_days: int | None = Field(default=None, ge=1, le=3650)
+    access_lifetime: bool = False
+    use_limit: int | None = Field(default=1, ge=1, le=9999)
+    expires_in_days: int = Field(default=7, ge=1, le=365)
+
+
+class AdminOfferAcceptIn(BaseModel):
+    plan_name: PlanName | None = None
+
+
+class AdminOfferOut(BaseModel):
+    id: int
+    user_id: int
+    user_email: str | None = None
+    user_name: str | None = None
+    offer_kind: str
+    plan_name: str | None = None
+    plan_label: str | None = None
+    title: str
+    message: str | None = None
+    discount_percent: int | None = None
+    stripe_duration: str | None = None
+    duration_months: int | None = None
+    access_duration_days: int | None = None
+    access_lifetime: bool = False
+    use_limit: int | None = None
+    status: str
+    expires_at: datetime
+    accepted_at: datetime | None = None
+    declined_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    created_at: datetime
+    stripe_promotion_code: str | None = None
+    universal: bool = False
+    can_accept: bool = False
+    checkout_url: str | None = None
+    summary: str
+
+
+class AdminOfferActionOut(BaseModel):
+    ok: bool = True
+    message: str
+    checkout_url: str | None = None
+    offer: AdminOfferOut | None = None

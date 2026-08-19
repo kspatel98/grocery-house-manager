@@ -489,3 +489,39 @@ export type ReceiptScanPack = {
   price_cad: number;
   description: string;
 };
+
+export type AdminUserOffer = {
+  id: number;
+  user_id: number;
+  user_email?: string | null;
+  user_name?: string | null;
+  offer_kind: 'discount' | 'free_plan_access';
+  plan_name?: PlanName | string | null;
+  plan_label?: string | null;
+  title: string;
+  message?: string | null;
+  discount_percent?: number | null;
+  stripe_duration?: string | null;
+  duration_months?: number | null;
+  access_duration_days?: number | null;
+  access_lifetime: boolean;
+  use_limit?: number | null;
+  status: string;
+  expires_at: string;
+  accepted_at?: string | null;
+  declined_at?: string | null;
+  cancelled_at?: string | null;
+  created_at: string;
+  stripe_promotion_code?: string | null;
+  universal: boolean;
+  can_accept: boolean;
+  checkout_url?: string | null;
+  summary: string;
+};
+
+export type AdminOfferAction = {
+  ok: boolean;
+  message: string;
+  checkout_url?: string | null;
+  offer?: AdminUserOffer | null;
+};

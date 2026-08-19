@@ -377,3 +377,34 @@ class Activity(Base):
 
     house: Mapped[House] = relationship(back_populates="activities")
     user: Mapped[User | None] = relationship(back_populates="activities")
+
+
+class AdminUserOffer(Base):
+    __tablename__ = "admin_user_offers"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    offer_kind: Mapped[str] = mapped_column(String(40), index=True)  # discount or free_plan_access
+    plan_name: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)  # null = universal discount
+    title: Mapped[str] = mapped_column(String(180))
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    discount_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stripe_coupon_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_promotion_code_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_promotion_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    stripe_duration: Mapped[str | None] = mapped_column(String(40), nullable=True)  # once, repeating, forever
+    duration_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    access_duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    access_lifetime: Mapped[bool] = mapped_column(Boolean, default=False)
+    use_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    declined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])

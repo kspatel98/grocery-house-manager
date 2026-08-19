@@ -107,6 +107,14 @@ def normalize_plan(plan_name: object) -> PlanName:
 
 
 def get_user_plan(user: User) -> PlanDefinition:
+    # Admin-granted access can have an expiry date. When it has expired,
+    # return Free access without needing a background job.
+    if user and (user.subscription_status or "").lower() == "admin_granted" and user.subscription_current_period_end:
+        expiry = user.subscription_current_period_end
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        if expiry <= datetime.now(timezone.utc):
+            return PLANS[PlanName.free]
     return PLANS[normalize_plan(user.plan_name)]
 
 
