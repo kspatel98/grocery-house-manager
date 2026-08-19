@@ -258,8 +258,12 @@ export default function HousesPage() {
       key: 'extra-scans',
       content: (
         <Link to="/pricing#extra-scans" className="notification-image-link" aria-label="Open extra receipt scans section">
-          <div className="notification-image-card">
-            <img src="/brand/extra_receipt_scans_available.png" alt="Extra receipt scans available. Buy extra scans without changing your plan." />
+          <div className="notification-image-card notification-image-fill" style={{ backgroundImage: 'url(/brand/extra_receipt_scans_available.png)' }}>
+            <div className="notification-image-overlay">
+              <span className="notification-image-chip">New convenient option</span>
+              <strong>Buy extra receipt scans anytime</strong>
+              <span>Open scan packs</span>
+            </div>
           </div>
         </Link>
       ),
