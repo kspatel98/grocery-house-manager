@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { CouponValidation, Plan, PlanName, Subscription } from '../types';
+import type { CouponValidation, Plan, PlanName, ReceiptScanPack, Subscription } from '../types';
 
 function formatPrice(value: number) {
   return `$${value.toFixed(2)}`;
@@ -69,8 +69,10 @@ function featureUnlocked(planKey: PlanName, minPlan: PlanName) {
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [scanPacks, setScanPacks] = useState<ReceiptScanPack[]>([]);
   const [error, setError] = useState('');
   const [busyPlan, setBusyPlan] = useState<PlanName | ''>('');
+  const [busyScanPack, setBusyScanPack] = useState('');
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState<CouponValidation | null>(null);
@@ -84,8 +86,12 @@ export default function PricingPage() {
     setLoadingPlans(true);
 
     try {
-      const plansRes = await api.get<Plan[]>('/billing/plans', { params: { t: Date.now() } });
+      const [plansRes, packsRes] = await Promise.all([
+        api.get<Plan[]>('/billing/plans', { params: { t: Date.now() } }),
+        api.get<ReceiptScanPack[]>('/billing/receipt-scan-packs', { params: { t: Date.now() } }),
+      ]);
       setPlans(plansRes.data);
+      setScanPacks(packsRes.data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -156,6 +162,22 @@ export default function PricingPage() {
     }
   }
 
+  async function checkoutScanPack(packKey: string) {
+    if (!loggedIn) {
+      navigate('/login');
+      return;
+    }
+    try {
+      setBusyScanPack(packKey);
+      setError('');
+      const { data } = await api.post<{ checkout_url: string }>('/billing/receipt-scan-pack-checkout', { pack_key: packKey });
+      window.location.href = data.checkout_url;
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusyScanPack('');
+    }
+  }
+
   async function manageBilling() {
     if (!loggedIn) {
       navigate('/login');
@@ -191,6 +213,7 @@ export default function PricingPage() {
       </header>
 
       {checkoutStatus === 'success' && <div className="success">Checkout completed. Your plan will update after Stripe confirms the payment.</div>}
+      {checkoutStatus === 'scan_pack_success' && <div className="success">Extra receipt scans purchased. Your scan balance will update after Stripe confirms the payment.</div>}
       {checkoutStatus === 'cancelled' && <div className="hint">Checkout cancelled. Your current plan is unchanged.</div>}
       {error && <div className="error">{error}</div>}
       {loadingPlans && <div className="panel muted-panel">Loading plans...</div>}
@@ -270,29 +293,32 @@ export default function PricingPage() {
         </section>
       )}
 
-      <section className="panel extra-scan-panel">
+      <section className="panel extra-scan-panel" id="extra-scans">
         <div className="panel-title-row">
           <div>
             <p className="eyebrow">Extra receipt scans</p>
-            <h2>Buy extra scans without changing your plan</h2>
-            <p>Use your included monthly scans first. If you need more, you can offer small one-time add-ons that stay on the account until they are used.</p>
+            <h2>Buy extra scans anytime</h2>
+            <p>Extra scans are one-time purchases. They stay on your account until used, and your included monthly scans are used first automatically.</p>
           </div>
+          {subscription && <span className="review-rating-pill">Extra balance: {Number(subscription.usage?.extra_receipt_scan_credits || 0)} scan(s)</span>}
         </div>
-        <div className="plan-access-grid">
-          <article className="plan-access-column">
-            <div className="plan-access-column-header"><strong>Mini Pack</strong></div>
-            <div className="plan-access-list"><div className="feature-access-item unlocked"><span>✓</span><div><strong>2 extra scans</strong><small>$1.00 CAD one-time</small></div></div></div>
-          </article>
-          <article className="plan-access-column">
-            <div className="plan-access-column-header"><strong>Value Pack</strong></div>
-            <div className="plan-access-list"><div className="feature-access-item unlocked"><span>✓</span><div><strong>4 extra scans</strong><small>$2.00 CAD one-time</small></div></div></div>
-          </article>
-          <article className="plan-access-column">
-            <div className="plan-access-column-header"><strong>Power Pack</strong></div>
-            <div className="plan-access-list"><div className="feature-access-item unlocked"><span>✓</span><div><strong>10 extra scans</strong><small>$4.00 CAD one-time</small></div></div></div>
-          </article>
+        <div className="plan-access-grid extra-scan-pack-grid">
+          {(scanPacks.length ? scanPacks : [
+            { key: 'mini', name: 'Mini Scan Pack', scan_count: 2, price_cad: 1, description: '2 extra Smart Receipt Scans.' },
+            { key: 'value', name: 'Value Scan Pack', scan_count: 4, price_cad: 2, description: '4 extra Smart Receipt Scans.' },
+            { key: 'power', name: 'Power Scan Pack', scan_count: 10, price_cad: 4, description: '10 extra Smart Receipt Scans.' },
+          ]).map((pack) => (
+            <article className="plan-access-column extra-scan-pack-card" key={pack.key}>
+              <div className="plan-access-column-header"><strong>{pack.name}</strong></div>
+              <div className="price-line compact-price-line"><strong>{pack.scan_count}</strong><span>extra scans</span></div>
+              <p>{pack.description}</p>
+              <div className="limits-box"><span>{formatPrice(pack.price_cad)} CAD one-time</span><span>Never expires until used</span></div>
+              <button className="primary full" type="button" disabled={busyScanPack === pack.key} onClick={() => checkoutScanPack(pack.key)}>
+                {!loggedIn ? 'Login to buy' : busyScanPack === pack.key ? 'Opening checkout...' : `Buy ${pack.scan_count} scans`}
+              </button>
+            </article>
+          ))}
         </div>
-        <p className="small-muted">Suggested behavior: when included scans are finished, ask the user whether to use purchased extra scans before scanning another receipt.</p>
       </section>
 
       <section className="pricing-grid">

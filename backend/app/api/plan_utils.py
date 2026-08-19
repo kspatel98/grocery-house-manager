@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.models import House, HouseMember, HouseRole, PlanName, Product, Receipt, ShoppingList, User
 from app.core.config import settings
@@ -209,6 +210,7 @@ def _count_monthly_receipt_scans(db: Session, *, month_start: datetime, house_id
     query = db.query(Receipt).filter(
         Receipt.created_at >= month_start,
         Receipt.ocr_provider.isnot(None),
+        or_(Receipt.receipt_scan_credit_source.is_(None), Receipt.receipt_scan_credit_source != "extra"),
     )
     if house_ids is not None:
         if not house_ids:
@@ -231,22 +233,26 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
     used = _count_monthly_receipt_scans(db, month_start=month_start, house_ids=owned_house_ids)
     limit = max(plan.limits.receipt_scans_per_month, 0)
     remaining = max(limit - used, 0)
+    extra_credits = max(int(getattr(owner, "extra_receipt_scan_credits", 0) or 0), 0) if owner else 0
 
     service_cap = max(getattr(settings, "tabscanner_monthly_account_scan_cap", 0), 0)
     service_used = _count_monthly_receipt_scans(db, month_start=month_start, house_ids=None)
     service_remaining = max(service_cap - service_used, 0) if service_cap else None
     service_available = service_cap == 0 or service_remaining > 0
+    will_use_extra_credit = remaining == 0 and extra_credits > 0 and service_available
 
-    if limit <= 0:
-        message = f"Smart Receipt Scan is locked on {plan.name}. Use manual receipt entry or ask the house owner to upgrade."
+    if limit <= 0 and extra_credits <= 0:
+        message = f"Smart Receipt Scan is locked on {plan.name}. You can enter prices manually or buy extra scans if scanning is needed."
     elif not service_available:
-        message = "Smart Receipt Scan is temporarily unavailable because this month's scan capacity has been reached. You can still enter receipt prices manually."
+        message = "Smart Receipt Scan is temporarily unavailable because this month's scan capacity has been reached. Manual price entry still works."
+    elif remaining == 0 and extra_credits > 0:
+        message = f"Included scans are finished for {month_label}. {extra_credits} extra scan credit(s) are available."
     elif remaining == 0:
-        message = f"0 of {limit} Smart Receipt Scans remaining for {plan.name} in {month_label}. Add this receipt manually or upgrade when more scans are needed."
+        message = f"0 of {limit} included Smart Receipt Scans remain for {plan.name} in {month_label}. You can buy extra scans anytime."
     elif remaining == 1:
-        message = f"1 of {limit} Smart Receipt Scans remaining for {plan.name} in {month_label}. The next upload will use the last scan for this month."
+        message = f"1 of {limit} included Smart Receipt Scans remains for {plan.name} in {month_label}. Extra scans are available if you need more."
     else:
-        message = f"{remaining} of {limit} Smart Receipt Scans remaining for {plan.name} in {month_label}."
+        message = f"{remaining} of {limit} included Smart Receipt Scans remain for {plan.name} in {month_label}."
 
     return {
         "used": used,
@@ -255,19 +261,39 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
         "plan_name": plan.name,
         "plan_key": plan.key.value,
         "month_label": month_label,
-        "allowed": limit > 0 and remaining > 0 and service_available,
+        "allowed": ((limit > 0 and remaining > 0) or extra_credits > 0) and service_available,
         "is_last_available": limit > 0 and remaining == 1 and service_available,
-        "quota_scope": "Shared across all houses owned by the house owner",
+        "quota_scope": "Included scans reset monthly. Extra scans stay until used.",
         "quota_owner_id": owner.id if owner else None,
         "quota_owner_name": owner.full_name or owner.email if owner else None,
         "message": message,
         "service_capacity_available": service_available,
+        "extra_credits": extra_credits,
+        "will_use_extra_credit": will_use_extra_credit,
+        "can_buy_extra_scans": True,
     }
+
+
+def choose_receipt_scan_credit_source(db: Session, house_id: int, user: User) -> str:
+    usage = receipt_scan_usage(db, house_id, user)
+    if usage.get("remaining", 0) > 0:
+        return "included"
+    if usage.get("extra_credits", 0) > 0:
+        return "extra"
+    ensure_receipt_scan_limit(db, house_id, user)
+    return "included"
+
+
+def consume_extra_receipt_scan_credit(db: Session, house_id: int) -> None:
+    owner = get_house_owner(db, house_id)
+    if not owner:
+        return
+    owner.extra_receipt_scan_credits = max(int(owner.extra_receipt_scan_credits or 0) - 1, 0)
 
 
 def ensure_receipt_scan_limit(db: Session, house_id: int, user: User) -> None:
     usage = receipt_scan_usage(db, house_id, user)
-    if usage.get("limit", 0) <= 0:
+    if usage.get("limit", 0) <= 0 and usage.get("extra_credits", 0) <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=usage["message"],
@@ -277,7 +303,7 @@ def ensure_receipt_scan_limit(db: Session, house_id: int, user: User) -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=usage["message"],
         )
-    if usage.get("remaining", 0) <= 0:
+    if usage.get("remaining", 0) <= 0 and usage.get("extra_credits", 0) <= 0:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=usage["message"],

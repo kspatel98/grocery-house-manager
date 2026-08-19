@@ -10,7 +10,7 @@ from sqlalchemy import asc, desc, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage
+from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage, choose_receipt_scan_credit_source, consume_extra_receipt_scan_credit
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingListItem
@@ -668,6 +668,7 @@ def upload_receipt_file(
 ):
     require_house_member(house_id, user, db)
     ensure_receipt_scan_limit(db, house_id, user)
+    credit_source = choose_receipt_scan_credit_source(db, house_id, user)
     receipt_upload_size_ok(file)
     uploads_dir = Path(settings.upload_dir) / f"house-{house_id}"
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -698,6 +699,7 @@ def upload_receipt_file(
         image_url=image_url,
         notes=notes or "Receipt scanned. Review extracted data before saving to price history.",
         ocr_provider=scan.get("provider"),
+        receipt_scan_credit_source=credit_source,
         ocr_status=scan.get("status") or "review_ready",
         ocr_confidence=scan.get("confidence"),
         currency=scan.get("currency"),
@@ -742,6 +744,9 @@ def upload_receipt_file(
             is_selected=line_type == "product",
             sort_order=index,
         ))
+
+    if credit_source == "extra":
+        consume_extra_receipt_scan_credit(db, house_id)
 
     log_activity(
         db,

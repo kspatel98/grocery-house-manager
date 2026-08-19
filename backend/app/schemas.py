@@ -457,6 +457,9 @@ class ReceiptScanUsageOut(BaseModel):
     quota_owner_name: str | None = None
     message: str
     service_capacity_available: bool = True
+    extra_credits: int = 0
+    will_use_extra_credit: bool = False
+    can_buy_extra_scans: bool = True
 
 
 class ReceiptUploadOut(BaseModel):

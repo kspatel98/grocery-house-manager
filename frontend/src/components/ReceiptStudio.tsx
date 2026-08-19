@@ -151,11 +151,14 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
       return;
     }
     if (scanUsage && !scanUsage.allowed) {
-      setError(scanUsage.message || 'Smart Receipt Scan is not available for this house right now. When free scans are finished, suggest using extra scans or buying a small one-time scan pack.');
+      setError(scanUsage.message || 'Smart Receipt Scan is not available right now. You can buy extra scans anytime or enter prices manually.');
       return;
     }
-    if (scanUsage?.is_last_available) {
-      const confirmed = window.confirm(`This will use the last Smart Receipt Scan for ${scanUsage.plan_name} in ${scanUsage.month_label}. After this upload, 0 of ${scanUsage.limit} scans will remain this month. Continue?`);
+    if (scanUsage?.will_use_extra_credit) {
+      const confirmed = window.confirm(`Your included scans are finished. This will use 1 extra scan credit. Extra credits left before scanning: ${scanUsage.extra_credits}. Continue?`);
+      if (!confirmed) return;
+    } else if (scanUsage?.is_last_available) {
+      const confirmed = window.confirm(`This will use the last included Smart Receipt Scan for ${scanUsage.plan_name} in ${scanUsage.month_label}. Continue?`);
       if (!confirmed) return;
     }
     const formData = new FormData();
@@ -324,9 +327,13 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
       <div className={`receipt-usage-card ${scanUsage?.is_last_available ? 'last-scan' : ''} ${scanUsage && !scanUsage.allowed ? 'locked' : ''}`}>
         <div>
           <strong>{scanLimitText}</strong>
-          <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'} When you are low on scans, suggest an extra scan pack instead of changing the full plan.</span>
+          <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'} Extra scans can be purchased anytime and stay until used.</span>
         </div>
-        {scanUsage?.plan_name && <span className="badge">{scanUsage.plan_name}</span>}
+        <div className="receipt-usage-actions">
+          {scanUsage?.extra_credits ? <span className="badge">{scanUsage.extra_credits} extra</span> : null}
+          {scanUsage?.plan_name && <span className="badge">{scanUsage.plan_name}</span>}
+          <Link to="/pricing#extra-scans" className="secondary center-link tiny">Buy extra scans</Link>
+        </div>
       </div>
       {error && <div className="error">{error}</div>}
       {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}

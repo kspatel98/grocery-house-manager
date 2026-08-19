@@ -265,6 +265,9 @@ export type ReceiptScanUsage = {
   quota_owner_name?: string | null;
   message: string;
   service_capacity_available: boolean;
+  extra_credits: number;
+  will_use_extra_credit: boolean;
+  can_buy_extra_scans: boolean;
 };
 
 export type ReceiptUploadResult = {
@@ -476,4 +479,13 @@ export type SiteReviewSummary = {
   best_positive_comment?: string | null;
   best_reviewer_name?: string | null;
   best_rating?: number | null;
+};
+
+
+export type ReceiptScanPack = {
+  key: string;
+  name: string;
+  scan_count: number;
+  price_cad: number;
+  description: string;
 };

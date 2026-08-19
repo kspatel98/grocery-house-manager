@@ -7,10 +7,17 @@ from app.api.deps import get_current_user
 from app.api.plan_utils import PLANS, get_user_plan, plan_usage
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
-from app.models import PlanName, User
-from app.schemas import CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut
+from app.models import PlanName, User, ReceiptScanPurchase
+from app.schemas import CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+
+
+RECEIPT_SCAN_PACKS = {
+    "mini": {"key": "mini", "name": "Mini Scan Pack", "scan_count": 2, "price_cad": 1.00, "description": "2 extra Smart Receipt Scans. One-time purchase. Never expires until used."},
+    "value": {"key": "value", "name": "Value Scan Pack", "scan_count": 4, "price_cad": 2.00, "description": "4 extra Smart Receipt Scans. One-time purchase. Never expires until used."},
+    "power": {"key": "power", "name": "Power Scan Pack", "scan_count": 10, "price_cad": 4.00, "description": "10 extra Smart Receipt Scans. One-time purchase. Never expires until used."},
+}
 
 
 def plan_limits_out(plan):
@@ -92,7 +99,7 @@ def subscription_out(user: User, db: Session) -> SubscriptionOut:
         subscription_status=user.subscription_status or "free",
         current_period_end=user.subscription_current_period_end,
         limits=plan_limits_out(plan),
-        usage=plan_usage(db, user),
+        usage={**plan_usage(db, user), "extra_receipt_scan_credits": int(user.extra_receipt_scan_credits or 0)},
         new_user_offer=new_user_offer_for(user),
     )
 
@@ -105,6 +112,62 @@ def list_plans():
 @router.get("/me", response_model=SubscriptionOut)
 def get_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return subscription_out(user, db)
+
+
+@router.get("/receipt-scan-packs", response_model=list[ReceiptScanPackOut])
+def list_receipt_scan_packs():
+    return [ReceiptScanPackOut(**pack) for pack in RECEIPT_SCAN_PACKS.values()]
+
+
+@router.post("/receipt-scan-pack-checkout", response_model=CheckoutSessionOut)
+def create_receipt_scan_pack_checkout(payload: ReceiptScanPackCheckoutIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    pack = RECEIPT_SCAN_PACKS.get(payload.pack_key)
+    if not pack:
+        raise HTTPException(status_code=400, detail="Choose a valid extra scan pack.")
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=400, detail="Stripe is not configured. Add STRIPE_SECRET_KEY before selling extra scans.")
+
+    stripe.api_key = settings.stripe_secret_key
+    customer_id = user.stripe_customer_id
+    if not customer_id:
+        try:
+            customer = stripe.Customer.create(email=user.email, name=user.full_name or user.email, metadata={"user_id": str(user.id)})
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Stripe customer creation failed: {exc}")
+        customer_id = customer["id"]
+        user.stripe_customer_id = customer_id
+        db.commit()
+
+    unit_amount = int(round(float(pack["price_cad"]) * 100))
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            customer=customer_id,
+            line_items=[{
+                "price_data": {
+                    "currency": "cad",
+                    "unit_amount": unit_amount,
+                    "product_data": {
+                        "name": f"{pack['scan_count']} extra Smart Receipt Scans",
+                        "description": pack["description"],
+                    },
+                },
+                "quantity": 1,
+            }],
+            success_url=f"{settings.frontend_url}/pricing?checkout=scan_pack_success",
+            cancel_url=f"{settings.frontend_url}/pricing?checkout=cancelled",
+            client_reference_id=str(user.id),
+            metadata={
+                "user_id": str(user.id),
+                "kind": "extra_receipt_scan_pack",
+                "pack_key": str(pack["key"]),
+                "scan_count": str(pack["scan_count"]),
+                "amount_cents": str(unit_amount),
+            },
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Stripe checkout failed: {exc}")
+    return CheckoutSessionOut(checkout_url=session["url"])
 
 
 @router.post("/coupon/validate", response_model=CouponValidateOut)
@@ -249,6 +312,35 @@ def apply_checkout_session_event(db: Session, session: dict) -> None:
     subscription_id = session.get("subscription")
     if customer_id:
         user.stripe_customer_id = customer_id
+
+    if metadata.get("kind") == "extra_receipt_scan_pack":
+        session_id = session.get("id")
+        if session_id and db.query(ReceiptScanPurchase).filter(ReceiptScanPurchase.stripe_session_id == session_id).first():
+            return
+        payment_status = str(session.get("payment_status") or "").lower()
+        if payment_status and payment_status not in {"paid", "no_payment_required"}:
+            return
+        try:
+            scan_count = int(metadata.get("scan_count") or 0)
+            amount_cents = int(metadata.get("amount_cents") or 0)
+        except (TypeError, ValueError):
+            scan_count = 0
+            amount_cents = 0
+        if scan_count <= 0:
+            return
+        user.extra_receipt_scan_credits = int(user.extra_receipt_scan_credits or 0) + scan_count
+        if session_id:
+            db.add(ReceiptScanPurchase(
+                user_id=user.id,
+                stripe_session_id=session_id,
+                pack_key=metadata.get("pack_key") or "extra",
+                scan_count=scan_count,
+                amount_cents=amount_cents,
+                status="paid",
+            ))
+        db.commit()
+        return
+
     if subscription_id:
         user.stripe_subscription_id = subscription_id
 

@@ -248,6 +248,7 @@ class Receipt(Base):
     image_url: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
     ocr_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    receipt_scan_credit_source: Mapped[str | None] = mapped_column(String(32), nullable=True, default="included")
     ocr_status: Mapped[str] = mapped_column(String(50), default="manual", index=True)
     ocr_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     currency: Mapped[str | None] = mapped_column(String(12), nullable=True)
@@ -317,6 +318,21 @@ class ProductStorePrice(Base):
     product: Mapped[Product] = relationship(back_populates="store_prices")
     receipt: Mapped[Receipt | None] = relationship(back_populates="price_entries")
     recorded_by: Mapped[User | None] = relationship(back_populates="price_entries")
+
+
+class ReceiptScanPurchase(Base):
+    __tablename__ = "receipt_scan_purchases"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    stripe_session_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    pack_key: Mapped[str] = mapped_column(String(80))
+    scan_count: Mapped[int] = mapped_column(Integer)
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(60), default="paid", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    user: Mapped[User] = relationship()
 
 
 class ExternalPriceCache(Base):

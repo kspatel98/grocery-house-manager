@@ -120,6 +120,11 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_is_public ON site_reviews(is_public)",
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_created_at ON site_reviews(created_at)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_receipt_scan_credits INTEGER DEFAULT 0",
+        "ALTER TABLE receipts ADD COLUMN IF NOT EXISTS receipt_scan_credit_source VARCHAR(32) DEFAULT 'included'",
+        "CREATE TABLE IF NOT EXISTS receipt_scan_purchases (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, stripe_session_id VARCHAR(255) UNIQUE NOT NULL, pack_key VARCHAR(80) NOT NULL, scan_count INTEGER NOT NULL, amount_cents INTEGER NOT NULL, status VARCHAR(60) DEFAULT 'paid', created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE INDEX IF NOT EXISTS ix_receipt_scan_purchases_user_id ON receipt_scan_purchases(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_receipt_scan_purchases_stripe_session_id ON receipt_scan_purchases(stripe_session_id)",
+        "CREATE INDEX IF NOT EXISTS ix_receipt_scan_purchases_created_at ON receipt_scan_purchases(created_at)",
     ]
     with engine.begin() as connection:
         for statement in statements:
