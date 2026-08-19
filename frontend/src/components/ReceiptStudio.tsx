@@ -330,9 +330,24 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
           <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'} Extra scans can be purchased anytime and stay until used.</span>
         </div>
         <div className="receipt-usage-actions">
-          {scanUsage?.extra_credits ? <span className="badge">{scanUsage.extra_credits} extra</span> : null}
           {scanUsage?.plan_name && <span className="badge">{scanUsage.plan_name}</span>}
           <Link to="/pricing#extra-scans" className="secondary center-link tiny">Buy extra scans</Link>
+        </div>
+      </div>
+
+      <div className={`extra-scan-balance-card ${Number(scanUsage?.extra_credits || 0) > 0 ? 'available' : 'empty'}`}>
+        <div className="extra-scan-balance-copy">
+          <p className="eyebrow">Available extra scans</p>
+          <h3>{Number(scanUsage?.extra_credits || 0)} extra scan{Number(scanUsage?.extra_credits || 0) === 1 ? '' : 's'}</h3>
+          <p>
+            {Number(scanUsage?.extra_credits || 0) > 0
+              ? 'These extra scans stay on your account until used. Your included monthly scans are always used first.'
+              : 'You do not have extra scans yet. Buy a small one-time scan pack anytime without changing your plan.'}
+          </p>
+        </div>
+        <div className="extra-scan-balance-actions">
+          <span className="extra-scan-pill">Permanent one-time packs</span>
+          <Link to="/pricing#extra-scans" className="primary center-link">View extra scan packs</Link>
         </div>
       </div>
       {error && <div className="error">{error}</div>}

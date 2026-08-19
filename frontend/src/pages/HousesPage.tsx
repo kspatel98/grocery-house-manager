@@ -249,6 +249,16 @@ export default function HousesPage() {
       });
     }
     items.push({
+      key: 'extra-scans',
+      content: (
+        <Link to="/pricing#extra-scans" className="notification-image-link" aria-label="Open extra receipt scans section">
+          <div className="notification-image-card">
+            <img src="/brand/extra_receipt_scans_available.png" alt="Extra receipt scans available. Buy extra scans without changing your plan." />
+          </div>
+        </Link>
+      ),
+    });
+    items.push({
       key: 'community-stats',
       content: (
         <div className="notification-picture stats-picture">
