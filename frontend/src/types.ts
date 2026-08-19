@@ -457,12 +457,15 @@ export type LivePriceCompareResponse = {
 
 export type SiteReview = {
   id: number;
+  user_id?: number | null;
   rating: number;
   comment: string;
   is_public: boolean;
   created_at: string;
+  updated_at?: string | null;
   user_name?: string | null;
   user_avatar_url?: string | null;
+  can_edit?: boolean;
 };
 
 export type SiteReviewSummary = {

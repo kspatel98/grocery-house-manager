@@ -8,10 +8,16 @@ function isPaidStatus(status?: string) {
   return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'admin_granted'].includes((status || '').toLowerCase());
 }
 
-function daysLeftUntil(dateValue?: string | null) {
-  if (!dateValue) return 0;
-  const ms = new Date(dateValue).getTime() - Date.now();
-  return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+function timeLeftParts(dateValue?: string | null) {
+  if (!dateValue) return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
+  const diff = new Date(dateValue).getTime() - Date.now();
+  if (diff <= 0) return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
+  const totalSeconds = Math.floor(diff / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return { expired: false, days, hours, minutes, seconds };
 }
 
 function starText(value?: number | null) {
@@ -23,6 +29,28 @@ type NotificationSlide = {
   key: string;
   content: ReactNode;
 };
+
+function CountdownBadge({ until }: { until?: string | null }) {
+  const [tick, setTick] = useState(() => timeLeftParts(until));
+
+  useEffect(() => {
+    setTick(timeLeftParts(until));
+    if (!until) return;
+    const timer = window.setInterval(() => setTick(timeLeftParts(until)), 1000);
+    return () => window.clearInterval(timer);
+  }, [until]);
+
+  if (tick.expired) return <div className="countdown-alert">Offer ended</div>;
+  return (
+    <div className="countdown-alert" aria-live="polite">
+      <strong>{tick.days}D</strong>
+      <span>{String(tick.hours).padStart(2, '0')}h</span>
+      <span>{String(tick.minutes).padStart(2, '0')}m</span>
+      <span>{String(tick.seconds).padStart(2, '0')}s</span>
+      <em>left</em>
+    </div>
+  );
+}
 
 function NotificationSlider({ slides }: { slides: NotificationSlide[] }) {
   const [active, setActive] = useState(0);
@@ -74,6 +102,7 @@ export default function HousesPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [stats, setStats] = useState<SiteReviewSummary | null>(null);
   const [reviews, setReviews] = useState<SiteReview[]>([]);
+  const [myReview, setMyReview] = useState<SiteReview | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
@@ -83,16 +112,25 @@ export default function HousesPage() {
 
   async function loadReviews() {
     try {
-      const [summaryRes, reviewsRes] = await Promise.all([
+      const [summaryRes, reviewsRes, myReviewRes] = await Promise.all([
         api.get<SiteReviewSummary>('/reviews/summary'),
         api.get<SiteReview[]>('/reviews'),
+        api.get<SiteReview | null>('/reviews/mine'),
       ]);
       setStats(summaryRes.data);
       setReviews(Array.isArray(reviewsRes.data) ? reviewsRes.data : []);
+      setMyReview(myReviewRes.data || null);
+      if (myReviewRes.data) {
+        setReviewRating(myReviewRes.data.rating || 5);
+        setReviewComment(myReviewRes.data.comment || '');
+      } else {
+        setReviewRating(5);
+        setReviewComment('');
+      }
     } catch {
-      // Reviews are helpful, not required for the houses dashboard to work.
       setStats(null);
       setReviews([]);
+      setMyReview(null);
     }
   }
 
@@ -137,14 +175,38 @@ export default function HousesPage() {
     }
     try {
       setReviewBusy(true);
-      await api.post('/reviews', {
-        rating: reviewRating,
-        comment: reviewComment.trim(),
-        is_public: true,
-      });
+      if (myReview) {
+        await api.put(`/reviews/${myReview.id}`, {
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+          is_public: true,
+        });
+        setReviewMessage('Your review was updated.');
+      } else {
+        await api.post('/reviews', {
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+          is_public: true,
+        });
+        setReviewMessage('Thank you. Your review is saved.');
+      }
+      await loadReviews();
+    } catch (err) {
+      setReviewError(errorMessage(err));
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  async function deleteMyReview() {
+    if (!myReview) return;
+    if (!window.confirm('Delete your review?')) return;
+    try {
+      setReviewBusy(true);
+      await api.delete(`/reviews/${myReview.id}`);
+      setReviewMessage('Your review was deleted.');
       setReviewComment('');
       setReviewRating(5);
-      setReviewMessage('Thank you. Your review is saved.');
       await loadReviews();
     } catch (err) {
       setReviewError(errorMessage(err));
@@ -159,8 +221,7 @@ export default function HousesPage() {
   const canCreateHouse = !!subscription && subscription.limits.houses > ownedHouseCount;
   const isFreePlan = subscription?.plan_name === 'free';
   const offer = subscription?.new_user_offer;
-  const offerDaysLeft = daysLeftUntil(offer?.eligible_until);
-  const shouldShowOffer = Boolean(offer?.active && !isPaidStatus(subscription?.subscription_status) && offerDaysLeft > 0);
+  const shouldShowOffer = Boolean(offer?.active && !isPaidStatus(subscription?.subscription_status) && !timeLeftParts(offer?.eligible_until).expired);
 
   const slides: NotificationSlide[] = useMemo(() => {
     const items: NotificationSlide[] = [];
@@ -172,14 +233,17 @@ export default function HousesPage() {
             <div className="notification-glow" aria-hidden="true" />
             <div className="notification-copy">
               <span className="notification-label">Limited new-user offer</span>
+              <CountdownBadge until={offer?.eligible_until} />
               <h2>65% off Basic Home</h2>
               <p>Start Basic for the first 2 billing months and unlock house creation, smart receipt tools, and a cleaner grocery routine.</p>
-              <div className="offer-countdown-card">
-                <strong>{offerDaysLeft}</strong>
-                <span>{offerDaysLeft === 1 ? 'day left to claim' : 'days left to claim'}</span>
-              </div>
             </div>
-            <Link to="/pricing" className="notification-action">Claim offer</Link>
+            <div className="notification-side-stack">
+              <div className="offer-countdown-card compact-offer-card">
+                <strong>2 months</strong>
+                <span>discounted billing</span>
+              </div>
+              <Link to="/pricing" className="notification-action">Claim offer</Link>
+            </div>
           </div>
         ),
       });
@@ -192,6 +256,7 @@ export default function HousesPage() {
           <div className="notification-copy">
             <span className="notification-label">Community snapshot</span>
             <h2>{stats?.total_users ?? 0}+ users organizing groceries</h2>
+            <p>Live trust snapshot from your Grocery House Manager community.</p>
             <div className="stats-picture-grid">
               <div><strong>{stats?.new_users_this_month ?? 0}</strong><span>new this month</span></div>
               <div><strong>{stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}</strong><span>{starText(stats?.average_rating)}</span></div>
@@ -206,7 +271,7 @@ export default function HousesPage() {
       ),
     });
     return items;
-  }, [offerDaysLeft, shouldShowOffer, stats]);
+  }, [offer?.eligible_until, shouldShowOffer, stats]);
 
   return (
     <main className="page shell houses-page-v54 cinematic-page">
@@ -300,7 +365,10 @@ export default function HousesPage() {
             </label>
             {reviewError && <div className="error form-message">{reviewError}</div>}
             {reviewMessage && <div className="success form-message">{reviewMessage}</div>}
-            <button className="primary" disabled={reviewBusy}>{reviewBusy ? 'Saving...' : 'Save review'}</button>
+            <div className="review-form-actions">
+              <button className="primary" disabled={reviewBusy}>{reviewBusy ? 'Saving...' : myReview ? 'Update review' : 'Save review'}</button>
+              {myReview && <button type="button" className="secondary danger-button" onClick={deleteMyReview} disabled={reviewBusy}>Delete</button>}
+            </div>
           </form>
 
           <div className="review-cards-stack">

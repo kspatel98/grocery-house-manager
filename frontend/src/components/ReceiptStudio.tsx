@@ -151,7 +151,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
       return;
     }
     if (scanUsage && !scanUsage.allowed) {
-      setError(scanUsage.message || 'Smart Receipt Scan is not available for this house right now.');
+      setError(scanUsage.message || 'Smart Receipt Scan is not available for this house right now. When free scans are finished, suggest using extra scans or buying a small one-time scan pack.');
       return;
     }
     if (scanUsage?.is_last_available) {
@@ -324,7 +324,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
       <div className={`receipt-usage-card ${scanUsage?.is_last_available ? 'last-scan' : ''} ${scanUsage && !scanUsage.allowed ? 'locked' : ''}`}>
         <div>
           <strong>{scanLimitText}</strong>
-          <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'}</span>
+          <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'} When you are low on scans, suggest an extra scan pack instead of changing the full plan.</span>
         </div>
         {scanUsage?.plan_name && <span className="badge">{scanUsage.plan_name}</span>}
       </div>

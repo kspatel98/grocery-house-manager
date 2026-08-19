@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, PlanName } from '../types';
+import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, PlanName, SiteReview } from '../types';
+
+function starText(value?: number | null) {
+  const rating = Math.max(0, Math.min(5, Math.round(value || 0)));
+  return '★'.repeat(rating) + '☆'.repeat(5 - rating);
+}
 
 const PLAN_LABELS: Record<PlanName, string> = {
   free: 'Free Starter',
@@ -14,6 +19,7 @@ export default function AdminPage() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [emailStatus, setEmailStatus] = useState<AdminEmailStatus | null>(null);
+  const [reviews, setReviews] = useState<SiteReview[]>([]);
   const [testEmail, setTestEmail] = useState('');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,14 +42,16 @@ export default function AdminPage() {
   async function loadAll() {
     try {
       setBusy(true);
-      const [summaryRes, usersRes, emailStatusRes] = await Promise.all([
+      const [summaryRes, usersRes, emailStatusRes, reviewsRes] = await Promise.all([
         api.get<AdminSummary>('/admin/summary'),
         api.get<AdminUser[]>('/admin/users', { params: { search: search || undefined, limit: 100 } }),
         api.get<AdminEmailStatus>('/admin/email/status'),
+        api.get<SiteReview[]>('/reviews/admin/all'),
       ]);
       setSummary(summaryRes.data);
       setUsers(usersRes.data);
       setEmailStatus(emailStatusRes.data);
+      setReviews(reviewsRes.data);
       setError('');
     } catch (err) {
       setError(errorMessage(err));
@@ -127,6 +135,21 @@ export default function AdminPage() {
     }
   }
 
+
+  async function deleteReview(review: SiteReview) {
+    if (!confirm(`Delete this review from ${review.user_name || 'user'}?`)) return;
+    try {
+      setBusy(true);
+      const { data } = await api.delete<AdminAction>(`/reviews/admin/${review.id}`);
+      setSuccess(data.message);
+      await loadAll();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => { loadAll(); }, []);
 
   const planCounts = useMemo(() => summary?.users_by_plan || {}, [summary]);
@@ -200,6 +223,31 @@ export default function AdminPage() {
         <div className="chips">
           {(['free', 'basic', 'family', 'pro'] as PlanName[]).map((plan) => (
             <span className="chip" key={plan}>{PLAN_LABELS[plan]}: <strong>{planCounts[plan] || 0}</strong></span>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel admin-plan-counts">
+        <div className="panel-title-row">
+          <div>
+            <h2>User reviews moderation</h2>
+            <p>Admins can review submitted feedback and remove inappropriate content.</p>
+          </div>
+        </div>
+        <div className="review-cards-stack">
+          {reviews.length === 0 ? (
+            <div className="small-muted">No reviews found.</div>
+          ) : reviews.slice(0, 8).map((review) => (
+            <article className="review-card-v54" key={review.id}>
+              <div className="review-card-top">
+                <div>
+                  <strong>{review.user_name || 'Unknown user'}</strong>
+                  <small>{starText(review.rating)} • {new Date(review.created_at).toLocaleDateString()}</small>
+                </div>
+                <button className="secondary small-button danger-button" type="button" onClick={() => deleteReview(review)}>Delete</button>
+              </div>
+              <p>“{review.comment}”</p>
+            </article>
           ))}
         </div>
       </section>

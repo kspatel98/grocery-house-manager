@@ -18,6 +18,30 @@ function calculateFallbackDiscount(planPrice: number, coupon: CouponValidation |
   return null;
 }
 
+function countdownParts(dateValue?: string | null) {
+  if (!dateValue) return null;
+  const diff = new Date(dateValue).getTime() - Date.now();
+  if (diff <= 0) return null;
+  const totalSeconds = Math.floor(diff / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return { days, hours, minutes, seconds };
+}
+
+function CountdownInline({ until }: { until?: string | null }) {
+  const [tick, setTick] = useState(() => countdownParts(until));
+  useEffect(() => {
+    setTick(countdownParts(until));
+    if (!until) return;
+    const timer = window.setInterval(() => setTick(countdownParts(until)), 1000);
+    return () => window.clearInterval(timer);
+  }, [until]);
+  if (!tick) return null;
+  return <span className="countdown-inline">{tick.days}D:{String(tick.hours).padStart(2,'0')}h:{String(tick.minutes).padStart(2,'0')}m:{String(tick.seconds).padStart(2,'0')}s left</span>;
+}
+
 const PLAN_RANK: Record<PlanName, number> = { free: 0, basic: 1, family: 2, pro: 3 };
 const PLAN_BADGE_LABELS: Record<PlanName, string> = {
   free: 'Free Starter',
@@ -29,7 +53,7 @@ const PLAN_BADGE_LABELS: Record<PlanName, string> = {
 const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanName }[] = [
   { title: 'Join invited houses', description: 'Join a household and use features unlocked by the house owner.', minPlan: 'free' },
   { title: 'Create your own houses', description: 'Own and manage houses, members, inventory, and shopping lists.', minPlan: 'basic' },
-  { title: 'Smart Receipt Scan', description: 'Basic includes 5 scans/month, Family includes 20 scans/month, and Pro includes 50 scans/month across houses you own.', minPlan: 'basic' },
+  { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5 scans/month, and Pro includes 15 scans/month across houses you own.', minPlan: 'basic' },
   { title: 'Product lookup', description: 'Search product details by barcode or name while building inventory.', minPlan: 'basic' },
   { title: 'Best-store comparison', description: 'Compare saved household prices across your stores.', minPlan: 'family' },
   { title: 'Canadian price comparison', description: 'Compare latest available prices from supported Canadian retailers with clear location and availability notes.', minPlan: 'family' },
@@ -178,8 +202,7 @@ export default function PricingPage() {
 
       {subscription?.new_user_offer?.active && (
         <section className="success offer-banner">
-          <strong>New-user offer available:</strong> Basic Home is shown as <s>$1.99</s> $0.70 CAD/month for the first 2 billing months. After 2 months, Stripe will charge the regular Basic Home price of $1.99 CAD/month. You can still enter a coupon; if you use a coupon, the automatic Basic offer will not be applied.
-          {subscription.new_user_offer.eligible_until && ` This offer is available until ${new Date(subscription.new_user_offer.eligible_until).toLocaleDateString()}.`}
+          <strong>New-user offer available:</strong> Basic Home is shown as <s>$1.99</s> $0.70 CAD/month for the first 2 billing months. After 2 months, Stripe will charge the regular Basic Home price of $1.99 CAD/month. You can still enter a coupon; if you use a coupon, the automatic Basic offer will not be applied. <CountdownInline until={subscription.new_user_offer.eligible_until} />
         </section>
       )}
 
@@ -246,6 +269,31 @@ export default function PricingPage() {
           <button className="secondary" onClick={load}>Try again</button>
         </section>
       )}
+
+      <section className="panel extra-scan-panel">
+        <div className="panel-title-row">
+          <div>
+            <p className="eyebrow">Extra receipt scans</p>
+            <h2>Buy extra scans without changing your plan</h2>
+            <p>Use your included monthly scans first. If you need more, you can offer small one-time add-ons that stay on the account until they are used.</p>
+          </div>
+        </div>
+        <div className="plan-access-grid">
+          <article className="plan-access-column">
+            <div className="plan-access-column-header"><strong>Mini Pack</strong></div>
+            <div className="plan-access-list"><div className="feature-access-item unlocked"><span>✓</span><div><strong>2 extra scans</strong><small>$1.00 CAD one-time</small></div></div></div>
+          </article>
+          <article className="plan-access-column">
+            <div className="plan-access-column-header"><strong>Value Pack</strong></div>
+            <div className="plan-access-list"><div className="feature-access-item unlocked"><span>✓</span><div><strong>4 extra scans</strong><small>$2.00 CAD one-time</small></div></div></div>
+          </article>
+          <article className="plan-access-column">
+            <div className="plan-access-column-header"><strong>Power Pack</strong></div>
+            <div className="plan-access-list"><div className="feature-access-item unlocked"><span>✓</span><div><strong>10 extra scans</strong><small>$4.00 CAD one-time</small></div></div></div>
+          </article>
+        </div>
+        <p className="small-muted">Suggested behavior: when included scans are finished, ask the user whether to use purchased extra scans before scanning another receipt.</p>
+      </section>
 
       <section className="pricing-grid">
         {plans.map((plan) => {

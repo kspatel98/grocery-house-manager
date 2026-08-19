@@ -331,6 +331,18 @@ class SubscriptionOut(BaseModel):
     new_user_offer: NewUserOfferOut | None = None
 
 
+class ReceiptScanPackOut(BaseModel):
+    key: str
+    name: str
+    scan_count: int
+    price_cad: float
+    description: str
+
+
+class ReceiptScanPackCheckoutIn(BaseModel):
+    pack_key: str
+
+
 class CheckoutSessionIn(BaseModel):
     plan_name: PlanName
     promotion_code_id: str | None = None
@@ -731,12 +743,15 @@ class SiteReviewCreateIn(BaseModel):
 
 class SiteReviewOut(BaseModel):
     id: int
+    user_id: int | None = None
     rating: int
     comment: str
     is_public: bool = True
     created_at: datetime
+    updated_at: datetime | None = None
     user_name: str | None = None
     user_avatar_url: str | None = None
+    can_edit: bool = False
 
 
 class SiteReviewSummaryOut(BaseModel):

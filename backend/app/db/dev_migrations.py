@@ -119,6 +119,7 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_rating ON site_reviews(rating)",
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_is_public ON site_reviews(is_public)",
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_created_at ON site_reviews(created_at)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_receipt_scan_credits INTEGER DEFAULT 0",
     ]
     with engine.begin() as connection:
         for statement in statements:
