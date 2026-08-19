@@ -59,7 +59,7 @@ function NotificationSlider({ slides }: { slides: NotificationSlide[] }) {
     if (slides.length <= 1) return;
     const timer = window.setInterval(() => {
       setActive((current) => (current + 1) % slides.length);
-    }, 3000);
+    }, 5000);
     return () => window.clearInterval(timer);
   }, [slides.length]);
 
@@ -72,6 +72,12 @@ function NotificationSlider({ slides }: { slides: NotificationSlide[] }) {
   return (
     <section className="notification-showcase" aria-label="Important updates">
       <div className="notification-window">
+        {slides.length > 1 && (
+          <>
+            <button type="button" className="notification-arrow prev" aria-label="Previous notification" onClick={() => setActive((current) => (current - 1 + slides.length) % slides.length)}>‹</button>
+            <button type="button" className="notification-arrow next" aria-label="Next notification" onClick={() => setActive((current) => (current + 1) % slides.length)}>›</button>
+          </>
+        )}
         <div className="notification-track" style={{ transform: `translateX(-${active * 100}%)` }}>
           {slides.map((slide) => (
             <div className="notification-slide" key={slide.key}>{slide.content}</div>

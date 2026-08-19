@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { CouponValidation, Plan, PlanName, ReceiptScanPack, Subscription } from '../types';
 
@@ -161,6 +161,17 @@ export default function PricingPage() {
       setBusyPlan('');
     }
   }
+
+  useEffect(() => {
+    if (location.hash !== '#extra-scans') return;
+    const scrollToTarget = () => {
+      const target = document.getElementById('extra-scans');
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const timer = window.setTimeout(scrollToTarget, 120);
+    return () => window.clearTimeout(timer);
+  }, [location.hash]);
 
   async function checkoutScanPack(packKey: string) {
     if (!loggedIn) {
