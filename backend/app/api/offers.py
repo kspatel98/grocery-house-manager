@@ -75,7 +75,7 @@ def offer_summary(offer: AdminUserOffer) -> str:
 
 def offer_out(offer: AdminUserOffer, viewer: User | None = None) -> AdminOfferOut:
     expired = offer.expires_at <= now_utc()
-    status_value = "expired" if offer.status == "pending" and expired else offer.status
+    status_value = "expired" if offer.status in {"pending", "checkout_started"} and expired else offer.status
     return AdminOfferOut(
         id=offer.id,
         user_id=offer.user_id,
@@ -100,7 +100,7 @@ def offer_out(offer: AdminUserOffer, viewer: User | None = None) -> AdminOfferOu
         created_at=offer.created_at,
         stripe_promotion_code=offer.stripe_promotion_code,
         universal=offer.offer_kind == "discount" and not offer.plan_name,
-        can_accept=bool(viewer and viewer.id == offer.user_id and status_value == "pending"),
+        can_accept=bool(viewer and viewer.id == offer.user_id and status_value in {"pending", "checkout_started"}),
         summary=offer_summary(offer),
     )
 
@@ -171,7 +171,7 @@ def my_offers(db: Session = Depends(get_db), user: User = Depends(get_current_us
     offers = (
         db.query(AdminUserOffer)
         .filter(AdminUserOffer.user_id == user.id)
-        .filter(AdminUserOffer.status == "pending")
+        .filter(AdminUserOffer.status.in_(["pending", "checkout_started"]))
         .filter(AdminUserOffer.expires_at > now_utc())
         .order_by(AdminUserOffer.expires_at.asc(), AdminUserOffer.id.desc())
         .all()
@@ -182,7 +182,7 @@ def my_offers(db: Session = Depends(get_db), user: User = Depends(get_current_us
 @router.post("/{offer_id}/accept", response_model=AdminOfferActionOut)
 def accept_offer(offer_id: int, payload: AdminOfferAcceptIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     offer = db.query(AdminUserOffer).filter(AdminUserOffer.id == offer_id, AdminUserOffer.user_id == user.id).first()
-    if not offer or offer.status != "pending" or offer.expires_at <= now_utc():
+    if not offer or offer.status not in {"pending", "checkout_started"} or offer.expires_at <= now_utc():
         raise HTTPException(status_code=404, detail="This offer is not available anymore.")
 
     if offer.offer_kind == "free_plan_access":
@@ -228,7 +228,7 @@ def accept_offer(offer_id: int, payload: AdminOfferAcceptIn, db: Session = Depen
     offer.status = "checkout_started"
     offer.updated_at = now_utc()
     db.commit()
-    return AdminOfferActionOut(ok=True, message="Offer applied. Continue to Stripe checkout.", checkout_url=session["url"], offer=offer_out(offer, viewer=user))
+    return AdminOfferActionOut(ok=True, message="Continue to Stripe checkout to complete this offer.", checkout_url=session["url"], offer=offer_out(offer, viewer=user))
 
 
 @router.post("/{offer_id}/decline", response_model=AdminOfferActionOut)

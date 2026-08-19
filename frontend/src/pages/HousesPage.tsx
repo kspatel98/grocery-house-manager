@@ -267,7 +267,22 @@ export default function HousesPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const offerPoll = window.setInterval(() => {
+      loadOffers();
+    }, 5000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') loadOffers();
+    };
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('focus', loadOffers);
+    return () => {
+      window.clearInterval(offerPoll);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+      window.removeEventListener('focus', loadOffers);
+    };
+  }, []);
 
   const ownedHouseCount = Number(subscription?.usage?.houses || 0);
   const canCreateHouse = !!subscription && subscription.limits.houses > ownedHouseCount;
@@ -281,20 +296,21 @@ export default function HousesPage() {
       items.push({
         key: 'basic-offer',
         content: (
-          <div className="notification-picture offer-picture">
+          <div className="notification-picture offer-picture new-user-offer-slide">
             <div className="notification-glow" aria-hidden="true" />
-            <div className="notification-copy">
-              <span className="notification-label">Limited new-user offer</span>
-              <CountdownBadge until={offer?.eligible_until} />
+            <div className="notification-copy new-user-offer-copy">
+              <span className="notification-label urgent-label">Limited new-user offer</span>
               <h2>65% off Basic Home</h2>
-              <p>Start Basic for the first 2 billing months and unlock house creation, smart receipt tools, and a cleaner grocery routine.</p>
-            </div>
-            <div className="notification-side-stack">
-              <div className="offer-countdown-card compact-offer-card">
-                <strong>2 months</strong>
-                <span>discounted billing</span>
+              <p>Start Basic for the first 2 billing months. Create your own houses, scan receipts, lookup products, and organize groceries with less stress.</p>
+              <div className="new-user-offer-metrics">
+                <span><strong>$0.70</strong><small>first 2 months</small></span>
+                <span><strong>2</strong><small>receipt scans/month</small></span>
+                <span><strong>No lock-in</strong><small>manage anytime</small></span>
               </div>
-              <Link to="/pricing" className="notification-action">Claim offer</Link>
+            </div>
+            <div className="new-user-offer-side">
+              <CountdownBadge until={offer?.eligible_until} />
+              <Link to="/pricing" className="notification-action claim-offer-button">Claim offer</Link>
             </div>
           </div>
         ),
@@ -307,10 +323,10 @@ export default function HousesPage() {
           <div className={`notification-picture admin-offer-slide ${adminOffer.offer_kind === 'discount' ? 'discount-offer-slide' : 'access-offer-slide'}`}>
             <div className="notification-glow" aria-hidden="true" />
             <div className="notification-copy">
-              <span className="notification-label">Personal offer</span>
+              <span className="notification-label">{adminOffer.status === 'checkout_started' ? 'Checkout waiting' : 'Personal offer'}</span>
               <CountdownBadge until={adminOffer.expires_at} />
               <h2>{adminOffer.title}</h2>
-              <p>{adminOffer.message || adminOffer.summary}</p>
+              <p>{adminOffer.status === 'checkout_started' ? 'You already opened checkout for this offer, but payment is not completed yet. Continue before it expires.' : adminOffer.message || adminOffer.summary}</p>
               <div className="admin-offer-detail-grid">
                 <span><strong>Offer</strong>{adminOffer.summary}</span>
                 <span><strong>Plan</strong>{adminOffer.universal ? 'Choose any paid plan' : adminOffer.plan_label || adminOffer.plan_name}</span>
@@ -330,7 +346,7 @@ export default function HousesPage() {
             </div>
             <div className="notification-side-stack admin-offer-actions">
               <button className="notification-action" disabled={offerBusy === adminOffer.id} onClick={() => acceptAdminOffer(adminOffer)}>
-                {offerBusy === adminOffer.id ? 'Opening...' : adminOffer.offer_kind === 'discount' ? 'Accept discount' : 'Accept access'}
+                {offerBusy === adminOffer.id ? 'Opening...' : adminOffer.status === 'checkout_started' ? 'Continue checkout' : adminOffer.offer_kind === 'discount' ? 'Accept discount' : 'Accept access'}
               </button>
               <button className="secondary" disabled={offerBusy === adminOffer.id} onClick={() => declineAdminOffer(adminOffer)}>Not now</button>
             </div>
