@@ -6321,3 +6321,210 @@ html, body, #root { overflow-x: hidden; }
     width: 100%;
   }
 }
+
+/* v60: polished notification layout and stronger 3D colorful cards */
+.extra-scan-promo-slide {
+  display: grid;
+  grid-template-columns: 1.15fr .95fr;
+  align-items: center;
+  gap: 20px;
+  min-height: 260px;
+  background:
+    radial-gradient(circle at top right, rgba(253, 224, 71, 0.22), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(34, 197, 94, 0.18), transparent 26%),
+    linear-gradient(135deg, #effdf5, #f8fafc 52%, #ecfeff);
+}
+.extra-scan-copy h2 {
+  font-size: clamp(1.8rem, 3.2vw, 2.7rem);
+}
+.extra-scan-slide-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 18px;
+}
+.extra-scan-slide-pills span {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #166534;
+  background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(236,253,245,.95));
+  border: 1px solid rgba(74, 222, 128, 0.32);
+  box-shadow: 0 10px 24px rgba(34,197,94,.12);
+}
+.extra-scan-visual-frame {
+  position: relative;
+  border-radius: 24px;
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(22,163,74,.18), rgba(251,191,36,.18));
+  box-shadow: 0 22px 50px rgba(15,23,42,.16), inset 0 1px 0 rgba(255,255,255,.8);
+  transform-style: preserve-3d;
+  animation: gentleFloatCard 5.5s ease-in-out infinite;
+}
+.extra-scan-visual-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(15,23,42,.14);
+}
+.inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+}
+.notification-arrow {
+  background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(241,245,249,.92));
+}
+
+@keyframes gentleFloatCard {
+  0%, 100% { transform: translateY(0px) rotate3d(1, -1, 0, 0deg); }
+  50% { transform: translateY(-6px) rotate3d(1, -1, 0, 1deg); }
+}
+@keyframes cardGlowSweep {
+  0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  18% { opacity: .45; }
+  40%,100% { transform: translateX(220%) skewX(-18deg); opacity: 0; }
+}
+
+/* stronger sitewide card animation/3D */
+.panel,
+.house-card,
+.creative-house-card,
+.module-card,
+.stat-card,
+.review-card-v54,
+.review-form-card,
+.plan-access-column,
+.extra-scan-pack-card,
+.product-card,
+.report-highlight-card,
+.store-report-card,
+.store-result-card,
+.support-card,
+.legal-card,
+.company-card,
+.market-tool-card,
+.plan-summary-card,
+.receipt-item-card,
+.receipt-total-card,
+.receipt-note-card,
+.receipt-upload-card,
+.quick-create-product-card,
+.product-preview-card,
+.auth-card,
+.daily-moment-card,
+.marketing-feature-card,
+.visual-floating-card,
+.about-logo-card {
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform, box-shadow;
+}
+.panel::after,
+.house-card::after,
+.module-card::after,
+.stat-card::after,
+.plan-access-column::after,
+.extra-scan-pack-card::after,
+.product-card::after,
+.market-tool-card::after,
+.review-card-v54::after,
+.support-card::after,
+.company-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -35%;
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+  animation: cardGlowSweep 9s ease-in-out infinite;
+}
+.panel:hover,
+.house-card:hover,
+.creative-house-card:hover,
+.module-card:hover,
+.stat-card:hover,
+.review-card-v54:hover,
+.review-form-card:hover,
+.plan-access-column:hover,
+.extra-scan-pack-card:hover,
+.product-card:hover,
+.report-highlight-card:hover,
+.store-report-card:hover,
+.store-result-card:hover,
+.support-card:hover,
+.legal-card:hover,
+.company-card:hover,
+.market-tool-card:hover,
+.plan-summary-card:hover,
+.receipt-item-card:hover,
+.receipt-total-card:hover,
+.receipt-note-card:hover,
+.receipt-upload-card:hover,
+.quick-create-product-card:hover,
+.product-preview-card:hover,
+.auth-card:hover,
+.daily-moment-card:hover,
+.marketing-feature-card:hover,
+.visual-floating-card:hover,
+.about-logo-card:hover {
+  transform: perspective(1200px) translateY(-7px) rotateX(2.2deg) rotateY(-1.4deg);
+  box-shadow:
+    0 18px 34px rgba(15,23,42,.12),
+    0 34px 84px rgba(59,130,246,.12),
+    inset 0 1px 0 rgba(255,255,255,.95);
+}
+/* colorful extra scan cards specifically */
+.extra-scan-pack-card {
+  border: 1px solid rgba(148,163,184,.2);
+  box-shadow:
+    0 16px 34px rgba(15,23,42,.08),
+    0 26px 70px rgba(16,185,129,.12),
+    inset 0 1px 0 rgba(255,255,255,.96);
+}
+.extra-scan-pack-card:nth-child(1) {
+  background: linear-gradient(160deg, rgba(255,255,255,.96), rgba(236,253,245,.95));
+}
+.extra-scan-pack-card:nth-child(2) {
+  background: linear-gradient(160deg, rgba(255,255,255,.96), rgba(239,246,255,.95));
+}
+.extra-scan-pack-card:nth-child(3) {
+  background: linear-gradient(160deg, rgba(255,255,255,.96), rgba(255,247,237,.96));
+}
+.plan-access-column-header strong,
+.module-card strong,
+.house-card strong,
+.review-card-v54 strong {
+  letter-spacing: -0.02em;
+}
+@media (max-width: 900px) {
+  .extra-scan-promo-slide {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    min-height: auto;
+  }
+  .extra-scan-visual-frame {
+    order: -1;
+  }
+}
+@media (max-width: 700px) {
+  .extra-scan-promo-slide {
+    padding: 16px;
+  }
+  .extra-scan-copy h2 {
+    font-size: 1.55rem;
+  }
+  .extra-scan-slide-pills span {
+    font-size: .84rem;
+  }
+  .extra-scan-visual-frame {
+    padding: 8px;
+  }
+}

@@ -258,11 +258,20 @@ export default function HousesPage() {
       key: 'extra-scans',
       content: (
         <Link to="/pricing#extra-scans" className="notification-image-link" aria-label="Open extra receipt scans section">
-          <div className="notification-image-card notification-image-fill" style={{ backgroundImage: 'url(/brand/extra_receipt_scans_available.png)' }}>
-            <div className="notification-image-overlay">
-              <span className="notification-image-chip">New convenient option</span>
-              <strong>Buy extra receipt scans anytime</strong>
-              <span>Open scan packs</span>
+          <div className="notification-picture extra-scan-promo-slide">
+            <div className="notification-copy extra-scan-copy">
+              <span className="notification-label">New convenient option</span>
+              <h2>Buy extra receipt scans anytime</h2>
+              <p>Need more scans? Buy a small one-time pack without changing your plan. Use included monthly scans first, and keep extra scans until used.</p>
+              <div className="extra-scan-slide-pills">
+                <span>2 scans • $1</span>
+                <span>4 scans • $2</span>
+                <span>10 scans • $4</span>
+              </div>
+              <span className="notification-action inline-action">Open scan packs</span>
+            </div>
+            <div className="extra-scan-visual-frame">
+              <img src="/brand/extra_receipt_scans_available.png" alt="Extra receipt scans available. Buy extra scans without changing your plan." />
             </div>
           </div>
         </Link>
