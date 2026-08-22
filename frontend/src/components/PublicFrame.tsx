@@ -2,6 +2,16 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+function InstagramIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 const publicNavItems = [
   { to: '/', label: 'Home' },
   { to: '/pricing', label: 'Plans' },
@@ -65,6 +75,13 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
             <Link to="/terms">Terms</Link>
             <Link to="/refund-policy">Refunds</Link>
             <Link to="/support">Support</Link>
+          </div>
+          <div className="footer-contact-pills">
+            <a className="contact-pill" href="mailto:support@grocery-house-manager.com">Support: support@grocery-house-manager.com</a>
+            <a className="contact-pill instagram-pill" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
+              <span className="social-icon"><InstagramIcon /></span>
+              <span>@groceryhousemanager</span>
+            </a>
           </div>
         </div>
       </footer>

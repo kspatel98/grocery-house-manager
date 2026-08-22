@@ -6743,3 +6743,198 @@ html, body, #root { overflow-x: hidden; }
     padding: 14px;
   }
 }
+
+/* v63 brand refresh based on updated logo */
+:root {
+  --brand-navy: #0b2e63;
+  --brand-green: #6bc53c;
+  --brand-green-deep: #2ca84a;
+  --brand-surface: #f5fbf4;
+}
+body {
+  background:
+    radial-gradient(circle at top left, rgba(107, 197, 60, 0.08), transparent 22%),
+    radial-gradient(circle at top right, rgba(11, 46, 99, 0.08), transparent 24%),
+    linear-gradient(180deg, #f8fbfd 0%, #f7fbf7 100%);
+}
+.site-header,
+.public-site-header {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid rgba(107, 197, 60, 0.14);
+  box-shadow: 0 16px 38px rgba(11, 46, 99, 0.08);
+}
+.site-header::after,
+.public-site-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(107,197,60,.2), rgba(11,46,99,.55), rgba(107,197,60,.2));
+}
+.site-brand img {
+  width: 72px;
+  height: 54px;
+  object-fit: contain;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(11,46,99,0.1);
+  background: rgba(255,255,255,.85);
+}
+.site-brand strong {
+  color: var(--brand-navy);
+}
+.site-brand small {
+  color: #567291;
+}
+.site-nav a,
+.site-nav .active {
+  border-radius: 999px;
+}
+.site-nav a:hover,
+.site-nav a.active {
+  background: linear-gradient(135deg, rgba(107, 197, 60, 0.18), rgba(11, 46, 99, 0.12));
+  color: var(--brand-navy);
+}
+.nav-cta,
+.primary,
+.secondary,
+.center-link {
+  transition: transform .24s ease, box-shadow .24s ease, background .24s ease;
+}
+.nav-cta,
+.primary {
+  background: linear-gradient(135deg, var(--brand-green), var(--brand-green-deep));
+  box-shadow: 0 14px 34px rgba(44, 168, 74, 0.24);
+}
+.secondary {
+  border-color: rgba(11, 46, 99, 0.14);
+}
+.primary:hover,
+.secondary:hover,
+.nav-cta:hover {
+  transform: translateY(-2px);
+}
+.panel,
+.support-card,
+.legal-card,
+.support-hero,
+.review-card-v54,
+.plan-access-column,
+.extra-scan-pack-card,
+.house-card,
+.creative-house-card,
+.notification-window,
+.module-card,
+.product-card,
+.store-result-card,
+.report-highlight-card {
+  border: 1px solid rgba(107, 197, 60, 0.14);
+  box-shadow:
+    0 14px 30px rgba(11, 46, 99, 0.05),
+    0 28px 64px rgba(44, 168, 74, 0.08),
+    inset 0 1px 0 rgba(255,255,255,.96);
+}
+.site-footer {
+  background:
+    radial-gradient(circle at top right, rgba(107, 197, 60, 0.10), transparent 28%),
+    linear-gradient(180deg, rgba(11, 46, 99, 0.03), rgba(255,255,255,0.94));
+  border-top: 1px solid rgba(107,197,60,.16);
+}
+.site-footer-inner {
+  gap: 20px;
+}
+.footer-contact-pills {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+.contact-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  text-decoration: none;
+  background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(240,249,255,.94));
+  color: var(--brand-navy);
+  border: 1px solid rgba(11, 46, 99, 0.10);
+  box-shadow: 0 12px 26px rgba(11, 46, 99, 0.08);
+  font-weight: 800;
+}
+.instagram-pill {
+  background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(236,253,245,.95));
+  color: #166534;
+  border-color: rgba(44, 168, 74, 0.2);
+}
+.contact-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(11, 46, 99, 0.12);
+}
+.social-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.social-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.support-contact-stack {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+}
+.support-email,
+.support-social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-weight: 900;
+  text-decoration: none;
+  color: var(--brand-navy);
+  background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(240,249,255,.94));
+  border: 1px solid rgba(11, 46, 99, 0.10);
+  box-shadow: 0 12px 28px rgba(11, 46, 99, 0.08);
+}
+.support-social-link {
+  color: #166534;
+  background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(236,253,245,.94));
+  border-color: rgba(44, 168, 74, 0.2);
+}
+.profile-orb-link,
+.ai-avatar {
+  box-shadow: 0 10px 22px rgba(11, 46, 99, 0.10);
+}
+@media (max-width: 900px) {
+  .site-brand img {
+    width: 60px;
+    height: 46px;
+  }
+  .footer-contact-pills {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 640px) {
+  .site-brand img {
+    width: 52px;
+    height: 42px;
+    border-radius: 12px;
+  }
+  .contact-pill,
+  .support-email,
+  .support-social-link {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}

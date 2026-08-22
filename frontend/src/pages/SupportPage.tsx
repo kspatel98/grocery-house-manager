@@ -1,5 +1,15 @@
 import { Link } from 'react-router-dom';
 
+function InstagramIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 const supportItems = [
   {
     title: 'Account and login',
@@ -45,9 +55,15 @@ export default function SupportPage() {
         <div>
           <h2>Need help with Grocery House Manager?</h2>
           <p>
-            For account, billing, privacy, or technical questions, contact SupremDas Group support.
+            For account, billing, privacy, or technical questions, contact SupremDas Group support or follow our product updates on Instagram.
           </p>
-          <p className="support-email">support@grocery-house-manager.com</p>
+          <div className="support-contact-stack">
+            <a className="support-email" href="mailto:support@grocery-house-manager.com">support@grocery-house-manager.com</a>
+            <a className="support-social-link" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
+              <span className="social-icon"><InstagramIcon /></span>
+              <span>@groceryhousemanager</span>
+            </a>
+          </div>
         </div>
         <div className="support-actions">
           <Link to={loggedIn ? '/profile' : '/login'} className="primary center-link">{loggedIn ? 'Open profile' : 'Login'}</Link>
