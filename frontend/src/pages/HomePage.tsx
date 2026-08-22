@@ -84,38 +84,76 @@ export default function HomePage() {
 
   return (
     <main className="marketing-page warm-marketing-page">
-      <section className="landing-hero shell wide">
-        <div className="landing-copy">
-          <p className="eyebrow warm-eyebrow">Inventory • shopping • smart receipts • price history</p>
-          <h1>Your household grocery system.</h1>
+      <section className="landing-hero shell wide premium-home-hero">
+        <div className="landing-copy premium-hero-copy">
+          <div className="hero-topline-row">
+            <p className="eyebrow warm-eyebrow">Inventory • shopping • smart receipts • price history</p>
+            <span className="hero-parent-pill">A SupremDas Group product</span>
+          </div>
+          <h1>Stop buying groceries you already have.</h1>
           <p className="hero-lede">
-            Grocery House Manager helps families, couples, and roommates manage groceries together —
-            from what is already at home to what was bought, where prices were saved, and who updated what.
+            Grocery House Manager gives your household one clean system for inventory, shopping lists,
+            receipt tracking, and price awareness — so families, couples, and roommates stay organized together.
           </p>
-          <div className="hero-actions big-hero-actions">
-            <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link">
+          <div className="hero-actions big-hero-actions premium-hero-actions">
+            <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link premium-cta-main">
               {loggedIn ? 'Open your dashboard' : 'Start free today'}
             </Link>
             <Link to="/pricing" className="secondary warm-secondary center-link">Compare plans</Link>
           </div>
-          <div className="trust-row warm-trust-row" aria-label="Product highlights">
-            <span>✓ Free invite joining</span>
-            <span>✓ Shared shopping</span>
-            <span>✓ JPG/PNG receipt scanning</span>
-            <span>✓ Price tools by plan</span>
-            <span>✓ Real-time updates</span>
+          <div className="premium-proof-grid" aria-label="Product highlights">
+            <article className="premium-proof-card">
+              <strong>Shared grocery house</strong>
+              <span>Inventory, receipts, and lists in one place</span>
+            </article>
+            <article className="premium-proof-card">
+              <strong>Smart Receipt Scan</strong>
+              <span>Review details before saving trusted prices</span>
+            </article>
+            <article className="premium-proof-card">
+              <strong>Made for real households</strong>
+              <span>Families, couples, roommates, and busy homes</span>
+            </article>
+          </div>
+          <div className="hero-mini-stats">
+            <div><strong>Real-time</strong><span>shared updates</span></div>
+            <div><strong>JPG / PNG</strong><span>receipt upload</span></div>
+            <div><strong>2 / 5 / 15</strong><span>monthly receipt scans by plan</span></div>
           </div>
         </div>
 
-        <div className="landing-visual" aria-label="Grocery House Manager app preview">
-          <img src="/brand/homepage-grocery-ad.webp" alt="Family using Grocery House Manager on a phone" />
-          <div className="visual-floating-card top-card">
-            <strong>32</strong>
-            <span>Items in stock</span>
+        <div className="landing-visual premium-landing-visual" aria-label="Grocery House Manager app preview">
+          <div className="premium-visual-shell">
+            <div className="premium-brand-ribbon">
+              <img src="/brand/grocery-house-manager-icon.png" alt="Grocery House Manager icon" />
+              <div>
+                <strong>Grocery House Manager</strong>
+                <span>Clean grocery management for organized homes</span>
+              </div>
+            </div>
+            <div className="premium-visual-main">
+              <img src="/brand/homepage-grocery-ad.webp" alt="Family using Grocery House Manager on a phone" />
+            </div>
+            <div className="premium-visual-insights">
+              <article className="visual-insight-card green-card">
+                <span className="mini-label">Smart receipt scan</span>
+                <strong>Review before saving</strong>
+                <p>Store, items, totals, and discounts stay clear before inventory updates.</p>
+              </article>
+              <article className="visual-insight-card navy-card">
+                <span className="mini-label">Household status</span>
+                <strong>32 items in stock</strong>
+                <p>Low-stock reminders and shared list progress help everyone stay synced.</p>
+              </article>
+            </div>
           </div>
-          <div className="visual-floating-card bottom-card">
+          <div className="visual-floating-card top-card premium-float-card">
             <strong>$87.64</strong>
-            <span>Receipt tracked</span>
+            <span>Recent receipt total</span>
+          </div>
+          <div className="visual-floating-card bottom-card premium-float-card">
+            <strong>Walmart</strong>
+            <span>Latest price history saved</span>
           </div>
         </div>
       </section>
