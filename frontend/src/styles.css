@@ -7153,3 +7153,356 @@ body {
     max-width: none;
   }
 }
+
+/* v65 fixes: admin grant labels, premium hero visual, royal footer */
+.plan-status-badge.grant {
+  color: #7c4a03;
+  background: linear-gradient(135deg, #fff7ed, #fef3c7);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  box-shadow: 0 10px 22px rgba(245, 158, 11, 0.12);
+}
+
+.premium-home-hero {
+  gap: clamp(28px, 4vw, 54px);
+  padding-bottom: 64px;
+}
+.premium-landing-visual {
+  padding: 14px;
+  max-width: 520px;
+}
+.premium-visual-shell {
+  gap: 12px;
+}
+.premium-brand-ribbon {
+  margin-bottom: 2px;
+}
+.brand-app-showcase {
+  position: relative;
+  min-height: 390px;
+  display: grid;
+  grid-template-columns: minmax(0, .86fr) minmax(190px, .72fr);
+  align-items: stretch;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(107, 197, 60, .24), transparent 32%),
+    radial-gradient(circle at 88% 18%, rgba(11, 46, 99, .18), transparent 34%),
+    linear-gradient(145deg, #ffffff, #f3fbf3);
+  border: 1px solid rgba(107, 197, 60, .18);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.96), 0 18px 42px rgba(11,46,99,.10);
+}
+.showcase-grocery-card {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100%;
+  padding: 20px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(250, 204, 21, .18), transparent 34%),
+    linear-gradient(160deg, rgba(255,255,255,.98), rgba(236,253,245,.94));
+  border: 1px solid rgba(34, 197, 94, .20);
+  box-shadow: 0 16px 36px rgba(11,46,99,.10);
+}
+.showcase-badge {
+  width: fit-content;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6bc53c, #2ca84a);
+  color: white;
+  font-size: .78rem;
+  font-weight: 950;
+  box-shadow: 0 12px 20px rgba(44,168,74,.22);
+}
+.showcase-grocery-illustration {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(58px, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.showcase-grocery-illustration span {
+  display: grid;
+  place-items: center;
+  min-height: 76px;
+  border-radius: 22px;
+  font-size: 2.15rem;
+  background: linear-gradient(145deg, #ffffff, #edfbea);
+  border: 1px solid rgba(107,197,60,.18);
+  box-shadow: 0 12px 24px rgba(11,46,99,.08);
+  animation: gentleFloatCard 5.5s ease-in-out infinite;
+}
+.showcase-grocery-illustration span:nth-child(2) { animation-delay: .7s; }
+.showcase-grocery-illustration span:nth-child(3) { animation-delay: 1.4s; }
+.showcase-grocery-illustration span:nth-child(4) { animation-delay: 2.1s; }
+.showcase-grocery-card strong {
+  color: var(--brand-navy, #0b2e63);
+  font-size: clamp(1.2rem, 2vw, 1.45rem);
+  line-height: 1.08;
+}
+.showcase-grocery-card p {
+  color: #607488;
+  font-weight: 750;
+  margin: 8px 0 0;
+}
+.phone-preview-v65 {
+  justify-self: center;
+  width: min(100%, 230px);
+  min-height: 354px;
+  padding: 10px;
+  border-radius: 32px;
+  background: linear-gradient(145deg, #0b2e63, #071b3f);
+  box-shadow: 0 22px 42px rgba(11,46,99,.24), inset 0 0 0 1px rgba(255,255,255,.12);
+}
+.phone-speaker {
+  width: 62px;
+  height: 5px;
+  border-radius: 999px;
+  margin: 2px auto 8px;
+  background: rgba(255,255,255,.18);
+}
+.phone-screen-v65 {
+  min-height: 318px;
+  border-radius: 24px;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbfd);
+  display: grid;
+  gap: 12px;
+}
+.phone-screen-v65 header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.phone-screen-v65 header img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 8px 16px rgba(11,46,99,.10);
+}
+.phone-screen-v65 header strong {
+  display: block;
+  color: var(--brand-navy, #0b2e63);
+  font-size: .86rem;
+  line-height: 1;
+}
+.phone-screen-v65 header span {
+  display: block;
+  color: var(--brand-green-deep, #2ca84a);
+  font-size: .74rem;
+  font-weight: 900;
+}
+.phone-stat-grid-v65 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+.phone-stat-grid-v65 div {
+  padding: 10px 6px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f0fdf4, #eff6ff);
+  text-align: center;
+  border: 1px solid rgba(107,197,60,.15);
+}
+.phone-stat-grid-v65 strong { display: block; color: #2ca84a; }
+.phone-stat-grid-v65 span { display: block; color: #607488; font-size: .64rem; font-weight: 800; }
+.phone-list-v65 {
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff, #f8fbfd);
+  border: 1px solid rgba(11,46,99,.08);
+  box-shadow: 0 10px 22px rgba(11,46,99,.06);
+}
+.phone-list-v65 p {
+  margin: 0 0 8px;
+  color: #0b2e63;
+  font-size: .75rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.phone-list-v65 span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid rgba(226,232,240,.85);
+  color: #172033;
+  font-size: .78rem;
+}
+.phone-list-v65 em { color: #607488; font-style: normal; font-weight: 800; }
+.phone-screen-v65 footer {
+  display: flex;
+  justify-content: space-around;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(226,232,240,.9);
+  color: #0b2e63;
+  font-size: .7rem;
+  font-weight: 850;
+}
+.premium-visual-insights {
+  margin-top: 2px;
+}
+.visual-insight-card {
+  min-height: 128px;
+}
+.premium-float-card {
+  z-index: 3;
+}
+
+.site-footer-inner {
+  grid-template-columns: minmax(220px, .9fr) minmax(280px, 1.15fr) minmax(180px, .7fr);
+  align-items: stretch;
+}
+.footer-product-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(255,255,255,.82), rgba(240,249,255,.72));
+  border: 1px solid rgba(11,46,99,.08);
+}
+.footer-product-brand img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 12px 24px rgba(11,46,99,.10);
+}
+.footer-royal-brand {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px;
+  border-radius: 28px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(251,191,36,.20), transparent 30%),
+    linear-gradient(135deg, #071b3f, #0b2e63 58%, #0f3e78);
+  border: 1px solid rgba(251,191,36,.30);
+  color: white;
+  box-shadow: 0 18px 40px rgba(11,46,99,.18), inset 0 1px 0 rgba(255,255,255,.18);
+}
+.footer-royal-brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.16) 45%, transparent 72%);
+  transform: translateX(-110%);
+  animation: cardGlowSweep 10s ease-in-out infinite;
+  pointer-events: none;
+}
+.royal-kicker {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(251,191,36,.16);
+  border: 1px solid rgba(251,191,36,.28);
+  color: #fde68a !important;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-weight: 950;
+}
+.royal-company,
+.royal-mission,
+.royal-site {
+  position: relative;
+  z-index: 1;
+}
+.royal-company {
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
+  font-weight: 950;
+  letter-spacing: -.02em;
+}
+.royal-company strong {
+  color: #facc15 !important;
+  text-shadow: 0 0 18px rgba(250,204,21,.22);
+}
+.royal-mission {
+  color: rgba(255,255,255,.88) !important;
+  font-weight: 760;
+}
+.royal-mission strong {
+  color: #ffffff !important;
+}
+.royal-site {
+  width: fit-content;
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  color: rgba(255,255,255,.92) !important;
+  font-weight: 850;
+}
+.email-pill .email-icon {
+  color: white;
+  background: linear-gradient(135deg, #2563eb, #10b981);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 900;
+}
+.instagram-icon-original {
+  color: white;
+  border-radius: 7px;
+  background: radial-gradient(circle at 30% 110%, #fdf497 0 12%, #fdf497 13%, #fd5949 38%, #d6249f 62%, #285AEB 100%);
+  box-shadow: 0 8px 18px rgba(214,36,159,.20);
+}
+.instagram-icon-original svg {
+  stroke: white;
+}
+@media (max-width: 1080px) {
+  .brand-app-showcase {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .phone-preview-v65 {
+    width: min(100%, 260px);
+  }
+  .site-footer-inner {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .premium-landing-visual {
+    padding: 10px;
+    max-width: 100%;
+  }
+  .brand-app-showcase {
+    padding: 12px;
+    border-radius: 22px;
+  }
+  .showcase-grocery-illustration {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .showcase-grocery-illustration span {
+    min-height: 56px;
+    font-size: 1.55rem;
+    border-radius: 16px;
+  }
+  .footer-royal-brand,
+  .footer-product-brand {
+    border-radius: 22px;
+  }
+}
+
+/* v65 footer organization refinement */
+.footer-contact-pills {
+  grid-column: 1 / -1;
+  justify-content: center;
+  margin-top: 2px;
+}
+@media (min-width: 1081px) {
+  .site-footer-inner {
+    grid-template-columns: minmax(240px, .9fr) minmax(360px, 1.25fr) minmax(220px, .75fr);
+  }
+}

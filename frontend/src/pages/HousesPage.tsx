@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api';
 import type { AccountBootstrap, AdminOfferAction, AdminUserOffer, House, PlanName, SiteReview, SiteReviewSummary, Subscription } from '../types';
 
 function isPaidStatus(status?: string) {
-  return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'admin_granted'].includes((status || '').toLowerCase());
+  return ['active', 'trialing', 'past_due', 'cancel_at_period_end'].includes((status || '').toLowerCase());
 }
 
 function timeLeftParts(dateValue?: string | null) {

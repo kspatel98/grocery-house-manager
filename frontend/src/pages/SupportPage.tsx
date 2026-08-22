@@ -58,9 +58,12 @@ export default function SupportPage() {
             For account, billing, privacy, or technical questions, contact SupremDas Group support or follow our product updates on Instagram.
           </p>
           <div className="support-contact-stack">
-            <a className="support-email" href="mailto:support@grocery-house-manager.com">support@grocery-house-manager.com</a>
-            <a className="support-social-link" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
-              <span className="social-icon"><InstagramIcon /></span>
+            <a className="support-email email-pill" href="mailto:support@grocery-house-manager.com">
+              <span className="social-icon email-icon" aria-hidden="true">✉</span>
+              <span>support@grocery-house-manager.com</span>
+            </a>
+            <a className="support-social-link instagram-pill" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
+              <span className="social-icon instagram-icon-original"><InstagramIcon /></span>
               <span>@groceryhousemanager</span>
             </a>
           </div>

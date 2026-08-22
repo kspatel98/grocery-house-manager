@@ -106,20 +106,43 @@ def normalize_plan(plan_name: object) -> PlanName:
         return PlanName.free
 
 
+def admin_grant_is_expired(user: User | None) -> bool:
+    if not user or (user.subscription_status or "").lower() != "admin_granted":
+        return False
+    expiry = user.subscription_current_period_end
+    if not expiry:
+        return False
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    return expiry <= datetime.now(timezone.utc)
+
+
+def effective_plan_name(user: User | None) -> PlanName:
+    if not user or admin_grant_is_expired(user):
+        return PlanName.free
+    return normalize_plan(user.plan_name)
+
+
+def effective_subscription_status(user: User | None) -> str:
+    if not user or admin_grant_is_expired(user):
+        return "free"
+    return user.subscription_status or "free"
+
+
+def effective_period_end(user: User | None):
+    if admin_grant_is_expired(user):
+        return None
+    return user.subscription_current_period_end if user else None
+
+
 def get_user_plan(user: User) -> PlanDefinition:
     # Admin-granted access can have an expiry date. When it has expired,
     # return Free access without needing a background job.
-    if user and (user.subscription_status or "").lower() == "admin_granted" and user.subscription_current_period_end:
-        expiry = user.subscription_current_period_end
-        if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=timezone.utc)
-        if expiry <= datetime.now(timezone.utc):
-            return PLANS[PlanName.free]
-    return PLANS[normalize_plan(user.plan_name)]
+    return PLANS[effective_plan_name(user)]
 
 
 def active_subscription_allows_paid_plan(user: User) -> bool:
-    status_value = (user.subscription_status or "").lower()
+    status_value = effective_subscription_status(user).lower()
     return status_value in {"active", "trialing", "paid", "free"}
 
 

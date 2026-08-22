@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 import stripe
 
 from app.api.deps import get_current_user
+from app.api.plan_utils import effective_plan_name
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import House, HouseMember, PlanName, Product, Receipt, User
@@ -93,13 +94,16 @@ def admin_send_test_email(payload: AdminEmailTestIn, admin: User = Depends(requi
 
 @router.get("/summary", response_model=AdminSummaryOut)
 def admin_summary(db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    total_users = db.query(User).count()
-    paid_or_granted_users = db.query(User).filter(User.plan_name != PlanName.free).count()
+    users = db.query(User).all()
+    total_users = len(users)
+    paid_or_granted_users = sum(1 for item in users if effective_plan_name(item) != PlanName.free)
     total_houses = db.query(House).count()
     total_products = db.query(Product).count()
     total_receipts = db.query(Receipt).count()
-    plan_rows = db.query(User.plan_name, func.count(User.id)).group_by(User.plan_name).all()
-    users_by_plan = {str(getattr(plan, "value", plan) or "free"): int(count) for plan, count in plan_rows}
+    users_by_plan: dict[str, int] = {}
+    for item in users:
+        key = effective_plan_name(item).value
+        users_by_plan[key] = users_by_plan.get(key, 0) + 1
     return AdminSummaryOut(
         total_users=total_users,
         paid_or_granted_users=paid_or_granted_users,

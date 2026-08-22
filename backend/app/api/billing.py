@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import stripe
 
 from app.api.deps import get_current_user
-from app.api.plan_utils import PLANS, get_user_plan, plan_usage
+from app.api.plan_utils import PLANS, effective_period_end, effective_subscription_status, get_user_plan, plan_usage
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
 from app.models import PlanName, User, ReceiptScanPurchase, AdminUserOffer
@@ -62,8 +62,11 @@ def new_user_offer_for(user: User) -> NewUserOfferOut | None:
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=timezone.utc)
     eligible_until = created_at + timedelta(days=settings.new_user_offer_days)
-    has_paid_or_active = (user.subscription_status or "free").lower() not in {"free", "cancelled", "canceled", "incomplete", "incomplete_expired"}
-    active = datetime.now(timezone.utc) <= eligible_until and not has_paid_or_active
+    status_value = (user.subscription_status or "free").lower()
+    # Admin-granted free access should not remove the 14-day new-user offer.
+    # A real paid/active subscription status should stop the automatic 65% offer.
+    has_real_paid_subscription = status_value in {"active", "trialing", "paid", "past_due", "cancel_at_period_end"}
+    active = datetime.now(timezone.utc) <= eligible_until and not has_real_paid_subscription
     if not active:
         return None
     return NewUserOfferOut(
@@ -96,8 +99,8 @@ def subscription_out(user: User, db: Session) -> SubscriptionOut:
     plan = get_user_plan(user)
     return SubscriptionOut(
         plan_name=plan.key,
-        subscription_status=user.subscription_status or "free",
-        current_period_end=user.subscription_current_period_end,
+        subscription_status=effective_subscription_status(user),
+        current_period_end=effective_period_end(user),
         limits=plan_limits_out(plan),
         usage={**plan_usage(db, user), "extra_receipt_scan_credits": int(user.extra_receipt_scan_credits or 0)},
         new_user_offer=new_user_offer_for(user),

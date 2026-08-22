@@ -131,8 +131,38 @@ export default function HomePage() {
                 <span>Clean grocery management for organized homes</span>
               </div>
             </div>
-            <div className="premium-visual-main">
-              <img src="/brand/homepage-grocery-ad.webp" alt="Family using Grocery House Manager on a phone" />
+            <div className="premium-visual-main brand-app-showcase" aria-label="Modern app preview using new Grocery House Manager branding">
+              <div className="showcase-grocery-card">
+                <span className="showcase-badge">Shared home</span>
+                <div className="showcase-grocery-illustration">
+                  <span>🥦</span><span>🥛</span><span>🍎</span><span>🍞</span>
+                </div>
+                <strong>Inventory ready before shopping</strong>
+                <p>Everyone sees what is already at home.</p>
+              </div>
+              <div className="phone-preview-v65">
+                <div className="phone-speaker" />
+                <div className="phone-screen-v65">
+                  <header>
+                    <img src="/brand/grocery-house-manager-icon.png" alt="" />
+                    <div><strong>Grocery House</strong><span>Manager</span></div>
+                  </header>
+                  <section className="phone-stat-grid-v65">
+                    <div><strong>32</strong><span>Items</span></div>
+                    <div><strong>12</strong><span>Low stock</span></div>
+                    <div><strong>5</strong><span>Receipts</span></div>
+                  </section>
+                  <section className="phone-list-v65">
+                    <p>Recently added</p>
+                    <span><b>Milk 2%</b><em>1 L</em></span>
+                    <span><b>Eggs</b><em>12 pcs</em></span>
+                    <span><b>Rice</b><em>2 kg</em></span>
+                  </section>
+                  <footer>
+                    <span>Home</span><span>List</span><span>Scan</span>
+                  </footer>
+                </div>
+              </div>
             </div>
             <div className="premium-visual-insights">
               <article className="visual-insight-card green-card">

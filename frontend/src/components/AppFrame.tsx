@@ -119,15 +119,17 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
       <footer className="site-footer">
         <div className="shell wide site-footer-inner">
-          <div>
-            <strong>Grocery House Manager</strong>
-            <p>
-              Smart grocery management for organized homes.
-            </p>
+          <div className="footer-product-brand">
+            <img src="/brand/grocery-house-manager-icon.png" alt="" />
+            <div>
+              <strong>Grocery House Manager</strong>
+              <p>Smart grocery management for organized homes.</p>
+            </div>
           </div>
-          <div className="footer-brand-stack" aria-label="Company and product">
-            <span>Built by <strong>SupremDas Group</strong></span>
-            <span>Made for <strong>families, couples, and roommates</strong></span>
+          <div className="footer-brand-stack footer-royal-brand" aria-label="Parent company and mission">
+            <span className="royal-kicker">✦ Parent company ✦</span>
+            <span className="royal-company">Built by <strong>SupremDas Group</strong></span>
+            <span className="royal-mission">Made for <strong>families, couples, and roommates</strong></span>
           </div>
           <div className="footer-links">
             <Link to="/about">About</Link>
@@ -138,9 +140,12 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             <Link to="/support">Support</Link>
           </div>
           <div className="footer-contact-pills">
-            <a className="contact-pill" href="mailto:support@grocery-house-manager.com">Support: support@grocery-house-manager.com</a>
+            <a className="contact-pill email-pill" href="mailto:support@grocery-house-manager.com">
+              <span className="social-icon email-icon" aria-hidden="true">✉</span>
+              <span>support@grocery-house-manager.com</span>
+            </a>
             <a className="contact-pill instagram-pill" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
-              <span className="social-icon"><InstagramIcon /></span>
+              <span className="social-icon instagram-icon-original"><InstagramIcon /></span>
               <span>@groceryhousemanager</span>
             </a>
           </div>
