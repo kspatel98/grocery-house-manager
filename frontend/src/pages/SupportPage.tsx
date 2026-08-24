@@ -17,19 +17,27 @@ const supportItems = [
   },
   {
     title: 'Plans and billing',
-    text: 'Paid plans are processed by Stripe. Profile shows your current plan, billing status, cancellation status, and subscription sync option.',
+    text: 'Paid plans are processed by Stripe. Profile shows the plan expiry/current-period end, next renewal date and amount when available, and billing controls only for a real Stripe subscription. Admin-granted access does not show misleading billing or cancel controls.',
   },
   {
     title: 'House access',
-    text: 'Free users can join houses by invite. Creating a house requires Basic Home or higher. House features follow the owner’s plan.',
+    text: 'Free Starter includes one real house with up to 40 products, one active shopping list, and four total members. You can also join houses by invite. Larger or additional houses follow the owner’s paid plan.',
   },
   {
     title: 'Unlocked and locked features',
-    text: 'The Plans page now shows which tools are included or locked for Free Starter, Basic Home, Family Plus, and Household Pro.',
+    text: 'The Plans page shows unlocked and locked tools for Free Starter, Basic Home, Family Plus, and Household Pro, with monthly and annual CAD billing choices. Only one premium plan can be active at a time.',
   },
   {
     title: 'Market tools and price comparison',
-    text: 'Basic Home unlocks product lookup. Family Plus unlocks supported Canadian price comparison. Household Pro adds nearby store suggestions.',
+    text: 'Basic Home unlocks product lookup and receipt intelligence. Family Plus adds whole-list basket comparison and supported Canadian price comparison. Household Pro adds higher limits, nearby-store tools, and advanced household intelligence.',
+  },
+  {
+    title: 'Smart Weekly Assistant',
+    text: 'The Assistant combines low stock, out-of-stock items, expiry dates, older inventory, active shopping lists, saved prices, meal ideas, and supported savings into one weekly brief. Family Plus or Household Pro is required for whole-list store comparison.',
+  },
+  {
+    title: 'Install, offline use, and reminders',
+    text: 'Install the site from your phone Home Screen for an app-like experience. The latest successfully loaded shopping-list snapshot is kept as an offline fallback. Supported browsers can also enable optional device reminders from the Smart Assistant.',
   },
   {
     title: 'Receipts and prices',

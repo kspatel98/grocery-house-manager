@@ -95,6 +95,11 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   const [imageBusy, setImageBusy] = useState(false);
   const [previewBroken, setPreviewBroken] = useState(false);
   const categoryManuallyChosen = useRef(Boolean(product?.section_id || modal.sectionId));
+  const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerStreamRef = useRef<MediaStream | null>(null);
+  const scannerFrameRef = useRef<number | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerError, setScannerError] = useState('');
 
   useEffect(() => {
     if (modal.mode !== 'create' || categoryManuallyChosen.current || !form.name.trim()) return;
@@ -162,6 +167,59 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
     }
   }
 
+  function stopBarcodeScanner() {
+    if (scannerFrameRef.current !== null) cancelAnimationFrame(scannerFrameRef.current);
+    scannerFrameRef.current = null;
+    scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+    scannerStreamRef.current = null;
+    if (scannerVideoRef.current) scannerVideoRef.current.srcObject = null;
+    setScannerOpen(false);
+  }
+
+  async function startBarcodeScanner() {
+    setScannerError('');
+    const Detector = (window as unknown as { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+    if (!Detector) {
+      setScannerError('Camera barcode scanning is not supported by this browser. You can still type or paste the barcode.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerError('Camera access is not available in this browser.');
+      return;
+    }
+    try {
+      setScannerOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      scannerStreamRef.current = stream;
+      const video = scannerVideoRef.current;
+      if (!video) throw new Error('Camera preview is not ready.');
+      video.srcObject = stream;
+      await video.play();
+      const detector = new Detector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
+      const scan = async () => {
+        if (!scannerStreamRef.current || !scannerVideoRef.current) return;
+        try {
+          const results = await detector.detect(scannerVideoRef.current);
+          const raw = results.find((row) => row.rawValue)?.rawValue?.trim();
+          if (raw) {
+            setField('barcode', raw);
+            stopBarcodeScanner();
+            return;
+          }
+        } catch {
+          // Some browsers throw transient detection errors between video frames.
+        }
+        scannerFrameRef.current = requestAnimationFrame(scan);
+      };
+      scannerFrameRef.current = requestAnimationFrame(scan);
+    } catch (err) {
+      stopBarcodeScanner();
+      setScannerError(errorMessage(err));
+    }
+  }
+
+  useEffect(() => () => stopBarcodeScanner(), []);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
@@ -206,7 +264,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
             <p className="eyebrow warm-eyebrow">Inventory item</p>
             <h2>{modal.mode === 'create' ? 'Add product' : 'Edit product'}</h2>
           </div>
-          <button onClick={onClose} aria-label="Close product form">×</button>
+          <button onClick={() => { stopBarcodeScanner(); onClose(); }} aria-label="Close product form">×</button>
         </div>
         {error && <div className="error">{error}</div>}
         <form onSubmit={submit} className="product-form enhanced-product-form">
@@ -268,8 +326,22 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
           </div>
           <div className="form-row">
             <label>Brand<input value={form.brand} onChange={(e) => setField('brand', e.target.value)} /></label>
-            <label>Barcode<input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} /></label>
+            <label>Barcode
+              <div className="barcode-input-row">
+                <input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} inputMode="numeric" />
+                <button type="button" className="secondary barcode-scan-button" onClick={scannerOpen ? stopBarcodeScanner : startBarcodeScanner}>{scannerOpen ? 'Stop camera' : 'Scan'}</button>
+              </div>
+              <small>On supported phones, Scan uses the rear camera and fills the barcode automatically.</small>
+            </label>
           </div>
+          {scannerError && <div className="hint compact-message">{scannerError}</div>}
+          {scannerOpen && (
+            <div className="barcode-camera-panel">
+              <video ref={scannerVideoRef} muted playsInline aria-label="Barcode camera preview" />
+              <div className="barcode-scan-frame" aria-hidden="true"><span /></div>
+              <p>Hold the product barcode inside the frame. It will stop automatically when a code is found.</p>
+            </div>
+          )}
           <div className="form-row">
             <label>Expiry date<input type="date" value={form.expiry_date} onChange={(e) => setField('expiry_date', e.target.value)} /></label>
             <label>Low stock alert<input type="number" step="0.01" value={form.low_stock_threshold} onChange={(e) => setField('low_stock_threshold', e.target.value)} /></label>
@@ -277,7 +349,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
           <div className="form-row"><button type="button" className="secondary" onClick={() => setField('price', '')}>Clear product price</button><span className="small-muted inline-help">Blank price saves as no price and removes the manual product price.</span></div>
           <label>Notes<textarea value={form.notes} onChange={(e) => setField('notes', e.target.value)} /></label>
           <div className="modal-actions">
-            <button type="button" onClick={onClose} className="secondary">Cancel</button>
+            <button type="button" onClick={() => { stopBarcodeScanner(); onClose(); }} className="secondary">Cancel</button>
             <button className="primary orange-cta">Save product</button>
           </div>
         </form>

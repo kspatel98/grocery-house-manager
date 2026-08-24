@@ -134,6 +134,7 @@ export type Plan = {
   key: PlanName;
   name: string;
   price_monthly_cad: number;
+  price_annual_cad?: number | null;
   regular_price_monthly_cad?: number | null;
   discount_percent?: number | null;
   discount_label?: string | null;
@@ -543,4 +544,100 @@ export type AdminOfferAction = {
   message: string;
   checkout_url?: string | null;
   offer?: AdminUserOffer | null;
+};
+
+
+export type OnboardingStep = {
+  key: string;
+  title: string;
+  description: string;
+  complete: boolean;
+  href?: string | null;
+};
+
+export type OnboardingStatus = {
+  complete: boolean;
+  completed_steps: number;
+  total_steps: number;
+  percent: number;
+  primary_house_id?: number | null;
+  steps: OnboardingStep[];
+};
+
+export type SavingsSummary = {
+  currency_code: string;
+  month_label: string;
+  tracked_spend: number;
+  receipt_discounts: number;
+  lower_price_choices: number;
+  estimated_savings: number;
+  plan_monthly_cost: number;
+  savings_after_plan_cost: number;
+  roi_multiple?: number | null;
+  comparison_opportunities: number;
+  message: string;
+};
+
+export type BasketStoreOption = {
+  store_name: string;
+  estimated_total: number;
+  priced_items: number;
+  total_items: number;
+  coverage_percent: number;
+  missing_items: string[];
+};
+
+export type BasketComparison = {
+  currency_code: string;
+  premium_required: boolean;
+  message: string;
+  list_id: number;
+  list_title: string;
+  total_items: number;
+  best_single_store?: BasketStoreOption | null;
+  store_options: BasketStoreOption[];
+  split_store_total?: number | null;
+  split_store_savings?: number | null;
+  split_store_names: string[];
+  split_store_coverage_percent: number;
+  split_store_picks: string[];
+};
+
+export type WeeklyAssistantRecipe = {
+  name: string;
+  reason: string;
+  matched_items: string[];
+  missing_items: string[];
+};
+
+export type WeeklyAssistantSuggestedItem = {
+  product_id: number;
+  product_name: string;
+  reason: string;
+  requested_quantity: number;
+};
+
+export type WeeklyAssistant = {
+  currency_code: string;
+  house_id: number;
+  house_name: string;
+  generated_at: string;
+  low_stock: string[];
+  out_of_stock: string[];
+  expiring_soon: string[];
+  expired: string[];
+  long_held: string[];
+  suggested_missing: string[];
+  suggested_items: WeeklyAssistantSuggestedItem[];
+  active_list_id?: number | null;
+  active_list_title?: string | null;
+  active_list_items: number;
+  best_store_name?: string | null;
+  best_store_total?: number | null;
+  alternative_store_name?: string | null;
+  alternative_store_total?: number | null;
+  potential_store_savings?: number | null;
+  monthly_savings: number;
+  recipes: WeeklyAssistantRecipe[];
+  message: string;
 };

@@ -19,6 +19,7 @@ import SupportPage from './pages/SupportPage';
 import ReportsPage from './pages/ReportsPage';
 import MarketPage from './pages/MarketPage';
 import AdminPage from './pages/AdminPage';
+import AssistantPage from './pages/AssistantPage';
 import AppFrame from './components/AppFrame';
 import PublicFrame from './components/PublicFrame';
 
@@ -45,6 +46,7 @@ export default function App() {
       <Route path="/support" element={<PublicRoute><SupportPage /></PublicRoute>} />
       <Route path="/join/:token" element={<RequireAuth><JoinPage /></RequireAuth>} />
       <Route path="/houses" element={<RequireAuth><HousesPage /></RequireAuth>} />
+      <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
       <Route path="/reports" element={<RequireAuth><ReportsPage /></RequireAuth>} />
       <Route path="/market" element={<RequireAuth><MarketPage /></RequireAuth>} />

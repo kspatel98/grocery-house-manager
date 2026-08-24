@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { api } from '../api';
+import type { SiteReviewSummary } from '../types';
 
 const featureCards = [
   {
@@ -18,8 +21,8 @@ const featureCards = [
   },
   {
     icon: '🏷️',
-    title: 'Store price history',
-    text: 'Compare saved product prices by store so your household knows where items are usually cheaper.',
+    title: 'Smart weekly assistant',
+    text: 'Turn your inventory, expiry dates, shopping list, receipts, and saved prices into one simple weekly action plan.',
   },
 ];
 
@@ -27,12 +30,12 @@ const dailyMoments = [
   { icon: '🥛', title: 'Prevent duplicate buying', text: 'Check what is already in stock before buying milk, eggs, bread, snacks, or household essentials.' },
   { icon: '👨‍👩‍👧‍👦', title: 'Everyone stays updated', text: 'House members can see shopping progress, inventory changes, members, and activity in one place.' },
   { icon: '🧾', title: 'Turn receipts into history', text: 'Save reviewed receipt items, discounts, tax, and totals to build useful store-price and spending records.' },
-  { icon: '📉', title: 'Spend with clarity', text: 'Premium tools help households understand prices, stores, receipts, and monthly grocery spending.' },
+  { icon: '📉', title: 'Know if the app pays for itself', text: 'Savings reports use recorded receipt discounts and supported lower-price choices instead of invented numbers.' },
 ];
 
 const workflow = [
   'Create your account or sign in with Google.',
-  'Join a house for free by invite, or upgrade to create your own house.',
+  'Create one starter house for free, or join another house by invite.',
   'Add products using built-in icons, preset product images, or your own photo.',
   'Build shared shopping lists and update inventory after checkout.',
   'Scan JPG/PNG receipts, review extracted rows, and save trusted prices.',
@@ -42,33 +45,37 @@ const planHighlights = [
   {
     key: 'free',
     name: 'Free Starter',
-    price: '$0',
-    tag: 'Join invited houses',
-    features: ['Join houses by invite', 'Use owner-plan house features', 'Activity and shared lists'],
-    locked: ['Create own house', 'Receipt scanning', 'Price comparison'],
+    price: '$0 CAD',
+    annual: 'No card required',
+    tag: 'Start a real house for free',
+    features: ['Create 1 house', '40 products', '1 active shared list', 'Up to 4 members'],
+    locked: ['Receipt scanning', 'Whole-list price comparison', 'Live price intelligence'],
   },
   {
     key: 'basic',
     name: 'Basic Home',
-    price: '$1.99',
+    price: '$1.99/mo CAD',
+    annual: '$17.99/year CAD',
     tag: 'For couples and small homes',
-    features: ['Create houses', 'Product lookup', '2 receipt scans/month'],
+    features: ['Larger houses', 'Product + barcode lookup', '2 receipt scans/month'],
     locked: ['Canadian price comparison', 'Nearby store suggestions'],
   },
   {
     key: 'family',
     name: 'Family Plus',
-    price: '$4.99',
-    tag: 'Best value for families',
-    features: ['More houses and members', '5 receipt scans/month', 'Canadian price comparison'],
+    price: '$4.99/mo CAD',
+    annual: '$39.99/year CAD',
+    tag: 'MOST POPULAR • best value',
+    features: ['Whole-list store comparison', '5 receipt scans/month', 'Canadian price comparison'],
     locked: ['Advanced nearby-store tools'],
   },
   {
     key: 'pro',
     name: 'Household Pro',
-    price: '$6.99',
+    price: '$6.99/mo CAD',
+    annual: '$59.99/year CAD',
     tag: 'For large or serious tracking',
-    features: ['15 receipt scans/month', 'Nearby store suggestions', 'Advanced price history'],
+    features: ['15 receipt scans/month', 'Nearby store suggestions', 'Advanced price + household intelligence'],
     locked: [],
   },
 ];
@@ -81,6 +88,13 @@ const receiptRows = [
 
 export default function HomePage() {
   const loggedIn = Boolean(localStorage.getItem('token'));
+  const [community, setCommunity] = useState<SiteReviewSummary | null>(null);
+
+  useEffect(() => {
+    api.get<SiteReviewSummary>('/reviews/summary', { params: { t: Date.now() } })
+      .then(({ data }) => setCommunity(data))
+      .catch(() => setCommunity(null));
+  }, []);
 
   return (
     <main className="marketing-page warm-marketing-page">
@@ -93,7 +107,7 @@ export default function HomePage() {
           <h1>Stop buying groceries you already have.</h1>
           <p className="hero-lede">
             Grocery House Manager gives your household one clean system for inventory, shopping lists,
-            receipt tracking, and price awareness — so families, couples, and roommates stay organized together.
+            receipt tracking, price awareness, and a weekly grocery assistant — so families, couples, and roommates spend less time guessing and less money rebuying what is already home.
           </p>
           <div className="hero-actions big-hero-actions premium-hero-actions">
             <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link premium-cta-main">
@@ -101,6 +115,7 @@ export default function HomePage() {
             </Link>
             <Link to="/pricing" className="secondary warm-secondary center-link">Compare plans</Link>
           </div>
+          {!loggedIn && <p className="hero-free-proof">No card required • 1 starter house • 40 products • 1 shared list</p>}
           <div className="premium-proof-grid" aria-label="Product highlights">
             <article className="premium-proof-card">
               <strong>Shared grocery house</strong>
@@ -116,9 +131,9 @@ export default function HomePage() {
             </article>
           </div>
           <div className="hero-mini-stats">
-            <div><strong>Real-time</strong><span>shared updates</span></div>
-            <div><strong>JPG / PNG</strong><span>receipt upload</span></div>
-            <div><strong>2 / 5 / 15</strong><span>monthly receipt scans by plan</span></div>
+            <div><strong>1 free house</strong><span>build a real routine first</span></div>
+            <div><strong>Installable</strong><span>phone-first PWA experience</span></div>
+            <div><strong>CAD</strong><span>clear Canadian plan pricing</span></div>
           </div>
         </div>
 
@@ -312,11 +327,34 @@ export default function HomePage() {
         </ol>
       </section>
 
+      <section className="shell wide marketing-section smart-assistant-marketing">
+        <div className="smart-assistant-marketing-copy">
+          <p className="eyebrow warm-eyebrow">The reason to come back every week</p>
+          <h2>From “what do we need?” to one clear grocery plan.</h2>
+          <p>The Smart Weekly Grocery Assistant checks low stock, out-of-stock items, expiry dates, your active list, saved store prices, and recorded savings. It can add genuinely needed items to your list instead of asking you to rebuild the same routine every week.</p>
+          <div className="assistant-marketing-flow">
+            <span><strong>1</strong> Know what is home</span>
+            <span><strong>2</strong> Add what is actually needed</span>
+            <span><strong>3</strong> Compare the whole trip</span>
+            <span><strong>4</strong> Track what you saved</span>
+          </div>
+          <Link to={loggedIn ? '/assistant' : '/login'} className="primary center-link">{loggedIn ? 'Open your weekly assistant' : 'Start building your assistant'}</Link>
+        </div>
+        <div className="smart-assistant-demo">
+          <span className="assistant-demo-kicker">SATURDAY BRIEF</span>
+          <h3>Your household is likely running low on</h3>
+          <div className="assistant-demo-items"><span>🥛 Milk</span><span>🥚 Eggs</span><span>🍌 Bananas</span><span>🥣 Yogurt</span></div>
+          <div className="assistant-demo-store"><div><small>Best known store</small><strong>No Frills</strong></div><strong>$57.82</strong></div>
+          <div className="assistant-demo-saving"><span>Potential difference vs next option</span><strong>$4.32</strong></div>
+          <small>Illustrative preview. Your account uses your own saved household prices and clearly shows price coverage.</small>
+        </div>
+      </section>
+
       <section className="shell wide marketing-section home-plan-section">
         <div className="section-heading centered">
           <p className="eyebrow warm-eyebrow">Clear plan access</p>
           <h2>Users can see what is unlocked and what needs an upgrade.</h2>
-          <p>Free users can join by invite. Paid plans unlock owned houses, Smart Receipt Scan, product lookup, Canadian price comparison, and advanced price tools.</p>
+          <p>Free Starter includes one real starter house. Paid plans raise household limits and unlock Smart Receipt Scan, whole-list comparison, product lookup, Canadian price comparison, and deeper savings tools.</p>
         </div>
         <div className="home-plan-grid">
           {planHighlights.map((plan) => (
@@ -325,6 +363,7 @@ export default function HomePage() {
                 <span>{plan.name}</span>
                 <strong>{plan.price}</strong>
               </div>
+              <small className="home-plan-annual">{plan.annual}</small>
               <p>{plan.tag}</p>
               <div className="home-plan-feature-list">
                 {plan.features.map((feature) => <span className="unlocked-feature" key={feature}>✓ {feature}</span>)}
@@ -338,10 +377,32 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="shell wide marketing-section trust-conversion-section">
+        <div className="section-heading centered">
+          <p className="eyebrow warm-eyebrow">Trust before flash</p>
+          <h2>Your household data should feel useful, understandable, and under control.</h2>
+          <p>Premium celebrations can be fun, but the product itself stays grounded in reviewable data, transparent savings estimates, and clear billing.</p>
+        </div>
+        {community && community.total_users > 0 ? (
+          <div className="public-live-trust" aria-label="Live Grocery House Manager community snapshot">
+            <span><strong>{community.total_users}</strong><small>registered users</small></span>
+            {community.review_count > 0 ? <span><strong>{community.average_rating.toFixed(1)} ★</strong><small>{community.review_count} public review{community.review_count === 1 ? '' : 's'}</small></span> : null}
+            <span><strong>{community.new_users_this_month}</strong><small>new this month</small></span>
+            {community.best_positive_comment ? <blockquote>“{community.best_positive_comment}”{community.best_reviewer_name ? <cite>— {community.best_reviewer_name}</cite> : null}</blockquote> : null}
+          </div>
+        ) : null}
+        <div className="trust-conversion-grid">
+          <article><img src="/brand/grocery-house-manager-stripe-logo.png" alt="Stripe secured payments" /><strong>Stripe billing</strong><p>Subscription checkout and billing management use Stripe. Renewal dates and amounts are shown in Profile when available.</p></article>
+          <article><span>🧾</span><strong>Review before saving</strong><p>Receipt extraction is never treated as unquestionable. Store, items, discounts, taxes, and totals remain reviewable before inventory changes.</p></article>
+          <article><span>📉</span><strong>No invented savings</strong><p>The savings report only counts recorded discounts and supported lower-price choices. If there is not enough data, it says so.</p></article>
+          <article><span>📲</span><strong>Phone-first</strong><p>Install the web app from your Home Screen. After a shopping list loads once, the latest snapshot remains available as an offline fallback.</p></article>
+        </div>
+      </section>
+
       <section className="shell wide marketing-cta panel warm-marketing-cta">
         <div>
           <h2>Start free. Upgrade when your household is ready.</h2>
-          <p>Free users can join by invite. Paid plans help you create and manage your own household grocery system.</p>
+          <p>Free Starter includes one real household with no card required. Upgrade when receipt intelligence, whole-list price comparison, higher limits, and advanced savings become valuable to you.</p>
         </div>
         <div className="hero-actions">
           <Link to="/pricing" className="primary orange-cta center-link">Compare plans</Link>

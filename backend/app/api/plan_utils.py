@@ -24,6 +24,7 @@ class PlanDefinition:
     tagline: str
     limits: PlanLimits
     features: list[str]
+    price_annual_cad: float | None = None
     recommended: bool = False
     regular_price_monthly_cad: float | None = None
     discount_percent: int | None = None
@@ -35,14 +36,17 @@ PLANS: dict[PlanName, PlanDefinition] = {
         key=PlanName.free,
         name="Free Starter",
         price_monthly_cad=0,
-        tagline="Join a shared house for free. Upgrade to create and manage your own house.",
-        limits=PlanLimits(houses=0, products_per_house=0, active_lists_per_house=0, members_per_house=0, receipt_scans_per_month=0),
+        tagline="Start with one real grocery house for free, then upgrade when your household needs more intelligence.",
+        limits=PlanLimits(houses=1, products_per_house=40, active_lists_per_house=1, members_per_house=4, receipt_scans_per_month=0),
         features=[
-            "Join houses by invitation",
-            "Use shared house features based on the owner's plan",
-            "Recent activity and member visibility inside joined houses",
-            "Upgrade to create your own house and unlock personal tools",
+            "Create 1 starter house with up to 40 products",
+            "Keep 1 active shared shopping list",
+            "Invite up to 3 other household members",
+            "Join other houses by invitation",
+            "Low-stock and expiry awareness",
+            "Upgrade for receipt scanning, price comparison, and advanced savings tools",
         ],
+        price_annual_cad=0,
     ),
     PlanName.basic: PlanDefinition(
         key=PlanName.basic,
@@ -51,7 +55,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         tagline="Affordable plan for couples and small households.",
         limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6, receipt_scans_per_month=2),
         features=[
-            "Create and manage your own houses",
+            "Create additional and larger grocery houses",
             "2 Smart Receipt Scans per month across houses you own",
             "Professional receipt scanning with item, discount, tax, and total extraction",
             "Store-specific price history for each product",
@@ -60,6 +64,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "Low-stock and expiry highlights",
             "65% off Basic for the first 2 billing months when eligible",
         ],
+        price_annual_cad=17.99,
     ),
     PlanName.family: PlanDefinition(
         key=PlanName.family,
@@ -69,13 +74,14 @@ PLANS: dict[PlanName, PlanDefinition] = {
         limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15, receipt_scans_per_month=5),
         features=[
             "Everything in Basic Home",
-            "Best-store comparison across your grocery inventory",
+            "Whole-list basket comparison and best-store estimates",
             "Canadian grocery price comparison for supported retailers",
-            "Monthly household expense view",
+            "Monthly household expense and defensible savings view",
             "5 Smart Receipt Scans per month across houses you own",
             "Shared receipt archive with scan review and spending history",
             "Better for families, roommates, and weekly shopping routines",
         ],
+        price_annual_cad=39.99,
         recommended=True,
     ),
     PlanName.pro: PlanDefinition(
@@ -90,10 +96,11 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "15 Smart Receipt Scans per month across houses you own",
             "Large receipt and inventory history",
             "Export-ready personal insights for serious tracking",
-            "Smart shopping suggestions with nearby grocery store locations",
+            "Smart Weekly Grocery Assistant with store-aware planning",
             "Canadian grocery price comparison for supported retailers",
             "Built for extended families, shared rentals, and multiple homes",
         ],
+        price_annual_cad=59.99,
     ),
 }
 
@@ -138,11 +145,6 @@ def get_house_plan(db: Session, house_id: int) -> PlanDefinition:
 
 def ensure_house_limit(db: Session, user: User) -> None:
     plan = get_user_plan(user)
-    if plan.key == PlanName.free:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Free Starter can join houses by invitation, but cannot create a house. Upgrade to Basic Home or higher to create your own house.",
-        )
     current = db.query(House).filter(House.created_by_id == user.id).count()
     if current >= plan.limits.houses:
         raise HTTPException(

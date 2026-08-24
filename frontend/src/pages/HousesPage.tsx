@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { AccountBootstrap, AdminOfferAction, AdminUserOffer, House, PlanName, SiteReview, SiteReviewSummary, Subscription } from '../types';
+import FirstRunSetup from '../components/FirstRunSetup';
+import InstallAppPrompt from '../components/InstallAppPrompt';
 
 function isPaidStatus(status?: string) {
   return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes((status || '').toLowerCase());
@@ -302,7 +304,7 @@ export default function HousesPage() {
             <div className="notification-copy new-user-offer-copy">
               <span className="notification-label urgent-label">Limited new-user offer</span>
               <h2>65% off Basic Home</h2>
-              <p>Start Basic for the first 2 billing months. Create your own houses, scan receipts, lookup products, and organize groceries with less stress.</p>
+              <p>Start Basic for the first 2 billing months. Create additional or larger houses, scan receipts, lookup products, and organize groceries with less stress.</p>
               <div className="new-user-offer-metrics">
                 <span><strong>$0.70</strong><small>first 2 months</small></span>
                 <span><strong>2</strong><small>receipt scans/month</small></span>
@@ -404,6 +406,17 @@ export default function HousesPage() {
         </div>
       </header>
 
+      <FirstRunSetup />
+      <InstallAppPrompt />
+
+      {houses.length ? (
+        <Link to={`/assistant?house=${houses[0].id}`} className="weekly-assistant-launch">
+          <span className="weekly-assistant-launch-icon">✨</span>
+          <div><p className="eyebrow">Your weekly shortcut</p><strong>Smart Grocery Assistant</strong><small>See what is low, what should be used soon, meal ideas, recorded savings, and the best known plan for your next trip.</small></div>
+          <b>Open brief →</b>
+        </Link>
+      ) : null}
+
       <NotificationSlider slides={slides} />
 
       <section className="panel create-house-panel creative-create-house">
@@ -411,21 +424,21 @@ export default function HousesPage() {
           <div>
             <p className="eyebrow">Start a household</p>
             <h2>Create a house</h2>
-            <p>{isFreePlan ? 'Free Starter can join invited houses. Upgrade to create and manage your own house.' : 'Create one house for a household you own or manage.'}</p>
+            <p>{isFreePlan ? 'Free Starter now includes one real starter house: up to 40 products, one active shared list, and four total members.' : 'Create one house for a household you own or manage.'}</p>
           </div>
           {subscription && <span className="plan-pill">{subscription.plan_name} • {ownedHouseCount}/{subscription.limits.houses} owned houses</span>}
         </div>
-        {isFreePlan ? (
-          <div className="upgrade-callout graphical-callout">
-            <strong>Upgrade to create a house.</strong>
-            <span>Members can still join houses for free by invitation. The house features follow the owner’s plan.</span>
-            <Link to="/pricing" className="primary center-link">View plans</Link>
-          </div>
-        ) : (
+        {canCreateHouse ? (
           <form onSubmit={createHouse} className="inline-form">
             <input placeholder="Example: Patel Family Home" value={name} onChange={(e) => setName(e.target.value)} />
-            <button className="primary" disabled={!canCreateHouse}>Create</button>
+            <button className="primary" disabled={!name.trim()}>Create</button>
           </form>
+        ) : (
+          <div className="upgrade-callout graphical-callout">
+            <strong>{isFreePlan ? 'Your free starter house is active.' : 'You reached your current house limit.'}</strong>
+            <span>{isFreePlan ? 'Keep using it for free, or upgrade when you need more houses, receipt scanning, deeper price intelligence, and higher limits.' : 'Upgrade when you need another owned household.'}</span>
+            <Link to="/pricing" className="primary center-link">Compare plans</Link>
+          </div>
         )}
       </section>
 

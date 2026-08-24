@@ -14,10 +14,10 @@ export default function AboutPage() {
       <section className="about-hero panel branded-hero">
         <div>
           <p className="eyebrow">Grocery House Manager • SupremDas Group</p>
-          <h2>Shared grocery inventory, shopping lists, smart receipt scanning, price history, and household collaboration in one professional platform.</h2>
+          <h2>Shared grocery inventory, smart weekly planning, shopping lists, receipt intelligence, expiry awareness, price comparison, and household savings in one professional platform.</h2>
           <p>
             Grocery House Manager helps families, roommates, and shared homes organize grocery inventory,
-            plan shopping lists, scan JPG/PNG receipts for review, compare saved prices, invite household members, and track activity in one secure place.
+            plan shopping lists, scan JPG/PNG receipts for review, compare whole baskets from saved prices, prevent waste, track supported savings, invite household members, and coordinate activity in one secure place.
             SupremDas Group is the parent business behind the product.
           </p>
           <div className="hero-actions">
@@ -60,10 +60,15 @@ export default function AboutPage() {
             <li>Create multiple active shopping lists without waiting for the current list to finish.</li>
             <li>Move products from “Products to buy” to “Added in cart,” then update inventory when shopping is done.</li>
             <li>Members and activity feed show who added, edited, removed, joined, or completed actions.</li>
+            <li>Free Starter includes one real starter house with up to 40 products, one active list, and four total members.</li>
             <li>Owner-plan based house limits, so members can use the features available to the house owner.</li>
             <li>Smart Receipt Scan for JPG/PNG receipt photos, with review-before-save item rows, discounts, tax, subtotal, and total.</li>
             <li>Receipt price updates and multi-store product pricing, so one product can track prices from different stores.</li>
+            <li>Smart Weekly Grocery Assistant for low stock, expiry awareness, older-inventory review, meal ideas, and next-trip suggestions.</li>
+            <li>Family Plus and Household Pro whole-list basket comparison with price-coverage transparency and split-store estimates.</li>
             <li>Plan-based product lookup, Canadian price comparison, and nearby store suggestions.</li>
+            <li>Defensible savings reports based on recorded receipt discounts and supported lower-price choices.</li>
+            <li>Installable PWA experience with offline shopping-list fallback, barcode camera scanning on supported phones, and opt-in device reminders.</li>
             <li>Subscription plans, Stripe Checkout, private coupon-code discounts, and non-stackable new-user offers.</li>
           </ul>
         </article>
@@ -72,7 +77,7 @@ export default function AboutPage() {
           <h2>How to use</h2>
           <ol className="howto-list">
             <li>Create an account or sign in with Google.</li>
-            <li>Create your first house, for example “Patel Family Home.”</li>
+            <li>Create your first starter house for free, for example “Patel Family Home.”</li>
             <li>Share the invite link with household members.</li>
             <li>Review the invite confirmation before joining a house.</li>
             <li>Add sections and products to build your grocery inventory.</li>
@@ -80,6 +85,7 @@ export default function AboutPage() {
             <li>While shopping, check items as they are added to the cart.</li>
             <li>Scan a clear JPG or PNG receipt, review extracted items and totals, then save trusted prices.</li>
             <li>Tap “Shopping done” to update the real inventory automatically.</li>
+            <li>Open Smart Assistant for the next-trip brief, use-soon items, meal ideas, savings, and whole-list store comparison when your plan includes it.</li>
           </ol>
         </article>
 

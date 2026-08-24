@@ -35,6 +35,7 @@ def plan_out(plan) -> PlanOut:
         key=plan.key,
         name=plan.name,
         price_monthly_cad=plan.price_monthly_cad,
+        price_annual_cad=plan.price_annual_cad,
         regular_price_monthly_cad=plan.regular_price_monthly_cad,
         discount_percent=plan.discount_percent,
         discount_label=plan.discount_label,
@@ -45,7 +46,13 @@ def plan_out(plan) -> PlanOut:
     )
 
 
-def configured_price_ids() -> dict[PlanName, str | None]:
+def configured_price_ids(billing_cycle: str = "monthly") -> dict[PlanName, str | None]:
+    if billing_cycle == "annual":
+        return {
+            PlanName.basic: settings.stripe_price_basic_annual,
+            PlanName.family: settings.stripe_price_family_annual,
+            PlanName.pro: settings.stripe_price_pro_annual,
+        }
     return {
         PlanName.basic: settings.stripe_price_basic_monthly,
         PlanName.family: settings.stripe_price_family_monthly,
@@ -88,9 +95,10 @@ def discount_price(price: float, percent_off: float | None = None, amount_off: f
 def plan_from_price_id(price_id: str | None) -> PlanName | None:
     if not price_id:
         return None
-    for plan, configured in configured_price_ids().items():
-        if configured and configured == price_id:
-            return plan
+    for cycle in ("monthly", "annual"):
+        for plan, configured in configured_price_ids(cycle).items():
+            if configured and configured == price_id:
+                return plan
     return None
 
 
@@ -354,9 +362,10 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
     if not settings.stripe_secret_key:
         raise HTTPException(status_code=400, detail="Stripe is not configured. Add STRIPE_SECRET_KEY and price IDs in backend/.env.")
 
-    price_id = configured_price_ids().get(payload.plan_name)
+    price_id = configured_price_ids(payload.billing_cycle).get(payload.plan_name)
     if not price_id:
-        raise HTTPException(status_code=400, detail=f"Missing Stripe price ID for {payload.plan_name.value}. Add it in backend/.env.")
+        setting_hint = f"STRIPE_PRICE_{payload.plan_name.value.upper()}_{'ANNUAL' if payload.billing_cycle == 'annual' else 'MONTHLY'}"
+        raise HTTPException(status_code=400, detail=f"Missing Stripe price ID for {payload.plan_name.value} ({payload.billing_cycle}). Add {setting_hint} in backend/.env.")
 
     if premium_access_is_active(user):
         raise HTTPException(status_code=400, detail=premium_access_lock_message(user))
@@ -373,7 +382,7 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         db.commit()
 
     active_offer = new_user_offer_for(user)
-    if active_offer and payload.plan_name == PlanName.basic and not payload.promotion_code_id and not settings.stripe_promotion_code_basic_new_user:
+    if active_offer and payload.plan_name == PlanName.basic and payload.billing_cycle == "monthly" and not payload.promotion_code_id and not settings.stripe_promotion_code_basic_new_user:
         raise HTTPException(
             status_code=400,
             detail="The Basic new-user offer is visible, but STRIPE_PROMOTION_CODE_BASIC_NEW_USER is missing in backend/.env. Add the promo_... ID from Stripe or disable the offer.",
@@ -386,14 +395,14 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         "success_url": f"{settings.frontend_url}/pricing?checkout=success",
         "cancel_url": f"{settings.frontend_url}/pricing?checkout=cancelled",
         "client_reference_id": str(user.id),
-        "metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value},
-        "subscription_data": {"metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value}},
+        "metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value, "billing_cycle": payload.billing_cycle},
+        "subscription_data": {"metadata": {"user_id": str(user.id), "plan_name": payload.plan_name.value, "billing_cycle": payload.billing_cycle}},
     }
     if payload.promotion_code_id:
         # User-entered coupons take priority over the automatic Basic new-user offer.
         # This prevents discount stacking while keeping the coupon box usable.
         checkout_kwargs["discounts"] = [{"promotion_code": payload.promotion_code_id}]
-    elif active_offer and payload.plan_name == PlanName.basic and settings.stripe_promotion_code_basic_new_user:
+    elif active_offer and payload.plan_name == PlanName.basic and payload.billing_cycle == "monthly" and settings.stripe_promotion_code_basic_new_user:
         checkout_kwargs["discounts"] = [{"promotion_code": settings.stripe_promotion_code_basic_new_user}]
     else:
         checkout_kwargs["allow_promotion_codes"] = False

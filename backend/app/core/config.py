@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     stripe_price_basic_monthly: str | None = None
     stripe_price_family_monthly: str | None = None
     stripe_price_pro_monthly: str | None = None
+    stripe_price_basic_annual: str | None = None
+    stripe_price_family_annual: str | None = None
+    stripe_price_pro_annual: str | None = None
     # Optional Stripe promotion code ID for the automatic new-user Basic offer.
     # Create a Stripe coupon: 65% off, duration=repeating, duration_in_months=2,
     # then create a Promotion Code and paste its promo_... ID here.

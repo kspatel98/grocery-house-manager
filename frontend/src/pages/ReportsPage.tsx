@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { AccountBootstrap, House, Product, Receipt } from '../types';
+import type { AccountBootstrap, House, Product, Receipt, SavingsSummary } from '../types';
 
 function csvEscape(value: unknown) {
   const text = String(value ?? '');
@@ -28,6 +28,7 @@ export default function ReportsPage() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [savings, setSavings] = useState<SavingsSummary | null>(null);
 
   async function loadHouses() {
     try {
@@ -42,12 +43,14 @@ export default function ReportsPage() {
   async function loadHouseReport(houseId: number) {
     try {
       setBusy(true);
-      const [productsRes, receiptsRes] = await Promise.all([
+      const [productsRes, receiptsRes, savingsRes] = await Promise.all([
         api.get<Product[]>(`/houses/${houseId}/products`, { params: { sort_by: 'name' } }),
         api.get<Receipt[]>(`/houses/${houseId}/receipts`),
+        api.get<SavingsSummary>(`/insights/houses/${houseId}/savings`, { params: { t: Date.now() } }),
       ]);
       setProducts(productsRes.data);
       setReceipts(receiptsRes.data);
+      setSavings(savingsRes.data);
       setError('');
     } catch (err) {
       setError(errorMessage(err));
@@ -126,7 +129,7 @@ export default function ReportsPage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>Reports & store comparison</h1>
-          <p>Clear premium insights from your saved products, receipts, and store price history.</p>
+          <p>See what you spent, what your price history supports, and whether the app is creating measurable household value.</p>
         </div>
         <div className="topbar-actions report-actions">
           <select value={selectedHouseId} onChange={(e) => setSelectedHouseId(e.target.value ? Number(e.target.value) : '')}>
@@ -142,8 +145,23 @@ export default function ReportsPage() {
       <section className="stats-grid four">
         <div className="stat-card"><strong>{products.length}</strong><span>Products</span></div>
         <div className="stat-card"><strong>{totalKnownPrices}</strong><span>Known store prices</span></div>
-        <div className="stat-card"><strong>{money(trackedSpend)}</strong><span>Tracked receipt spend</span></div>
+        <div className="stat-card savings-stat-card"><strong>{money(savings?.estimated_savings || 0, savings?.currency_code)}</strong><span>Estimated savings this month</span></div>
         <div className="stat-card warning"><strong>{lowStock + expiring}</strong><span>Need attention</span></div>
+      </section>
+
+      <section className="savings-proof-panel">
+        <div>
+          <p className="eyebrow">Did the subscription pay for itself?</p>
+          <h2>{savings && savings.estimated_savings > 0 ? `${money(savings.estimated_savings, savings.currency_code)} estimated savings in ${savings.month_label}` : 'Your savings proof builds from real activity'}</h2>
+          <p>{savings?.message || 'Save reviewed receipts and purchase prices to build a transparent savings history.'}</p>
+        </div>
+        <div className="savings-proof-grid">
+          <span><strong>{money(savings?.receipt_discounts || 0, savings?.currency_code)}</strong><small>receipt discounts</small></span>
+          <span><strong>{money(savings?.lower_price_choices || 0, savings?.currency_code)}</strong><small>supported lower-price choices</small></span>
+          <span><strong>{money(savings?.plan_monthly_cost || 0, savings?.currency_code)}</strong><small>monthly plan price</small></span>
+          <span className={(savings?.savings_after_plan_cost || 0) >= 0 ? 'positive' : ''}><strong>{money(savings?.savings_after_plan_cost || 0, savings?.currency_code)}</strong><small>savings after plan price</small></span>
+        </div>
+        {savings?.roi_multiple ? <div className="savings-roi-banner">Tracked savings are {savings.roi_multiple}× the monthly subscription price.</div> : null}
       </section>
 
       <section className="report-highlight-card">

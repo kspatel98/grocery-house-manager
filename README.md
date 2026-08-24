@@ -462,7 +462,7 @@ https://grocery-house-manager.com/about?v=14
 
 This version includes the missing launch feature set:
 
-- Free Starter users can join houses by invite, but cannot create houses.
+- Free Starter users can create 1 starter house (up to 40 products, 1 active shopping list, 4 total members) and can also join houses by invite.
 - House capacity and shared-house features are controlled by the house owner's plan.
 - Members can still use the features available inside houses they join; their own plan controls their own account/owned-house capabilities.
 - Receipt price updates are available from the inventory page.

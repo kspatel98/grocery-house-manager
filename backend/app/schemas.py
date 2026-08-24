@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 from pydantic import BaseModel, EmailStr, Field
 from app.models import HouseRole, ShoppingItemStatus, PlanName
 
@@ -304,6 +305,7 @@ class PlanOut(BaseModel):
     key: PlanName
     name: str
     price_monthly_cad: float
+    price_annual_cad: float | None = None
     regular_price_monthly_cad: float | None = None
     discount_percent: int | None = None
     discount_label: str | None = None
@@ -357,6 +359,7 @@ class ReceiptScanPackCheckoutIn(BaseModel):
 class CheckoutSessionIn(BaseModel):
     plan_name: PlanName
     promotion_code_id: str | None = None
+    billing_cycle: Literal["monthly", "annual"] = "monthly"
 
 
 class CheckoutSessionOut(BaseModel):
@@ -558,6 +561,101 @@ class AccountBootstrapOut(BaseModel):
     houses: list[HouseOut] = Field(default_factory=list)
     premium_crown_stats: PremiumCrownStatsOut = Field(default_factory=PremiumCrownStatsOut)
     is_admin: bool = False
+
+class OnboardingStepOut(BaseModel):
+    key: str
+    title: str
+    description: str
+    complete: bool = False
+    href: str | None = None
+
+
+class OnboardingStatusOut(BaseModel):
+    complete: bool = False
+    completed_steps: int = 0
+    total_steps: int = 5
+    percent: int = 0
+    primary_house_id: int | None = None
+    steps: list[OnboardingStepOut] = Field(default_factory=list)
+
+
+class SavingsSummaryOut(BaseModel):
+    currency_code: str = "CAD"
+    month_label: str
+    tracked_spend: float = 0
+    receipt_discounts: float = 0
+    lower_price_choices: float = 0
+    estimated_savings: float = 0
+    plan_monthly_cost: float = 0
+    savings_after_plan_cost: float = 0
+    roi_multiple: float | None = None
+    comparison_opportunities: int = 0
+    message: str
+
+
+class BasketStoreOptionOut(BaseModel):
+    store_name: str
+    estimated_total: float = 0
+    priced_items: int = 0
+    total_items: int = 0
+    coverage_percent: int = 0
+    missing_items: list[str] = Field(default_factory=list)
+
+
+class BasketComparisonOut(BaseModel):
+    currency_code: str = "CAD"
+    premium_required: bool = False
+    message: str
+    list_id: int
+    list_title: str
+    total_items: int = 0
+    best_single_store: BasketStoreOptionOut | None = None
+    store_options: list[BasketStoreOptionOut] = Field(default_factory=list)
+    split_store_total: float | None = None
+    split_store_savings: float | None = None
+    split_store_names: list[str] = Field(default_factory=list)
+    split_store_coverage_percent: int = 0
+    split_store_picks: list[str] = Field(default_factory=list)
+
+
+class WeeklyAssistantRecipeOut(BaseModel):
+    name: str
+    reason: str
+    matched_items: list[str] = Field(default_factory=list)
+    missing_items: list[str] = Field(default_factory=list)
+
+
+class WeeklyAssistantSuggestedItemOut(BaseModel):
+    product_id: int
+    product_name: str
+    reason: str
+    requested_quantity: float = 1
+
+
+class WeeklyAssistantOut(BaseModel):
+    currency_code: str = "CAD"
+    house_id: int
+    house_name: str
+    generated_at: datetime
+    low_stock: list[str] = Field(default_factory=list)
+    out_of_stock: list[str] = Field(default_factory=list)
+    expiring_soon: list[str] = Field(default_factory=list)
+    expired: list[str] = Field(default_factory=list)
+    long_held: list[str] = Field(default_factory=list)
+    suggested_missing: list[str] = Field(default_factory=list)
+    suggested_items: list[WeeklyAssistantSuggestedItemOut] = Field(default_factory=list)
+    active_list_id: int | None = None
+    active_list_title: str | None = None
+    active_list_items: int = 0
+    best_store_name: str | None = None
+    best_store_total: float | None = None
+    alternative_store_name: str | None = None
+    alternative_store_total: float | None = None
+    potential_store_savings: float | None = None
+    monthly_savings: float = 0
+    recipes: list[WeeklyAssistantRecipeOut] = Field(default_factory=list)
+    message: str
+
 
 class CouponValidateIn(BaseModel):
     code: str = Field(min_length=1, max_length=80)

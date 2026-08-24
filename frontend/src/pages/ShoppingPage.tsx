@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, HouseMember, LivePriceCompareResponse, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
+import type { Activity, BasketComparison, House, HouseMember, LivePriceCompareResponse, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
@@ -28,6 +28,7 @@ export default function ShoppingPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [membersOpen, setMembersOpen] = useState(false);
   const [inviteUrl, setInviteUrl] = useState('');
+  const [offlineFallback, setOfflineFallback] = useState(false);
   const currentUser: User | null = JSON.parse(localStorage.getItem('user') || 'null');
 
   async function loadAll() {
@@ -50,6 +51,14 @@ export default function ShoppingPage() {
       setActivities(activitiesRes.data);
       setSubscription(subscriptionRes.data);
       setHousePlan(housePlanRes.data);
+      setOfflineFallback(false);
+      localStorage.setItem(`ghm_offline_shopping_${id}`, JSON.stringify({
+        saved_at: new Date().toISOString(),
+        house: houseRes.data,
+        sections: sectionsRes.data,
+        products: productsRes.data,
+        lists: listsRes.data,
+      }));
       setError('');
 
       if (!listsRes.data.length) {
@@ -59,7 +68,25 @@ export default function ShoppingPage() {
         setSelectedListId(listsRes.data[0].id);
       }
     } catch (err) {
-      setError(errorMessage(err));
+      if (!navigator.onLine) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(`ghm_offline_shopping_${id}`) || 'null');
+          if (cached?.house && Array.isArray(cached?.lists)) {
+            setHouse(cached.house);
+            setSections(cached.sections || []);
+            setProducts(cached.products || []);
+            setActiveLists(cached.lists || []);
+            setOfflineFallback(true);
+            setError('');
+          } else {
+            setError('You are offline and no shopping-list snapshot has been saved on this device yet.');
+          }
+        } catch {
+          setError('You are offline and the saved shopping-list snapshot could not be opened.');
+        }
+      } else {
+        setError(errorMessage(err));
+      }
     } finally {
       setInitialLoading(false);
     }
@@ -139,6 +166,9 @@ export default function ShoppingPage() {
       {initialLoading && <div className="panel muted-panel">Loading grocery lists...</div>}
 
       <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
+      {offlineFallback && <div className="offline-shopping-banner">Offline mode: showing the latest shopping list saved on this device. Changes require a connection.</div>}
+
+      {!creatingNew && selectedList ? <WholeListComparison houseId={id} selectedList={selectedList} /> : null}
 
       <div className="shopping-page-layout">
         <section className="shopping-main-column">
@@ -208,6 +238,79 @@ export default function ShoppingPage() {
   );
 }
 
+
+
+function WholeListComparison({ houseId, selectedList }: { houseId: number; selectedList: ShoppingList }) {
+  const [comparison, setComparison] = useState<BasketComparison | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState(false);
+
+  async function compare() {
+    try {
+      setBusy(true);
+      setError('');
+      const { data } = await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, { params: { t: Date.now() } });
+      setComparison(data);
+      setExpanded(true);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    setComparison(null);
+    setExpanded(false);
+    setError('');
+  }, [selectedList.id]);
+
+  return (
+    <section className="whole-list-compare-hero">
+      <div className="whole-list-copy">
+        <p className="eyebrow">Family Plus • whole-list intelligence</p>
+        <h2>Compare the entire “{selectedList.title}” trip in one tap.</h2>
+        <p>Instead of checking milk, eggs, rice, and every other item separately, Grocery House Manager uses your saved household price history to estimate the strongest single-store basket and, when useful, a practical two-store option.</p>
+        <div className="whole-list-actions">
+          <button className="primary" type="button" onClick={compare} disabled={busy || !navigator.onLine}>{busy ? 'Comparing your basket…' : 'Compare my shopping list'}</button>
+          {comparison ? <button className="secondary" type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Hide results' : 'Show results'}</button> : null}
+        </div>
+        {error && <div className="error compact-message">{error}</div>}
+      </div>
+      <div className="whole-list-result-preview">
+        {!comparison ? (
+          <><span>ONE TAP</span><strong>{selectedList.items.length}</strong><small>items compared together</small></>
+        ) : comparison.premium_required ? (
+          <><span>PREMIUM</span><strong>Family Plus</strong><small>{comparison.message}</small><Link to="/pricing" className="secondary center-link">See plans</Link></>
+        ) : comparison.best_single_store ? (
+          <><span>BEST SINGLE STORE</span><strong>{comparison.best_single_store.store_name}</strong><em>{money(comparison.best_single_store.estimated_total, comparison.currency_code)}</em><small>{comparison.best_single_store.coverage_percent}% direct saved-price coverage</small></>
+        ) : (
+          <><span>PRICE HISTORY</span><strong>Build coverage</strong><small>{comparison.message}</small></>
+        )}
+      </div>
+      {comparison && expanded && !comparison.premium_required ? (
+        <div className="whole-list-results">
+          {comparison.store_options.slice(0, 5).map((store, index) => (
+            <div key={store.store_name} className={index === 0 ? 'best' : ''}>
+              <span>{index === 0 ? '★ ' : ''}{store.store_name}</span>
+              <strong>{money(store.estimated_total, comparison.currency_code)}</strong>
+              <small>{store.coverage_percent}% direct coverage • {store.missing_items.length} estimated item{store.missing_items.length === 1 ? '' : 's'}</small>
+            </div>
+          ))}
+          {comparison.split_store_total != null ? (
+            <div className="whole-list-split-result">
+              <span>Best 2-store option{comparison.split_store_names?.length ? ` • ${comparison.split_store_names.join(' + ')}` : ''}</span>
+              <strong>{money(comparison.split_store_total, comparison.currency_code)}</strong>
+              <small>{comparison.split_store_coverage_percent}% direct coverage • {comparison.split_store_savings ? `potential extra saving ${money(comparison.split_store_savings, comparison.currency_code)}` : 'a single store is already competitive'}</small>
+            </div>
+          ) : null}
+          <p className="small-muted">Estimates are based on saved prices; missing store-specific rows are filled conservatively from the best known household price and are clearly counted in coverage.</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 function cachedLocation() {
   try {

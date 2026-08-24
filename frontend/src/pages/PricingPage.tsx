@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { CouponValidation, Plan, PlanName, ReceiptScanPack, Subscription } from '../types';
 
@@ -51,8 +51,9 @@ const PLAN_BADGE_LABELS: Record<PlanName, string> = {
 };
 
 const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanName }[] = [
-  { title: 'Join invited houses', description: 'Join a household and use features unlocked by the house owner.', minPlan: 'free' },
-  { title: 'Create your own houses', description: 'Own and manage houses, members, inventory, and shopping lists.', minPlan: 'basic' },
+  { title: 'Create 1 starter house', description: 'Free Starter includes one real house with up to 40 products, one active list, and four total members.', minPlan: 'free' },
+  { title: 'Join invited houses', description: 'Join another household and use features unlocked by that house owner.', minPlan: 'free' },
+  { title: 'Create multiple / larger houses', description: 'Basic and higher raise house, product, list, and member limits.', minPlan: 'basic' },
   { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5 scans/month, and Pro includes 15 scans/month across houses you own.', minPlan: 'basic' },
   { title: 'Product lookup', description: 'Search product details by barcode or name while building inventory.', minPlan: 'basic' },
   { title: 'Best-store comparison', description: 'Compare saved household prices across your stores.', minPlan: 'family' },
@@ -77,6 +78,7 @@ export default function PricingPage() {
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState<CouponValidation | null>(null);
   const [couponBusy, setCouponBusy] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const loggedIn = Boolean(localStorage.getItem('token'));
@@ -154,6 +156,7 @@ export default function PricingPage() {
       const { data } = await api.post<{ checkout_url: string }>('/billing/checkout-session', {
         plan_name: planName,
         promotion_code_id: coupon?.valid ? coupon.promotion_code_id : null,
+        billing_cycle: billingCycle,
       });
       window.location.href = data.checkout_url;
     } catch (err) {
@@ -227,6 +230,17 @@ export default function PricingPage() {
           )}
         </div>
       </header>
+
+      <section className="billing-cycle-switch" aria-label="Billing cycle">
+        <div>
+          <strong>Choose billing</strong>
+          <span>Annual plans reduce the effective monthly cost. All plan prices are CAD.</span>
+        </div>
+        <div className="billing-cycle-buttons">
+          <button type="button" className={billingCycle === 'monthly' ? 'active' : ''} onClick={() => setBillingCycle('monthly')}>Monthly</button>
+          <button type="button" className={billingCycle === 'annual' ? 'active' : ''} onClick={() => setBillingCycle('annual')}>Annual <em>Save more</em></button>
+        </div>
+      </section>
 
       {checkoutStatus === 'success' && <div className="success">Checkout completed. Your plan will update after Stripe confirms the payment.</div>}
       {checkoutStatus === 'scan_pack_success' && <div className="success">Extra receipt scans purchased. Your scan balance will update after Stripe confirms the payment.</div>}
@@ -350,17 +364,20 @@ export default function PricingPage() {
           const isCurrent = subscription?.plan_name === plan.key;
           const hasLaunchDiscount = Boolean(plan.regular_price_monthly_cad && plan.regular_price_monthly_cad > plan.price_monthly_cad);
           const hasAppliedCoupon = !!coupon?.valid && !!coupon.promotion_code_id;
-          const hasNewUserBasicOffer = !!subscription?.new_user_offer?.active && plan.key === 'basic' && !hasAppliedCoupon;
+          const hasNewUserBasicOffer = billingCycle === 'monthly' && !!subscription?.new_user_offer?.active && plan.key === 'basic' && !hasAppliedCoupon;
           const newUserOfferPrice = hasNewUserBasicOffer ? Number((plan.price_monthly_cad * 0.35).toFixed(2)) : null;
           const backendCouponPrice = hasAppliedCoupon ? coupon.discounted_prices?.[plan.key] : null;
-          const fallbackCouponPrice = calculateFallbackDiscount(plan.price_monthly_cad, coupon);
-          const couponPrice = typeof backendCouponPrice === 'number' ? backendCouponPrice : fallbackCouponPrice;
-          const hasCouponDiscount = plan.key !== 'free' && hasAppliedCoupon && typeof couponPrice === 'number' && couponPrice < plan.price_monthly_cad;
-          const effectivePrice = hasNewUserBasicOffer && newUserOfferPrice !== null ? newUserOfferPrice : (hasCouponDiscount ? couponPrice : plan.price_monthly_cad);
-          const oldPrice = (hasCouponDiscount || hasNewUserBasicOffer) ? plan.price_monthly_cad : plan.regular_price_monthly_cad;
+          const baseBillingPrice = billingCycle === 'annual' ? Number(plan.price_annual_cad ?? plan.price_monthly_cad * 12) : plan.price_monthly_cad;
+          const fallbackCouponPrice = calculateFallbackDiscount(baseBillingPrice, coupon);
+          const couponPrice = billingCycle === 'monthly' && typeof backendCouponPrice === 'number' ? backendCouponPrice : fallbackCouponPrice;
+          const hasCouponDiscount = plan.key !== 'free' && hasAppliedCoupon && typeof couponPrice === 'number' && couponPrice < baseBillingPrice;
+          const effectivePrice = hasNewUserBasicOffer && newUserOfferPrice !== null ? newUserOfferPrice : (hasCouponDiscount ? couponPrice : baseBillingPrice);
+          const oldPrice = (hasCouponDiscount || hasNewUserBasicOffer) ? baseBillingPrice : (billingCycle === 'monthly' ? plan.regular_price_monthly_cad : null);
+          const annualSavings = plan.key !== 'free' && plan.price_annual_cad ? Math.max(plan.price_monthly_cad * 12 - plan.price_annual_cad, 0) : 0;
+          const annualMonthlyEquivalent = billingCycle === 'annual' && effectivePrice ? effectivePrice / 12 : null;
           return (
             <article key={plan.key} className={`panel pricing-card plan-card-${plan.key} ${plan.recommended ? 'recommended' : ''} ${hasCouponDiscount || hasNewUserBasicOffer ? 'coupon-applied-card' : ''}`}>
-              {plan.recommended && <div className="recommended-badge">Best value</div>}
+              {plan.recommended && <div className="recommended-badge">Most popular</div>}
               {plan.discount_label && !hasCouponDiscount && <div className="discount-badge">{plan.discount_label}</div>}
               {hasNewUserBasicOffer && <div className="coupon-badge">New-user offer</div>}
               {hasCouponDiscount && <div className="coupon-badge">Coupon applied</div>}
@@ -370,8 +387,11 @@ export default function PricingPage() {
               <div className="price-line">
                 {(hasLaunchDiscount || hasCouponDiscount || hasNewUserBasicOffer) && oldPrice !== null && oldPrice !== undefined && <span className="old-price">{formatPrice(oldPrice)}</span>}
                 <strong>{formatPrice(effectivePrice)}</strong>
-                <span>CAD / month</span>
+                <span>CAD / {billingCycle === 'annual' ? 'year' : 'month'}</span>
               </div>
+              {billingCycle === 'annual' && plan.key !== 'free' && annualMonthlyEquivalent !== null && (
+                <p className="annual-price-note"><strong>{formatPrice(annualMonthlyEquivalent)}</strong> effective per month • save {formatPrice(annualSavings)} per year versus monthly billing.</p>
+              )}
               {hasNewUserBasicOffer && (
                 <p className="coupon-savings">
                   65% off for your first 2 billing months. After that, this plan automatically renews at the regular price of {formatPrice(plan.price_monthly_cad)} CAD/month. If you apply a coupon instead, this automatic offer will not be used.
@@ -379,7 +399,7 @@ export default function PricingPage() {
               )}
               {hasCouponDiscount && (
                 <p className="coupon-savings">
-                  You save {formatPrice(plan.price_monthly_cad - effectivePrice)} per month with this code.
+                  You save {formatPrice(baseBillingPrice - effectivePrice)} on this {billingCycle === 'annual' ? 'annual' : 'monthly'} billing charge with this code.
                 </p>
               )}
               <ul className="feature-list">
@@ -402,7 +422,7 @@ export default function PricingPage() {
                 </button>
               ) : (
                 <button className="primary full" disabled={busyPlan === plan.key} onClick={() => checkout(plan.key)}>
-                  {!loggedIn ? 'Login to choose' : busyPlan === plan.key ? 'Opening checkout...' : `Choose ${plan.name}`}
+                  {!loggedIn ? 'Login to choose' : busyPlan === plan.key ? 'Opening checkout...' : `Choose ${plan.name} ${billingCycle === 'annual' ? 'yearly' : 'monthly'}`}
                 </button>
               )}
             </article>

@@ -39,6 +39,7 @@ function InstagramIcon() {
 
 const baseNavItems = [
   { to: '/houses', label: 'Houses' },
+  { to: '/assistant', label: 'Assistant' },
   { to: '/market', label: 'Prices' },
   { to: '/reports', label: 'Reports' },
   { to: '/pricing', label: 'Plans' },
