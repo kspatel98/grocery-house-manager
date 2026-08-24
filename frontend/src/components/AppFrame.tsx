@@ -77,10 +77,33 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [premiumArrival, setPremiumArrival] = useState(false);
   const premiumBadgeRef = useRef<HTMLDivElement>(null);
   const premiumCrownRef = useRef<HTMLSpanElement>(null);
+  const siteHeaderRef = useRef<HTMLElement>(null);
+  const [siteHeaderHeight, setSiteHeaderHeight] = useState(0);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
+
+  useEffect(() => {
+    const header = siteHeaderRef.current;
+    if (!header) return;
+
+    const syncHeaderHeight = () => {
+      setSiteHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    };
+
+    syncHeaderHeight();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncHeaderHeight) : null;
+    observer?.observe(header);
+    window.addEventListener('resize', syncHeaderHeight);
+    window.addEventListener('orientationchange', syncHeaderHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', syncHeaderHeight);
+      window.removeEventListener('orientationchange', syncHeaderHeight);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +179,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
   return (
     <div className="app-frame">
-      <header className="site-header">
+      <header ref={siteHeaderRef} className="site-header">
         <div className="site-header-inner shell wide">
           <div className="site-brand-premium-wrap">
             <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
@@ -211,6 +234,11 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      <div
+        className="site-header-mobile-spacer"
+        style={siteHeaderHeight ? { height: `${siteHeaderHeight}px` } : undefined}
+        aria-hidden="true"
+      />
 
       <div className="app-main-content">{children}</div>
 

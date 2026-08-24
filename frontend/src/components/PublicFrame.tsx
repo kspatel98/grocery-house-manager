@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 function EmailIcon() {
@@ -43,14 +43,37 @@ const publicNavItems = [
 export default function PublicFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
   const loggedIn = Boolean(localStorage.getItem('token'));
+  const siteHeaderRef = useRef<HTMLElement>(null);
+  const [siteHeaderHeight, setSiteHeaderHeight] = useState(0);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
 
+  useEffect(() => {
+    const header = siteHeaderRef.current;
+    if (!header) return;
+
+    const syncHeaderHeight = () => {
+      setSiteHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    };
+
+    syncHeaderHeight();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncHeaderHeight) : null;
+    observer?.observe(header);
+    window.addEventListener('resize', syncHeaderHeight);
+    window.addEventListener('orientationchange', syncHeaderHeight);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', syncHeaderHeight);
+      window.removeEventListener('orientationchange', syncHeaderHeight);
+    };
+  }, []);
+
   return (
     <div className="app-frame public-frame">
-      <header className="site-header public-site-header">
+      <header ref={siteHeaderRef} className="site-header public-site-header">
         <div className="site-header-inner shell wide">
           <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
             <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
@@ -75,6 +98,11 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
+      <div
+        className="site-header-mobile-spacer"
+        style={siteHeaderHeight ? { height: `${siteHeaderHeight}px` } : undefined}
+        aria-hidden="true"
+      />
 
       <div className="app-main-content">{children}</div>
 
