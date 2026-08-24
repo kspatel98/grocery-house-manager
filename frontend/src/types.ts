@@ -308,11 +308,17 @@ export type AccountDeletePreview = {
   message: string;
 };
 
+export type PremiumCrownStats = {
+  total_users: number;
+  crown_users: number;
+};
+
 export type AccountBootstrap = {
   user: UserProfile;
   subscription: Subscription;
   insights: PersonalInsights;
   houses: House[];
+  premium_crown_stats?: PremiumCrownStats;
   is_admin?: boolean;
 };
 

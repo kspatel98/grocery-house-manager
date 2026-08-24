@@ -1,6 +1,8 @@
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.api.activity_utils import display_name
@@ -10,7 +12,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.core.config import settings
 from app.models import House, HouseMember, HouseRole, PlanName, ProductStorePrice, Receipt, User
-from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, PlanLimitsOut, SubscriptionOut, UserProfileOut
+from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, PlanLimitsOut, PremiumCrownStatsOut, SubscriptionOut, UserProfileOut
 from app.utils.location import currency_for_country
 
 router = APIRouter(prefix="/account", tags=["account"])
@@ -20,6 +22,68 @@ logger = logging.getLogger(__name__)
 def is_admin_user(user: User) -> bool:
     configured = {email.strip().lower() for email in (settings.admin_emails or "").split(",") if email.strip()}
     return user.email.lower() in configured
+
+
+
+
+def _aware_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def user_has_premium_crown(user: User, now: datetime | None = None) -> bool:
+    current_time = now or datetime.now(timezone.utc)
+    plan_raw = getattr(user.plan_name, "value", user.plan_name) or "free"
+    plan_key = str(plan_raw).lower()
+    status_value = (user.subscription_status or "free").lower()
+    period_end = _aware_utc(user.subscription_current_period_end)
+
+    admin_grant_active = (
+        status_value == "admin_granted"
+        and plan_key != "free"
+        and (period_end is None or period_end > current_time)
+    )
+    household_pro_active = (
+        plan_key == "pro"
+        and status_value in {"active", "trialing", "past_due", "cancel_at_period_end", "paid"}
+        and (status_value != "cancel_at_period_end" or period_end is None or period_end > current_time)
+    )
+    return admin_grant_active or household_pro_active
+
+
+def premium_crown_stats_out(db: Session) -> PremiumCrownStatsOut:
+    try:
+        now = datetime.now(timezone.utc)
+        active_pro_statuses = {"active", "trialing", "past_due", "paid"}
+        crown_filter = or_(
+            and_(
+                User.is_active.is_(True),
+                User.subscription_status == "admin_granted",
+                User.plan_name != PlanName.free,
+                or_(User.subscription_current_period_end.is_(None), User.subscription_current_period_end > now),
+            ),
+            and_(
+                User.is_active.is_(True),
+                User.plan_name == PlanName.pro,
+                User.subscription_status.in_(active_pro_statuses),
+            ),
+            and_(
+                User.is_active.is_(True),
+                User.plan_name == PlanName.pro,
+                User.subscription_status == "cancel_at_period_end",
+                or_(User.subscription_current_period_end.is_(None), User.subscription_current_period_end > now),
+            ),
+        )
+        return PremiumCrownStatsOut(
+            total_users=db.query(User).count(),
+            crown_users=db.query(User).filter(crown_filter).count(),
+        )
+    except Exception:
+        logger.exception("Account bootstrap premium crown stats failed")
+        return PremiumCrownStatsOut()
 
 
 def user_profile_out(user: User) -> UserProfileOut:
@@ -168,5 +232,6 @@ def account_bootstrap(db: Session = Depends(get_db), user: User = Depends(get_cu
         subscription=safe_subscription_out(db, user),
         insights=safe_personal_insights_out(db, user),
         houses=safe_houses_out(db, user),
+        premium_crown_stats=premium_crown_stats_out(db),
         is_admin=is_admin_user(user),
     )

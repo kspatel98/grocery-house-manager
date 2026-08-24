@@ -546,11 +546,17 @@ class AccountDeletePreviewOut(BaseModel):
     message: str
 
 
+class PremiumCrownStatsOut(BaseModel):
+    total_users: int = 0
+    crown_users: int = 0
+
+
 class AccountBootstrapOut(BaseModel):
     user: UserProfileOut
     subscription: SubscriptionOut
     insights: PersonalInsightsOut
     houses: list[HouseOut] = Field(default_factory=list)
+    premium_crown_stats: PremiumCrownStatsOut = Field(default_factory=PremiumCrownStatsOut)
     is_admin: bool = False
 
 class CouponValidateIn(BaseModel):

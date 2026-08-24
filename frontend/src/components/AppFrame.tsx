@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import OfferCrownWidget from './OfferCrownWidget';
-import type { AccountBootstrap, UserProfile } from '../types';
+import PremiumAwardCelebration from './PremiumAwardCelebration';
+import type { AccountBootstrap, PremiumCrownStats, UserProfile } from '../types';
 
 function EmailIcon() {
   return (
@@ -69,6 +70,13 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
   const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
+  const [premiumStats, setPremiumStats] = useState<PremiumCrownStats | null>(null);
+  const [accountReady, setAccountReady] = useState(false);
+  const [celebrationOpen, setCelebrationOpen] = useState(false);
+  const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
+  const [premiumArrival, setPremiumArrival] = useState(false);
+  const premiumBadgeRef = useRef<HTMLDivElement>(null);
+  const premiumCrownRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -84,6 +92,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         .then(({ data }) => {
           if (cancelled) return;
           setIsAdmin(Boolean(data.is_admin));
+          setPremiumStats(data.premium_crown_stats || null);
+          setAccountReady(true);
           const effectiveProfile: UserProfile = {
             ...data.user,
             plan_name: data.subscription.plan_name,
@@ -117,9 +127,32 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const grantEnd = profile?.subscription_current_period_end ? new Date(profile.subscription_current_period_end).getTime() : null;
   const adminGrantStillActive = status === 'admin_granted' && (grantEnd === null || (!Number.isNaN(grantEnd) && grantEnd > Date.now()));
   const adminGrantedPremium = adminGrantStillActive && planName !== 'free';
-  const householdProPremium = planName === 'pro' && ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes(status);
+  const householdProPremium = planName === 'pro' && ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes(status) && (status !== 'cancel_at_period_end' || grantEnd === null || (!Number.isNaN(grantEnd) && grantEnd > Date.now()));
   const showPremiumCrown = adminGrantedPremium || householdProPremium;
   const premiumSubtext = adminGrantedPremium ? 'Admin granted' : householdProPremium ? 'Household Pro' : '';
+
+  useEffect(() => {
+    if (!accountReady || !profile?.id || !showPremiumCrown || celebrationOpen) return;
+    const awardType = adminGrantedPremium
+      ? `admin-granted:${planName}:${profile.subscription_current_period_end || 'lifetime'}`
+      : 'household-pro';
+    const seenKey = `premium_award_seen_v67:${profile.id}:${awardType}`;
+    if (localStorage.getItem(seenKey) === '1') return;
+    setCelebrationKey(seenKey);
+    setCelebrationOpen(true);
+  }, [accountReady, adminGrantedPremium, celebrationOpen, householdProPremium, profile?.id, showPremiumCrown]);
+
+  const completePremiumCelebration = () => {
+    if (celebrationKey) localStorage.setItem(celebrationKey, '1');
+    setCelebrationOpen(false);
+    setPremiumArrival(true);
+  };
+
+  useEffect(() => {
+    if (!premiumArrival) return;
+    const timer = window.setTimeout(() => setPremiumArrival(false), 1300);
+    return () => window.clearTimeout(timer);
+  }, [premiumArrival]);
 
   return (
     <div className="app-frame">
@@ -134,8 +167,12 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               </span>
             </Link>
             {showPremiumCrown && (
-              <div className="header-premium-badge" aria-label={`Premium: ${premiumSubtext}`}>
-                <span className="header-premium-mini-crown" aria-hidden="true">♛</span>
+              <div
+                ref={premiumBadgeRef}
+                className={`header-premium-badge ${celebrationOpen ? 'premium-award-incoming' : ''} ${premiumArrival ? 'premium-award-arrived' : ''}`}
+                aria-label={`Premium: ${premiumSubtext}`}
+              >
+                <span className="header-premium-mini-crown" aria-hidden="true">👑</span>
                 <span><strong>Premium</strong><small>{premiumSubtext}</small></span>
               </div>
             )}
@@ -163,13 +200,29 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               ) : (
                 <span className="ai-avatar" aria-hidden="true"><em>{initialsFor(profile)}</em></span>
               )}
-              {showPremiumCrown && <span className="profile-orb-crown" aria-hidden="true">♛</span>}
+              {showPremiumCrown && (
+                <span
+                  ref={premiumCrownRef}
+                  className={`profile-orb-crown ${celebrationOpen ? 'premium-award-incoming' : ''} ${premiumArrival ? 'premium-award-arrived' : ''}`}
+                  aria-hidden="true"
+                >👑<i /></span>
+              )}
             </Link>
           </div>
         </div>
       </header>
 
       <div className="app-main-content">{children}</div>
+
+      <PremiumAwardCelebration
+        open={celebrationOpen && showPremiumCrown}
+        memberName={profileName}
+        subtext={premiumSubtext}
+        stats={premiumStats}
+        badgeTargetRef={premiumBadgeRef}
+        crownTargetRef={premiumCrownRef}
+        onComplete={completePremiumCelebration}
+      />
       <OfferCrownWidget />
 
       <section className="parent-company-royal" aria-label="SupremDas Group parent company">
