@@ -8,7 +8,7 @@ from app.api.plan_utils import PLANS, get_user_plan, plan_usage
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
 from app.models import PlanName, User, ReceiptScanPurchase, AdminUserOffer
-from app.schemas import CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn
+from app.schemas import BillingRenewalOut, CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -94,9 +94,37 @@ def plan_from_price_id(price_id: str | None) -> PlanName | None:
     return None
 
 
-def effective_subscription_status(user: User, plan_key: PlanName) -> str:
+def premium_access_is_active(user: User) -> bool:
+    plan = get_user_plan(user)
+    if plan.key == PlanName.free:
+        return False
     status_value = (user.subscription_status or "free").lower()
-    if status_value == "admin_granted" and plan_key == PlanName.free:
+    if status_value == "admin_granted":
+        if not user.subscription_current_period_end:
+            return True
+        expiry = user.subscription_current_period_end
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        return expiry > datetime.now(timezone.utc)
+    return status_value in {"active", "trialing", "past_due", "cancel_at_period_end", "paid"}
+
+
+def premium_access_lock_message(user: User) -> str:
+    plan = get_user_plan(user)
+    plan_label = plan.name
+    status_value = (user.subscription_status or "free").lower()
+    period_end = user.subscription_current_period_end
+    if period_end:
+        if period_end.tzinfo is None:
+            period_end = period_end.replace(tzinfo=timezone.utc)
+        date_label = period_end.astimezone(timezone.utc).strftime("%B %d, %Y")
+        if status_value in {"admin_granted", "cancel_at_period_end"}:
+            return f"{plan_label} is already active. Other premium plans stay disabled until this access ends on {date_label}."
+    return f"{plan_label} is already active. Other premium plans stay disabled while the current plan remains active."
+
+
+def effective_subscription_status(user: User, plan_key: PlanName) -> str:
+    if plan_key == PlanName.free:
         return "free"
     return user.subscription_status or "free"
 
@@ -121,6 +149,95 @@ def list_plans():
 @router.get("/me", response_model=SubscriptionOut)
 def get_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return subscription_out(user, db)
+
+
+@router.get("/renewal-details", response_model=BillingRenewalOut)
+def renewal_details(user: User = Depends(get_current_user)):
+    plan = get_user_plan(user)
+    status_value = effective_subscription_status(user, plan.key).lower()
+    period_end = user.subscription_current_period_end
+
+    if plan.key == PlanName.free or status_value == "free":
+        return BillingRenewalOut(
+            billing_source="none",
+            plan_name=PlanName.free,
+            current_period_end=None,
+            auto_renews=False,
+            next_payment_at=None,
+            next_payment_amount=None,
+            currency="CAD",
+            message="Free Starter has no renewal payment.",
+        )
+
+    if status_value == "admin_granted":
+        lifetime = period_end is None
+        return BillingRenewalOut(
+            billing_source="admin_granted",
+            plan_name=plan.key,
+            current_period_end=period_end,
+            auto_renews=False,
+            next_payment_at=None,
+            next_payment_amount=None,
+            currency="CAD",
+            message="Admin-granted access does not charge your payment method." if not lifetime else "Lifetime admin-granted access does not expire or charge your payment method.",
+        )
+
+    auto_renews = status_value in {"active", "trialing", "past_due", "paid"}
+    next_payment_at = period_end if auto_renews else None
+    next_amount = None
+    currency = "CAD"
+
+    if settings.stripe_secret_key and user.stripe_subscription_id:
+        stripe.api_key = settings.stripe_secret_key
+        try:
+            subscription = stripe.Subscription.retrieve(user.stripe_subscription_id)
+            auto_renews = not bool(subscription.get("cancel_at_period_end")) and str(subscription.get("status") or status_value).lower() in {"active", "trialing", "past_due"}
+            stripe_period_end = subscription.get("current_period_end")
+            if stripe_period_end:
+                period_end = datetime.fromtimestamp(int(stripe_period_end), tz=timezone.utc)
+                next_payment_at = period_end if auto_renews else None
+            try:
+                item = (subscription.get("items") or {}).get("data", [])[0]
+                price = item.get("price") or {}
+                unit_amount = price.get("unit_amount")
+                if unit_amount is not None:
+                    next_amount = round(float(unit_amount) / 100, 2)
+                if price.get("currency"):
+                    currency = str(price.get("currency")).upper()
+            except (IndexError, TypeError, AttributeError):
+                pass
+
+            if auto_renews and user.stripe_customer_id:
+                try:
+                    upcoming = stripe.Invoice.upcoming(customer=user.stripe_customer_id, subscription=user.stripe_subscription_id)
+                    amount_due = upcoming.get("amount_due")
+                    if amount_due is not None:
+                        next_amount = round(float(amount_due) / 100, 2)
+                    if upcoming.get("currency"):
+                        currency = str(upcoming.get("currency")).upper()
+                    next_attempt = upcoming.get("next_payment_attempt")
+                    if next_attempt:
+                        next_payment_at = datetime.fromtimestamp(int(next_attempt), tz=timezone.utc)
+                except Exception:
+                    # Keep the subscription price/date fallback if Stripe cannot preview the next invoice.
+                    pass
+        except Exception:
+            # Profile must remain usable if Stripe is temporarily unavailable.
+            pass
+
+    if next_amount is None:
+        next_amount = round(float(plan.price_monthly_cad), 2) if auto_renews else None
+
+    return BillingRenewalOut(
+        billing_source="stripe",
+        plan_name=plan.key,
+        current_period_end=period_end,
+        auto_renews=auto_renews,
+        next_payment_at=next_payment_at if auto_renews else None,
+        next_payment_amount=next_amount if auto_renews else None,
+        currency=currency,
+        message="Your plan will renew automatically at the end of the current billing period." if auto_renews else "Automatic renewal is off. No further plan payment is scheduled after the current access period.",
+    )
 
 
 @router.get("/receipt-scan-packs", response_model=list[ReceiptScanPackOut])
@@ -184,11 +301,10 @@ def validate_coupon(payload: CouponValidateIn, db: Session = Depends(get_db), us
     code = payload.code.strip()
     if not code:
         return CouponValidateOut(valid=False, message="Enter a coupon code.")
-    status_value = (user.subscription_status or "free").lower()
-    if status_value in {"active", "trialing", "cancel_at_period_end"}:
+    if premium_access_is_active(user):
         return CouponValidateOut(
             valid=False,
-            message="You already have an active subscription or accepted discount. New coupon codes can only be applied before starting a new checkout. To change or cancel your current plan, use Manage billing or Cancel subscription in Profile.",
+            message=premium_access_lock_message(user) + " Coupon codes can be applied after the current premium access ends.",
         )
 
     if not settings.stripe_secret_key:
@@ -242,6 +358,9 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
     if not price_id:
         raise HTTPException(status_code=400, detail=f"Missing Stripe price ID for {payload.plan_name.value}. Add it in backend/.env.")
 
+    if premium_access_is_active(user):
+        raise HTTPException(status_code=400, detail=premium_access_lock_message(user))
+
     stripe.api_key = settings.stripe_secret_key
     customer_id = user.stripe_customer_id
     if not customer_id:
@@ -252,10 +371,6 @@ def create_checkout_session(payload: CheckoutSessionIn, db: Session = Depends(ge
         customer_id = customer["id"]
         user.stripe_customer_id = customer_id
         db.commit()
-
-    status_value = (user.subscription_status or "free").lower()
-    if status_value in {"active", "trialing", "cancel_at_period_end"}:
-        raise HTTPException(status_code=400, detail="You already have an active subscription or a subscription scheduled to cancel. Manage billing, wait until the current period ends, or contact support before starting a new checkout.")
 
     active_offer = new_user_offer_for(user)
     if active_offer and payload.plan_name == PlanName.basic and not payload.promotion_code_id and not settings.stripe_promotion_code_basic_new_user:

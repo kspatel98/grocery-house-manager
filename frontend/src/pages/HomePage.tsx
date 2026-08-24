@@ -143,12 +143,27 @@ export default function HomePage() {
                   <span><strong>8</strong><small>low stock</small></span>
                   <span><strong>5</strong><small>lists</small></span>
                 </div>
-                <div className="phone-list-card">
-                  <strong>Shopping list</strong>
-                  <label><input type="checkbox" checked readOnly /> Milk</label>
-                  <label><input type="checkbox" /> Eggs</label>
-                  <label><input type="checkbox" /> Rice</label>
-                  <label><input type="checkbox" /> Vegetables</label>
+                <div className="phone-list-card polished-shopping-preview">
+                  <div className="phone-shopping-heading">
+                    <div><strong>Saturday shopping</strong><small>4 items • 1 in cart</small></div>
+                    <span className="phone-list-progress">25%</span>
+                  </div>
+                  <div className="phone-shopping-progress"><span /></div>
+                  <div className="phone-shopping-row in-cart">
+                    <span className="phone-item-icon">🥛</span>
+                    <span className="phone-item-copy"><strong>Milk 2%</strong><small>2 × 2 L</small></span>
+                    <span className="phone-item-state">In cart</span>
+                  </div>
+                  <div className="phone-shopping-row">
+                    <span className="phone-item-icon">🥚</span>
+                    <span className="phone-item-copy"><strong>Large eggs</strong><small>1 dozen</small></span>
+                    <span className="phone-item-add">+</span>
+                  </div>
+                  <div className="phone-shopping-row">
+                    <span className="phone-item-icon">🍚</span>
+                    <span className="phone-item-copy"><strong>Basmati rice</strong><small>1 bag</small></span>
+                    <span className="phone-item-add">+</span>
+                  </div>
                 </div>
                 <div className="phone-receipt-card">
                   <span>Receipt scan</span>

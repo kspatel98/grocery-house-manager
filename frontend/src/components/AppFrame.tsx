@@ -76,39 +76,70 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    const token = localStorage.getItem('token');
-    if (!token) return;
 
-    api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } })
-      .then(({ data }) => {
-        if (cancelled) return;
-        setIsAdmin(Boolean(data.is_admin));
-        setProfile(data.user);
-        localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
-        localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
-      })
-      .catch(() => {
-        // Keep navigation usable if bootstrap is temporarily unavailable.
-        // Protected API calls still handle expired sessions globally.
-      });
+    const refreshAccount = () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } })
+        .then(({ data }) => {
+          if (cancelled) return;
+          setIsAdmin(Boolean(data.is_admin));
+          const effectiveProfile: UserProfile = {
+            ...data.user,
+            plan_name: data.subscription.plan_name,
+            subscription_status: data.subscription.subscription_status,
+            subscription_current_period_end: data.subscription.current_period_end,
+          };
+          setProfile(effectiveProfile);
+          localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
+          localStorage.setItem('account_profile_cache', JSON.stringify(effectiveProfile));
+        })
+        .catch(() => {
+          // Keep navigation usable if bootstrap is temporarily unavailable.
+          // Protected API calls still handle expired sessions globally.
+        });
+    };
 
-    return () => { cancelled = true; };
+    refreshAccount();
+    window.addEventListener('account:refresh', refreshAccount);
+    window.addEventListener('focus', refreshAccount);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('account:refresh', refreshAccount);
+      window.removeEventListener('focus', refreshAccount);
+    };
   }, []);
 
   const navItems = isAdmin ? [...baseNavItems, { to: '/admin', label: 'Admin' }] : baseNavItems;
   const profileName = profile?.full_name || profile?.email || 'Profile';
+  const status = (profile?.subscription_status || 'free').toLowerCase();
+  const planName = profile?.plan_name || 'free';
+  const grantEnd = profile?.subscription_current_period_end ? new Date(profile.subscription_current_period_end).getTime() : null;
+  const adminGrantStillActive = status === 'admin_granted' && (grantEnd === null || (!Number.isNaN(grantEnd) && grantEnd > Date.now()));
+  const adminGrantedPremium = adminGrantStillActive && planName !== 'free';
+  const householdProPremium = planName === 'pro' && ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes(status);
+  const showPremiumCrown = adminGrantedPremium || householdProPremium;
+  const premiumSubtext = adminGrantedPremium ? 'Admin granted' : householdProPremium ? 'Household Pro' : '';
 
   return (
     <div className="app-frame">
       <header className="site-header">
         <div className="site-header-inner shell wide">
-          <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
-            <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
-            <span>
-              <strong>Grocery House Manager</strong>
-              <small>A SupremDas Group product</small>
-            </span>
-          </Link>
+          <div className="site-brand-premium-wrap">
+            <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
+              <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
+              <span>
+                <strong>Grocery House Manager</strong>
+                <small>A SupremDas Group product</small>
+              </span>
+            </Link>
+            {showPremiumCrown && (
+              <div className="header-premium-badge" aria-label={`Premium: ${premiumSubtext}`}>
+                <span className="header-premium-mini-crown" aria-hidden="true">♛</span>
+                <span><strong>Premium</strong><small>{premiumSubtext}</small></span>
+              </div>
+            )}
+          </div>
           <div className="site-nav-wrap">
             <nav className="site-nav" aria-label="Primary navigation">
               {navItems.map((item) => (
@@ -123,7 +154,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             </nav>
             <Link
               to="/profile"
-              className={`profile-orb-link ${location.pathname.startsWith('/profile') ? 'active' : ''}`}
+              className={`profile-orb-link ${showPremiumCrown ? 'premium-crowned' : ''} ${location.pathname.startsWith('/profile') ? 'active' : ''}`}
               aria-label={`Open profile for ${profileName}`}
               title="Profile"
             >
@@ -132,6 +163,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               ) : (
                 <span className="ai-avatar" aria-hidden="true"><em>{initialsFor(profile)}</em></span>
               )}
+              {showPremiumCrown && <span className="profile-orb-crown" aria-hidden="true">♛</span>}
             </Link>
           </div>
         </div>

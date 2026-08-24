@@ -152,6 +152,17 @@ export type Subscription = {
   new_user_offer?: NewUserOffer;
 };
 
+export type BillingRenewalDetails = {
+  billing_source: 'stripe' | 'admin_granted' | 'none';
+  plan_name: PlanName;
+  current_period_end?: string | null;
+  auto_renews: boolean;
+  next_payment_at?: string | null;
+  next_payment_amount?: number | null;
+  currency?: string | null;
+  message: string;
+};
+
 
 export type InvitePreview = {
   token: string;

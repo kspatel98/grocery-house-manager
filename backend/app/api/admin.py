@@ -133,10 +133,12 @@ def assign_user_plan(user_id: int, payload: AdminPlanAssignIn, db: Session = Dep
     target.plan_name = payload.plan_name
     if payload.plan_name == PlanName.free:
         target.subscription_status = "free"
+        target.subscription_current_period_end = None
         message = f"{target.email} was reset to Free Starter."
     else:
         target.subscription_status = "admin_granted"
-        message = f"{target.email} was granted {payload.plan_name.value} by admin {admin.email}."
+        target.subscription_current_period_end = None
+        message = f"{target.email} was granted {payload.plan_name.value} by admin {admin.email} as lifetime admin access. Use a timed free-plan offer when an expiry date is required."
     db.commit()
     return AdminActionOut(ok=True, message=message)
 

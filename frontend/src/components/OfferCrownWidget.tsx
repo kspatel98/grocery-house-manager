@@ -73,6 +73,7 @@ export default function OfferCrownWidget() {
         return;
       }
       setMessage(data.message || 'Offer accepted.');
+      window.dispatchEvent(new Event('account:refresh'));
       await loadOffers();
     } catch (err) {
       setMessage(errorMessage(err));

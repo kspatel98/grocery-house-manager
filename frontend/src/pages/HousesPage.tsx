@@ -245,6 +245,7 @@ export default function HousesPage() {
         return;
       }
       setOfferMessage(data.message || 'Offer accepted.');
+      window.dispatchEvent(new Event('account:refresh'));
       await load();
     } catch (err) {
       setOfferMessage(errorMessage(err));

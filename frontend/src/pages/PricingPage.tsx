@@ -205,6 +205,11 @@ export default function PricingPage() {
   useEffect(() => { load(); }, []);
 
   const checkoutStatus = params.get('checkout');
+  const premiumStatus = (subscription?.subscription_status || 'free').toLowerCase();
+  const premiumPlanActive = Boolean(subscription && subscription.plan_name !== 'free' && ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid', 'admin_granted'].includes(premiumStatus));
+  const activePlanLabel = subscription ? PLAN_BADGE_LABELS[subscription.plan_name] : '';
+  const accessEndsAt = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
+  const accessEndLabel = accessEndsAt && !Number.isNaN(accessEndsAt.getTime()) ? accessEndsAt.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
   return (
     <main className="page shell wide pricing-page">
@@ -217,7 +222,7 @@ export default function PricingPage() {
         <div className="profile-actions">
           <button className="secondary" onClick={load}>Refresh</button>
           {!loggedIn && <Link className="primary center-link" to="/login">Login to subscribe</Link>}
-          {subscription?.subscription_status && subscription.subscription_status !== 'free' && (
+          {subscription?.subscription_status && ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes(subscription.subscription_status.toLowerCase()) && (
             <button className="secondary" onClick={manageBilling}>Manage billing</button>
           )}
         </div>
@@ -237,6 +242,14 @@ export default function PricingPage() {
       {subscription?.new_user_offer?.active && (
         <section className="success offer-banner">
           <strong>New-user offer available:</strong> Basic Home is shown as <s>$1.99</s> $0.70 CAD/month for the first 2 billing months. After 2 months, Stripe will charge the regular Basic Home price of $1.99 CAD/month. You can still enter a coupon; if you use a coupon, the automatic Basic offer will not be applied. <CountdownInline until={subscription.new_user_offer.eligible_until} />
+        </section>
+      )}
+
+      {premiumPlanActive && (
+        <section className="hint active-plan-lock-banner">
+          <strong>{activePlanLabel} is active.</strong> Other premium plans are disabled while this plan remains active.
+          {(premiumStatus === 'admin_granted' || premiumStatus === 'cancel_at_period_end') && accessEndLabel && <> They become available after <strong>{accessEndLabel}</strong>.</>}
+          {premiumStatus === 'admin_granted' && !accessEndLabel && <> This admin-granted access has no expiry date.</>}
         </section>
       )}
 
@@ -282,8 +295,8 @@ export default function PricingPage() {
           <p>Public prices are shown by default. Enter an active coupon code to preview your discounted price before checkout. Only one discount can be used at a time. A verified coupon replaces the automatic Basic new-user offer for checkout; after a discount or paid plan is accepted, new coupons cannot be added to that active subscription.</p>
         </div>
         <form onSubmit={validateCoupon} className="coupon-form">
-          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" disabled={!loggedIn} />
-          <button className="secondary" disabled={couponBusy || !loggedIn}>{!loggedIn ? 'Login first' : couponBusy ? 'Checking...' : 'Apply'}</button>
+          <input value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="COUPON CODE" disabled={!loggedIn || premiumPlanActive} />
+          <button className="secondary" disabled={couponBusy || !loggedIn || premiumPlanActive}>{!loggedIn ? 'Login first' : premiumPlanActive ? 'Available after current plan' : couponBusy ? 'Checking...' : 'Apply'}</button>
           {coupon && <button type="button" className="ghost-button" onClick={removeCoupon}>Remove</button>}
         </form>
         {coupon && (
@@ -383,6 +396,10 @@ export default function PricingPage() {
                 <button className="secondary full" disabled>Current plan</button>
               ) : plan.key === 'free' ? (
                 <button className="secondary full" disabled>Free by default</button>
+              ) : premiumPlanActive ? (
+                <button className="secondary full plan-locked-button" disabled>
+                  {accessEndLabel && (premiumStatus === 'admin_granted' || premiumStatus === 'cancel_at_period_end') ? `Available after ${accessEndLabel}` : `Locked while ${activePlanLabel} is active`}
+                </button>
               ) : (
                 <button className="primary full" disabled={busyPlan === plan.key} onClick={() => checkout(plan.key)}>
                   {!loggedIn ? 'Login to choose' : busyPlan === plan.key ? 'Opening checkout...' : `Choose ${plan.name}`}

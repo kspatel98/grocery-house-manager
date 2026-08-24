@@ -27,6 +27,21 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def user_has_active_premium_access(user: User) -> bool:
+    raw_plan = getattr(user.plan_name, "value", user.plan_name) or "free"
+    if str(raw_plan) == "free":
+        return False
+    status_value = (user.subscription_status or "free").lower()
+    if status_value == "admin_granted":
+        if user.subscription_current_period_end is None:
+            return True
+        expiry = user.subscription_current_period_end
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        return expiry > now_utc()
+    return status_value in {"active", "trialing", "past_due", "cancel_at_period_end", "paid"}
+
+
 def price_ids() -> dict[str, str | None]:
     return {
         "basic": settings.stripe_price_basic_monthly,
@@ -229,6 +244,16 @@ def accept_offer(offer_id: int, payload: AdminOfferAcceptIn, db: Session = Depen
     offer = db.query(AdminUserOffer).filter(AdminUserOffer.id == offer_id, AdminUserOffer.user_id == user.id).first()
     if not offer or offer.status not in {"pending", "checkout_started"} or offer.expires_at <= now_utc():
         raise HTTPException(status_code=404, detail="This offer is not available anymore.")
+
+    if user_has_active_premium_access(user):
+        active_plan = getattr(user.plan_name, "value", user.plan_name) or "free"
+        active_label = PLAN_LABELS.get(str(active_plan), str(active_plan).title())
+        expiry = user.subscription_current_period_end
+        if expiry and (user.subscription_status or "").lower() in {"admin_granted", "cancel_at_period_end"}:
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            raise HTTPException(status_code=400, detail=f"{active_label} is already active. Other premium offers can be accepted after {expiry.strftime('%B %d, %Y')}.")
+        raise HTTPException(status_code=400, detail=f"{active_label} is already active. Other premium offers stay disabled while the current plan remains active.")
 
     if offer.offer_kind == "free_plan_access":
         plan = normalize_plan(offer.plan_name)

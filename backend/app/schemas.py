@@ -331,6 +331,17 @@ class SubscriptionOut(BaseModel):
     new_user_offer: NewUserOfferOut | None = None
 
 
+class BillingRenewalOut(BaseModel):
+    billing_source: str
+    plan_name: PlanName
+    current_period_end: datetime | None = None
+    auto_renews: bool = False
+    next_payment_at: datetime | None = None
+    next_payment_amount: float | None = None
+    currency: str | None = None
+    message: str
+
+
 class ReceiptScanPackOut(BaseModel):
     key: str
     name: str

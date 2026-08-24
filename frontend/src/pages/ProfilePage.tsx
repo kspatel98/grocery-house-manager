@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "../api";
 import { money } from "../currency";
-import type { AccountBootstrap, AccountDeletePreview, PersonalInsights, Subscription, UserProfile } from "../types";
+import type { AccountBootstrap, AccountDeletePreview, BillingRenewalDetails, PersonalInsights, Subscription, UserProfile } from "../types";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free Starter",
@@ -43,6 +43,7 @@ export default function ProfilePage() {
     }
   });
   const [insights, setInsights] = useState<PersonalInsights | null>(null);
+  const [renewalDetails, setRenewalDetails] = useState<BillingRenewalDetails | null>(null);
   const [fullName, setFullName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [country, setCountry] = useState("");
@@ -75,11 +76,20 @@ export default function ProfilePage() {
   const planName = profile?.plan_name;
   const planLabel = planName ? PLAN_LABELS[planName] || planName : "Loading...";
   const paid = profile ? isPaidStatus(profile.subscription_status) : false;
-  const adminGranted = profile ? isAdminGranted(profile.subscription_status) && planName !== "free" : false;
+  const cachedGrantEnd = profile?.subscription_current_period_end ? new Date(profile.subscription_current_period_end).getTime() : null;
+  const adminGranted = profile
+    ? isAdminGranted(profile.subscription_status) && planName !== "free" && (cachedGrantEnd === null || (!Number.isNaN(cachedGrantEnd) && cachedGrantEnd > Date.now()))
+    : false;
   const planUnlocked = paid || adminGranted;
   const proActive = planName === "pro" && planUnlocked;
   const familyActive = planName === "family" && planUnlocked;
   const basicActive = planName === "basic" && planUnlocked;
+  const periodEnd = renewalDetails?.current_period_end || profile?.subscription_current_period_end;
+  const periodEndLabel = periodEnd ? new Date(periodEnd).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "";
+  const nextPaymentLabel = renewalDetails?.next_payment_at ? new Date(renewalDetails.next_payment_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "";
+  const nextPaymentAmount = typeof renewalDetails?.next_payment_amount === "number"
+    ? `${renewalDetails.next_payment_amount.toFixed(2)} ${(renewalDetails.currency || "CAD").toUpperCase()}`
+    : "";
 
   const personalPlanAction = useMemo(() => {
     if (proActive)
@@ -105,8 +115,15 @@ export default function ProfilePage() {
       };
       setProfile(mergedProfile);
       setInsights(data.insights);
+      try {
+        const renewalRes = await api.get<BillingRenewalDetails>("/billing/renewal-details", { params: { t: Date.now() } });
+        setRenewalDetails(renewalRes.data);
+      } catch {
+        setRenewalDetails(null);
+      }
       localStorage.setItem("account_profile_cache", JSON.stringify(mergedProfile));
       localStorage.setItem("account_is_admin", data.is_admin ? "true" : "false");
+      window.dispatchEvent(new Event("account:refresh"));
       setFullName(mergedProfile.full_name || "");
       setAvatarUrl(mergedProfile.avatar_url || "");
       setCountry(mergedProfile.country || "");
@@ -331,26 +348,54 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="plan-summary-card">
-            <div>
+          <div className="plan-summary-card upgraded-plan-summary">
+            <div className="plan-summary-main">
               <p className="eyebrow">Current plan</p>
               <h3>{planLabel}</h3>
               <p>
-                {proActive
-                  ? "Household Pro is active. Your personal premium tools and owned-house limits are unlocked."
-                  : adminGranted
-                    ? `${planLabel} access was granted by admin. This is not a paid Stripe subscription.`
+                {adminGranted
+                  ? `${planLabel} access was granted by admin. No subscription payment is attached to this access.`
+                  : proActive
+                    ? "Household Pro is active. Your personal premium tools and owned-house limits are unlocked."
                     : paid
-                      ? `${planLabel} is active. You can manage billing or upgrade anytime.`
+                      ? `${planLabel} is active. Only this premium plan can remain active on your account at one time.`
                       : "You are currently on the Free Starter plan."}
               </p>
-              {isCancelledAtPeriodEnd(profile.subscription_status) && profile.subscription_current_period_end && (
-                <p className="small-muted">Cancellation scheduled. Paid access remains until {new Date(profile.subscription_current_period_end).toLocaleDateString()}.</p>
-              )}
             </div>
-            <span className={`plan-status-badge ${proActive ? "pro" : adminGranted ? "admin-granted" : paid ? "paid" : "free"}`}>
+            <span className={`plan-status-badge ${adminGranted ? "admin-granted" : proActive ? "pro" : paid ? "paid" : "free"}`}>
               {adminGranted ? "Admin granted" : proActive ? "Pro active" : paid ? "Paid active" : "Free"}
             </span>
+
+            {planUnlocked && (
+              <div className="billing-date-grid">
+                <div className="billing-date-card expiry-card">
+                  <span>{adminGranted ? "Plan expiry" : "Current plan period expiry"}</span>
+                  <strong className="plan-expiry-red">{periodEndLabel || (adminGranted ? "No expiry — lifetime access" : "Date unavailable")}</strong>
+                  {!adminGranted && renewalDetails?.auto_renews && <small>This is the end of the current billing period; the plan renews automatically.</small>}
+                  {isCancelledAtPeriodEnd(profile.subscription_status) && <small>Cancellation is scheduled. Access ends on this date.</small>}
+                </div>
+                <div className="billing-date-card renewal-card">
+                  <span>Next plan renewal payment</span>
+                  {adminGranted ? (
+                    <>
+                      <strong>No payment</strong>
+                      <small>Admin-granted access does not charge your payment method.</small>
+                    </>
+                  ) : renewalDetails?.auto_renews ? (
+                    <>
+                      <strong>{nextPaymentLabel || periodEndLabel || "Date unavailable"}</strong>
+                      <b>{nextPaymentAmount ? `$${nextPaymentAmount}` : "Amount unavailable"}</b>
+                      <small>The amount is based on the next Stripe renewal preview when available.</small>
+                    </>
+                  ) : (
+                    <>
+                      <strong>No automatic deduction scheduled</strong>
+                      <small>Your current paid access remains available until its period end.</small>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="profile-details">
@@ -362,14 +407,14 @@ export default function ProfilePage() {
             <div><strong>User ID</strong><span>{profile.id || "-"}</span></div>
             <div><strong>Account created</strong><span>{profile.created_at ? new Date(profile.created_at).toLocaleString() : "-"}</span></div>
             <div><strong>Plan</strong><span>{planLabel}</span></div>
-            <div><strong>Subscription</strong><span>{profile.subscription_status || "free"}</span></div>
+            <div><strong>Access type</strong><span>{adminGranted ? "Admin granted premium access" : paid ? "Stripe subscription" : "Free account"}</span></div>
           </div>
 
           <div className="profile-actions profile-plan-actions">
             {adminGranted ? (
               <>
-                <Link to="/pricing" className="primary center-link">View paid plans</Link>
-                <button className="secondary" onClick={syncSubscription} disabled={syncBusy}>{syncBusy ? "Syncing..." : "I already paid — sync subscription"}</button>
+                <Link to="/pricing" className="secondary center-link">View plans</Link>
+                <span className="admin-grant-billing-note">No billing or cancellation action is needed for admin-granted access.</span>
               </>
             ) : paid ? (
               <>
