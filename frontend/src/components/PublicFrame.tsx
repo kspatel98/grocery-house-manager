@@ -2,12 +2,33 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+function EmailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4.5 7.2A2.7 2.7 0 0 1 7.2 4.5h9.6a2.7 2.7 0 0 1 2.7 2.7v9.6a2.7 2.7 0 0 1-2.7 2.7H7.2a2.7 2.7 0 0 1-2.7-2.7V7.2Z" fill="#fff" />
+      <path d="M5.7 7.4 12 12.2l6.3-4.8" stroke="#EA4335" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.5 8.2v8.1c0 .9.7 1.7 1.7 1.7h9.6c.9 0 1.7-.7 1.7-1.7V8.2" stroke="#34A853" strokeWidth="1.8" />
+      <path d="M5.8 17.2 10 12.6" stroke="#4285F4" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="m18.2 17.2-4.2-4.6" stroke="#FBBC05" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function InstagramIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="igGradient" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FEDA75" />
+          <stop offset=".28" stopColor="#FA7E1E" />
+          <stop offset=".5" stopColor="#D62976" />
+          <stop offset=".72" stopColor="#962FBF" />
+          <stop offset="1" stopColor="#4F5BD5" />
+        </linearGradient>
+      </defs>
+      <rect x="3" y="3" width="18" height="18" rx="5" fill="url(#igGradient)" />
+      <circle cx="12" cy="12" r="4" stroke="#fff" strokeWidth="1.8" />
+      <circle cx="17.3" cy="6.7" r="1.25" fill="#fff" />
     </svg>
   );
 }
@@ -57,20 +78,27 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
 
       <div className="app-main-content">{children}</div>
 
+      <section className="parent-company-royal" aria-label="SupremDas Group parent company">
+        <div className="shell wide parent-company-inner">
+          <span className="royal-crown" aria-hidden="true">♛</span>
+          <div>
+            <p>Built by</p>
+            <h2>SupremDas Group</h2>
+            <strong>Made for families, couples, and roommates</strong>
+          </div>
+        </div>
+      </section>
+
       <footer className="site-footer public-footer">
         <div className="shell wide site-footer-inner">
-          <div className="footer-product-brand">
-            <img src="/brand/grocery-house-manager-icon.png" alt="" />
-            <div>
-              <strong>Grocery House Manager</strong>
-              <p>Smart grocery management for organized homes.</p>
-            </div>
+          <div>
+            <strong>Grocery House Manager</strong>
+            <p>Smart grocery management for organized homes.</p>
           </div>
-          <div className="footer-brand-stack footer-royal-brand" aria-label="Parent company and mission">
-            <span className="royal-kicker">✦ Parent company ✦</span>
-            <span className="royal-company">Built by <strong>SupremDas Group</strong></span>
-            <span className="royal-mission">Made for <strong>families, couples, and roommates</strong></span>
-            <span className="royal-site">grocery-house-manager.com</span>
+          <div className="footer-brand-stack" aria-label="Product details">
+            <span>Product: <strong>Grocery House Manager</strong></span>
+            <span>Website: <strong>grocery-house-manager.com</strong></span>
+            <span>Support: <strong>Fast help for users</strong></span>
           </div>
           <div className="footer-links">
             <Link to="/about">About</Link>
@@ -81,12 +109,9 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
             <Link to="/support">Support</Link>
           </div>
           <div className="footer-contact-pills">
-            <a className="contact-pill email-pill" href="mailto:support@grocery-house-manager.com">
-              <span className="social-icon email-icon" aria-hidden="true">✉</span>
-              <span>support@grocery-house-manager.com</span>
-            </a>
+            <a className="contact-pill email-pill" href="mailto:support@grocery-house-manager.com"><span className="social-icon"><EmailIcon /></span><span>support@grocery-house-manager.com</span></a>
             <a className="contact-pill instagram-pill" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
-              <span className="social-icon instagram-icon-original"><InstagramIcon /></span>
+              <span className="social-icon"><InstagramIcon /></span>
               <span>@groceryhousemanager</span>
             </a>
           </div>

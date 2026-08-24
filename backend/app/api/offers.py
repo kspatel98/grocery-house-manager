@@ -48,6 +48,8 @@ def normalize_plan(value: object | None) -> str | None:
 
 
 def readable_duration(offer: AdminUserOffer) -> str:
+    if offer.is_general or offer.offer_kind == "general":
+        return "limited time"
     if offer.offer_kind == "free_plan_access":
         if offer.access_lifetime:
             return "lifetime"
@@ -68,9 +70,35 @@ def readable_duration(offer: AdminUserOffer) -> str:
 
 def offer_summary(offer: AdminUserOffer) -> str:
     plan = PLAN_LABELS.get(offer.plan_name or "", "any paid plan")
+    if offer.is_general or offer.offer_kind == "general":
+        if offer.discount_percent:
+            return f"{offer.discount_percent}% off {plan}."
+        return "A special Grocery House Manager update for users."
     if offer.offer_kind == "free_plan_access":
         return f"Free {plan} access for {readable_duration(offer)}."
     return f"{offer.discount_percent}% off {plan} for {readable_duration(offer)}."
+
+
+def default_general_title(occasion: str | None, discount_percent: int | None) -> str:
+    clean = (occasion or "").strip()
+    if clean and discount_percent:
+        return f"{clean} Special: {discount_percent}% off"
+    if clean:
+        return f"{clean} Special Offer"
+    if discount_percent:
+        return f"Limited time {discount_percent}% offer"
+    return "Special Grocery House Manager offer"
+
+
+def default_general_message(occasion: str | None, discount_percent: int | None) -> str:
+    clean = (occasion or "").strip()
+    if clean and discount_percent:
+        return f"Celebrate {clean} with a special {discount_percent}% Grocery House Manager offer. Open Plans before this offer expires."
+    if clean:
+        return f"Celebrate {clean} with Grocery House Manager. A special offer is available for a limited time."
+    if discount_percent:
+        return f"A limited-time {discount_percent}% offer is available. Open Plans before it expires."
+    return "A special Grocery House Manager offer is available for users. Open Plans to see what is available today."
 
 
 def offer_out(offer: AdminUserOffer, viewer: User | None = None) -> AdminOfferOut:
@@ -81,10 +109,12 @@ def offer_out(offer: AdminUserOffer, viewer: User | None = None) -> AdminOfferOu
         user_id=offer.user_id,
         user_email=offer.user.email if offer.user else None,
         user_name=offer.user.full_name if offer.user else None,
+        is_general=bool(getattr(offer, "is_general", False)),
         offer_kind=offer.offer_kind,
         plan_name=offer.plan_name,
         plan_label=PLAN_LABELS.get(offer.plan_name or "") if offer.plan_name else None,
         title=offer.title,
+        occasion=offer.occasion,
         message=offer.message,
         discount_percent=offer.discount_percent,
         stripe_duration=offer.stripe_duration,
@@ -100,7 +130,7 @@ def offer_out(offer: AdminUserOffer, viewer: User | None = None) -> AdminOfferOu
         created_at=offer.created_at,
         stripe_promotion_code=offer.stripe_promotion_code,
         universal=offer.offer_kind == "discount" and not offer.plan_name,
-        can_accept=bool(viewer and viewer.id == offer.user_id and status_value in {"pending", "checkout_started"}),
+        can_accept=bool((not getattr(offer, "is_general", False)) and viewer and viewer.id == offer.user_id and status_value in {"pending", "checkout_started"}),
         summary=offer_summary(offer),
     )
 
@@ -171,12 +201,27 @@ def my_offers(db: Session = Depends(get_db), user: User = Depends(get_current_us
     offers = (
         db.query(AdminUserOffer)
         .filter(AdminUserOffer.user_id == user.id)
+        .filter(AdminUserOffer.is_general.is_(False))
         .filter(AdminUserOffer.status.in_(["pending", "checkout_started"]))
         .filter(AdminUserOffer.expires_at > now_utc())
         .order_by(AdminUserOffer.expires_at.asc(), AdminUserOffer.id.desc())
         .all()
     )
     return [offer_out(offer, viewer=user) for offer in offers]
+
+
+@router.get("/general", response_model=list[AdminOfferOut])
+def general_offers(db: Session = Depends(get_db)):
+    offers = (
+        db.query(AdminUserOffer)
+        .filter(AdminUserOffer.is_general.is_(True))
+        .filter(AdminUserOffer.status == "pending")
+        .filter(AdminUserOffer.expires_at > now_utc())
+        .order_by(AdminUserOffer.expires_at.asc(), AdminUserOffer.id.desc())
+        .limit(10)
+        .all()
+    )
+    return [offer_out(offer) for offer in offers]
 
 
 @router.post("/{offer_id}/accept", response_model=AdminOfferActionOut)
@@ -251,10 +296,16 @@ def admin_list_offers(db: Session = Depends(get_db), _admin: User = Depends(requ
 
 @router.post("/admin", response_model=AdminOfferOut, status_code=status.HTTP_201_CREATED)
 def admin_create_offer(payload: AdminOfferCreateIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    target_user = db.get(User, payload.user_id)
-    if not target_user:
-        raise HTTPException(status_code=404, detail="User not found")
-    offer_kind = payload.offer_kind
+    is_general = bool(payload.is_general or payload.offer_kind == "general")
+    target_user = None
+    if not is_general:
+        if not payload.user_id:
+            raise HTTPException(status_code=400, detail="Choose a user for this personal offer.")
+        target_user = db.get(User, payload.user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+    offer_kind = "general" if is_general and payload.offer_kind == "free_plan_access" else payload.offer_kind
     plan = normalize_plan(payload.plan_name)
     if offer_kind == "free_plan_access" and not plan:
         raise HTTPException(status_code=400, detail="Free plan access offers must choose Basic, Family, or Pro.")
@@ -266,26 +317,41 @@ def admin_create_offer(payload: AdminOfferCreateIn, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail="Choose a free access duration or lifetime access.")
 
     expires_at = now_utc() + timedelta(days=int(payload.expires_in_days))
+    occasion = (payload.occasion or "").strip() or None
+    title = (payload.title or "").strip()
+    message = (payload.message or "").strip()
+    if is_general:
+        if not title:
+            title = default_general_title(occasion, payload.discount_percent)
+        if not message:
+            message = default_general_message(occasion, payload.discount_percent)
+    else:
+        plan_label = PLAN_LABELS.get(plan or "", "any paid plan")
+        if not title:
+            title = f"{payload.discount_percent}% off {plan_label}" if offer_kind == "discount" else f"Free {plan_label} access"
+
     offer = AdminUserOffer(
-        user_id=target_user.id,
+        user_id=target_user.id if target_user else None,
         created_by_id=admin.id,
+        is_general=is_general,
         offer_kind=offer_kind,
         plan_name=plan,
-        title=payload.title.strip(),
-        message=(payload.message or "").strip() or None,
+        title=title,
+        occasion=occasion,
+        message=message or None,
         discount_percent=payload.discount_percent if offer_kind == "discount" else None,
-        stripe_duration=payload.stripe_duration if offer_kind == "discount" else None,
-        duration_months=payload.duration_months if offer_kind == "discount" and payload.stripe_duration == "repeating" else None,
+        stripe_duration=payload.stripe_duration if offer_kind == "discount" and not is_general else None,
+        duration_months=payload.duration_months if offer_kind == "discount" and payload.stripe_duration == "repeating" and not is_general else None,
         access_duration_days=payload.access_duration_days if offer_kind == "free_plan_access" and not payload.access_lifetime else None,
         access_lifetime=bool(payload.access_lifetime) if offer_kind == "free_plan_access" else False,
-        use_limit=payload.use_limit if offer_kind == "discount" else None,
+        use_limit=payload.use_limit if offer_kind == "discount" and not is_general else None,
         status="pending",
         expires_at=expires_at,
     )
     db.add(offer)
     db.commit()
     db.refresh(offer)
-    if offer.offer_kind == "discount":
+    if offer.offer_kind == "discount" and not offer.is_general and target_user:
         create_stripe_discount_for_offer(db, offer, target_user)
         db.refresh(offer)
     return offer_out(offer)

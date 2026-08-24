@@ -17,18 +17,8 @@ function isPaidStatus(status?: string) {
   );
 }
 
-function isAdminGrantedStatus(status?: string) {
+function isAdminGranted(status?: string) {
   return (status || "").toLowerCase() === "admin_granted";
-}
-
-function statusLabel(status?: string) {
-  const value = (status || "free").toLowerCase();
-  if (value === "admin_granted") return "Admin-granted free access";
-  if (value === "cancel_at_period_end") return "Cancelling at period end";
-  if (value === "active") return "Active subscription";
-  if (value === "trialing") return "Trialing subscription";
-  if (value === "past_due") return "Past due subscription";
-  return "Free";
 }
 
 function isCancelledAtPeriodEnd(status?: string) {
@@ -85,11 +75,11 @@ export default function ProfilePage() {
   const planName = profile?.plan_name;
   const planLabel = planName ? PLAN_LABELS[planName] || planName : "Loading...";
   const paid = profile ? isPaidStatus(profile.subscription_status) : false;
-  const adminGranted = profile ? isAdminGrantedStatus(profile.subscription_status) : false;
-  const premiumAccess = paid || adminGranted;
-  const proActive = planName === "pro" && premiumAccess;
-  const familyActive = planName === "family" && premiumAccess;
-  const basicActive = planName === "basic" && premiumAccess;
+  const adminGranted = profile ? isAdminGranted(profile.subscription_status) && planName !== "free" : false;
+  const planUnlocked = paid || adminGranted;
+  const proActive = planName === "pro" && planUnlocked;
+  const familyActive = planName === "family" && planUnlocked;
+  const basicActive = planName === "basic" && planUnlocked;
 
   const personalPlanAction = useMemo(() => {
     if (proActive)
@@ -143,9 +133,9 @@ export default function ProfilePage() {
       });
       const mergedProfile = {
         ...data,
-        plan_name: data.plan_name,
-        subscription_status: data.subscription_status,
-        subscription_current_period_end: data.subscription_current_period_end,
+        plan_name: profile?.plan_name || data.plan_name,
+        subscription_status: profile?.subscription_status || data.subscription_status,
+        subscription_current_period_end: profile?.subscription_current_period_end || data.subscription_current_period_end,
       };
       setProfile(mergedProfile);
       localStorage.setItem("account_profile_cache", JSON.stringify(mergedProfile));
@@ -346,23 +336,20 @@ export default function ProfilePage() {
               <p className="eyebrow">Current plan</p>
               <h3>{planLabel}</h3>
               <p>
-                {adminGranted
-                  ? `${planLabel} access was granted by admin. There is no paid Stripe subscription connected to this access.`
-                  : proActive
-                    ? "Household Pro is active. Your personal premium tools and owned-house limits are unlocked."
+                {proActive
+                  ? "Household Pro is active. Your personal premium tools and owned-house limits are unlocked."
+                  : adminGranted
+                    ? `${planLabel} access was granted by admin. This is not a paid Stripe subscription.`
                     : paid
                       ? `${planLabel} is active. You can manage billing or upgrade anytime.`
                       : "You are currently on the Free Starter plan."}
               </p>
-              {adminGranted && profile.subscription_current_period_end && (
-                <p className="small-muted">Admin-granted access ends on {new Date(profile.subscription_current_period_end).toLocaleDateString()}.</p>
-              )}
               {isCancelledAtPeriodEnd(profile.subscription_status) && profile.subscription_current_period_end && (
                 <p className="small-muted">Cancellation scheduled. Paid access remains until {new Date(profile.subscription_current_period_end).toLocaleDateString()}.</p>
               )}
             </div>
-            <span className={`plan-status-badge ${adminGranted ? "grant" : proActive ? "pro" : paid ? "paid" : "free"}`}>
-              {adminGranted ? "Admin access" : proActive ? "Pro active" : paid ? "Paid active" : "Free"}
+            <span className={`plan-status-badge ${proActive ? "pro" : adminGranted ? "admin-granted" : paid ? "paid" : "free"}`}>
+              {adminGranted ? "Admin granted" : proActive ? "Pro active" : paid ? "Paid active" : "Free"}
             </span>
           </div>
 
@@ -375,22 +362,22 @@ export default function ProfilePage() {
             <div><strong>User ID</strong><span>{profile.id || "-"}</span></div>
             <div><strong>Account created</strong><span>{profile.created_at ? new Date(profile.created_at).toLocaleString() : "-"}</span></div>
             <div><strong>Plan</strong><span>{planLabel}</span></div>
-            <div><strong>Subscription</strong><span>{statusLabel(profile.subscription_status)}</span></div>
+            <div><strong>Subscription</strong><span>{profile.subscription_status || "free"}</span></div>
           </div>
 
           <div className="profile-actions profile-plan-actions">
-            {paid ? (
+            {adminGranted ? (
+              <>
+                <Link to="/pricing" className="primary center-link">View paid plans</Link>
+                <button className="secondary" onClick={syncSubscription} disabled={syncBusy}>{syncBusy ? "Syncing..." : "I already paid — sync subscription"}</button>
+              </>
+            ) : paid ? (
               <>
                 <button className="primary" onClick={manageBilling}>Manage billing</button>
                 <button className="secondary" onClick={syncSubscription} disabled={syncBusy}>{syncBusy ? "Syncing..." : "Sync subscription"}</button>
                 {!isCancelledAtPeriodEnd(profile.subscription_status) && (
                   <button className="secondary danger-button" onClick={cancelSubscription} disabled={cancelBusy}>{cancelBusy ? "Scheduling cancellation..." : "Cancel subscription"}</button>
                 )}
-              </>
-            ) : adminGranted ? (
-              <>
-                <Link to="/pricing" className="primary center-link">View plans</Link>
-                <button className="secondary" onClick={syncSubscription} disabled={syncBusy}>{syncBusy ? "Syncing..." : "Check paid subscription"}</button>
               </>
             ) : (
               <>
@@ -485,7 +472,7 @@ export default function ProfilePage() {
               ) : (
                 <Link to="/pricing" className="secondary center-link">{personalPlanAction.label}</Link>
               )}
-              {paid && <button className="secondary" onClick={manageBilling}>Manage billing</button>}
+              {paid && !adminGranted && <button className="secondary" onClick={manageBilling}>Manage billing</button>}
             </div>
           </div>
           <div className="stats-grid four profile-insights-grid">

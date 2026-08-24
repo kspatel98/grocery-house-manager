@@ -768,10 +768,12 @@ class SiteReviewSummaryOut(BaseModel):
 
 
 class AdminOfferCreateIn(BaseModel):
-    user_id: int
-    offer_kind: str = Field(pattern="^(discount|free_plan_access)$")
+    user_id: int | None = None
+    is_general: bool = False
+    offer_kind: str = Field(pattern="^(discount|free_plan_access|general)$")
     plan_name: PlanName | None = None  # null means universal discount; required for free plan access
-    title: str = Field(min_length=3, max_length=180)
+    title: str | None = Field(default=None, max_length=180)
+    occasion: str | None = Field(default=None, max_length=180)
     message: str | None = Field(default=None, max_length=700)
     discount_percent: int | None = Field(default=None, ge=1, le=100)
     stripe_duration: str | None = Field(default="once", pattern="^(once|repeating|forever)$")
@@ -788,13 +790,15 @@ class AdminOfferAcceptIn(BaseModel):
 
 class AdminOfferOut(BaseModel):
     id: int
-    user_id: int
+    user_id: int | None = None
     user_email: str | None = None
     user_name: str | None = None
+    is_general: bool = False
     offer_kind: str
     plan_name: str | None = None
     plan_label: str | None = None
     title: str
+    occasion: str | None = None
     message: str | None = None
     discount_percent: int | None = None
     stripe_duration: str | None = None

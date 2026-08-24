@@ -131,37 +131,35 @@ export default function HomePage() {
                 <span>Clean grocery management for organized homes</span>
               </div>
             </div>
-            <div className="premium-visual-main brand-app-showcase" aria-label="Modern app preview using new Grocery House Manager branding">
-              <div className="showcase-grocery-card">
-                <span className="showcase-badge">Shared home</span>
-                <div className="showcase-grocery-illustration">
-                  <span>🥦</span><span>🥛</span><span>🍎</span><span>🍞</span>
+            <div className="premium-visual-main premium-app-showcase">
+              <div className="premium-phone-shell" aria-label="Grocery House Manager app preview">
+                <div className="phone-status-row"><span>9:41</span><span>● ● ●</span></div>
+                <div className="phone-app-header">
+                  <img src="/brand/grocery-house-manager-icon.png" alt="" />
+                  <div><strong>Grocery House</strong><small>Manager</small></div>
                 </div>
-                <strong>Inventory ready before shopping</strong>
-                <p>Everyone sees what is already at home.</p>
+                <div className="phone-stat-grid">
+                  <span><strong>32</strong><small>items</small></span>
+                  <span><strong>8</strong><small>low stock</small></span>
+                  <span><strong>5</strong><small>lists</small></span>
+                </div>
+                <div className="phone-list-card">
+                  <strong>Shopping list</strong>
+                  <label><input type="checkbox" checked readOnly /> Milk</label>
+                  <label><input type="checkbox" /> Eggs</label>
+                  <label><input type="checkbox" /> Rice</label>
+                  <label><input type="checkbox" /> Vegetables</label>
+                </div>
+                <div className="phone-receipt-card">
+                  <span>Receipt scan</span>
+                  <strong>Review ready</strong>
+                </div>
               </div>
-              <div className="phone-preview-v65">
-                <div className="phone-speaker" />
-                <div className="phone-screen-v65">
-                  <header>
-                    <img src="/brand/grocery-house-manager-icon.png" alt="" />
-                    <div><strong>Grocery House</strong><span>Manager</span></div>
-                  </header>
-                  <section className="phone-stat-grid-v65">
-                    <div><strong>32</strong><span>Items</span></div>
-                    <div><strong>12</strong><span>Low stock</span></div>
-                    <div><strong>5</strong><span>Receipts</span></div>
-                  </section>
-                  <section className="phone-list-v65">
-                    <p>Recently added</p>
-                    <span><b>Milk 2%</b><em>1 L</em></span>
-                    <span><b>Eggs</b><em>12 pcs</em></span>
-                    <span><b>Rice</b><em>2 kg</em></span>
-                  </section>
-                  <footer>
-                    <span>Home</span><span>List</span><span>Scan</span>
-                  </footer>
-                </div>
+              <div className="premium-grocery-orbit">
+                <img src="/product-icons/milk.svg" alt="Milk" />
+                <img src="/product-icons/vegetables.svg" alt="Vegetables" />
+                <img src="/product-icons/bread.svg" alt="Bread" />
+                <img src="/product-icons/eggs.svg" alt="Eggs" />
               </div>
             </div>
             <div className="premium-visual-insights">

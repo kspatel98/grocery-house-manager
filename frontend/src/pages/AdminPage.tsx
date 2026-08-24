@@ -21,6 +21,7 @@ export default function AdminPage() {
   const [emailStatus, setEmailStatus] = useState<AdminEmailStatus | null>(null);
   const [reviews, setReviews] = useState<SiteReview[]>([]);
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
+  const [offerScope, setOfferScope] = useState<'personal' | 'general'>('personal');
   const [offerUserId, setOfferUserId] = useState('');
   const [offerKind, setOfferKind] = useState<'discount' | 'free_plan_access'>('discount');
   const [offerPlan, setOfferPlan] = useState<PlanName | 'universal'>('universal');
@@ -32,6 +33,7 @@ export default function AdminPage() {
   const [offerUseLimit, setOfferUseLimit] = useState('1');
   const [offerExpiresInDays, setOfferExpiresInDays] = useState(7);
   const [offerTitle, setOfferTitle] = useState('');
+  const [offerOccasion, setOfferOccasion] = useState('');
   const [offerNote, setOfferNote] = useState('');
   const [testEmail, setTestEmail] = useState('');
   const [search, setSearch] = useState('');
@@ -153,36 +155,41 @@ export default function AdminPage() {
 
   async function createAdminOffer(event: React.FormEvent) {
     event.preventDefault();
-    if (!offerUserId) {
-      setError('Choose a user for the offer.');
+    if (offerScope === 'personal' && !offerUserId) {
+      setError('Choose a user for the personal offer.');
       return;
     }
     const selectedUser = users.find((user) => String(user.id) === String(offerUserId));
     const effectiveOfferPlan = offerKind === 'free_plan_access' && offerPlan === 'universal' ? 'basic' : offerPlan;
     const planLabel = effectiveOfferPlan === 'universal' ? 'any paid plan' : PLAN_LABELS[effectiveOfferPlan];
-    const defaultTitle = offerKind === 'discount'
-      ? `${offerPercent}% off ${planLabel}`
-      : `Free ${planLabel} access`;
+    const defaultTitle = offerScope === 'general'
+      ? ''
+      : offerKind === 'discount'
+        ? `${offerPercent}% off ${planLabel}`
+        : `Free ${planLabel} access`;
     const payload = {
-      user_id: Number(offerUserId),
-      offer_kind: offerKind,
-      plan_name: offerKind === 'discount' && effectiveOfferPlan === 'universal' ? null : effectiveOfferPlan,
-      title: (offerTitle || defaultTitle).trim(),
+      is_general: offerScope === 'general',
+      user_id: offerScope === 'personal' ? Number(offerUserId) : null,
+      offer_kind: offerScope === 'general' ? 'general' : offerKind,
+      plan_name: (offerScope === 'general' || offerKind === 'discount') && effectiveOfferPlan === 'universal' ? null : effectiveOfferPlan,
+      title: (offerTitle || defaultTitle).trim() || null,
+      occasion: offerOccasion.trim() || null,
       message: offerNote.trim() || null,
-      discount_percent: offerKind === 'discount' ? Number(offerPercent) : null,
-      stripe_duration: offerKind === 'discount' ? offerDuration : null,
-      duration_months: offerKind === 'discount' && offerDuration === 'repeating' ? Number(offerDurationMonths) : null,
-      access_duration_days: offerKind === 'free_plan_access' && !offerAccessLifetime ? Number(offerAccessDays) : null,
-      access_lifetime: offerKind === 'free_plan_access' ? offerAccessLifetime : false,
-      use_limit: offerKind === 'discount' && offerUseLimit !== 'unlimited' ? Number(offerUseLimit) : null,
+      discount_percent: (offerScope === 'general' || offerKind === 'discount') && Number(offerPercent) > 0 ? Number(offerPercent) : null,
+      stripe_duration: offerScope === 'personal' && offerKind === 'discount' ? offerDuration : null,
+      duration_months: offerScope === 'personal' && offerKind === 'discount' && offerDuration === 'repeating' ? Number(offerDurationMonths) : null,
+      access_duration_days: offerScope === 'personal' && offerKind === 'free_plan_access' && !offerAccessLifetime ? Number(offerAccessDays) : null,
+      access_lifetime: offerScope === 'personal' && offerKind === 'free_plan_access' ? offerAccessLifetime : false,
+      use_limit: offerScope === 'personal' && offerKind === 'discount' && offerUseLimit !== 'unlimited' ? Number(offerUseLimit) : null,
       expires_in_days: Number(offerExpiresInDays),
     };
-    if (!confirm(`Create this offer for ${selectedUser?.email || 'selected user'}?`)) return;
+    if (!confirm(offerScope === 'general' ? 'Create this general offer notification for users?' : `Create this offer for ${selectedUser?.email || 'selected user'}?`)) return;
     try {
       setBusy(true);
       await api.post<AdminUserOffer>('/offers/admin', payload);
-      setSuccess('Offer created. The user will see it in their Houses notification slider.');
+      setSuccess(offerScope === 'general' ? 'General offer created. Users will see it in notifications.' : 'Personal offer created. The user will see it in the golden crown offer widget.');
       setOfferTitle('');
+      setOfferOccasion('');
       setOfferNote('');
       await loadAll();
     } catch (err) {
@@ -300,50 +307,60 @@ export default function AdminPage() {
       <section className="panel admin-offer-panel">
         <div className="panel-title-row">
           <div>
-            <h2>Personal offers</h2>
-            <p>Create a user-specific discount or free plan access. Discount can be for one plan or universal for any paid plan.</p>
+            <h2>Offers center</h2>
+            <p>Create personal user offers for the golden crown widget, or general occasion offers for the notification slider.</p>
           </div>
         </div>
         <form className="admin-offer-form" onSubmit={createAdminOffer}>
-          <label>User
-            <select value={offerUserId} onChange={(event) => setOfferUserId(event.target.value)} required>
-              <option value="">Choose user</option>
-              {users.map((user) => <option key={user.id} value={user.id}>{user.email} • {PLAN_LABELS[user.plan_name]}</option>)}
+          <label>Offer audience
+            <select value={offerScope} onChange={(event) => { const next = event.target.value as 'personal' | 'general'; setOfferScope(next); if (next === 'general') setOfferPercent(0); if (next === 'personal' && offerPercent <= 0) setOfferPercent(25); }}>
+              <option value="personal">Specific user crown offer</option>
+              <option value="general">General notification offer</option>
             </select>
           </label>
-          <label>Offer type
-            <select value={offerKind} onChange={(event) => { const next = event.target.value as 'discount' | 'free_plan_access'; setOfferKind(next); if (next === 'free_plan_access' && offerPlan === 'universal') setOfferPlan('basic'); }}>
-              <option value="discount">Discount coupon</option>
-              <option value="free_plan_access">Free plan access</option>
-            </select>
-          </label>
-          <label>Plan
+          {offerScope === 'personal' && (
+            <label>User
+              <select value={offerUserId} onChange={(event) => setOfferUserId(event.target.value)} required>
+                <option value="">Choose user</option>
+                {users.map((user) => <option key={user.id} value={user.id}>{user.email} • {PLAN_LABELS[user.plan_name]}</option>)}
+              </select>
+            </label>
+          )}
+          {offerScope === 'personal' && (
+            <label>Offer type
+              <select value={offerKind} onChange={(event) => { const next = event.target.value as 'discount' | 'free_plan_access'; setOfferKind(next); if (next === 'free_plan_access' && offerPlan === 'universal') setOfferPlan('basic'); }}>
+                <option value="discount">Discount coupon</option>
+                <option value="free_plan_access">Free plan access</option>
+              </select>
+            </label>
+          )}
+          <label>{offerScope === 'general' ? 'Plan focus' : 'Plan'}
             <select value={offerPlan} onChange={(event) => setOfferPlan(event.target.value as PlanName | 'universal')}>
-              {offerKind === 'discount' && <option value="universal">Universal discount</option>}
+              {(offerScope === 'general' || offerKind === 'discount') && <option value="universal">Universal / all paid plans</option>}
               <option value="basic">Basic Home</option>
               <option value="family">Family Plus</option>
               <option value="pro">Household Pro</option>
             </select>
           </label>
-          {offerKind === 'discount' ? (
+          {(offerScope === 'general' || offerKind === 'discount') ? (
             <>
-              <label>Discount %<input type="number" min="1" max="100" value={offerPercent} onChange={(event) => setOfferPercent(Number(event.target.value))} /></label>
-              <label>Discount duration
+              <label>Discount %, optional<input type="number" min="0" max="100" value={offerPercent} onChange={(event) => setOfferPercent(Number(event.target.value))} /></label>
+              {offerScope === 'personal' && <label>Discount duration
                 <select value={offerDuration} onChange={(event) => setOfferDuration(event.target.value as 'once' | 'repeating' | 'forever')}>
                   <option value="once">First bill only</option>
                   <option value="repeating">For selected months</option>
                   <option value="forever">Lifetime</option>
                 </select>
-              </label>
-              {offerDuration === 'repeating' && <label>Months<input type="number" min="1" max="36" value={offerDurationMonths} onChange={(event) => setOfferDurationMonths(Number(event.target.value))} /></label>}
-              <label>Use limit
+              </label>}
+              {offerScope === 'personal' && offerDuration === 'repeating' && <label>Months<input type="number" min="1" max="36" value={offerDurationMonths} onChange={(event) => setOfferDurationMonths(Number(event.target.value))} /></label>}
+              {offerScope === 'personal' && <label>Use limit
                 <select value={offerUseLimit} onChange={(event) => setOfferUseLimit(event.target.value)}>
                   <option value="1">Once</option>
                   <option value="2">Twice</option>
                   <option value="3">Thrice</option>
                   <option value="unlimited">Unlimited</option>
                 </select>
-              </label>
+              </label>}
             </>
           ) : (
             <>
@@ -352,8 +369,9 @@ export default function AdminPage() {
             </>
           )}
           <label>Offer disappears after days<input type="number" min="1" max="365" value={offerExpiresInDays} onChange={(event) => setOfferExpiresInDays(Number(event.target.value))} /></label>
+          {offerScope === 'general' && <label>Occasion, optional<input value={offerOccasion} onChange={(event) => setOfferOccasion(event.target.value)} placeholder="Example: Diwali, Thanksgiving, Back to School" /></label>}
           <label>Title, optional<input value={offerTitle} onChange={(event) => setOfferTitle(event.target.value)} placeholder="Example: 50% off Family Plus" /></label>
-          <label className="admin-offer-note">User message, optional<textarea value={offerNote} onChange={(event) => setOfferNote(event.target.value)} placeholder="Short friendly message shown in the notification card" /></label>
+          <label className="admin-offer-note">Message, optional<textarea value={offerNote} onChange={(event) => setOfferNote(event.target.value)} placeholder="If blank, the app writes a friendly message automatically for general offers" /></label>
           <button className="primary full" disabled={busy}>Create offer</button>
         </form>
         <div className="admin-offer-list">
@@ -361,7 +379,7 @@ export default function AdminPage() {
             <article className={`admin-offer-row offer-status-${offer.status}`} key={offer.id}>
               <div>
                 <strong>{offer.title}</strong>
-                <small>{offer.user_email} • {offer.summary}</small>
+                <small>{offer.is_general ? 'General notification' : offer.user_email} • {offer.summary}</small>
                 <small>Status: {offer.status} • Expires {new Date(offer.expires_at).toLocaleString()}</small>
               </div>
               {['pending', 'checkout_started'].includes(offer.status) && <button className="secondary small-button danger-button" type="button" onClick={() => cancelOffer(offer)}>Cancel offer</button>}

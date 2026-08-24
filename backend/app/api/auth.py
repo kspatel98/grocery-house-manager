@@ -9,7 +9,6 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.api.activity_utils import display_name, log_activity
-from app.api.plan_utils import effective_period_end, effective_plan_name, effective_subscription_status
 from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordHistory, PasswordResetCode, RegistrationVerificationCode, User, Receipt, ProductStorePrice, PlanName
 from app.utils.location import currency_for_country, normalize_country
 from app.utils.emailer import email_configured, send_password_reset_code, send_account_confirmation_code
@@ -146,9 +145,9 @@ def user_profile_out(user: User) -> UserProfileOut:
         currency_code=currency_for_country(user.country),
         auth_provider=user.auth_provider.value if hasattr(user.auth_provider, "value") else str(user.auth_provider),
         created_at=user.created_at,
-        plan_name=effective_plan_name(user).value,
-        subscription_status=effective_subscription_status(user),
-        subscription_current_period_end=effective_period_end(user),
+        plan_name=user.plan_name.value if hasattr(user.plan_name, "value") else str(user.plan_name or "free"),
+        subscription_status=user.subscription_status or "free",
+        subscription_current_period_end=user.subscription_current_period_end,
     )
 
 
@@ -401,7 +400,7 @@ def update_me_via_post(payload: UserProfileUpdate, db: Session = Depends(get_db)
 
 @router.get("/me/insights", response_model=PersonalInsightsOut)
 def get_personal_insights(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    plan_value = effective_plan_name(user)
+    plan_value = user.plan_name if isinstance(user.plan_name, PlanName) else PlanName(str(user.plan_name or "free"))
     receipts_uploaded = db.query(Receipt).filter(Receipt.uploaded_by_id == user.id).count()
     prices = db.query(ProductStorePrice).filter(ProductStorePrice.recorded_by_id == user.id).all()
     stores = {price.store_name for price in prices if price.store_name}

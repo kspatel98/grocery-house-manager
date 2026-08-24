@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api';
 import type { AccountBootstrap, AdminOfferAction, AdminUserOffer, House, PlanName, SiteReview, SiteReviewSummary, Subscription } from '../types';
 
 function isPaidStatus(status?: string) {
-  return ['active', 'trialing', 'past_due', 'cancel_at_period_end'].includes((status || '').toLowerCase());
+  return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes((status || '').toLowerCase());
 }
 
 function timeLeftParts(dateValue?: string | null) {
@@ -146,7 +146,7 @@ export default function HousesPage() {
 
   async function loadOffers() {
     try {
-      const { data } = await api.get<AdminUserOffer[]>('/offers/mine', { params: { t: Date.now() } });
+      const { data } = await api.get<AdminUserOffer[]>('/offers/general', { params: { t: Date.now() } });
       setAdminOffers(Array.isArray(data) ? data : []);
     } catch {
       setAdminOffers([]);
@@ -316,41 +316,29 @@ export default function HousesPage() {
         ),
       });
     }
-    adminOffers.forEach((adminOffer) => {
+    adminOffers.forEach((generalOffer) => {
       items.push({
-        key: `admin-offer-${adminOffer.id}`,
+        key: `general-offer-${generalOffer.id}`,
         content: (
-          <div className={`notification-picture admin-offer-slide ${adminOffer.offer_kind === 'discount' ? 'discount-offer-slide' : 'access-offer-slide'}`}>
-            <div className="notification-glow" aria-hidden="true" />
-            <div className="notification-copy">
-              <span className="notification-label">{adminOffer.status === 'checkout_started' ? 'Checkout waiting' : 'Personal offer'}</span>
-              <CountdownBadge until={adminOffer.expires_at} />
-              <h2>{adminOffer.title}</h2>
-              <p>{adminOffer.status === 'checkout_started' ? 'You already opened checkout for this offer, but payment is not completed yet. Continue before it expires.' : adminOffer.message || adminOffer.summary}</p>
-              <div className="admin-offer-detail-grid">
-                <span><strong>Offer</strong>{adminOffer.summary}</span>
-                <span><strong>Plan</strong>{adminOffer.universal ? 'Choose any paid plan' : adminOffer.plan_label || adminOffer.plan_name}</span>
-                <span><strong>Use limit</strong>{adminOffer.use_limit ? `${adminOffer.use_limit} use(s)` : 'Unlimited'}</span>
+          <Link to="/pricing" className="notification-image-link" aria-label="Open plans for general offer">
+            <div className="notification-picture general-offer-slide">
+              <div className="notification-glow" aria-hidden="true" />
+              <div className="notification-copy">
+                <span className="notification-label">{generalOffer.occasion || 'General offer'}</span>
+                <CountdownBadge until={generalOffer.expires_at} />
+                <h2>{generalOffer.title}</h2>
+                <p>{generalOffer.message || generalOffer.summary}</p>
+                <div className="admin-offer-detail-grid general-offer-grid">
+                  <span><strong>Offer</strong>{generalOffer.summary}</span>
+                  <span><strong>Plan</strong>{generalOffer.universal ? 'Any paid plan' : generalOffer.plan_label || 'All users'}</span>
+                  <span><strong>Status</strong>Open Plans to view available deals</span>
+                </div>
               </div>
-              {adminOffer.universal && (
-                <label className="offer-plan-picker">
-                  Choose plan
-                  <select value={selectedOfferPlans[adminOffer.id] || 'basic'} onChange={(event) => setSelectedOfferPlans((prev) => ({ ...prev, [adminOffer.id]: event.target.value as PlanName }))}>
-                    <option value="basic">Basic Home</option>
-                    <option value="family">Family Plus</option>
-                    <option value="pro">Household Pro</option>
-                  </select>
-                </label>
-              )}
-              {offerMessage && <div className="compact-message hint">{offerMessage}</div>}
+              <div className="notification-side-stack admin-offer-actions">
+                <span className="notification-action">View plans</span>
+              </div>
             </div>
-            <div className="notification-side-stack admin-offer-actions">
-              <button className="notification-action" disabled={offerBusy === adminOffer.id} onClick={() => acceptAdminOffer(adminOffer)}>
-                {offerBusy === adminOffer.id ? 'Opening...' : adminOffer.status === 'checkout_started' ? 'Continue checkout' : adminOffer.offer_kind === 'discount' ? 'Accept discount' : 'Accept access'}
-              </button>
-              <button className="secondary" disabled={offerBusy === adminOffer.id} onClick={() => declineAdminOffer(adminOffer)}>Not now</button>
-            </div>
-          </div>
+          </Link>
         ),
       });
     });
@@ -400,7 +388,7 @@ export default function HousesPage() {
       ),
     });
     return items;
-  }, [adminOffers, offer?.eligible_until, offerBusy, offerMessage, selectedOfferPlans, shouldShowOffer, stats]);
+  }, [adminOffers, offer?.eligible_until, shouldShowOffer, stats]);
 
   return (
     <main className="page shell houses-page-v54 cinematic-page">

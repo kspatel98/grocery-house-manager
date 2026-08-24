@@ -383,11 +383,13 @@ class AdminUserOffer(Base):
     __tablename__ = "admin_user_offers"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    offer_kind: Mapped[str] = mapped_column(String(40), index=True)  # discount or free_plan_access
-    plan_name: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)  # null = universal discount
+    is_general: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    offer_kind: Mapped[str] = mapped_column(String(40), index=True)  # discount, free_plan_access, or general
+    plan_name: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)  # null = universal discount / announcement
     title: Mapped[str] = mapped_column(String(180))
+    occasion: Mapped[str | None] = mapped_column(String(180), nullable=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     discount_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     stripe_coupon_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -406,5 +408,5 @@ class AdminUserOffer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
-    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    user: Mapped[User | None] = relationship(foreign_keys=[user_id])
     created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])

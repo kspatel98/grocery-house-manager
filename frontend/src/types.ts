@@ -492,13 +492,15 @@ export type ReceiptScanPack = {
 
 export type AdminUserOffer = {
   id: number;
-  user_id: number;
+  user_id?: number | null;
   user_email?: string | null;
   user_name?: string | null;
-  offer_kind: 'discount' | 'free_plan_access';
+  is_general?: boolean;
+  offer_kind: 'discount' | 'free_plan_access' | 'general';
   plan_name?: PlanName | string | null;
   plan_label?: string | null;
   title: string;
+  occasion?: string | null;
   message?: string | null;
   discount_percent?: number | null;
   stripe_duration?: string | null;

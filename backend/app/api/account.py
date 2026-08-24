@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.activity_utils import display_name
 from app.api.billing import subscription_out
-from app.api.plan_utils import effective_period_end, effective_plan_name, effective_subscription_status, get_user_plan
+from app.api.plan_utils import get_user_plan
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.core.config import settings
@@ -33,14 +33,17 @@ def user_profile_out(user: User) -> UserProfileOut:
         currency_code=currency_for_country(user.country),
         auth_provider=user.auth_provider.value if hasattr(user.auth_provider, "value") else str(user.auth_provider),
         created_at=user.created_at,
-        plan_name=effective_plan_name(user).value,
-        subscription_status=effective_subscription_status(user),
-        subscription_current_period_end=effective_period_end(user),
+        plan_name=user.plan_name.value if hasattr(user.plan_name, "value") else str(user.plan_name or "free"),
+        subscription_status=user.subscription_status or "free",
+        subscription_current_period_end=user.subscription_current_period_end,
     )
 
 
 def personal_insights_out(db: Session, user: User) -> PersonalInsightsOut:
-    plan_value = effective_plan_name(user)
+    try:
+        plan_value = user.plan_name if isinstance(user.plan_name, PlanName) else PlanName(str(user.plan_name or "free"))
+    except ValueError:
+        plan_value = PlanName.free
     receipts_uploaded = db.query(Receipt).filter(Receipt.uploaded_by_id == user.id).count()
     prices = db.query(ProductStorePrice).filter(ProductStorePrice.recorded_by_id == user.id).all()
     stores = {price.store_name for price in prices if price.store_name}
@@ -86,7 +89,7 @@ def house_out(db: Session, membership: HouseMember) -> HouseOut | None:
         name=house.name,
         role=membership.role,
         owner_name=display_name(owner) if owner else None,
-        owner_plan_name=effective_plan_name(owner) if owner else None,
+        owner_plan_name=owner.plan_name if owner else None,
         created_at=house.created_at,
     )
 
@@ -105,8 +108,8 @@ def safe_subscription_out(db: Session, user: User) -> SubscriptionOut:
         plan = get_user_plan(user)
         return SubscriptionOut(
             plan_name=plan.key,
-            subscription_status=effective_subscription_status(user),
-            current_period_end=effective_period_end(user),
+            subscription_status=user.subscription_status or "free",
+            current_period_end=user.subscription_current_period_end,
             limits=PlanLimitsOut(
                 houses=plan.limits.houses,
                 products_per_house=plan.limits.products_per_house,

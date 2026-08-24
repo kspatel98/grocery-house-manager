@@ -217,7 +217,7 @@ export default function PricingPage() {
         <div className="profile-actions">
           <button className="secondary" onClick={load}>Refresh</button>
           {!loggedIn && <Link className="primary center-link" to="/login">Login to subscribe</Link>}
-          {subscription?.subscription_status && !['free', 'admin_granted'].includes(subscription.subscription_status) && (
+          {subscription?.subscription_status && subscription.subscription_status !== 'free' && (
             <button className="secondary" onClick={manageBilling}>Manage billing</button>
           )}
         </div>
