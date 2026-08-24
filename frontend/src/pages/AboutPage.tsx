@@ -17,7 +17,7 @@ export default function AboutPage() {
           <h2>Shared grocery inventory, smart weekly planning, shopping lists, receipt intelligence, expiry awareness, price comparison, and household savings in one professional platform.</h2>
           <p>
             Grocery House Manager helps families, roommates, and shared homes organize grocery inventory,
-            plan shopping lists, scan JPG/PNG receipts for review, compare whole baskets from saved prices, prevent waste, track supported savings, invite household members, and coordinate activity in one secure place.
+            plan shopping lists, scan JPG/PNG receipts for review, automatically compare whole baskets from live/recent/saved price sources, suggest meals from inventory, prevent waste, track supported savings, invite household members, and coordinate activity in one secure place.
             SupremDas Group is the parent business behind the product.
           </p>
           <div className="hero-actions">
@@ -64,8 +64,8 @@ export default function AboutPage() {
             <li>Owner-plan based house limits, so members can use the features available to the house owner.</li>
             <li>Smart Receipt Scan for JPG/PNG receipt photos, with review-before-save item rows, discounts, tax, subtotal, and total.</li>
             <li>Receipt price updates and multi-store product pricing, so one product can track prices from different stores.</li>
-            <li>Smart Weekly Grocery Assistant for low stock, expiry awareness, older-inventory review, meal ideas, and next-trip suggestions.</li>
-            <li>Family Plus and Household Pro whole-list basket comparison with price-coverage transparency and split-store estimates.</li>
+            <li>Smart Weekly Grocery Assistant for low stock, expiry awareness, older-inventory review, automatic ingredient matching, ready/almost-ready meal ideas, and next-trip suggestions.</li>
+            <li>Family Plus and Household Pro automatic whole-list comparison using live Canadian prices when available, then recent receipts and saved household prices — without guessing missing prices.</li>
             <li>Plan-based product lookup, Canadian price comparison, and nearby store suggestions.</li>
             <li>Defensible savings reports based on recorded receipt discounts and supported lower-price choices.</li>
             <li>Installable PWA experience with offline shopping-list fallback, barcode camera scanning on supported phones, and opt-in device reminders.</li>

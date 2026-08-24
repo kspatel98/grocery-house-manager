@@ -595,11 +595,20 @@ class SavingsSummaryOut(BaseModel):
 
 class BasketStoreOptionOut(BaseModel):
     store_name: str
+    # known_total is the sum of prices we can actually support for this store.
+    # estimated_total is retained for frontend/backward compatibility and mirrors known_total.
+    known_total: float = 0
     estimated_total: float = 0
     priced_items: int = 0
     total_items: int = 0
     coverage_percent: int = 0
+    complete: bool = False
     missing_items: list[str] = Field(default_factory=list)
+    live_items: int = 0
+    recent_receipt_items: int = 0
+    saved_price_items: int = 0
+    source_summary: str | None = None
+    freshness_label: str | None = None
 
 
 class BasketComparisonOut(BaseModel):
@@ -609,6 +618,7 @@ class BasketComparisonOut(BaseModel):
     list_id: int
     list_title: str
     total_items: int = 0
+    comparison_ready: bool = False
     best_single_store: BasketStoreOptionOut | None = None
     store_options: list[BasketStoreOptionOut] = Field(default_factory=list)
     split_store_total: float | None = None
@@ -616,13 +626,43 @@ class BasketComparisonOut(BaseModel):
     split_store_names: list[str] = Field(default_factory=list)
     split_store_coverage_percent: int = 0
     split_store_picks: list[str] = Field(default_factory=list)
+    split_store_worth_it: bool = False
+    split_store_recommendation: str | None = None
+    live_attempted: bool = False
+    live_configured: bool = False
+    live_rows_count: int = 0
+    location_label: str | None = None
+    needs_postal_code: bool = False
+    data_sources: list[str] = Field(default_factory=list)
+    last_refreshed_at: datetime | None = None
+    recommendation_reason: str | None = None
 
 
 class WeeklyAssistantRecipeOut(BaseModel):
     name: str
+    status: str = "ready"
     reason: str
     matched_items: list[str] = Field(default_factory=list)
     missing_items: list[str] = Field(default_factory=list)
+    missing_on_list: list[str] = Field(default_factory=list)
+    optional_items: list[str] = Field(default_factory=list)
+    use_soon_items: list[str] = Field(default_factory=list)
+    matched_required: int = 0
+    total_required: int = 0
+
+
+class RecipeMissingAddIn(BaseModel):
+    ingredients: list[str] = Field(default_factory=list, max_length=8)
+    list_id: int | None = None
+    recipe_name: str | None = Field(default=None, max_length=180)
+
+
+class RecipeMissingAddOut(BaseModel):
+    list_id: int
+    list_title: str
+    added_items: list[str] = Field(default_factory=list)
+    created_products: list[str] = Field(default_factory=list)
+    message: str
 
 
 class WeeklyAssistantSuggestedItemOut(BaseModel):

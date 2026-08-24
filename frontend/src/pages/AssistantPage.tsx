@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { AccountBootstrap, BasketComparison, House, SavingsSummary, ShoppingList, WeeklyAssistant } from '../types';
+import type { AccountBootstrap, House, RecipeMissingAddResponse, SavingsSummary, ShoppingList, WeeklyAssistant, WeeklyAssistantRecipe } from '../types';
 
 export default function AssistantPage() {
   const [params, setParams] = useSearchParams();
@@ -10,8 +10,8 @@ export default function AssistantPage() {
   const [houseId, setHouseId] = useState<number | null>(null);
   const [assistant, setAssistant] = useState<WeeklyAssistant | null>(null);
   const [savings, setSavings] = useState<SavingsSummary | null>(null);
-  const [basket, setBasket] = useState<BasketComparison | null>(null);
   const [busy, setBusy] = useState(false);
+  const [recipeBusy, setRecipeBusy] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [reminderPermission, setReminderPermission] = useState<'unsupported' | NotificationPermission>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
@@ -90,16 +90,6 @@ export default function AssistantPage() {
       setAssistant(assistantRes.data);
       setSavings(savingsRes.data);
       void maybeShowHouseholdReminder(selected, assistantRes.data);
-      if (assistantRes.data.active_list_id) {
-        try {
-          const { data } = await api.get<BasketComparison>(`/insights/houses/${selected}/shopping-lists/${assistantRes.data.active_list_id}/basket-comparison`, { params: { t: Date.now() } });
-          setBasket(data);
-        } catch {
-          setBasket(null);
-        }
-      } else {
-        setBasket(null);
-      }
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -151,6 +141,27 @@ export default function AssistantPage() {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function addRecipeMissing(recipe: WeeklyAssistantRecipe) {
+    if (!houseId || !recipe.missing_items.length) return;
+    try {
+      setRecipeBusy(recipe.name);
+      setMessage('');
+      setError('');
+      const { data } = await api.post<RecipeMissingAddResponse>(`/insights/houses/${houseId}/recipes/add-missing`, {
+        ingredients: recipe.missing_items,
+        list_id: assistant?.active_list_id || undefined,
+        recipe_name: recipe.name,
+      });
+      setMessage(data.message);
+      await loadAssistant(houseId);
+      window.dispatchEvent(new Event('account:refresh'));
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setRecipeBusy('');
     }
   }
 
@@ -232,31 +243,19 @@ export default function AssistantPage() {
             </article>
           </section>
 
-          <section className="assistant-basket-hero">
-            <div className="assistant-basket-copy">
-              <p className="eyebrow">Whole-list comparison</p>
-              <h2>{assistant.active_list_title || 'Create a list to compare the whole trip'}</h2>
-              {basket?.premium_required ? (
-                <><p>{basket.message}</p><Link to="/pricing" className="primary center-link">Unlock with Family Plus</Link></>
-              ) : basket?.best_single_store ? (
-                <>
-                  <p>Based on your saved household price history, the strongest single-store estimate is:</p>
-                  <div className="assistant-best-store"><span>{basket.best_single_store.store_name}</span><strong>{money(basket.best_single_store.estimated_total, basket.currency_code)}</strong><small>{basket.best_single_store.coverage_percent}% direct price coverage</small></div>
-                </>
-              ) : <p>{basket?.message || 'Once this list has saved price history, the assistant will compare the entire basket instead of making you search item by item.'}</p>}
+          <section className="assistant-next-trip-strip">
+            <div>
+              <p className="eyebrow">Your next grocery trip</p>
+              <h2>{assistant.active_list_title || 'Create a list and let the app prepare the trip'}</h2>
+              {assistant.active_list_id ? (
+                assistant.best_store_name ? (
+                  <p><strong>{assistant.best_store_name}</strong> is currently the best-known store from reusable household price history. Open the list and Grocery House Manager will automatically check live Canadian prices, recent receipts, and saved prices together.</p>
+                ) : (
+                  <p>Your list is ready. Open it and the full price check will run automatically — no extra setup step and no duplicate comparison panel here.</p>
+                )
+              ) : <p>Once you create a list, this assistant will hand it off to the shopping page for automatic store comparison.</p>}
             </div>
-            {basket && !basket.premium_required && basket.store_options.length ? (
-              <div className="assistant-store-ranking">
-                {basket.store_options.slice(0, 4).map((store, index) => (
-                  <div key={store.store_name} className={index === 0 ? 'winner' : ''}>
-                    <span>#{index + 1} {store.store_name}</span>
-                    <strong>{money(store.estimated_total, basket.currency_code)}</strong>
-                    <small>{store.coverage_percent}% known • {store.missing_items.length} estimated</small>
-                  </div>
-                ))}
-                {basket.split_store_total != null ? <div className="split-store-line"><span>Best 2-store option{basket.split_store_names.length ? ` • ${basket.split_store_names.join(' + ')}` : ''}</span><strong>{money(basket.split_store_total, basket.currency_code)}</strong><small>{basket.split_store_coverage_percent}% direct coverage • {basket.split_store_savings ? `could save another ${money(basket.split_store_savings, basket.currency_code)}` : 'single-store choice is already competitive'}</small></div> : null}
-              </div>
-            ) : null}
+            {assistant.active_list_id ? <Link to={`/houses/${houseId}/shopping`} className="primary center-link">Open trip recommendation →</Link> : <Link to={`/houses/${houseId}/shopping`} className="secondary center-link">Create shopping list</Link>}
           </section>
 
           <section className="assistant-secondary-grid">
@@ -278,18 +277,44 @@ export default function AssistantPage() {
               ) : null}
             </article>
 
-            <article className="panel">
-              <p className="eyebrow">Cook from what you own</p>
-              <h2>Inventory meal ideas</h2>
-              <div className="assistant-recipe-list">
+            <article className="panel meal-ideas-panel">
+              <div className="panel-title-row">
+                <div>
+                  <p className="eyebrow">Cook from what you own</p>
+                  <h2>Meals your inventory can actually support</h2>
+                </div>
+                <span className="badge">Automatic matching</span>
+              </div>
+              <p className="small-muted">The matcher understands common names such as basmati rice → rice, spaghetti → pasta, mozzarella → cheese, chicken breast → chicken, and dal → lentils. Expired products are never used in suggestions.</p>
+              <div className="assistant-recipe-list upgraded-recipes">
                 {assistant.recipes.map((recipe) => (
-                  <div key={recipe.name}>
-                    <strong>{recipe.name}</strong>
+                  <div key={recipe.name} className={`meal-idea-card ${recipe.status}`}>
+                    <div className="meal-idea-heading">
+                      <span className={recipe.status === 'ready' ? 'meal-status ready' : 'meal-status almost'}>{recipe.status === 'ready' ? '✓ CAN MAKE NOW' : '＋ ALMOST READY'}</span>
+                      <strong>{recipe.name}</strong>
+                    </div>
                     <p>{recipe.reason}</p>
-                    <small>Have: {recipe.matched_items.join(', ') || '—'}{recipe.missing_items.length ? ` • Optional: ${recipe.missing_items.join(', ')}` : ''}</small>
+                    {recipe.matched_items.length ? <small><b>Using:</b> {recipe.matched_items.slice(0, 7).join(', ')}</small> : null}
+                    {recipe.use_soon_items.length ? <small className="use-soon-recipe-note">⏳ Helps use soon: {recipe.use_soon_items.join(', ')}</small> : null}
+                    {recipe.missing_items.length ? (
+                      <div className="meal-missing-action">
+                        <span>Missing: <strong>{recipe.missing_items.join(', ')}</strong></span>
+                        {recipe.missing_on_list.length === recipe.missing_items.length ? (
+                          <span className="meal-on-list">✓ Already on {assistant.active_list_title || 'shopping list'}</span>
+                        ) : (
+                          <button type="button" className="secondary" disabled={Boolean(recipeBusy)} onClick={() => addRecipeMissing(recipe)}>{recipeBusy === recipe.name ? 'Adding…' : `Add to ${assistant.active_list_title || 'shopping list'}`}</button>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
-                {!assistant.recipes.length ? <p className="small-muted">Add a few common groceries and meal ideas will appear from what is already in stock.</p> : null}
+                {!assistant.recipes.length ? (
+                  <div className="meal-empty-help">
+                    <strong>No strong meal match yet</strong>
+                    <p>You do not need to configure anything. Keep adding or scanning normal grocery names and suggestions will appear automatically when the inventory contains a usable combination.</p>
+                    <Link to={`/houses/${houseId}/inventory`} className="secondary center-link">Review inventory</Link>
+                  </div>
+                ) : null}
               </div>
             </article>
           </section>

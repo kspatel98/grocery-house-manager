@@ -580,11 +580,18 @@ export type SavingsSummary = {
 
 export type BasketStoreOption = {
   store_name: string;
+  known_total: number;
   estimated_total: number;
   priced_items: number;
   total_items: number;
   coverage_percent: number;
+  complete: boolean;
   missing_items: string[];
+  live_items: number;
+  recent_receipt_items: number;
+  saved_price_items: number;
+  source_summary?: string | null;
+  freshness_label?: string | null;
 };
 
 export type BasketComparison = {
@@ -594,6 +601,7 @@ export type BasketComparison = {
   list_id: number;
   list_title: string;
   total_items: number;
+  comparison_ready: boolean;
   best_single_store?: BasketStoreOption | null;
   store_options: BasketStoreOption[];
   split_store_total?: number | null;
@@ -601,13 +609,37 @@ export type BasketComparison = {
   split_store_names: string[];
   split_store_coverage_percent: number;
   split_store_picks: string[];
+  split_store_worth_it: boolean;
+  split_store_recommendation?: string | null;
+  live_attempted: boolean;
+  live_configured: boolean;
+  live_rows_count: number;
+  location_label?: string | null;
+  needs_postal_code: boolean;
+  data_sources: string[];
+  last_refreshed_at?: string | null;
+  recommendation_reason?: string | null;
 };
 
 export type WeeklyAssistantRecipe = {
   name: string;
+  status: 'ready' | 'almost_ready' | string;
   reason: string;
   matched_items: string[];
   missing_items: string[];
+  missing_on_list: string[];
+  optional_items: string[];
+  use_soon_items: string[];
+  matched_required: number;
+  total_required: number;
+};
+
+export type RecipeMissingAddResponse = {
+  list_id: number;
+  list_title: string;
+  added_items: string[];
+  created_products: string[];
+  message: string;
 };
 
 export type WeeklyAssistantSuggestedItem = {

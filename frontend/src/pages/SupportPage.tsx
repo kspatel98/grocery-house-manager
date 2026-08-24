@@ -33,7 +33,7 @@ const supportItems = [
   },
   {
     title: 'Smart Weekly Assistant',
-    text: 'The Assistant combines low stock, out-of-stock items, expiry dates, older inventory, active shopping lists, saved prices, meal ideas, and supported savings into one weekly brief. Family Plus or Household Pro is required for whole-list store comparison.',
+    text: 'The Assistant combines low stock, expiry dates, older inventory, shopping lists, meal ideas, and supported savings into one weekly brief. Meal ideas understand common grocery-name variations and can add a missing ingredient to the active list in one tap. On Family Plus or Household Pro, opening a shopping list automatically checks live Canadian prices when available, then recent receipts and saved prices.',
   },
   {
     title: 'Install, offline use, and reminders',

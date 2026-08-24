@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, BasketComparison, House, HouseMember, LivePriceCompareResponse, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
+import type { Activity, BasketComparison, House, HouseMember, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
@@ -244,15 +244,30 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
   const [comparison, setComparison] = useState<BasketComparison | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [expanded, setExpanded] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [postalCode, setPostalCode] = useState(() => localStorage.getItem('ghm_price_postal') || '');
+  const listSignature = selectedList.items.map((item) => `${item.id}:${item.product_id}:${item.requested_quantity}:${item.status}:${item.product.updated_at || ''}`).join('|');
 
-  async function compare() {
+  async function compare(forceRefresh = false, postal = postalCode) {
+    if (!navigator.onLine) {
+      setError('You are offline. The saved shopping list is still available; price recommendations will refresh when you reconnect.');
+      return;
+    }
     try {
       setBusy(true);
       setError('');
-      const { data } = await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, { params: { t: Date.now() } });
+      const normalizedPostal = postal.trim().toUpperCase();
+      if (normalizedPostal) localStorage.setItem('ghm_price_postal', normalizedPostal);
+      const { data } = await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, {
+        params: {
+          t: Date.now(),
+          live: true,
+          force_refresh: forceRefresh || undefined,
+          postal_code: normalizedPostal || undefined,
+        },
+      });
       setComparison(data);
-      setExpanded(true);
+      setDetailsOpen(Boolean(data.store_options.length));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -262,50 +277,100 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
 
   useEffect(() => {
     setComparison(null);
-    setExpanded(false);
+    setDetailsOpen(false);
     setError('');
-  }, [selectedList.id]);
+    void compare(false, localStorage.getItem('ghm_price_postal') || '');
+  }, [selectedList.id, houseId, listSignature]);
+
+  const winner = comparison?.best_single_store || null;
+  const incompleteWinner = Boolean(winner && !winner.complete);
+  const lastUpdated = comparison?.last_refreshed_at ? new Date(comparison.last_refreshed_at).toLocaleString() : '';
 
   return (
-    <section className="whole-list-compare-hero">
+    <section className="whole-list-compare-hero auto-basket-comparison">
       <div className="whole-list-copy">
-        <p className="eyebrow">Family Plus • whole-list intelligence</p>
-        <h2>Compare the entire “{selectedList.title}” trip in one tap.</h2>
-        <p>Instead of checking milk, eggs, rice, and every other item separately, Grocery House Manager uses your saved household price history to estimate the strongest single-store basket and, when useful, a practical two-store option.</p>
+        <div className="auto-compare-title-row">
+          <div>
+            <p className="eyebrow">Family Plus • automatic trip check</p>
+            <h2>Where should I buy “{selectedList.title}”?</h2>
+          </div>
+          <span className={busy ? 'auto-status checking' : 'auto-status'}>{busy ? '● Checking prices…' : comparison ? '✓ Checked automatically' : 'Ready'}</span>
+        </div>
+        <p>Grocery House Manager checks the strongest available source automatically: live Canadian prices first, then recent receipts, then older saved household prices. Missing prices are left missing — they are not guessed.</p>
+
+        {comparison?.premium_required ? (
+          <div className="basket-upgrade-line"><span>{comparison.message}</span><Link to="/pricing" className="secondary center-link">See Family Plus</Link></div>
+        ) : null}
+
+        {comparison && !comparison.premium_required ? (
+          <div className="basket-source-strip">
+            {comparison.data_sources.length ? comparison.data_sources.map((source) => <span key={source}>✓ {source}</span>) : <span>No reusable price source found yet</span>}
+            {comparison.location_label ? <span>📍 {comparison.location_label}</span> : null}
+            {lastUpdated ? <span>Updated {lastUpdated}</span> : null}
+          </div>
+        ) : null}
+
+        {comparison?.live_configured && !comparison.premium_required ? (
+          <form className="basket-location-inline" onSubmit={(event) => { event.preventDefault(); void compare(true, postalCode); }}>
+            <label>
+              <span>Optional postal code for more local live prices</span>
+              <input value={postalCode} onChange={(event) => setPostalCode(event.target.value.toUpperCase())} placeholder="L8P 1A1" maxLength={7} />
+            </label>
+            <button className="secondary" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Use & refresh'}</button>
+            {postalCode ? <button type="button" className="text-button" onClick={() => { setPostalCode(''); localStorage.removeItem('ghm_price_postal'); void compare(true, ''); }}>Clear</button> : null}
+          </form>
+        ) : null}
+
         <div className="whole-list-actions">
-          <button className="primary" type="button" onClick={compare} disabled={busy || !navigator.onLine}>{busy ? 'Comparing your basket…' : 'Compare my shopping list'}</button>
-          {comparison ? <button className="secondary" type="button" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Hide results' : 'Show results'}</button> : null}
+          <button className="primary" type="button" onClick={() => compare(true)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : 'Refresh prices'}</button>
+          {comparison?.store_options.length ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : 'View store details'}</button> : null}
         </div>
         {error && <div className="error compact-message">{error}</div>}
       </div>
+
       <div className="whole-list-result-preview">
-        {!comparison ? (
-          <><span>ONE TAP</span><strong>{selectedList.items.length}</strong><small>items compared together</small></>
+        {!comparison || busy ? (
+          <><span>AUTOMATIC CHECK</span><strong>{selectedList.items.length}</strong><small>{busy ? 'checking live + household prices…' : 'items checked together'}</small></>
         ) : comparison.premium_required ? (
-          <><span>PREMIUM</span><strong>Family Plus</strong><small>{comparison.message}</small><Link to="/pricing" className="secondary center-link">See plans</Link></>
-        ) : comparison.best_single_store ? (
-          <><span>BEST SINGLE STORE</span><strong>{comparison.best_single_store.store_name}</strong><em>{money(comparison.best_single_store.estimated_total, comparison.currency_code)}</em><small>{comparison.best_single_store.coverage_percent}% direct saved-price coverage</small></>
+          <><span>PREMIUM</span><strong>Family Plus</strong><small>Automatic whole-list comparison unlocks here.</small></>
+        ) : winner && winner.complete ? (
+          <><span>BEST COMPLETE BASKET</span><strong>{winner.store_name}</strong><em>{money(winner.known_total, comparison.currency_code)}</em><small>{winner.priced_items}/{winner.total_items} items priced • {winner.source_summary}</small></>
+        ) : comparison.split_store_total != null && comparison.split_store_names.length ? (
+          <><span>COMPLETE 2-STORE PLAN</span><strong>{comparison.split_store_names.join(' + ')}</strong><em>{money(comparison.split_store_total, comparison.currency_code)}</em><small>All {comparison.total_items} active items have supported prices across these two stores</small></>
+        ) : winner ? (
+          <><span>BEST-KNOWN PRICE PICTURE</span><strong>{winner.store_name}</strong><em>{money(winner.known_total, comparison.currency_code)} known</em><small>{winner.priced_items}/{winner.total_items} items priced — not a full basket total</small></>
         ) : (
-          <><span>PRICE HISTORY</span><strong>Build coverage</strong><small>{comparison.message}</small></>
+          <><span>NO PRICE MATCH YET</span><strong>Nothing to set up</strong><small>The app will reuse receipt and live price data automatically as it becomes available.</small></>
         )}
       </div>
-      {comparison && expanded && !comparison.premium_required ? (
+
+      {comparison && !comparison.premium_required ? (
+        <div className="basket-guidance-line">
+          <strong>{comparison.message}</strong>
+          {comparison.recommendation_reason ? <span>{comparison.recommendation_reason}</span> : null}
+          {comparison.live_configured && comparison.needs_postal_code ? <small>Tip: the current profile city is being used. Add a postal code only if you want tighter local live results.</small> : null}
+          {!comparison.live_configured ? <small>Live Canadian pricing is not connected on the server, so the app is automatically using receipt and saved household prices only.</small> : null}
+        </div>
+      ) : null}
+
+      {comparison && detailsOpen && !comparison.premium_required && comparison.store_options.length ? (
         <div className="whole-list-results">
-          {comparison.store_options.slice(0, 5).map((store, index) => (
-            <div key={store.store_name} className={index === 0 ? 'best' : ''}>
-              <span>{index === 0 ? '★ ' : ''}{store.store_name}</span>
-              <strong>{money(store.estimated_total, comparison.currency_code)}</strong>
-              <small>{store.coverage_percent}% direct coverage • {store.missing_items.length} estimated item{store.missing_items.length === 1 ? '' : 's'}</small>
+          {comparison.store_options.slice(0, 6).map((store, index) => (
+            <div key={store.store_name} className={store.complete && index === 0 ? 'best' : ''}>
+              <span>{store.complete && index === 0 ? '★ ' : ''}{store.store_name}</span>
+              <strong>{money(store.known_total, comparison.currency_code)}{store.complete ? '' : ' known'}</strong>
+              <small>{store.priced_items}/{store.total_items} items priced • {store.source_summary}</small>
+              {!store.complete ? <small className="basket-missing-line">Missing: {store.missing_items.slice(0, 4).join(', ')}{store.missing_items.length > 4 ? ` +${store.missing_items.length - 4} more` : ''}</small> : null}
             </div>
           ))}
           {comparison.split_store_total != null ? (
-            <div className="whole-list-split-result">
-              <span>Best 2-store option{comparison.split_store_names?.length ? ` • ${comparison.split_store_names.join(' + ')}` : ''}</span>
+            <div className={comparison.split_store_worth_it ? 'whole-list-split-result worth-it' : 'whole-list-split-result'}>
+              <span>Two-store check{comparison.split_store_names?.length ? ` • ${comparison.split_store_names.join(' + ')}` : ''}</span>
               <strong>{money(comparison.split_store_total, comparison.currency_code)}</strong>
-              <small>{comparison.split_store_coverage_percent}% direct coverage • {comparison.split_store_savings ? `potential extra saving ${money(comparison.split_store_savings, comparison.currency_code)}` : 'a single store is already competitive'}</small>
+              <small>{comparison.split_store_recommendation || 'Every item has a supported price in this two-store combination.'}</small>
             </div>
           ) : null}
-          <p className="small-muted">Estimates are based on saved prices; missing store-specific rows are filled conservatively from the best known household price and are clearly counted in coverage.</p>
+          <p className="small-muted basket-no-guess-note">Only supported prices are totaled. Grocery House Manager no longer fills missing store prices with synthetic estimates.</p>
         </div>
       ) : null}
     </section>
@@ -313,14 +378,15 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
 }
 
 function cachedLocation() {
-  try {
-    const cached = localStorage.getItem('account_profile_cache');
-    if (cached) {
+  for (const key of ['account_profile_cache', 'user']) {
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) continue;
       const parsed = JSON.parse(cached);
-      return { city: parsed?.city || '', country: parsed?.country || '' };
+      if (parsed?.city || parsed?.country) return { city: parsed?.city || '', country: parsed?.country || '' };
+    } catch {
+      // ignore malformed cache and try the next local profile source
     }
-  } catch {
-    // ignore malformed cache
   }
   return { city: '', country: '' };
 }
@@ -331,10 +397,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
   const [country, setCountry] = useState(initial.country || 'Canada');
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
-  const [postalCode, setPostalCode] = useState('');
   const [suggestions, setSuggestions] = useState<ShoppingSuggestions | null>(null);
-  const [livePrices, setLivePrices] = useState<LivePriceCompareResponse | null>(null);
-  const [livePricesOpen, setLivePricesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -354,59 +417,15 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
     }
   }
 
-
-
-  async function submitLiveCompare(options: { forceRefresh?: boolean; postal?: string; lat?: number; lng?: number; useProfileCity?: boolean }) {
-    if (!selectedList) return;
-    try {
-      setBusy(true);
-      setError('');
-      const productIds = selectedList.items.map((item) => item.product_id);
-      const { data } = await api.post<LivePriceCompareResponse>(`/market/houses/${houseId}/price-compare`, {
-        product_ids: productIds,
-        postal_code: options.postal || undefined,
-        lat: options.lat,
-        lng: options.lng,
-        city: options.useProfileCity ? city || undefined : undefined,
-        force_refresh: options.forceRefresh || false,
-      });
-      setLivePrices(data);
-      setLivePricesOpen(true);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function compareCurrentList(forceRefresh = false) {
-    if (!selectedList) return;
-    const typedPostal = postalCode.trim();
-    if (typedPostal) {
-      await submitLiveCompare({ postal: typedPostal, forceRefresh });
-      return;
-    }
-    if (!navigator.geolocation) {
-      await submitLiveCompare({ useProfileCity: true, forceRefresh });
-      return;
-    }
-    setBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setBusy(false);
-        submitLiveCompare({ lat: position.coords.latitude, lng: position.coords.longitude, forceRefresh });
-      },
-      () => {
-        setBusy(false);
-        submitLiveCompare({ useProfileCity: true, forceRefresh });
-      },
-      { enableHighAccuracy: false, timeout: 9000 },
-    );
-  }
+  useEffect(() => {
+    setSuggestions(null);
+    setError('');
+    if (selectedList) void loadSuggestions(null, null);
+  }, [selectedList?.id]);
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
-      setError('Location access is not supported on this device. Enter city manually.');
+      setError('Location access is not supported on this device. Your saved profile city can still be used.');
       return;
     }
     setBusy(true);
@@ -416,11 +435,11 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
         const nextLng = position.coords.longitude;
         setLat(nextLat);
         setLng(nextLng);
-        loadSuggestions(nextLat, nextLng);
+        void loadSuggestions(nextLat, nextLng);
       },
       () => {
         setBusy(false);
-        setError('Location permission was not allowed. Enter your city manually and search again.');
+        setError('Location permission was not allowed. Nearby stores will continue using your saved profile city.');
       },
       { enableHighAccuracy: false, timeout: 9000 },
     );
@@ -430,89 +449,37 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
     return (
       <section className="panel smart-suggestions-panel">
         <p className="eyebrow">Household Pro</p>
-        <h2>Smart store suggestions</h2>
-        <p>Create or choose a shopping list to see best known prices and nearby grocery stores.</p>
+        <h2>Nearby store options</h2>
+        <p>Choose a shopping list and nearby-store suggestions will load automatically.</p>
       </section>
     );
   }
 
   return (
-    <section className="panel smart-suggestions-panel">
+    <section className="panel smart-suggestions-panel simplified-store-panel">
       <div className="panel-title-row">
         <div>
-          <p className="eyebrow">Household Pro</p>
-          <h2>Smart store suggestions</h2>
+          <p className="eyebrow">Household Pro • nearby convenience</p>
+          <h2>Stores around your trip</h2>
         </div>
-        <span className="badge">Prices + nearby stores</span>
+        <span className="badge">Auto-loaded</span>
       </div>
-      <p>Get store suggestions using your saved receipt/product prices plus nearby grocery locations. Live product prices depend on available retailer data.</p>
+      <p>The full basket price decision is handled above. This panel stays focused on nearby grocery locations so you do not have to run the same comparison twice.</p>
       {error && <div className="error">{error}</div>}
       <div className="form-row compact-location-row">
-        <label>Postal code for live prices<input value={postalCode} onChange={(e) => setPostalCode(e.target.value.toUpperCase())} placeholder="Example: L8P 1A1" /></label>
-        <label>City for nearby stores<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Hamilton" /></label>
-        <label>Country<input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Canada" /></label>
+        <label>City<input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Hamilton" /></label>
+        <label>Country<input value={country} onChange={(event) => setCountry(event.target.value)} placeholder="Canada" /></label>
       </div>
-      <p className="small-muted location-note">For live prices, postal code gives the best result. If it is blank, the app asks for current location; if denied, it uses your profile city.</p>
       <div className="location-actions">
         <button className="secondary" type="button" onClick={useCurrentLocation} disabled={busy}>Use my location</button>
-        <button className="secondary" type="button" onClick={() => loadSuggestions()} disabled={busy}>{busy ? 'Checking...' : 'Get suggestions'}</button>
-        <button className="primary" type="button" onClick={() => compareCurrentList(false)} disabled={busy}>Compare live prices</button>
+        <button className="secondary" type="button" onClick={() => loadSuggestions()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh nearby stores'}</button>
       </div>
 
-      {livePrices && livePricesOpen && (
-        <div className="modal-backdrop live-price-modal-backdrop" onClick={() => setLivePricesOpen(false)}>
-          <section className="modal live-price-modal" role="dialog" aria-modal="true" aria-label="Live price comparison" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-title">
-              <div>
-                <p className="eyebrow">Live comparison</p>
-                <h2>All available price sources</h2>
-                <p>{livePrices.message}</p>
-                {livePrices.failure_reason && <p className="small-muted"><strong>Reason:</strong> {livePrices.failure_reason}</p>}
-              </div>
-              <button type="button" onClick={() => setLivePricesOpen(false)} aria-label="Close live price comparison">×</button>
-            </div>
-            <div className={livePrices.premium_required || !livePrices.configured ? 'hint' : 'live-price-scroll-list'}>
-              {livePrices.results.length > 0 ? livePrices.results.map((row, index) => (
-                <a key={`${row.item}-${row.retailer}-${index}`} href={row.source_url || '#'} target="_blank" rel="noreferrer" className="store-result-card live-price-result-card">
-                  <span>{row.item} • {row.banner || row.store_name || row.retailer || 'Store'}</span>
-                  <small>
-                    {(row.sale_price ?? row.price) != null ? money(row.sale_price ?? row.price, livePrices.currency_code) : 'Price unavailable'}
-                    {row.unit_price ? ` • ${row.unit_price}` : ''}
-                    {row.store_address ? ` • ${row.store_address}` : ''}
-                    {row.match_confidence ? ` • confidence: ${row.match_confidence}` : ''}
-                    {row.confidence_explanation ? ` • ${row.confidence_explanation}` : ''}
-                    {row.scraped_at ? ` • updated ${new Date(row.scraped_at).toLocaleDateString()}` : ''}
-                  </small>
-                </a>
-              )) : <p className="small-muted">No live price rows were returned. Saved receipt suggestions still work.</p>}
-            </div>
-            <button className="secondary full" type="button" onClick={() => compareCurrentList(true)} disabled={busy}>{busy ? 'Refreshing...' : 'Refresh live comparison'}</button>
-          </section>
-        </div>
-      )}
-
-      {suggestions && (
+      {busy && !suggestions ? <p className="small-muted">Finding useful nearby options automatically…</p> : null}
+      {suggestions ? (
         <div className="suggestion-results">
           <div className={suggestions.premium_required ? 'hint' : 'success compact-message'}>{suggestions.message}</div>
-          {suggestions.item_suggestions.length > 0 && (
-            <div className="suggestion-list">
-              <strong>Best known prices</strong>
-              {suggestions.item_suggestions.slice(0, 8).map((item) => (
-                <div key={item.product_id} className="suggestion-row">
-                  <span>{item.product_name}</span>
-                  <small>
-                    {item.best_known_store
-                      ? `${item.best_known_store} • ${money(item.best_known_price, suggestions.currency_code)}`
-                      : 'No saved price yet'}
-                    {item.best_known_source ? ` • ${item.best_known_source}` : ''}
-                    {item.freshness_label ? ` • ${item.freshness_label}` : ''}
-                    {item.savings_vs_current ? ` • save ${money(item.savings_vs_current, suggestions.currency_code)}` : ''}
-                  </small>
-                </div>
-              ))}
-            </div>
-          )}
-          {suggestions.nearby_stores.length > 0 && (
+          {suggestions.nearby_stores.length > 0 ? (
             <div className="nearby-store-list">
               <strong>Nearby grocery stores {suggestions.location_label ? `near ${suggestions.location_label}` : ''}</strong>
               {suggestions.nearby_stores.slice(0, 6).map((store, index) => (
@@ -522,9 +489,10 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
                 </a>
               ))}
             </div>
-          )}
+          ) : !suggestions.premium_required ? <p className="small-muted">No nearby store results were returned for this area.</p> : null}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
+

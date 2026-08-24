@@ -22,7 +22,7 @@ const featureCards = [
   {
     icon: '🏷️',
     title: 'Smart weekly assistant',
-    text: 'Turn your inventory, expiry dates, shopping list, receipts, and saved prices into one simple weekly action plan.',
+    text: 'Turn inventory into needed-item suggestions, meal ideas, automatic trip price checks, and one simple weekly action plan.',
   },
 ];
 
@@ -66,7 +66,7 @@ const planHighlights = [
     price: '$4.99/mo CAD',
     annual: '$39.99/year CAD',
     tag: 'MOST POPULAR • best value',
-    features: ['Whole-list store comparison', '5 receipt scans/month', 'Canadian price comparison'],
+    features: ['Automatic whole-list store comparison', '5 receipt scans/month', 'Canadian price comparison'],
     locked: ['Advanced nearby-store tools'],
   },
   {
@@ -331,11 +331,11 @@ export default function HomePage() {
         <div className="smart-assistant-marketing-copy">
           <p className="eyebrow warm-eyebrow">The reason to come back every week</p>
           <h2>From “what do we need?” to one clear grocery plan.</h2>
-          <p>The Smart Weekly Grocery Assistant checks low stock, out-of-stock items, expiry dates, your active list, saved store prices, and recorded savings. It can add genuinely needed items to your list instead of asking you to rebuild the same routine every week.</p>
+          <p>The Smart Weekly Grocery Assistant checks low stock, expiry dates, your active list, meal possibilities, price sources, and recorded savings. It can add genuinely needed items, suggest meals you can make now or are one ingredient away from, and hand your list to an automatic whole-trip price check.</p>
           <div className="assistant-marketing-flow">
             <span><strong>1</strong> Know what is home</span>
             <span><strong>2</strong> Add what is actually needed</span>
-            <span><strong>3</strong> Compare the whole trip</span>
+            <span><strong>3</strong> Auto-check the whole trip</span>
             <span><strong>4</strong> Track what you saved</span>
           </div>
           <Link to={loggedIn ? '/assistant' : '/login'} className="primary center-link">{loggedIn ? 'Open your weekly assistant' : 'Start building your assistant'}</Link>
@@ -346,7 +346,7 @@ export default function HomePage() {
           <div className="assistant-demo-items"><span>🥛 Milk</span><span>🥚 Eggs</span><span>🍌 Bananas</span><span>🥣 Yogurt</span></div>
           <div className="assistant-demo-store"><div><small>Best known store</small><strong>No Frills</strong></div><strong>$57.82</strong></div>
           <div className="assistant-demo-saving"><span>Potential difference vs next option</span><strong>$4.32</strong></div>
-          <small>Illustrative preview. Your account uses your own saved household prices and clearly shows price coverage.</small>
+          <small>Illustrative preview. Your account automatically checks the strongest available price source and clearly labels missing prices instead of inventing a total.</small>
         </div>
       </section>
 

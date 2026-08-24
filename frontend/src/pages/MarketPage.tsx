@@ -42,7 +42,7 @@ export default function MarketPage() {
   const [addBusyKey, setAddBusyKey] = useState('');
   const [addFeedback, setAddFeedback] = useState('');
   const [itemsText, setItemsText] = useState('milk\neggs\nbread');
-  const [postalCode, setPostalCode] = useState('');
+  const [postalCode, setPostalCode] = useState(() => localStorage.getItem('ghm_price_postal') || '');
   const [locationNote, setLocationNote] = useState('Postal code gives the most accurate Canadian store prices.');
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [compare, setCompare] = useState<LivePriceCompareResponse | null>(null);
@@ -200,7 +200,8 @@ export default function MarketPage() {
   async function runCompare(forceRefresh = false) {
     const typedPostal = postalCode.trim();
     if (typedPostal) {
-      setLocationNote('Using your postal code for local Canadian price results.');
+      localStorage.setItem('ghm_price_postal', typedPostal.toUpperCase());
+      setLocationNote('Using your postal code for local Canadian price results. This device will reuse it automatically for whole-list comparison.');
       await submitCompare({ postal: typedPostal, forceRefresh });
       return;
     }
