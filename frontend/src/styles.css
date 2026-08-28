@@ -9522,3 +9522,217 @@ body,
   .house-mini-nav { display: none !important; }
   .inventory-first-empty > .primary { grid-column: 1 / -1; width: 100%; }
 }
+
+/* =========================================================
+   V72 — persistent Home context + reliable desktop More menu
+   ========================================================= */
+
+/* The desktop More popover must be allowed to escape the header row. */
+.site-header:not(.public-site-header),
+.site-header:not(.public-site-header) .site-header-inner.shell.wide,
+.site-header:not(.public-site-header) .site-nav-wrap,
+.site-header:not(.public-site-header) .site-nav {
+  overflow: visible !important;
+}
+
+.desktop-more-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+.desktop-more-trigger {
+  appearance: none;
+  border: 0;
+  list-style: none;
+  cursor: pointer;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: transparent;
+  color: #35584a;
+  font: inherit;
+  font-weight: 850;
+  line-height: 1.2;
+  box-shadow: none;
+}
+.desktop-more-trigger:hover,
+.desktop-more-trigger:focus-visible,
+.desktop-more-menu.active .desktop-more-trigger,
+.desktop-more-menu.open .desktop-more-trigger {
+  background: #eef8f1;
+  color: #174d37;
+}
+.desktop-more-trigger:focus-visible {
+  outline: 3px solid rgba(42, 133, 83, .2);
+  outline-offset: 2px;
+}
+.desktop-more-menu.open .desktop-more-trigger > span { transform: rotate(180deg); }
+.desktop-more-trigger > span { transition: transform .18s ease; }
+.desktop-more-popover {
+  z-index: 50000 !important;
+  animation: v72MoreOpen .16s ease-out;
+  transform-origin: top right;
+}
+@keyframes v72MoreOpen {
+  from { opacity: 0; transform: translateY(-4px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Home context is visible at the point of work so users never need to backtrack. */
+.house-context-switcher {
+  position: relative;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border: 1px solid #dbe8df;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(242,250,244,.97));
+  box-shadow: 0 10px 28px rgba(19, 67, 46, .07);
+}
+.house-context-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.house-context-icon {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #173f31;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+.house-context-copy > div { min-width: 0; display: grid; gap: 1px; }
+.house-context-copy small {
+  color: #7a8c82;
+  font-size: .61rem;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+.house-context-copy strong {
+  min-width: 0;
+  color: #183e30;
+  font-size: .95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.house-context-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.house-context-select-wrap {
+  position: relative;
+  min-width: 210px;
+  display: flex;
+  align-items: center;
+}
+.house-context-select-wrap select {
+  width: 100%;
+  min-height: 40px;
+  appearance: none;
+  padding: 8px 34px 8px 11px;
+  border: 1px solid #cfe0d4;
+  border-radius: 12px;
+  background: #fff;
+  color: #234b3a;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.house-context-select-wrap > span:last-child {
+  position: absolute;
+  right: 11px;
+  pointer-events: none;
+  color: #557165;
+  font-weight: 900;
+}
+.house-context-select-wrap select:focus-visible {
+  outline: 3px solid rgba(42,133,83,.16);
+  border-color: #73a889;
+}
+.house-context-manage,
+.house-context-only,
+.house-context-loading {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 11px;
+  border-radius: 12px;
+  white-space: nowrap;
+  font-size: .76rem;
+  font-weight: 850;
+}
+.house-context-manage {
+  border: 1px solid #d7e5db;
+  background: #fff;
+  color: #315c49;
+  text-decoration: none;
+}
+.house-context-manage:hover { background: #f3f9f5; }
+.house-context-only,
+.house-context-loading { background: #edf6ef; color: #47705e; }
+.house-context-error {
+  position: absolute;
+  left: 13px;
+  top: calc(100% + 3px);
+  max-width: calc(100% - 26px);
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #fff4f2;
+  color: #9b3327;
+  box-shadow: 0 6px 18px rgba(84,33,27,.08);
+}
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 760px) {
+  .house-context-switcher {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+  .house-context-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+    gap: 7px;
+  }
+  .house-context-select-wrap { min-width: 0; width: 100%; }
+  .house-context-select-wrap select { min-height: 42px; font-size: .8rem; }
+  .house-context-manage { min-height: 42px; padding-inline: 10px; }
+  .house-context-only,
+  .house-context-loading { justify-self: start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-more-popover { animation: none !important; }
+  .desktop-more-trigger > span { transition: none !important; }
+}

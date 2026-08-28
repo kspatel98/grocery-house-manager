@@ -4,6 +4,7 @@ import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import type { Activity, BasketComparison, House, HouseMember, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
+import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
 
@@ -114,6 +115,19 @@ export default function ShoppingPage() {
     }
   }
 
+  useEffect(() => {
+    setHouse(null);
+    setProducts([]);
+    setSections([]);
+    setActiveLists([]);
+    setMembers([]);
+    setActivities([]);
+    setCreatingNew(false);
+    setSelectedListId(null);
+    setInitialLoading(true);
+    setOfflineFallback(false);
+    setError('');
+  }, [id]);
   useEffect(() => { loadAll(); }, [id, sortBy, direction]);
   useHouseLiveRefresh(id, loadAll);
 
@@ -162,6 +176,8 @@ export default function ShoppingPage() {
           </div>
         </div>
       </header>
+
+      <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="shopping" />
 
       {error && <div className="error">{error}</div>}
       {initialLoading && <div className="panel muted-panel">Loading grocery lists...</div>}

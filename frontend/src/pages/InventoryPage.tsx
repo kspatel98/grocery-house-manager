@@ -4,6 +4,7 @@ import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
+import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import type { House, Product, Section } from '../types';
 
 const PRODUCT_PAGE_LIMIT = 240;
@@ -68,7 +69,16 @@ export default function InventoryPage() {
     }
   }
 
-  useEffect(() => { loadAll(); }, [id]);
+  useEffect(() => {
+    setHouse(null);
+    setSections([]);
+    setProducts([]);
+    setSearch('');
+    setSectionFilter('');
+    setError('');
+    setLoading(true);
+    loadAll();
+  }, [id]);
   useEffect(() => {
     const timer = window.setTimeout(() => { loadProducts(); }, 300);
     return () => window.clearTimeout(timer);
@@ -89,6 +99,8 @@ export default function InventoryPage() {
         </div>
         <button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button>
       </header>
+
+      <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="inventory" />
 
       <nav className="house-mini-nav" aria-label="House sections">
         <Link to={`/houses/${id}/shopping`}>🛒 Grocery lists</Link>

@@ -64,14 +64,19 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
   const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
   const [premiumStats, setPremiumStats] = useState<PremiumCrownStats | null>(null);
-  const [primaryHouseId, setPrimaryHouseId] = useState<number | null>(null);
+  const [activeHouseId, setActiveHouseId] = useState<number | null>(() => {
+    const saved = Number(localStorage.getItem('ghm_active_house_id'));
+    return Number.isFinite(saved) && saved > 0 ? saved : null;
+  });
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
   const [premiumArrival, setPremiumArrival] = useState(false);
   const premiumBadgeRef = useRef<HTMLDivElement>(null);
   const premiumCrownRef = useRef<HTMLSpanElement>(null);
+  const desktopMoreRef = useRef<HTMLDivElement>(null);
   const siteHeaderRef = useRef<HTMLElement>(null);
   const [siteHeaderHeight, setSiteHeaderHeight] = useState(0);
 
@@ -111,7 +116,12 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           if (cancelled) return;
           setIsAdmin(Boolean(data.is_admin));
           setPremiumStats(data.premium_crown_stats || null);
-          setPrimaryHouseId(data.houses?.[0]?.id || null);
+          const savedHouseId = Number(localStorage.getItem('ghm_active_house_id'));
+          const rememberedHouse = data.houses?.find((house) => house.id === savedHouseId);
+          const nextActiveHouseId = rememberedHouse?.id || data.houses?.[0]?.id || null;
+          setActiveHouseId(nextActiveHouseId);
+          if (nextActiveHouseId) localStorage.setItem('ghm_active_house_id', String(nextActiveHouseId));
+          else localStorage.removeItem('ghm_active_house_id');
           setAccountReady(true);
           const effectiveProfile: UserProfile = {
             ...data.user,
@@ -141,7 +151,44 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
   const routeHouseMatch = location.pathname.match(/^\/houses\/(\d+)/);
   const routeHouseId = routeHouseMatch ? Number(routeHouseMatch[1]) : null;
-  const contextHouseId = routeHouseId || primaryHouseId;
+
+  useEffect(() => {
+    if (!routeHouseId) return;
+    setActiveHouseId(routeHouseId);
+    localStorage.setItem('ghm_active_house_id', String(routeHouseId));
+  }, [routeHouseId]);
+
+  useEffect(() => {
+    const handleActiveHouse = (event: Event) => {
+      const nextId = Number((event as CustomEvent<{ houseId?: number }>).detail?.houseId);
+      if (Number.isFinite(nextId) && nextId > 0) setActiveHouseId(nextId);
+    };
+    window.addEventListener('house:active', handleActiveHouse);
+    return () => window.removeEventListener('house:active', handleActiveHouse);
+  }, []);
+
+  useEffect(() => {
+    setDesktopMoreOpen(false);
+    setMobileMoreOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!desktopMoreOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!desktopMoreRef.current?.contains(event.target as Node)) setDesktopMoreOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDesktopMoreOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [desktopMoreOpen]);
+
+  const contextHouseId = routeHouseId || activeHouseId;
   const navItems = contextHouseId
     ? [
         { to: '/houses', label: 'Home' },
@@ -237,14 +284,25 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   </Link>
                 );
               })}
-              <details className={`desktop-more-menu ${extraActive ? 'active' : ''}`}>
-                <summary>More <span aria-hidden="true">⌄</span></summary>
-                <div className="desktop-more-popover">
-                  {extraNavItems.map((item) => (
-                    <Link key={item.to} to={item.to}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
-                  ))}
-                </div>
-              </details>
+              <div ref={desktopMoreRef} className={`desktop-more-menu ${extraActive ? 'active' : ''} ${desktopMoreOpen ? 'open' : ''}`}>
+                <button
+                  type="button"
+                  className="desktop-more-trigger"
+                  aria-haspopup="menu"
+                  aria-expanded={desktopMoreOpen}
+                  onClick={() => setDesktopMoreOpen((open) => !open)}
+                >
+                  More <span aria-hidden="true">⌄</span>
+                </button>
+                {desktopMoreOpen && (
+                  <div className="desktop-more-popover" role="menu">
+                    {extraNavItems.map((item) => (
+                      <Link key={item.to} to={item.to} role="menuitem" onClick={() => setDesktopMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
+                    ))}
+                    <Link to="/profile" role="menuitem" onClick={() => setDesktopMoreOpen(false)}><span aria-hidden="true">👤</span><strong>Profile</strong></Link>
+                  </div>
+                )}
+              </div>
             </nav>
             <Link
               to="/profile"
