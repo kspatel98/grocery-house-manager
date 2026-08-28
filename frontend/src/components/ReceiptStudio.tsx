@@ -259,7 +259,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
           new_product_quantity: numberOrNull(line.quantity) || 1,
         })),
       });
-      setUploadResult((prev) => prev ? { ...prev, receipt: data, message: 'Receipt reviewed and saved to price history.', scan_status: data.ocr_status } : prev);
+      setUploadResult((prev) => prev ? { ...prev, receipt: data, message: 'Receipt reviewed and saved with its prices.', scan_status: data.ocr_status } : prev);
       setReviewLines((data.line_items || []).map(lineFromReceiptItem));
       setError('');
       await onChange();
@@ -310,7 +310,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
         <span className="badge premium-badge">Professional scan</span>
       </div>
       <p>
-        Upload a JPG or PNG receipt photo. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates price history.
+        Upload a JPG or PNG receipt photo. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates inventory and remembers the prices you paid.
       </p>
       <div className="receipt-studio-hero">
         <div className="receipt-hero-icon">🧾</div>

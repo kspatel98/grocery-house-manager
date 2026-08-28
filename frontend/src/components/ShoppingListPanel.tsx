@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { Product, Section, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
@@ -87,6 +88,7 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
   const [showAddMore, setShowAddMore] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [completedListTitle, setCompletedListTitle] = useState('');
 
   const selectedItems = useMemo(() => Object.entries(selection).filter(([, value]) => value.selected), [selection]);
   const existingProductIds = useMemo(() => new Set(activeList?.items.map((item) => item.product_id) || []), [activeList]);
@@ -150,6 +152,7 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
       setSelection({});
       setTitle('Grocery List');
       setError('');
+      window.dispatchEvent(new Event('account:refresh'));
       onListCreated?.(data);
       onListUpdated?.(data);
     } catch (err) {
@@ -254,8 +257,11 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
     if (!confirm('Shopping done? This will add all cart quantities to the real inventory.')) return;
     try {
       setBusy(true);
+      const finishedTitle = activeList.title;
       await api.post(`/houses/${houseId}/shopping-lists/${activeList.id}/done`, { confirm: true });
       setError('');
+      setCompletedListTitle(finishedTitle);
+      window.dispatchEvent(new Event('account:refresh'));
       await onChange();
     } catch (err) {
       setError(errorMessage(err));
@@ -273,11 +279,19 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
         <div>
           <p className="eyebrow">Shopping flow</p>
           <h2>Grocery list</h2>
-          <p>Select products by category, use suggested store badges, then finish shopping to update inventory.</p>
+          <p>Add what you need, move items into the cart as you shop, then tap Shopping done. Your inventory updates automatically.</p>
         </div>
       </div>
       {error && <div className="error">{error}</div>}
       {busy && <div className="hint">Saving change...</div>}
+      {completedListTitle ? (
+        <div className="shopping-complete-next" role="status">
+          <span aria-hidden="true">✓</span>
+          <div><p className="eyebrow">Shopping complete</p><strong>{completedListTitle} updated your inventory</strong><small>If you have the receipt, scan it now and Grocery House Manager can save the real prices and spending history automatically.</small></div>
+          <Link to={`/houses/${houseId}/scan`} className="primary center-link">Scan receipt</Link>
+          <button type="button" className="ghost-button" onClick={() => setCompletedListTitle('')}>Not now</button>
+        </div>
+      ) : null}
 
       {!activeList && (
         <>

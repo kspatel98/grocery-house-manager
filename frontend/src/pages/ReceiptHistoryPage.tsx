@@ -167,7 +167,7 @@ export default function ReceiptHistoryPage() {
               <div className="receipt-empty-state">
                 <span>🧾</span>
                 <strong>No receipts found</strong>
-                <p>Try another search or scan a new receipt from the house dashboard.</p>
+                <p>Try another search. If you haven't saved a receipt yet, scan one and your history will build automatically.</p>
               </div>
             )}
           </div>
@@ -244,8 +244,8 @@ export default function ReceiptHistoryPage() {
             <div className="receipt-empty-state large">
               <span>🧾</span>
               <strong>No saved receipts yet</strong>
-              <p>Scan or manually save a receipt from the house dashboard, then return here anytime to review it.</p>
-              <Link className="primary center-link" to={`/houses/${id}`}>Go to receipt scanner</Link>
+              <p>Scan your first receipt, review the extracted items, and save it. Grocery House Manager will automatically keep the receipt, store prices, and household history here.</p>
+              <Link className="primary center-link" to={`/houses/${id}/scan`}>Scan my first receipt</Link>
             </div>
           )}
         </section>

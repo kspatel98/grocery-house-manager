@@ -114,6 +114,59 @@ export default function AssistantPage() {
     return 'Your household looks organized';
   }, [assistant]);
 
+  const todayFocus = useMemo(() => {
+    if (!assistant || !houseId) return null;
+    if (assistant.expired.length) return {
+      icon: '⚠️',
+      label: 'FIRST PRIORITY',
+      title: `Review ${assistant.expired.length} expired item${assistant.expired.length === 1 ? '' : 's'}`,
+      copy: `${assistant.expired.slice(0, 3).join(', ')}${assistant.expired.length > 3 ? ' and more' : ''} should be checked before use.`,
+      action: 'inventory' as const,
+      cta: 'Review inventory',
+    };
+    if (assistant.expiring_soon.length) return {
+      icon: '⏳',
+      label: 'USE WHAT YOU OWN',
+      title: `Use ${assistant.expiring_soon.length} item${assistant.expiring_soon.length === 1 ? '' : 's'} soon`,
+      copy: `${assistant.expiring_soon.slice(0, 3).join(', ')}${assistant.expiring_soon.length > 3 ? ' and more' : ''}. Meal ideas below prioritize ingredients that should be used soon.`,
+      action: 'meals' as const,
+      cta: 'See meal ideas',
+    };
+    if (assistant.suggested_items.length) return {
+      icon: '🛒',
+      label: 'PREPARE YOUR NEXT TRIP',
+      title: `${assistant.suggested_items.length} item${assistant.suggested_items.length === 1 ? '' : 's'} likely need restocking`,
+      copy: 'Add them to your current list automatically instead of checking inventory one item at a time.',
+      action: 'suggestions' as const,
+      cta: assistant.active_list_id ? 'Add to shopping list' : 'Create my shopping list',
+    };
+    if (assistant.active_list_items) return {
+      icon: '✓',
+      label: 'READY WHEN YOU ARE',
+      title: `${assistant.active_list_items} item${assistant.active_list_items === 1 ? '' : 's'} ready for your next shop`,
+      copy: 'Open Shopping for the one-handed checklist and automatic trip-price recommendation.',
+      action: 'shopping' as const,
+      cta: 'Start shopping',
+    };
+    const readyMeal = assistant.recipes.find((recipe) => recipe.status === 'ready');
+    if (readyMeal) return {
+      icon: '🍽️',
+      label: 'ALL CLEAR',
+      title: `You can make ${readyMeal.name} from what you own`,
+      copy: 'Nothing urgent needs attention. Use what you already have before adding more groceries.',
+      action: 'meals' as const,
+      cta: 'See meal idea',
+    };
+    return {
+      icon: '✨',
+      label: 'ALL CLEAR',
+      title: 'Your Grocery Home looks organized',
+      copy: 'Nothing urgent stands out right now. Keep using the app normally and this brief will update automatically.',
+      action: 'inventory' as const,
+      cta: 'Review inventory',
+    };
+  }, [assistant, houseId]);
+
   async function addSuggestedItems() {
     if (!houseId || !assistant?.suggested_items.length) return;
     try {
@@ -204,6 +257,26 @@ export default function AssistantPage() {
 
       {assistant && selectedHouse ? (
         <>
+          {todayFocus ? (
+            <section className="assistant-today-focus" aria-label="What should I do today?">
+              <span className="assistant-today-icon" aria-hidden="true">{todayFocus.icon}</span>
+              <div>
+                <p className="eyebrow">What should I do today? • {todayFocus.label}</p>
+                <h2>{todayFocus.title}</h2>
+                <p>{todayFocus.copy}</p>
+              </div>
+              {todayFocus.action === 'suggestions' ? (
+                <button type="button" className="primary" disabled={busy} onClick={addSuggestedItems}>{busy ? 'Updating…' : todayFocus.cta}</button>
+              ) : todayFocus.action === 'meals' ? (
+                <a href="#meal-ideas" className="primary center-link">{todayFocus.cta}</a>
+              ) : todayFocus.action === 'shopping' ? (
+                <Link to={`/houses/${houseId}/shopping`} className="primary center-link">{todayFocus.cta}</Link>
+              ) : (
+                <Link to={`/houses/${houseId}/inventory`} className="primary center-link">{todayFocus.cta}</Link>
+              )}
+            </section>
+          ) : null}
+
           <section className="assistant-command-grid">
             <article className="assistant-command-card needs-card">
               <div className="assistant-card-heading"><span>🛒</span><div><p className="eyebrow">Next trip</p><h2>Likely needed</h2></div></div>
@@ -226,13 +299,13 @@ export default function AssistantPage() {
             </article>
 
             <article className="assistant-command-card savings-card">
-              <div className="assistant-card-heading"><span>💰</span><div><p className="eyebrow">Real recorded data</p><h2>Money saved</h2></div></div>
+              <div className="assistant-card-heading"><span>💰</span><div><p className="eyebrow">From your receipts & shopping</p><h2>Money saved</h2></div></div>
               {savings ? (
                 <>
                   <div className="assistant-money-number">{money(savings.estimated_savings, savings.currency_code)}</div>
                   <div className="assistant-money-breakdown">
                     <span><strong>{money(savings.receipt_discounts, savings.currency_code)}</strong><small>receipt discounts</small></span>
-                    <span><strong>{money(savings.lower_price_choices, savings.currency_code)}</strong><small>lower-price choices</small></span>
+                    <span><strong>{money(savings.lower_price_choices, savings.currency_code)}</strong><small>cheaper choices you made</small></span>
                     <span><strong>{money(savings.plan_monthly_cost, savings.currency_code)}</strong><small>monthly plan value</small></span>
                   </div>
                   <p className="small-muted">{savings.message}</p>
@@ -249,7 +322,7 @@ export default function AssistantPage() {
               <h2>{assistant.active_list_title || 'Create a list and let the app prepare the trip'}</h2>
               {assistant.active_list_id ? (
                 assistant.best_store_name ? (
-                  <p><strong>{assistant.best_store_name}</strong> is currently the best-known store from reusable household price history. Open the list and Grocery House Manager will automatically check live Canadian prices, recent receipts, and saved prices together.</p>
+                  <p><strong>{assistant.best_store_name}</strong> is the best store we know from your saved shopping data right now. Open the list and Grocery House Manager will automatically check current Canadian prices first, then recent receipts and older saved prices when needed.</p>
                 ) : (
                   <p>Your list is ready. Open it and the full price check will run automatically — no extra setup step and no duplicate comparison panel here.</p>
                 )
@@ -258,7 +331,7 @@ export default function AssistantPage() {
             {assistant.active_list_id ? <Link to={`/houses/${houseId}/shopping`} className="primary center-link">Open trip recommendation →</Link> : <Link to={`/houses/${houseId}/shopping`} className="secondary center-link">Create shopping list</Link>}
           </section>
 
-          <section className="assistant-secondary-grid">
+          <section className="assistant-secondary-grid" id="meal-ideas">
             <article className="panel">
               <p className="eyebrow">Inventory pulse</p>
               <h2>What needs attention</h2>
@@ -281,11 +354,11 @@ export default function AssistantPage() {
               <div className="panel-title-row">
                 <div>
                   <p className="eyebrow">Cook from what you own</p>
-                  <h2>Meals your inventory can actually support</h2>
+                  <h2>Meal ideas from groceries already at home</h2>
                 </div>
                 <span className="badge">Automatic matching</span>
               </div>
-              <p className="small-muted">The matcher understands common names such as basmati rice → rice, spaghetti → pasta, mozzarella → cheese, chicken breast → chicken, and dal → lentils. Expired products are never used in suggestions.</p>
+              <p className="small-muted">No setup needed. Grocery House Manager understands common grocery names automatically, avoids expired items, and prioritizes foods that should be used soon.</p>
               <div className="assistant-recipe-list upgraded-recipes">
                 {assistant.recipes.map((recipe) => (
                   <div key={recipe.name} className={`meal-idea-card ${recipe.status}`}>

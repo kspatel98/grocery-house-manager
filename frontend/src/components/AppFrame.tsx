@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import OfferCrownWidget from './OfferCrownWidget';
 import PremiumAwardCelebration from './PremiumAwardCelebration';
+import SetupCoach from './SetupCoach';
 import type { AccountBootstrap, PremiumCrownStats, UserProfile } from '../types';
 
 function EmailIcon() {
@@ -37,15 +38,6 @@ function InstagramIcon() {
   );
 }
 
-const baseNavItems = [
-  { to: '/houses', label: 'Houses' },
-  { to: '/assistant', label: 'Assistant' },
-  { to: '/market', label: 'Prices' },
-  { to: '/reports', label: 'Reports' },
-  { to: '/pricing', label: 'Plans' },
-  { to: '/support', label: 'Support' },
-];
-
 function cachedAdminFlag() {
   return localStorage.getItem('account_is_admin') === 'true';
 }
@@ -72,6 +64,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
   const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
   const [premiumStats, setPremiumStats] = useState<PremiumCrownStats | null>(null);
+  const [primaryHouseId, setPrimaryHouseId] = useState<number | null>(null);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
@@ -117,6 +111,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           if (cancelled) return;
           setIsAdmin(Boolean(data.is_admin));
           setPremiumStats(data.premium_crown_stats || null);
+          setPrimaryHouseId(data.houses?.[0]?.id || null);
           setAccountReady(true);
           const effectiveProfile: UserProfile = {
             ...data.user,
@@ -144,7 +139,34 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const navItems = isAdmin ? [...baseNavItems, { to: '/admin', label: 'Admin' }] : baseNavItems;
+  const routeHouseMatch = location.pathname.match(/^\/houses\/(\d+)/);
+  const routeHouseId = routeHouseMatch ? Number(routeHouseMatch[1]) : null;
+  const contextHouseId = routeHouseId || primaryHouseId;
+  const navItems = contextHouseId
+    ? [
+        { to: '/houses', label: 'Home' },
+        { to: `/houses/${contextHouseId}/inventory`, label: 'Inventory' },
+        { to: `/houses/${contextHouseId}/shopping`, label: 'Shopping' },
+        { to: `/assistant?house=${contextHouseId}`, label: 'Assistant' },
+      ]
+    : [
+        { to: '/houses', label: 'Home' },
+        { to: '/pricing', label: 'Plans' },
+        { to: '/support', label: 'Support' },
+      ];
+  const extraNavItems = [
+    ...(contextHouseId ? [
+      { to: `/houses/${contextHouseId}/scan`, label: 'Scan receipt', icon: '🧾' },
+      { to: `/houses/${contextHouseId}/receipts`, label: 'Receipt history', icon: '🗂️' },
+    ] : []),
+    { to: '/market', label: 'Prices', icon: '🏷️' },
+    { to: '/reports', label: 'Reports', icon: '📈' },
+    { to: '/pricing', label: 'Plans', icon: '✨' },
+    { to: '/support', label: 'Support', icon: '💬' },
+    ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: '🛡️' }] : []),
+  ];
+  const extraActive = extraNavItems.some((item) => location.pathname.startsWith(item.to.split('?')[0]));
+  const homeActive = location.pathname === '/houses' || /^\/houses\/\d+$/.test(location.pathname);
   const profileName = profile?.full_name || profile?.email || 'Profile';
   const status = (profile?.subscription_status || 'free').toLowerCase();
   const planName = profile?.plan_name || 'free';
@@ -203,15 +225,26 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           </div>
           <div className="site-nav-wrap">
             <nav className="site-nav" aria-label="Primary navigation">
-              {navItems.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={location.pathname.startsWith(item.to) ? 'active' : ''}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) => {
+                const itemPath = item.to.split('?')[0];
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath)) ? 'active' : ''}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <details className={`desktop-more-menu ${extraActive ? 'active' : ''}`}>
+                <summary>More <span aria-hidden="true">⌄</span></summary>
+                <div className="desktop-more-popover">
+                  {extraNavItems.map((item) => (
+                    <Link key={item.to} to={item.to}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
+                  ))}
+                </div>
+              </details>
             </nav>
             <Link
               to="/profile"
@@ -242,6 +275,31 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       />
 
       <div className="app-main-content">{children}</div>
+
+      <SetupCoach />
+
+      <nav className="mobile-bottom-nav" aria-label="Mobile app navigation">
+        <Link to="/houses" className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}/inventory` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/inventory`) ? 'active' : ''}><span aria-hidden="true">▣</span><small>Inventory</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>Shopping</small></Link>
+        <Link to={contextHouseId ? `/assistant?house=${contextHouseId}` : '/assistant'} className={location.pathname.startsWith('/assistant') ? 'active' : ''}><span aria-hidden="true">✦</span><small>Assistant</small></Link>
+        <button type="button" className={mobileMoreOpen || extraActive || location.pathname.startsWith('/profile') ? 'active' : ''} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>More</small></button>
+      </nav>
+
+      {mobileMoreOpen && (
+        <div className="mobile-more-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
+          <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More Grocery House Manager options" onClick={(event) => event.stopPropagation()}>
+            <div className="mobile-more-handle" aria-hidden="true" />
+            <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>More</h2></div><button type="button" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
+            <div className="mobile-more-grid">
+              {extraNavItems.map((item) => (
+                <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
+              ))}
+              <Link to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><strong>Profile</strong></Link>
+            </div>
+          </section>
+        </div>
+      )}
 
       <PremiumAwardCelebration
         open={celebrationOpen && showPremiumCrown}

@@ -93,7 +93,7 @@ export default function AboutPage() {
           <h2>Best practices</h2>
           <ul className="feature-list roomy-list">
             <li>Use clear product names like “Milk bags,” “Apples,” or “Greek yogurt.”</li>
-            <li>Add store names and reviewed receipt prices so each product can keep a useful store-price history.</li>
+            <li>Add store names and reviewed receipt prices so Grocery House Manager can remember useful prices by store.</li>
             <li>Use expiry dates for dairy, frozen food, fresh items, and household essentials.</li>
             <li>Use low-stock thresholds to quickly notice items that need refilling.</li>
             <li>Check the activity feed when multiple people are updating the same house.</li>

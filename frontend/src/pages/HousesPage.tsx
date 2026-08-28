@@ -2,7 +2,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AccountBootstrap, AdminOfferAction, AdminUserOffer, House, PlanName, SiteReview, SiteReviewSummary, Subscription } from '../types';
+import type { AccountBootstrap, AdminOfferAction, AdminUserOffer, House, OnboardingStatus, PlanName, SiteReview, SiteReviewSummary, Subscription, WeeklyAssistant } from '../types';
 import FirstRunSetup from '../components/FirstRunSetup';
 import InstallAppPrompt from '../components/InstallAppPrompt';
 
@@ -120,6 +120,9 @@ export default function HousesPage() {
   const [offerBusy, setOfferBusy] = useState<number | null>(null);
   const [offerMessage, setOfferMessage] = useState('');
   const [selectedOfferPlans, setSelectedOfferPlans] = useState<Record<number, PlanName>>({});
+  const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
+  const [todayBrief, setTodayBrief] = useState<WeeklyAssistant | null>(null);
+  const [firstName, setFirstName] = useState('');
   const navigate = useNavigate();
 
   async function loadReviews() {
@@ -160,8 +163,17 @@ export default function HousesPage() {
       setLoading(true);
       setError('');
       const { data } = await api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } });
-      setHouses(Array.isArray(data.houses) ? data.houses : []);
+      const nextHouses = Array.isArray(data.houses) ? data.houses : [];
+      setHouses(nextHouses);
       setSubscription(data.subscription);
+      setFirstName((data.user.full_name || data.user.email || '').split(/[ @]/).filter(Boolean)[0] || '');
+      if (nextHouses[0]) {
+        api.get<WeeklyAssistant>(`/insights/houses/${nextHouses[0].id}/weekly-assistant`, { params: { t: Date.now() } })
+          .then(({ data: brief }) => setTodayBrief(brief))
+          .catch(() => setTodayBrief(null));
+      } else {
+        setTodayBrief(null);
+      }
       localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
       localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
       await Promise.all([loadReviews(), loadOffers()]);
@@ -293,6 +305,38 @@ export default function HousesPage() {
   const offer = subscription?.new_user_offer;
   const shouldShowOffer = Boolean(offer?.active && !isPaidStatus(subscription?.subscription_status) && !timeLeftParts(offer?.eligible_until).expired);
 
+  const todayAction = useMemo(() => {
+    const house = houses[0];
+    if (!house) return null;
+    if (!todayBrief) {
+      return { icon: '🏡', eyebrow: 'Your Grocery Home', title: `Open ${house.name}`, copy: 'Your shared inventory, shopping lists, receipts, and household members are all together here.', to: `/houses/${house.id}`, cta: 'Open Home' };
+    }
+    if (todayBrief.expired.length) {
+      return { icon: '⚠️', eyebrow: 'Needs attention', title: `${todayBrief.expired.length} expired item${todayBrief.expired.length === 1 ? '' : 's'} to review`, copy: `Check ${todayBrief.expired.slice(0, 3).join(', ')}${todayBrief.expired.length > 3 ? ' and more' : ''} before your next meal or shopping trip.`, to: `/houses/${house.id}/inventory`, cta: 'Review inventory' };
+    }
+    if (todayBrief.expiring_soon.length) {
+      return { icon: '⏳', eyebrow: 'Use soon', title: `${todayBrief.expiring_soon.length} item${todayBrief.expiring_soon.length === 1 ? '' : 's'} should be used soon`, copy: `${todayBrief.expiring_soon.slice(0, 3).join(', ')}${todayBrief.expiring_soon.length > 3 ? ' and more' : ''}. The Assistant can suggest meals from what you already own.`, to: `/assistant?house=${house.id}`, cta: 'See meal ideas' };
+    }
+    if (todayBrief.suggested_items.length) {
+      return { icon: '🛒', eyebrow: 'Next trip', title: `${todayBrief.suggested_items.length} item${todayBrief.suggested_items.length === 1 ? '' : 's'} likely need restocking`, copy: 'The Assistant can add them to your shopping list automatically and prepare your next trip.', to: `/assistant?house=${house.id}`, cta: 'Prepare my trip' };
+    }
+    if (todayBrief.active_list_items) {
+      return { icon: '✓', eyebrow: 'Ready to shop', title: `${todayBrief.active_list_items} item${todayBrief.active_list_items === 1 ? '' : 's'} on your current list`, copy: 'Open Shopping to check items off one-handed and let Grocery House Manager update your home when you finish.', to: `/houses/${house.id}/shopping`, cta: 'Start shopping' };
+    }
+    const readyMeal = todayBrief.recipes.find((recipe) => recipe.status === 'ready');
+    if (readyMeal) {
+      return { icon: '🍽️', eyebrow: 'You are in good shape', title: `You can make ${readyMeal.name}`, copy: 'Nothing urgent needs attention. Use what you already have before adding more groceries.', to: `/assistant?house=${house.id}`, cta: 'See today’s brief' };
+    }
+    return { icon: '✨', eyebrow: 'All clear', title: 'Your Grocery Home looks organized', copy: 'No urgent stock or expiry issue stands out right now. Add groceries as you use them and the Assistant will keep watching.', to: `/assistant?house=${house.id}`, cta: 'Open Assistant' };
+  }, [houses, todayBrief]);
+
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  })();
+
   const slides: NotificationSlide[] = useMemo(() => {
     const items: NotificationSlide[] = [];
     if (shouldShowOffer) {
@@ -397,34 +441,38 @@ export default function HousesPage() {
     <main className="page shell houses-page-v54 cinematic-page">
       <header className="topbar houses-hero-v54">
         <div>
-          <p className="eyebrow">House dashboard</p>
-          <h1>Your houses</h1>
-          <p>Create a shared space for your family, roommates, or couple grocery routine. Everything starts from one clean home dashboard.</p>
+          <p className="eyebrow">Your Grocery Home</p>
+          <h1>{firstName ? `${greeting}, ${firstName}` : greeting}</h1>
+          <p>A <strong>House</strong> is simply your private shared grocery space. Inventory, shopping lists, receipts, and the people you shop with stay together in one Home.</p>
         </div>
         <div className="topbar-actions">
           <button className="secondary" onClick={load}>Refresh</button>
         </div>
       </header>
 
-      <FirstRunSetup />
-      <InstallAppPrompt />
+      <FirstRunSetup onStatus={setOnboarding} />
+      {onboarding?.complete ? <InstallAppPrompt /> : null}
 
-      {houses.length ? (
-        <Link to={`/assistant?house=${houses[0].id}`} className="weekly-assistant-launch">
-          <span className="weekly-assistant-launch-icon">✨</span>
-          <div><p className="eyebrow">Your weekly shortcut</p><strong>Smart Grocery Assistant</strong><small>See what is low, what should be used soon, meal ideas, recorded savings, and the best known plan for your next trip.</small></div>
-          <b>Open brief →</b>
+      {onboarding?.complete && todayAction ? (
+        <Link to={todayAction.to} className="today-action-card">
+          <span className="today-action-icon" aria-hidden="true">{todayAction.icon}</span>
+          <div>
+            <p className="eyebrow">What should I do today? • {todayAction.eyebrow}</p>
+            <h2>{todayAction.title}</h2>
+            <p>{todayAction.copy}</p>
+          </div>
+          <strong>{todayAction.cta} →</strong>
         </Link>
       ) : null}
 
-      <NotificationSlider slides={slides} />
+      {onboarding?.complete ? <NotificationSlider slides={slides} /> : null}
 
-      <section className="panel create-house-panel creative-create-house">
+      {(!houses.length || onboarding?.complete) ? <section className="panel create-house-panel creative-create-house">
         <div className="panel-title-row">
           <div>
-            <p className="eyebrow">Start a household</p>
-            <h2>Create a house</h2>
-            <p>{isFreePlan ? 'Free Starter now includes one real starter house: up to 40 products, one active shared list, and four total members.' : 'Create one house for a household you own or manage.'}</p>
+            <p className="eyebrow">Start a Grocery Home</p>
+            <h2>Create a House</h2>
+            <p>{isFreePlan ? 'A House is your private shared grocery space. Free Starter includes one real Home with up to 40 products, one active shared list, and four total members.' : 'Create a separate shared Grocery Home for a household you own or manage.'}</p>
           </div>
           {subscription && <span className="plan-pill">{subscription.plan_name} • {ownedHouseCount}/{subscription.limits.houses} owned houses</span>}
         </div>
@@ -440,15 +488,15 @@ export default function HousesPage() {
             <Link to="/pricing" className="primary center-link">Compare plans</Link>
           </div>
         )}
-      </section>
+      </section> : null}
 
       {error && <div className="error">{error}</div>}
       {loading && <div className="panel muted-panel">Loading your houses...</div>}
       {!loading && !error && houses.length === 0 && (
         <section className="panel empty-state creative-empty-state">
           <span className="empty-state-icon">🏡</span>
-          <h2>No houses found for this account</h2>
-          <p>If you already created a house, make sure you are logged in with the same email/account and using grocery-house-manager.com.</p>
+          <h2>Create your first Grocery Home</h2>
+          <p>A House is the private space where your inventory, shopping list, receipts, and household members live together. Enter a name above to get started — no card required on Free Starter.</p>
           <button className="secondary" onClick={load}>Check again</button>
         </section>
       )}
@@ -464,7 +512,7 @@ export default function HousesPage() {
         ))}
       </div>
 
-      <section className="panel review-hub-panel">
+      {onboarding?.complete ? <section className="panel review-hub-panel">
         <div className="panel-title-row review-hub-title">
           <div>
             <p className="eyebrow">User reviews</p>
@@ -524,7 +572,7 @@ export default function HousesPage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> : null}
     </main>
   );
 }

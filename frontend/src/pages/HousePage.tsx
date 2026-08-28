@@ -78,6 +78,7 @@ export default function HousePage() {
       const { data } = await api.post(`/houses/${id}/invite`);
       setInviteUrl(data.join_url);
       await navigator.clipboard?.writeText(data.join_url);
+      window.dispatchEvent(new Event('account:refresh'));
       await loadAll();
       requestAnimationFrame(() => {
         inviteMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -147,10 +148,10 @@ export default function HousePage() {
       <div ref={topRef} tabIndex={-1} className="sr-focus-target" aria-hidden="true" />
       <header className="page-hero creative-hero house-main-hero">
         <div>
-          <Link to="/houses" className="breadcrumb">← Houses</Link>
-          <p className="eyebrow">House control center</p>
+          <Link to="/houses" className="breadcrumb">← Home</Link>
+          <p className="eyebrow">Your Grocery Home</p>
           <h1>{house?.name || 'House dashboard'}</h1>
-          <p>Choose what you want to work on. Inventory, receipt scanning, grocery lists, receipt history, and price tools now live in clean separate sections.</p>
+          <p>Start with Inventory, Shopping, or Scan Receipt. Receipt history, prices, and reports stay available when you need the extra detail.</p>
           {house?.owner_name && <small className="small-muted">Owner: {house.owner_name}{house.owner_plan_name ? ` • Owner plan: ${house.owner_plan_name}` : ''}</small>}
         </div>
         <div className="hero-orb-card home-orb" aria-hidden="true">
@@ -176,7 +177,7 @@ export default function HousePage() {
       <section className="house-module-grid" aria-label="House sections">
         <Link to={`/houses/${id}/inventory`} className="module-card inventory-module">
           <span className="module-icon">📦</span>
-          <small>Separate section</small>
+          <small>Everyday</small>
           <strong>Inventory</strong>
           <p>Manage products, sections, expiry dates, low stock, out-of-stock items, and store-specific prices.</p>
           <em>{stats.totalProducts} products • {stats.expired} expired</em>
@@ -184,15 +185,15 @@ export default function HousePage() {
 
         <Link to={`/houses/${id}/shopping`} className="module-card shopping-module">
           <span className="module-icon">🛒</span>
-          <small>Separate section</small>
-          <strong>Grocery lists</strong>
+          <small>Everyday</small>
+          <strong>Shopping</strong>
           <p>Create shopping lists, add new products directly, group items by category, and compare live prices in a popup.</p>
           <em>{stats.activeListItems} to buy • {stats.activeListCart} in cart</em>
         </Link>
 
         <Link to={`/houses/${id}/scan`} className="module-card receipt-module featured-module">
           <span className="module-icon">🧾</span>
-          <small>Smart Receipt Studio</small>
+          <small>After shopping</small>
           <strong>Scan receipt</strong>
           <p>Upload JPG or PNG receipts, review extracted rows, then save trusted prices and inventory updates.</p>
           <em>Review before saving</em>
@@ -200,7 +201,7 @@ export default function HousePage() {
 
         <Link to={`/houses/${id}/receipts`} className="module-card history-module">
           <span className="module-icon">🗂️</span>
-          <small>Separate page</small>
+          <small>When needed</small>
           <strong>Receipt history</strong>
           <p>View uploaded receipt photos, extracted content, totals, payment labels, and delete receipts safely.</p>
           <em>Latest: {latestReceiptDate}</em>
@@ -208,7 +209,7 @@ export default function HousePage() {
 
         <Link to="/market" className="module-card prices-module">
           <span className="module-icon">🏷️</span>
-          <small>Premium tool</small>
+          <small>Advanced</small>
           <strong>Prices</strong>
           <p>Look up products and compare latest available Canadian grocery prices when your plan allows it.</p>
           <em>Receipt + live price signals</em>
@@ -216,7 +217,7 @@ export default function HousePage() {
 
         <Link to="/reports" className="module-card reports-module">
           <span className="module-icon">📈</span>
-          <small>Insights</small>
+          <small>Advanced</small>
           <strong>Reports</strong>
           <p>Review spending, store history, receipt totals, price insights, and export your household data.</p>
           <em>{stats.receiptCount} receipt records</em>

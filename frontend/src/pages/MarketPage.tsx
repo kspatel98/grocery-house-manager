@@ -233,10 +233,10 @@ export default function MarketPage() {
     <main className="page shell wide market-page market-page-v47">
       <header className="topbar market-hero-bar market-hero-v47">
         <div>
-          <p className="eyebrow">Prices + product finder</p>
+          <p className="eyebrow">Find & compare</p>
           <h1>Find products and compare grocery prices</h1>
           <p>
-            Search product details, add products to inventory, and compare Canadian grocery prices with a clear connection status and saved-price fallback.
+            Find a grocery product or compare Canadian prices. Grocery House Manager uses the best available source automatically and falls back to prices you have already saved when needed.
           </p>
         </div>
         <div className="market-status-stack">
@@ -253,15 +253,15 @@ export default function MarketPage() {
       <section className="panel market-access-panel animated-card-lift">
         <div className="panel-title-row">
           <div>
-            <h2>Choose house</h2>
-            <p>Feature access is based on the selected house owner&apos;s plan.</p>
+            <h2>Choose your Grocery Home</h2>
+            <p>Pick the Home whose groceries you want to search or compare.</p>
           </div>
           <select value={selectedHouseId} onChange={(e) => setSelectedHouseId(e.target.value ? Number(e.target.value) : '')}>
             <option value="">Choose a house</option>
             {houses.map((house) => <option key={house.id} value={house.id}>{house.name} • {house.role}</option>)}
           </select>
         </div>
-        {!houses.length && <div className="hint">Create or join a house first, then come back to use market tools.</div>}
+        {!houses.length && <div className="guided-inline-empty"><span aria-hidden="true">🏡</span><div><strong>Create or join a Grocery Home first</strong><small>Once you have a Home, prices can connect directly to its inventory and shopping lists.</small></div><Link to="/houses" className="primary center-link">Start setup</Link></div>}
         {capabilities && <PlanAccessPreview connected={liveConnected} />}
       </section>
 
@@ -287,14 +287,6 @@ export default function MarketPage() {
               <div className="lookup-status-panel-v50">
                 {lookup.lookup_status && <span className={lookup.results.length ? 'market-status-pill connected' : 'market-status-pill offline'}><span className="status-dot" /> {lookup.lookup_status}</span>}
                 <p>{lookup.message}</p>
-                {lookup.lookup_details && lookup.lookup_details.length > 0 && (
-                  <div className="lookup-debug-v51">
-                    <strong>Lookup check</strong>
-                    <ul>
-                      {lookup.lookup_details.map((detail, index) => <li key={`${detail}-${index}`}>{detail}</li>)}
-                    </ul>
-                  </div>
-                )}
               </div>
               {lookup.results.map((item) => {
                 const key = `${item.source}-${item.barcode || item.name}`;
@@ -362,7 +354,7 @@ export default function MarketPage() {
                 {compare.used_fallback && <span className="source-badge fallback-source">Saved prices shown</span>}
               </div>
               <p>{compare.message}</p>
-              {compare.failure_reason && <div className="hint compact-message"><strong>Reason:</strong> {compare.failure_reason}</div>}
+              {compare.failure_reason && <div className="hint compact-message"><strong>What happened:</strong> {compare.failure_reason}</div>}
               {compare.results.length > 0 && <PriceComparisonTable data={compare} />}
             </div>
           )}
@@ -384,8 +376,8 @@ function PlanAccessPreview({ connected }: { connected: boolean }) {
         <span>Canadian price comparison</span>
       </div>
       <div className={connected ? 'market-access-chip pro connected' : 'market-access-chip pro offline'}>
-        <strong>{connected ? 'Live connected' : 'Live not connected'}</strong>
-        <span>{connected ? 'Ready for postal-code search' : 'Needs Apify token in backend .env'}</span>
+        <strong>{connected ? 'Current prices ready' : 'Current prices unavailable'}</strong>
+        <span>{connected ? 'Ready to check prices near you' : 'Receipt and saved prices still work automatically'}</span>
       </div>
     </div>
   );

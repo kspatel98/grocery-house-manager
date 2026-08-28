@@ -82,10 +82,10 @@ export default function InventoryPage() {
     <main className="page shell wide inventory-page cinematic-page">
       <header className="page-hero creative-hero inventory-hero">
         <div>
-          <Link to={`/houses/${id}`} className="breadcrumb">← {house?.name || 'House'} dashboard</Link>
-          <p className="eyebrow">Inventory command center</p>
-          <h1>Organized grocery inventory</h1>
-          <p>Search, filter, update, and monitor stock without mixing inventory work with receipt scanning or shopping lists.</p>
+          <Link to={`/houses/${id}`} className="breadcrumb">← {house?.name || 'Home'}</Link>
+          <p className="eyebrow">What’s at home</p>
+          <h1>Your grocery inventory</h1>
+          <p>Keep a simple picture of what you already have. Add everyday groceries first; low-stock, expiry, meal, and shopping suggestions will build automatically.</p>
         </div>
         <button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button>
       </header>
@@ -145,6 +145,16 @@ export default function InventoryPage() {
       </section>
 
       {loading && <section className="panel skeleton-panel">Loading inventory...</section>}
+      {!loading && products.length === 0 && !search && !sectionFilter ? (
+        <section className="guided-empty-state inventory-first-empty">
+          <span aria-hidden="true">🥛</span>
+          <div><p className="eyebrow">Start with what you already have</p><h2>Add your first grocery</h2><p>Try milk, eggs, rice, bread, or anything your household buys often. Add five everyday items and the guided setup will move you to Shopping automatically.</p></div>
+          <button type="button" className="primary" onClick={() => setProductModal({ mode: 'create' })}>Add first grocery</button>
+        </section>
+      ) : null}
+      {!loading && products.length > 0 && products.length < 5 && !search && !sectionFilter ? (
+        <div className="starter-inventory-progress"><span>Quick start</span><strong>{products.length}/5 groceries added</strong><small>Add {5 - products.length} more everyday item{5 - products.length === 1 ? '' : 's'} and the guide will move to your first shopping list.</small></div>
+      ) : null}
       <div className="products-grid animated-card-grid">
         {products.map((product) => (
           <article key={product.id} className="product-card elevated-card">
@@ -185,7 +195,7 @@ export default function InventoryPage() {
           sections={sections}
           modal={productModal}
           onClose={() => setProductModal(null)}
-          onSaved={() => { setProductModal(null); loadAll(); }}
+          onSaved={() => { setProductModal(null); window.dispatchEvent(new Event('account:refresh')); loadAll(); }}
         />
       )}
     </main>

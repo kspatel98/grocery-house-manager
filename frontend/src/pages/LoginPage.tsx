@@ -267,7 +267,7 @@ export default function LoginPage() {
             {googleClientId ? (
               <div id="google-signin" className="google-box" />
             ) : (
-              <div className="hint">Add VITE_GOOGLE_CLIENT_ID to enable Google login.</div>
+              <div className="hint">Google sign-in is temporarily unavailable. Use email and password below.</div>
             )}
 
             <div className="divider"><span>or</span></div>

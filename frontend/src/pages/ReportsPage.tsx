@@ -129,7 +129,7 @@ export default function ReportsPage() {
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
           <h1>Reports & store comparison</h1>
-          <p>See what you spent, what your price history supports, and whether the app is creating measurable household value.</p>
+          <p>See what you spent, where you usually shop, and how much value Grocery House Manager can prove from your real activity.</p>
         </div>
         <div className="topbar-actions report-actions">
           <select value={selectedHouseId} onChange={(e) => setSelectedHouseId(e.target.value ? Number(e.target.value) : '')}>
@@ -140,11 +140,27 @@ export default function ReportsPage() {
         </div>
       </header>
       {error && <div className="error">{error}</div>}
-      {busy && <div className="hint">Loading report...</div>}
+      {busy && <div className="hint">Loading your household summary…</div>}
+
+      {!busy && !houses.length && !error ? (
+        <section className="guided-empty-state">
+          <span aria-hidden="true">🏡</span>
+          <div><p className="eyebrow">Start here</p><h2>Create your Grocery Home first</h2><p>Reports appear automatically after you add groceries and save reviewed receipts. There is nothing to configure here.</p></div>
+          <Link to="/houses" className="primary center-link">Create my Home</Link>
+        </section>
+      ) : null}
+
+      {!busy && selectedHouseId && products.length === 0 && receipts.length === 0 ? (
+        <section className="guided-empty-state">
+          <span aria-hidden="true">🧾</span>
+          <div><p className="eyebrow">Your reports will build automatically</p><h2>Scan your first receipt</h2><p>Review and save one receipt and Grocery House Manager will start building spending, store, price, and savings history for you.</p></div>
+          <div className="guided-empty-actions"><Link to={`/houses/${selectedHouseId}/scan`} className="primary center-link">Scan a receipt</Link><Link to={`/houses/${selectedHouseId}/inventory`} className="secondary center-link">Add groceries instead</Link></div>
+        </section>
+      ) : null}
 
       <section className="stats-grid four">
         <div className="stat-card"><strong>{products.length}</strong><span>Products</span></div>
-        <div className="stat-card"><strong>{totalKnownPrices}</strong><span>Known store prices</span></div>
+        <div className="stat-card"><strong>{totalKnownPrices}</strong><span>Prices remembered</span></div>
         <div className="stat-card savings-stat-card"><strong>{money(savings?.estimated_savings || 0, savings?.currency_code)}</strong><span>Estimated savings this month</span></div>
         <div className="stat-card warning"><strong>{lowStock + expiring}</strong><span>Need attention</span></div>
       </section>
@@ -152,12 +168,12 @@ export default function ReportsPage() {
       <section className="savings-proof-panel">
         <div>
           <p className="eyebrow">Did the subscription pay for itself?</p>
-          <h2>{savings && savings.estimated_savings > 0 ? `${money(savings.estimated_savings, savings.currency_code)} estimated savings in ${savings.month_label}` : 'Your savings proof builds from real activity'}</h2>
-          <p>{savings?.message || 'Save reviewed receipts and purchase prices to build a transparent savings history.'}</p>
+          <h2>{savings && savings.estimated_savings > 0 ? `${money(savings.estimated_savings, savings.currency_code)} estimated savings in ${savings.month_label}` : 'Your savings summary builds automatically'}</h2>
+          <p>{savings?.message || 'Scan reviewed receipts and shop normally. Grocery House Manager will build this summary automatically from real prices and discounts.'}</p>
         </div>
         <div className="savings-proof-grid">
           <span><strong>{money(savings?.receipt_discounts || 0, savings?.currency_code)}</strong><small>receipt discounts</small></span>
-          <span><strong>{money(savings?.lower_price_choices || 0, savings?.currency_code)}</strong><small>supported lower-price choices</small></span>
+          <span><strong>{money(savings?.lower_price_choices || 0, savings?.currency_code)}</strong><small>cheaper choices you made</small></span>
           <span><strong>{money(savings?.plan_monthly_cost || 0, savings?.currency_code)}</strong><small>monthly plan price</small></span>
           <span className={(savings?.savings_after_plan_cost || 0) >= 0 ? 'positive' : ''}><strong>{money(savings?.savings_after_plan_cost || 0, savings?.currency_code)}</strong><small>savings after plan price</small></span>
         </div>
@@ -175,7 +191,7 @@ export default function ReportsPage() {
             <div>
               <p className="eyebrow">Family Plus</p>
               <h2>Best known prices by product</h2>
-              <p>Based on your saved product prices and receipt entries.</p>
+              <p>Built from prices found in your reviewed receipts and shopping history.</p>
             </div>
           </div>
           <div className="comparison-table-wrap">
@@ -190,7 +206,7 @@ export default function ReportsPage() {
                     <td>{row.alternatives.map((entry) => `${entry.store_name}: ${money(entry.price)} / ${row.product.unit || 'unit'}`).join(' • ') || '-'}</td>
                   </tr>
                 ))}
-                {!bestPriceRows.length && <tr><td colSpan={4}>No store prices yet. Add product prices or upload receipts to build comparison reports.</td></tr>}
+                {!bestPriceRows.length && <tr><td colSpan={4}>No prices remembered yet. Scan a receipt or save a product price and this table will fill in automatically.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -212,7 +228,7 @@ export default function ReportsPage() {
                 <small>Average saved price: {money(row.total / row.count)}</small>
               </div>
             ))}
-            {!storeRows.length && <p className="small-muted">No store activity yet.</p>}
+            {!storeRows.length && <p className="small-muted">No store history yet. Scan your first receipt and your store summary will appear here automatically.</p>}
           </div>
         </section>
       </div>

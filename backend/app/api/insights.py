@@ -68,9 +68,27 @@ def _active_owned_house(db: Session, user: User) -> House | None:
     )
 
 
+def _primary_house(db: Session, user: User) -> House | None:
+    """Prefer a house the user owns, but treat a joined household as a valid home too.
+
+    First-time guidance should never tell an invited family member to create another house just
+    because they are not the owner.
+    """
+    owned = _active_owned_house(db, user)
+    if owned:
+        return owned
+    return (
+        db.query(House)
+        .join(HouseMember, HouseMember.house_id == House.id)
+        .filter(HouseMember.user_id == user.id)
+        .order_by(House.created_at.asc(), House.id.asc())
+        .first()
+    )
+
+
 @router.get("/onboarding", response_model=OnboardingStatusOut)
 def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    house = _active_owned_house(db, user)
+    house = _primary_house(db, user)
     has_house = house is not None
     products_count = 0
     active_lists = 0
@@ -83,41 +101,35 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
         member_count = db.query(HouseMember).filter(HouseMember.house_id == house.id).count()
         invite_sent = db.query(Invite).filter(Invite.house_id == house.id).count() > 0
 
+    # Four deliberate actions only. The UI automatically advances to the next unfinished action.
     steps = [
         OnboardingStepOut(
             key="house",
-            title="Create your grocery house",
-            description="Give your household one shared place for inventory and shopping.",
+            title="Create or join your Home",
+            description="A House is your private shared grocery space — inventory, shopping lists, receipts, and household members all live together here.",
             complete=has_house,
             href="/houses",
         ),
         OnboardingStepOut(
             key="inventory",
-            title="Add 5 groceries",
-            description=f"{min(products_count, 5)} of 5 added. Start with the items your household buys most often.",
+            title="Add your first 5 groceries",
+            description=f"{min(products_count, 5)} of 5 added. Start with everyday items so Grocery House Manager can immediately become useful.",
             complete=products_count >= 5,
             href=f"/houses/{house.id}/inventory" if house else "/houses",
         ),
         OnboardingStepOut(
             key="list",
             title="Create your first shopping list",
-            description="Build one shared list so everyone can see what is needed and what is already in the cart.",
+            description="Add the groceries you need. Everyone in this Home can see the same list and cart status.",
             complete=active_lists > 0,
             href=f"/houses/{house.id}/shopping" if house else "/houses",
         ),
         OnboardingStepOut(
             key="invite",
-            title="Invite a household member",
-            description="Invite your partner, family member, or roommate so the list becomes truly shared.",
-            complete=member_count > 1,
+            title="Invite someone you shop with",
+            description="Invite a partner, family member, or roommate. Creating an invite also completes this quick-start step.",
+            complete=bool(member_count > 1 or invite_sent),
             href=f"/houses/{house.id}" if house else "/houses",
-        ),
-        OnboardingStepOut(
-            key="ready",
-            title="Finish your household setup",
-            description="Your starter system is ready once the core house, inventory, list, and sharing steps are complete.",
-            complete=bool(has_house and products_count >= 5 and active_lists > 0 and (member_count > 1 or invite_sent)),
-            href=f"/assistant?house={house.id}" if house else "/houses",
         ),
     ]
     completed = sum(1 for step in steps if step.complete)

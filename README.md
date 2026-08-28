@@ -1,5 +1,9 @@
 # Grocery House Manager
 
+## V71 — Effortless UX / Business-Ready
+
+This release focuses on first-time-user clarity, guided four-step setup, adaptive “What should I do today?” actions, teaching empty states, simpler customer language, and one-handed mobile bottom navigation. See `docs/V71_EFFORTLESS_UX_BUSINESS_READY.md` for the complete change list.
+
 ## v27 SMTP network patch
 
 This version includes a forgot-password SMTP network fix for Docker servers showing `OSError: [Errno 101] Network is unreachable`. See `SMTP_NETWORK_FIX.md` and run `docker compose exec backend python -m app.scripts.smtp_network_check` after deployment.

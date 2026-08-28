@@ -101,7 +101,7 @@ export default function HomePage() {
       <section className="landing-hero shell wide premium-home-hero">
         <div className="landing-copy premium-hero-copy">
           <div className="hero-topline-row">
-            <p className="eyebrow warm-eyebrow">Inventory • shopping • smart receipts • price history</p>
+            <p className="eyebrow warm-eyebrow">Inventory • shopping • smart receipts • savings</p>
             <span className="hero-parent-pill">A SupremDas Group product</span>
           </div>
           <h1>Stop buying groceries you already have.</h1>
@@ -211,7 +211,7 @@ export default function HomePage() {
           </div>
           <div className="visual-floating-card bottom-card premium-float-card">
             <strong>Walmart</strong>
-            <span>Latest price history saved</span>
+            <span>Latest prices remembered</span>
           </div>
         </div>
       </section>
@@ -239,13 +239,13 @@ export default function HomePage() {
           <h2>Scan the receipt, review the details, then save trusted prices.</h2>
           <p>
             Upload a clear JPG or PNG receipt photo. The app prepares store, item, discount, tax, subtotal,
-            and total fields for review before anything updates inventory or price history.
+            and total fields for review before anything updates inventory or saves the prices you paid.
           </p>
           <ul className="home-check-list">
             <li>JPG and PNG receipt photos only</li>
             <li>Review required before saving</li>
             <li>Discounts and totals stay visible</li>
-            <li>Saved rows build household price history</li>
+            <li>Reviewed rows remember what your household paid</li>
           </ul>
         </div>
         <div className="receipt-preview-panel" aria-label="Example receipt review card">

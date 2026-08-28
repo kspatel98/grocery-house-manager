@@ -573,7 +573,7 @@ class OnboardingStepOut(BaseModel):
 class OnboardingStatusOut(BaseModel):
     complete: bool = False
     completed_steps: int = 0
-    total_steps: int = 5
+    total_steps: int = 4
     percent: int = 0
     primary_house_id: int | None = None
     steps: list[OnboardingStepOut] = Field(default_factory=list)

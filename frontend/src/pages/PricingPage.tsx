@@ -326,7 +326,7 @@ export default function PricingPage() {
       {!loadingPlans && plans.length === 0 && !error && (
         <section className="panel empty-state">
           <h2>Plans could not be loaded</h2>
-          <p>Please check that the backend is running and that <code>VITE_API_URL</code> points to your production API.</p>
+          <p>We couldn’t load the latest plans right now. Please try again in a moment or contact Support if the problem continues.</p>
           <button className="secondary" onClick={load}>Try again</button>
         </section>
       )}

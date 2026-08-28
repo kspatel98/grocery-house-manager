@@ -108,6 +108,7 @@ export default function ShoppingPage() {
       const { data } = await api.post(`/houses/${id}/invite`);
       setInviteUrl(data.join_url);
       await navigator.clipboard?.writeText(data.join_url);
+      window.dispatchEvent(new Event('account:refresh'));
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -137,9 +138,9 @@ export default function ShoppingPage() {
     <main className="page shell wide">
       <header className="topbar">
         <div>
-          <Link to={`/houses/${id}`} className="breadcrumb">← Back to inventory</Link>
+          <Link to={`/houses/${id}`} className="breadcrumb">← Back to Home</Link>
           <h1>{house?.name || 'House'} grocery lists</h1>
-          <p>Create multiple shopping lists, check products into cart, then finish shopping to update inventory.</p>
+          <p>Use this as your in-store checklist. Add what you need, check items into the cart, then finish shopping to update your Home automatically.</p>
         </div>
         <div className="shopping-topbar-actions">
           <Link to="/pricing" className="secondary center-link">Plans</Link>
@@ -296,7 +297,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
           </div>
           <span className={busy ? 'auto-status checking' : 'auto-status'}>{busy ? '● Checking prices…' : comparison ? '✓ Checked automatically' : 'Ready'}</span>
         </div>
-        <p>Grocery House Manager checks the strongest available source automatically: live Canadian prices first, then recent receipts, then older saved household prices. Missing prices are left missing — they are not guessed.</p>
+        <p>Prices are checked automatically: current Canadian prices first, then your recent receipts, then older prices you have saved. If a price cannot be found, we say so instead of guessing.</p>
 
         {comparison?.premium_required ? (
           <div className="basket-upgrade-line"><span>{comparison.message}</span><Link to="/pricing" className="secondary center-link">See Family Plus</Link></div>
@@ -304,7 +305,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
 
         {comparison && !comparison.premium_required ? (
           <div className="basket-source-strip">
-            {comparison.data_sources.length ? comparison.data_sources.map((source) => <span key={source}>✓ {source}</span>) : <span>No reusable price source found yet</span>}
+            {comparison.data_sources.length ? comparison.data_sources.map((source) => <span key={source}>✓ {source}</span>) : <span>No prices found yet</span>}
             {comparison.location_label ? <span>📍 {comparison.location_label}</span> : null}
             {lastUpdated ? <span>Updated {lastUpdated}</span> : null}
           </div>
@@ -313,7 +314,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
         {comparison?.live_configured && !comparison.premium_required ? (
           <form className="basket-location-inline" onSubmit={(event) => { event.preventDefault(); void compare(true, postalCode); }}>
             <label>
-              <span>Optional postal code for more local live prices</span>
+              <span>Postal code (optional) for nearby prices</span>
               <input value={postalCode} onChange={(event) => setPostalCode(event.target.value.toUpperCase())} placeholder="L8P 1A1" maxLength={7} />
             </label>
             <button className="secondary" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Use & refresh'}</button>
@@ -334,11 +335,11 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
         ) : comparison.premium_required ? (
           <><span>PREMIUM</span><strong>Family Plus</strong><small>Automatic whole-list comparison unlocks here.</small></>
         ) : winner && winner.complete ? (
-          <><span>BEST COMPLETE BASKET</span><strong>{winner.store_name}</strong><em>{money(winner.known_total, comparison.currency_code)}</em><small>{winner.priced_items}/{winner.total_items} items priced • {winner.source_summary}</small></>
+          <><span>BEST ONE-STORE TRIP</span><strong>{winner.store_name}</strong><em>{money(winner.known_total, comparison.currency_code)}</em><small>{winner.priced_items}/{winner.total_items} items found • {winner.source_summary}</small></>
         ) : comparison.split_store_total != null && comparison.split_store_names.length ? (
-          <><span>COMPLETE 2-STORE PLAN</span><strong>{comparison.split_store_names.join(' + ')}</strong><em>{money(comparison.split_store_total, comparison.currency_code)}</em><small>All {comparison.total_items} active items have supported prices across these two stores</small></>
+          <><span>COMPLETE 2-STORE PLAN</span><strong>{comparison.split_store_names.join(' + ')}</strong><em>{money(comparison.split_store_total, comparison.currency_code)}</em><small>All {comparison.total_items} items have real prices across these two stores</small></>
         ) : winner ? (
-          <><span>BEST-KNOWN PRICE PICTURE</span><strong>{winner.store_name}</strong><em>{money(winner.known_total, comparison.currency_code)} known</em><small>{winner.priced_items}/{winner.total_items} items priced — not a full basket total</small></>
+          <><span>BEST PRICE FOUND SO FAR</span><strong>{winner.store_name}</strong><em>{money(winner.known_total, comparison.currency_code)} known</em><small>{winner.priced_items}/{winner.total_items} items found — this is not the full basket total</small></>
         ) : (
           <><span>NO PRICE MATCH YET</span><strong>Nothing to set up</strong><small>The app will reuse receipt and live price data automatically as it becomes available.</small></>
         )}
@@ -348,8 +349,8 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
         <div className="basket-guidance-line">
           <strong>{comparison.message}</strong>
           {comparison.recommendation_reason ? <span>{comparison.recommendation_reason}</span> : null}
-          {comparison.live_configured && comparison.needs_postal_code ? <small>Tip: the current profile city is being used. Add a postal code only if you want tighter local live results.</small> : null}
-          {!comparison.live_configured ? <small>Live Canadian pricing is not connected on the server, so the app is automatically using receipt and saved household prices only.</small> : null}
+          {comparison.live_configured && comparison.needs_postal_code ? <small>Tip: we are using your saved city. Add a postal code only if you want more local results.</small> : null}
+          {!comparison.live_configured ? <small>Current Canadian prices are unavailable right now, so Grocery House Manager is automatically using your receipt and saved prices instead.</small> : null}
         </div>
       ) : null}
 
@@ -359,7 +360,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
             <div key={store.store_name} className={store.complete && index === 0 ? 'best' : ''}>
               <span>{store.complete && index === 0 ? '★ ' : ''}{store.store_name}</span>
               <strong>{money(store.known_total, comparison.currency_code)}{store.complete ? '' : ' known'}</strong>
-              <small>{store.priced_items}/{store.total_items} items priced • {store.source_summary}</small>
+              <small>{store.priced_items}/{store.total_items} items found • {store.source_summary}</small>
               {!store.complete ? <small className="basket-missing-line">Missing: {store.missing_items.slice(0, 4).join(', ')}{store.missing_items.length > 4 ? ` +${store.missing_items.length - 4} more` : ''}</small> : null}
             </div>
           ))}
@@ -367,10 +368,10 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
             <div className={comparison.split_store_worth_it ? 'whole-list-split-result worth-it' : 'whole-list-split-result'}>
               <span>Two-store check{comparison.split_store_names?.length ? ` • ${comparison.split_store_names.join(' + ')}` : ''}</span>
               <strong>{money(comparison.split_store_total, comparison.currency_code)}</strong>
-              <small>{comparison.split_store_recommendation || 'Every item has a supported price in this two-store combination.'}</small>
+              <small>{comparison.split_store_recommendation || 'Every item has a real saved or current price in this two-store combination.'}</small>
             </div>
           ) : null}
-          <p className="small-muted basket-no-guess-note">Only supported prices are totaled. Grocery House Manager no longer fills missing store prices with synthetic estimates.</p>
+          <p className="small-muted basket-no-guess-note">Only prices we actually found are totaled. Missing prices are never filled with guesses.</p>
         </div>
       ) : null}
     </section>
