@@ -1,4 +1,5 @@
 import type { AppLanguage } from './i18n';
+import { detailedRecipeSteps } from './recipeDetails';
 export type Diet='jain'|'swaminarayan'|'veg'|'vegan'|'nonveg';
 export type MealKind='proper'|'light'|'breakfast'|'dessert'|'drink';
 export type RecipeIngredient={name:string; qty:number; unit:string; optional?:boolean};
@@ -6,7 +7,7 @@ export type Recipe={id:string; names:Record<AppLanguage,string>; baseServings:nu
 const N=(en:string,gu:string,hi:string,fr:string):Record<AppLanguage,string>=>({en,gu,hi,fr});
 const S=(en:string,gu?:string,hi?:string,fr?:string):Record<AppLanguage,string[]>=>({en:[en],gu:[gu||en],hi:[hi||en],fr:[fr||en]});
 const r=(id:string,n:Record<AppLanguage,string>,kind:MealKind,diets:Diet[],ingredients:RecipeIngredient[],step:string):Recipe=>({id,names:n,baseServings:4,kind,diets,ingredients,steps:S(step)});
-export const recipes:Recipe[]=[
+const baseRecipes:Recipe[]=[
 r('rotli',N('Rotli / Phulka','રોટલી / ફુલકા','रोटी / फुल्का','Roti / Phulka'),'proper',['jain','swaminarayan','veg','vegan'],[{name:'Whole wheat flour',qty:240,unit:'g'},{name:'Water',qty:160,unit:'ml'},{name:'Oil',qty:5,unit:'ml',optional:true}], 'Knead a soft dough, rest, roll thin and cook on a hot tawa; puff briefly over flame if desired.'),
 r('thepla',N('Thepla','થેપલા','थेपला','Thepla'),'breakfast',['swaminarayan','veg'],[{name:'Whole wheat flour',qty:250,unit:'g'},{name:'Yogurt',qty:80,unit:'g'},{name:'Oil',qty:30,unit:'ml'},{name:'Turmeric',qty:2,unit:'g'},{name:'Chilli powder',qty:4,unit:'g'}], 'Mix, knead, rest, roll and shallow-cook both sides until spotted and cooked.'),
 r('methi-thepla',N('Methi Thepla','મેથીના થેપલા','मेथी थेपला','Thepla au fenugrec'),'breakfast',['swaminarayan','veg'],[{name:'Whole wheat flour',qty:250,unit:'g'},{name:'Fresh methi',qty:120,unit:'g'},{name:'Yogurt',qty:80,unit:'g'},{name:'Oil',qty:30,unit:'ml'},{name:'Turmeric',qty:2,unit:'g'}], 'Combine chopped methi with dough ingredients, rest, roll and shallow-cook.'),
@@ -51,6 +52,8 @@ r('cake',N('Vanilla Cake','વનિલા કેક','वैनिला के
 r('chicken-curry',N('Chicken Curry','ચિકન કરી','चिकन करी','Curry de poulet'),'proper',['nonveg'],[{name:'Chicken',qty:900,unit:'g'},{name:'Tomato',qty:250,unit:'g'},{name:'Onion',qty:220,unit:'g'},{name:'Oil',qty:35,unit:'ml'}], 'Brown aromatics and spices, add chicken and tomato, then simmer until fully cooked.'),
 r('egg-curry',N('Egg Curry','ઇંડા કરી','अंडा करी','Curry aux œufs'),'proper',['nonveg'],[{name:'Eggs',qty:8,unit:'pcs'},{name:'Tomato',qty:300,unit:'g'},{name:'Onion',qty:200,unit:'g'},{name:'Oil',qty:30,unit:'ml'}], 'Boil eggs, prepare a spiced tomato-onion gravy and simmer the eggs in it.')
 ];
+
+export const recipes:Recipe[]=baseRecipes.map(recipe=>({ ...recipe, steps:detailedRecipeSteps[recipe.id]||recipe.steps }));
 
 export const ingredientNames:Record<AppLanguage,Record<string,string>>={
  en:{}, gu:{'Whole wheat flour':'ઘઉંનો લોટ','All purpose flour':'મેંદો','Rice':'ચોખા','Moong dal':'મગની દાળ','Tuvar dal':'તુવેર દાળ','Chana dal':'ચણાની દાળ','Besan':'ચણાનો લોટ','Yogurt':'દહીં','Milk':'દૂધ','Whole milk':'ફુલ ફેટ દૂધ','Potato':'બટાકા','Tomato':'ટમેટા','Eggplant':'રીંગણ','Oil':'તેલ','Ghee':'ઘી','Sugar':'ખાંડ','Jaggery':'ગોળ','Water':'પાણી','Sev':'સેવ','Fresh methi':'તાજી મેથી'},

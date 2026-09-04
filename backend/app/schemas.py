@@ -991,6 +991,7 @@ class RecipeShoppingAddIn(BaseModel):
     ingredients: list[RecipeShoppingIngredientIn] = Field(default_factory=list, max_length=40)
     list_id: int | None = None
     recipe_name: str | None = Field(default=None, max_length=180)
+    mode: Literal["shortage", "manual", "full"] = "shortage"
 
 
 class RecipeShoppingAddOut(BaseModel):

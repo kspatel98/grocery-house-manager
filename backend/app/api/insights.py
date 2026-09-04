@@ -241,7 +241,7 @@ def savings_summary(house_id: int, db: Session = Depends(get_db), user: User = D
 
 
 def _clean_key(value: str | None) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
+    return re.sub(r"[\W_]+", " ", (value or "").casefold(), flags=re.UNICODE).strip()
 
 
 def _live_row_matches(item_name: str, row) -> bool:
@@ -596,12 +596,32 @@ INGREDIENT_ALIASES: dict[str, set[str]] = {
     "cucumber": {"cucumber", "cucumbers"},
     "beef": {"beef", "ground beef", "minced beef"},
     "fish": {"fish", "salmon", "tilapia", "cod"},
+    "whole_wheat_flour": {"whole wheat flour", "wholemeal flour", "wheat flour", "atta", "ઘઉંનો લોટ", "गेहूं का आटा", "गेहूँ का आटा"},
+    "all_purpose_flour": {"all purpose flour", "plain flour", "maida", "મેંદો", "मैदा"},
+    "bajra_flour": {"bajra flour", "bajri flour", "pearl millet flour", "બાજરીનો લોટ", "बाजरे का आटा"},
+    "rice_flour": {"rice flour", "ચોખાનો લોટ", "चावल का आटा"},
+    "besan": {"besan", "gram flour", "chickpea flour", "ચણાનો લોટ", "बेसन"},
+    "tuvar_dal": {"tuvar dal", "toor dal", "arhar dal", "તુવેર દાળ", "तुअर दाल", "अरहर दाल"},
+    "moong_dal": {"moong dal", "mung dal", "મગની દાળ", "मूंग दाल"},
+    "chana_dal": {"chana dal", "split chickpeas", "ચણાની દાળ", "चना दाल"},
+    "ghee": {"ghee", "clarified butter", "ઘી", "घी"},
+    "oil": {"oil", "cooking oil", "vegetable oil", "તેલ", "तेल"},
+    "jaggery": {"jaggery", "gur", "ગોળ", "गुड़"},
+    "sev": {"sev", "સેવ", "सेव"},
 }
 
 INGREDIENT_DISPLAY = {
     "tomato_sauce": "tomato sauce",
     "egg": "eggs",
     "lentils": "lentils",
+    "whole_wheat_flour": "whole wheat flour",
+    "all_purpose_flour": "all-purpose flour",
+    "bajra_flour": "bajra flour",
+    "rice_flour": "rice flour",
+    "besan": "besan",
+    "tuvar_dal": "tuvar dal",
+    "moong_dal": "moong dal",
+    "chana_dal": "chana dal",
 }
 
 # Each required entry is a group: one ingredient from each group is enough.
@@ -754,6 +774,14 @@ def _find_product_for_ingredient(products: list[Product], ingredient: str) -> Pr
     return None
 
 
+def _is_household_water_ingredient(name: str | None) -> bool:
+    key = _clean_key(name)
+    return key in {
+        _clean_key(value)
+        for value in ("water", "warm water", "hot water", "cold water", "tap water", "ice water", "પાણી", "ગરમ પાણી", "पानी", "गुनगुना पानी", "eau", "eau tiède")
+    }
+
+
 @router.post("/houses/{house_id}/recipes/add-missing", response_model=RecipeMissingAddOut)
 def add_recipe_missing_items(
     house_id: int,
@@ -892,6 +920,10 @@ def add_recipe_shopping_items(
     for row in payload.ingredients[:40]:
         name = " ".join(row.name.strip().split())
         if not name: continue
+        # Household/tap water is a process ingredient, not a grocery recommendation.
+        # It is accepted only when the user explicitly chose the manual action.
+        if payload.mode != "manual" and _is_household_water_ingredient(name):
+            continue
         product = _find_product_for_ingredient(products, name)
         if not product:
             ensure_product_limit(db, house_id, user)
