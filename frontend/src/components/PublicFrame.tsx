@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { LanguagePicker, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -33,16 +34,16 @@ function InstagramIcon() {
   );
 }
 
-const publicNavItems = [
-  { to: '/', label: 'Home' },
-  { to: '/pricing', label: 'Plans' },
-  { to: '/about', label: 'About' },
-  { to: '/support', label: 'Support' },
-];
-
 export default function PublicFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const { t } = useLanguage();
   const loggedIn = Boolean(localStorage.getItem('token'));
+  const publicNavItems = [
+    { to: '/', label: t('home') },
+    { to: '/pricing', label: t('plans') },
+    { to: '/about', label: 'About' },
+    { to: '/support', label: t('support') },
+  ];
   const siteHeaderRef = useRef<HTMLElement>(null);
   const [siteHeaderHeight, setSiteHeaderHeight] = useState(0);
 
@@ -96,6 +97,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
               {loggedIn ? 'Open app' : 'Login'}
             </Link>
           </nav>
+          <LanguagePicker compact />
         </div>
       </header>
       <div

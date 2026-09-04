@@ -6,6 +6,7 @@ import OfferCrownWidget from './OfferCrownWidget';
 import PremiumAwardCelebration from './PremiumAwardCelebration';
 import SetupCoach from './SetupCoach';
 import type { AccountBootstrap, PremiumCrownStats, UserProfile } from '../types';
+import { LanguagePicker, useLanguage } from '../i18n';
 
 function EmailIcon() {
   return (
@@ -61,6 +62,7 @@ function initialsFor(profile: UserProfile | null) {
 
 export default function AppFrame({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const { t } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
   const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
   const [premiumStats, setPremiumStats] = useState<PremiumCrownStats | null>(null);
@@ -191,26 +193,27 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const contextHouseId = routeHouseId || activeHouseId;
   const navItems = contextHouseId
     ? [
-        { to: '/houses', label: 'Home' },
-        { to: `/houses/${contextHouseId}/inventory`, label: 'Inventory' },
-        { to: `/houses/${contextHouseId}/shopping`, label: 'Shopping' },
-        { to: `/assistant?house=${contextHouseId}`, label: 'Assistant' },
+        { to: '/houses', label: t('home') },
+        { to: `/houses/${contextHouseId}/inventory`, label: t('inventory') },
+        { to: `/houses/${contextHouseId}/shopping`, label: t('shopping') },
+        { to: `/houses/${contextHouseId}/meals`, label: t('meals') },
+        { to: `/assistant?house=${contextHouseId}`, label: t('assistant') },
       ]
     : [
-        { to: '/houses', label: 'Home' },
-        { to: '/pricing', label: 'Plans' },
-        { to: '/support', label: 'Support' },
+        { to: '/houses', label: t('home') },
+        { to: '/pricing', label: t('plans') },
+        { to: '/support', label: t('support') },
       ];
   const extraNavItems = [
     ...(contextHouseId ? [
-      { to: `/houses/${contextHouseId}/scan`, label: 'Scan receipt', icon: '🧾' },
-      { to: `/houses/${contextHouseId}/receipts`, label: 'Receipt history', icon: '🗂️' },
+      { to: `/houses/${contextHouseId}/scan`, label: t('scanReceipt'), icon: '🧾' },
+      { to: `/houses/${contextHouseId}/receipts`, label: t('receiptHistory'), icon: '🗂️' },
     ] : []),
-    { to: '/market', label: 'Prices', icon: '🏷️' },
-    { to: '/reports', label: 'Reports', icon: '📈' },
-    { to: '/pricing', label: 'Plans', icon: '✨' },
-    { to: '/support', label: 'Support', icon: '💬' },
-    ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: '🛡️' }] : []),
+    { to: '/market', label: t('prices'), icon: '🏷️' },
+    { to: '/reports', label: t('reports'), icon: '📈' },
+    { to: '/pricing', label: t('plans'), icon: '✨' },
+    { to: '/support', label: t('support'), icon: '💬' },
+    ...(isAdmin ? [{ to: '/admin', label: t('admin'), icon: '🛡️' }] : []),
   ];
   const extraActive = extraNavItems.some((item) => location.pathname.startsWith(item.to.split('?')[0]));
   const homeActive = location.pathname === '/houses' || /^\/houses\/\d+$/.test(location.pathname);
@@ -292,18 +295,19 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   aria-expanded={desktopMoreOpen}
                   onClick={() => setDesktopMoreOpen((open) => !open)}
                 >
-                  More <span aria-hidden="true">⌄</span>
+                  {t('more')} <span aria-hidden="true">⌄</span>
                 </button>
                 {desktopMoreOpen && (
                   <div className="desktop-more-popover" role="menu">
                     {extraNavItems.map((item) => (
                       <Link key={item.to} to={item.to} role="menuitem" onClick={() => setDesktopMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
                     ))}
-                    <Link to="/profile" role="menuitem" onClick={() => setDesktopMoreOpen(false)}><span aria-hidden="true">👤</span><strong>Profile</strong></Link>
+                    <Link to="/profile" role="menuitem" onClick={() => setDesktopMoreOpen(false)}><span aria-hidden="true">👤</span><strong>{t('profile')}</strong></Link>
                   </div>
                 )}
               </div>
             </nav>
+            <LanguagePicker compact />
             <Link
               to="/profile"
               className={`profile-orb-link ${showPremiumCrown ? 'premium-crowned' : ''} ${location.pathname.startsWith('/profile') ? 'active' : ''}`}
@@ -337,23 +341,24 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       <SetupCoach />
 
       <nav className="mobile-bottom-nav" aria-label="Mobile app navigation">
-        <Link to="/houses" className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
-        <Link to={contextHouseId ? `/houses/${contextHouseId}/inventory` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/inventory`) ? 'active' : ''}><span aria-hidden="true">▣</span><small>Inventory</small></Link>
-        <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>Shopping</small></Link>
-        <Link to={contextHouseId ? `/assistant?house=${contextHouseId}` : '/assistant'} className={location.pathname.startsWith('/assistant') ? 'active' : ''}><span aria-hidden="true">✦</span><small>Assistant</small></Link>
-        <button type="button" className={mobileMoreOpen || extraActive || location.pathname.startsWith('/profile') ? 'active' : ''} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>More</small></button>
+        <Link to="/houses" className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>{t('home')}</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}/inventory` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/inventory`) ? 'active' : ''}><span aria-hidden="true">▣</span><small>{t('inventory')}</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>{t('shopping')}</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}/meals` : '/houses'} className={Boolean(contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/meals`)) ? 'active' : ''}><span aria-hidden="true">🍲</span><small>{t('meals')}</small></Link>
+        <button type="button" className={mobileMoreOpen || extraActive || location.pathname.startsWith('/profile') ? 'active' : ''} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>{t('more')}</small></button>
       </nav>
 
       {mobileMoreOpen && (
         <div className="mobile-more-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
           <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More Grocery House Manager options" onClick={(event) => event.stopPropagation()}>
             <div className="mobile-more-handle" aria-hidden="true" />
-            <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>More</h2></div><button type="button" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
+            <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
             <div className="mobile-more-grid">
+              <Link to={contextHouseId ? `/assistant?house=${contextHouseId}` : '/assistant'} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">✦</span><strong>{t('assistant')}</strong></Link>
               {extraNavItems.map((item) => (
                 <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
               ))}
-              <Link to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><strong>Profile</strong></Link>
+              <Link to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><strong>{t('profile')}</strong></Link>
             </div>
           </section>
         </div>

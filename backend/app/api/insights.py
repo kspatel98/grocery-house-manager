@@ -34,6 +34,8 @@ from app.schemas import (
     OnboardingStepOut,
     RecipeMissingAddIn,
     RecipeMissingAddOut,
+    RecipeShoppingAddIn,
+    RecipeShoppingAddOut,
     SavingsSummaryOut,
     WeeklyAssistantOut,
     WeeklyAssistantRecipeOut,
@@ -850,6 +852,69 @@ def add_recipe_missing_items(
             else f"Those ingredient(s) are already on {shopping_list.title}."
         ),
     )
+
+
+@router.post("/houses/{house_id}/recipes/add-shopping", response_model=RecipeShoppingAddOut)
+def add_recipe_shopping_items(
+    house_id: int,
+    payload: RecipeShoppingAddIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    if not payload.ingredients:
+        raise HTTPException(status_code=400, detail="Select at least one ingredient")
+
+    if payload.list_id:
+        shopping_list = db.query(ShoppingList).options(joinedload(ShoppingList.items)).filter(
+            ShoppingList.id == payload.list_id, ShoppingList.house_id == house_id, ShoppingList.is_done.is_(False)
+        ).first()
+        if not shopping_list:
+            raise HTTPException(status_code=404, detail="Active shopping list not found")
+    else:
+        shopping_list = db.query(ShoppingList).options(joinedload(ShoppingList.items)).filter(
+            ShoppingList.house_id == house_id, ShoppingList.is_done.is_(False)
+        ).order_by(ShoppingList.created_at.desc()).first()
+
+    if not shopping_list:
+        ensure_active_shopping_list_limit(db, house_id, user)
+        shopping_list = ShoppingList(house_id=house_id, title="Recipe shopping", created_by_id=user.id)
+        db.add(shopping_list); db.flush()
+
+    products = db.query(Product).filter(Product.house_id == house_id).all()
+    section = db.query(Section).filter(Section.house_id == house_id).order_by(Section.sort_order.asc(), Section.id.asc()).first()
+    if not section:
+        section = Section(house_id=house_id, name="Pantry", icon="pantry", sort_order=0)
+        db.add(section); db.flush()
+
+    existing = {item.product_id: item for item in shopping_list.items}
+    added_items, updated_items, created_products = [], [], []
+    for row in payload.ingredients[:40]:
+        name = " ".join(row.name.strip().split())
+        if not name: continue
+        product = _find_product_for_ingredient(products, name)
+        if not product:
+            ensure_product_limit(db, house_id, user)
+            product = Product(house_id=house_id, section_id=section.id, name=name[:180], quantity=0, unit=(row.unit or "pcs")[:32], low_stock_threshold=0, notes=f"Created from recipe shopping: {payload.recipe_name or 'Recipe'}")
+            db.add(product); db.flush(); products.append(product); created_products.append(product.name)
+        quantity = max(float(row.quantity), 0.0001)
+        message = row.tag or f"Recipe · {payload.recipe_name or 'Meal'}"
+        if product.id in existing:
+            item = existing[product.id]
+            # Recipe actions represent the target quantity needed for this plan. Keep the larger request instead of accidentally doubling it.
+            if quantity > float(item.requested_quantity or 0):
+                item.requested_quantity = quantity
+                item.bought_quantity = max(float(item.bought_quantity or 0), quantity)
+            item.message = message
+            item.status = ShoppingItemStatus.to_buy
+            updated_items.append(product.name)
+        else:
+            item = ShoppingListItem(shopping_list_id=shopping_list.id, product_id=product.id, requested_quantity=quantity, bought_quantity=quantity, message=message)
+            db.add(item); existing[product.id]=item; added_items.append(product.name)
+
+    log_activity(db, house_id=house_id, user=user, action="recipe_shopping_added", message=f"{display_name(user)} added recipe requirements for {payload.recipe_name or 'a meal'} to {shopping_list.title}.", entity_type="shopping_list", entity_id=shopping_list.id)
+    db.commit()
+    return RecipeShoppingAddOut(list_id=shopping_list.id, list_title=shopping_list.title, added_items=added_items, updated_items=updated_items, created_products=created_products, message=f"Recipe quantities are ready in {shopping_list.title}.")
 
 
 @router.get("/houses/{house_id}/weekly-assistant", response_model=WeeklyAssistantOut)

@@ -979,3 +979,24 @@ class AdminOfferActionOut(BaseModel):
     message: str
     checkout_url: str | None = None
     offer: AdminOfferOut | None = None
+
+class RecipeShoppingIngredientIn(BaseModel):
+    name: str = Field(min_length=1, max_length=180)
+    quantity: float = Field(gt=0)
+    unit: str = Field(default="pcs", max_length=32)
+    tag: str | None = Field(default=None, max_length=240)
+
+
+class RecipeShoppingAddIn(BaseModel):
+    ingredients: list[RecipeShoppingIngredientIn] = Field(default_factory=list, max_length=40)
+    list_id: int | None = None
+    recipe_name: str | None = Field(default=None, max_length=180)
+
+
+class RecipeShoppingAddOut(BaseModel):
+    list_id: int
+    list_title: str
+    added_items: list[str] = Field(default_factory=list)
+    updated_items: list[str] = Field(default_factory=list)
+    created_products: list[str] = Field(default_factory=list)
+    message: str
