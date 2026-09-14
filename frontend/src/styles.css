@@ -9767,3 +9767,43 @@ body,
 .recipe-step-list p{display:block;margin:0!important;line-height:1.6;color:#263a31}
 @media(max-width:900px){.recipe-action-guide{grid-template-columns:1fr}.recipe-action-guide button{min-height:auto}}
 @media(max-width:680px){.recipe-step-list li{grid-template-columns:36px minmax(0,1fr);padding:12px}.recipe-step-list .step-number{width:32px;height:32px}.recipe-steps-head{align-items:flex-start}}
+
+/* v75 — weekly flyer intelligence */
+.weekly-flyer-panel {
+  margin-bottom: 18px;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(135deg, rgba(248,255,244,.98), rgba(255,250,238,.98));
+}
+.weekly-flyer-panel::after {
+  content: '';
+  position: absolute;
+  width: 230px;
+  height: 230px;
+  right: -90px;
+  top: -110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(180,232,135,.32), rgba(180,232,135,0));
+  pointer-events: none;
+}
+.flyer-title-row { align-items: flex-start; gap: 18px; position: relative; z-index: 1; }
+.flyer-search-grid { display: grid; grid-template-columns: minmax(170px,.65fr) minmax(240px,1.35fr); gap: 12px; margin: 14px 0 10px; }
+.flyer-retailer-chips { margin-top: 7px; }
+.flyer-results-wrap { margin-top: 16px; scroll-margin-top: 100px; }
+.flyer-deal-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-top: 14px; }
+.flyer-deal-card { min-width: 0; border: 1px solid rgba(49,92,66,.12); border-radius: 18px; background: rgba(255,255,255,.92); overflow: hidden; display: grid; grid-template-columns: 92px 1fr; min-height: 132px; box-shadow: 0 12px 30px rgba(29,69,46,.07); }
+.flyer-deal-image { min-height: 100%; display: grid; place-items: center; background: linear-gradient(150deg,#f4f9ef,#fff7e7); font-size: 2rem; padding: 8px; }
+.flyer-deal-image img { width: 100%; height: 100%; max-height: 132px; object-fit: contain; }
+.flyer-deal-content { padding: 11px 12px 11px 10px; display: grid; gap: 5px; align-content: start; min-width: 0; }
+.flyer-deal-content > strong { line-height: 1.25; font-size: .94rem; overflow-wrap: anywhere; }
+.flyer-deal-content small { color: var(--muted, #65736a); line-height: 1.25; }
+.flyer-deal-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.flyer-price-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; }
+.flyer-price-row b { font-size: 1.25rem; color: #185934; }
+.flyer-drop { background: #e8f8df; color: #236a32; }
+.flyer-bundle { background: #fff0c7; color: #7b5100; }
+.flyer-source { background: rgba(64,125,79,.10); color: #285d37; }
+.flyer-honesty-note { color: #7d5a1a !important; font-weight: 700; }
+@media (max-width: 1180px) { .flyer-deal-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 880px) { .flyer-deal-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .flyer-search-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .flyer-deal-grid { grid-template-columns: 1fr; } .flyer-deal-card { grid-template-columns: 82px 1fr; } .flyer-title-row { display: grid; } }

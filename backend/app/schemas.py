@@ -605,6 +605,7 @@ class BasketStoreOptionOut(BaseModel):
     complete: bool = False
     missing_items: list[str] = Field(default_factory=list)
     live_items: int = 0
+    flyer_items: int = 0
     recent_receipt_items: int = 0
     saved_price_items: int = 0
     source_summary: str | None = None
@@ -631,6 +632,9 @@ class BasketComparisonOut(BaseModel):
     live_attempted: bool = False
     live_configured: bool = False
     live_rows_count: int = 0
+    flyer_attempted: bool = False
+    flyer_configured: bool = False
+    flyer_rows_count: int = 0
     location_label: str | None = None
     needs_postal_code: bool = False
     data_sources: list[str] = Field(default_factory=list)
@@ -885,10 +889,47 @@ class LivePriceCompareOut(BaseModel):
     results: list[LivePriceResultOut] = Field(default_factory=list)
 
 
+class FlyerDealOut(BaseModel):
+    merchant: str
+    merchant_id: str | None = None
+    item_id: str | None = None
+    name: str
+    brand: str | None = None
+    price: float | None = None
+    price_raw: str | None = None
+    discount: str | None = None
+    valid_from: datetime | None = None
+    valid_to: datetime | None = None
+    image_url: str | None = None
+    categories: list[str] = Field(default_factory=list)
+    flyer_id: str | None = None
+    postal_code: str | None = None
+    locale: str = "en-ca"
+    scraped_at: datetime | None = None
+    change_type: str | None = None
+    previous_price: float | None = None
+    price_delta: float | None = None
+    is_multi_product_bundle: bool = False
+    source: str = "weekly_flyer"
+
+
+class FlyerDealsOut(BaseModel):
+    premium_required: bool = False
+    configured: bool = False
+    cached: bool = False
+    postal_code: str | None = None
+    fetched_at: datetime | None = None
+    message: str
+    merchants: list[str] = Field(default_factory=list)
+    deals: list[FlyerDealOut] = Field(default_factory=list)
+
+
 class MarketCapabilitiesOut(BaseModel):
     product_lookup_available: bool
     live_price_compare_available: bool
+    weekly_flyers_available: bool = False
     apify_configured: bool
+    flyer_configured: bool = False
     live_price_status: str = "not_connected"
     supported_retailers: list[str] = Field(default_factory=list)
     message: str

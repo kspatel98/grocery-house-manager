@@ -65,7 +65,7 @@ export default function AboutPage() {
             <li>Smart Receipt Scan for JPG/PNG receipt photos, with review-before-save item rows, discounts, tax, subtotal, and total.</li>
             <li>Receipt price updates and multi-store product pricing, so one product can track prices from different stores.</li>
             <li>Smart Weekly Grocery Assistant for low stock, expiry awareness, older-inventory review, automatic ingredient matching, ready/almost-ready meal ideas, and next-trip suggestions.</li>
-            <li>Family Plus and Household Pro automatic whole-list comparison using live Canadian prices when available, then recent receipts and saved household prices — without guessing missing prices.</li>
+            <li>Family Plus and Household Pro automatic whole-list comparison using supported current Canadian prices and active weekly flyer deals first, then recent receipts and saved household prices — without guessing missing prices.</li>
             <li>Plan-based product lookup, Canadian price comparison, and nearby store suggestions.</li>
             <li>Defensible savings reports based on recorded receipt discounts and supported lower-price choices.</li>
             <li>Installable PWA experience with offline shopping-list fallback, barcode camera scanning on supported phones, and opt-in device reminders.</li>

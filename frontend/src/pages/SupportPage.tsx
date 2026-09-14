@@ -29,11 +29,11 @@ const supportItems = [
   },
   {
     title: 'Market tools and price comparison',
-    text: 'Basic Home unlocks product lookup and receipt intelligence. Family Plus adds whole-list basket comparison and supported Canadian price comparison. Household Pro adds higher limits, nearby-store tools, and advanced household intelligence.',
+    text: 'Basic Home unlocks product lookup and receipt intelligence. Family Plus adds whole-list basket comparison, supported Canadian price comparison, and postal-code-aware weekly flyer deals. Household Pro adds higher limits, nearby-store tools, and advanced household intelligence.',
   },
   {
     title: 'Smart Weekly Assistant',
-    text: 'The Assistant combines low stock, expiry dates, older inventory, shopping lists, meal ideas, and supported savings into one weekly brief. Meal ideas understand common grocery-name variations and can add a missing ingredient to the active list in one tap. On Family Plus or Household Pro, opening a shopping list automatically checks live Canadian prices when available, then recent receipts and saved prices.',
+    text: 'The Assistant combines low stock, expiry dates, older inventory, shopping lists, meal ideas, and supported savings into one weekly brief. Meal ideas understand common grocery-name variations and can add a missing ingredient to the active list in one tap. On Family Plus or Household Pro, opening a shopping list automatically checks current Canadian prices, active weekly flyer deals, recent receipts, and saved prices without filling missing prices with guesses.',
   },
   {
     title: 'Install, offline use, and reminders',

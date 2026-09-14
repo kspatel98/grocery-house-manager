@@ -407,10 +407,47 @@ export type ShoppingSuggestions = {
 export type MarketCapabilities = {
   product_lookup_available: boolean;
   live_price_compare_available: boolean;
+  weekly_flyers_available?: boolean;
   apify_configured: boolean;
+  flyer_configured?: boolean;
   live_price_status?: 'connected' | 'not_connected' | string;
   supported_retailers: string[];
   message: string;
+};
+
+export type FlyerDeal = {
+  merchant: string;
+  merchant_id?: string | null;
+  item_id?: string | null;
+  name: string;
+  brand?: string | null;
+  price?: number | null;
+  price_raw?: string | null;
+  discount?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  image_url?: string | null;
+  categories: string[];
+  flyer_id?: string | null;
+  postal_code?: string | null;
+  locale: string;
+  scraped_at?: string | null;
+  change_type?: string | null;
+  previous_price?: number | null;
+  price_delta?: number | null;
+  is_multi_product_bundle: boolean;
+  source: string;
+};
+
+export type FlyerDealsResponse = {
+  premium_required: boolean;
+  configured: boolean;
+  cached: boolean;
+  postal_code?: string | null;
+  fetched_at?: string | null;
+  message: string;
+  merchants: string[];
+  deals: FlyerDeal[];
 };
 
 export type ProductLookupResult = {
@@ -588,6 +625,7 @@ export type BasketStoreOption = {
   complete: boolean;
   missing_items: string[];
   live_items: number;
+  flyer_items: number;
   recent_receipt_items: number;
   saved_price_items: number;
   source_summary?: string | null;
@@ -614,6 +652,9 @@ export type BasketComparison = {
   live_attempted: boolean;
   live_configured: boolean;
   live_rows_count: number;
+  flyer_attempted: boolean;
+  flyer_configured: boolean;
+  flyer_rows_count: number;
   location_label?: string | null;
   needs_postal_code: boolean;
   data_sources: string[];

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 from itertools import combinations
+from math import ceil
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -42,6 +43,7 @@ from app.schemas import (
     WeeklyAssistantSuggestedItemOut,
 )
 from app.utils.location import currency_for_country
+from app.utils.flyer_data import get_weekly_flyer_deals
 from app.utils.market_data import compare_canadian_grocery_prices, normalize_canadian_postal_code, safe_market_error
 
 router = APIRouter(prefix="/insights", tags=["insights"])
@@ -262,6 +264,110 @@ def _live_row_matches(item_name: str, row) -> bool:
     return False
 
 
+def _flyer_row_matches(item_name: str, deal) -> bool:
+    if getattr(deal, "is_multi_product_bundle", False):
+        return False
+    wanted = _clean_key(item_name)
+    candidate = _clean_key(getattr(deal, "name", None))
+    if not wanted or not candidate:
+        return False
+    if wanted == candidate or wanted in candidate or candidate in wanted:
+        return True
+    ignore = {"fresh", "large", "small", "original", "regular", "brand", "assorted", "selected", "size", "pack"}
+    wanted_tokens = {token for token in wanted.split() if len(token) > 1 and token not in ignore}
+    candidate_tokens = {token for token in candidate.split() if len(token) > 1 and token not in ignore}
+    if not wanted_tokens or not candidate_tokens:
+        return False
+    overlap = len(wanted_tokens & candidate_tokens)
+    return overlap >= 1 and overlap / max(len(wanted_tokens), 1) >= 0.6
+
+
+def _measure_family(unit: str | None) -> tuple[str | None, float]:
+    normalized = (unit or "").strip().casefold().rstrip(".")
+    aliases = {
+        "kg": ("mass", 1000.0), "kilogram": ("mass", 1000.0), "kilograms": ("mass", 1000.0),
+        "g": ("mass", 1.0), "gram": ("mass", 1.0), "grams": ("mass", 1.0),
+        "l": ("volume", 1000.0), "litre": ("volume", 1000.0), "litres": ("volume", 1000.0),
+        "liter": ("volume", 1000.0), "liters": ("volume", 1000.0),
+        "ml": ("volume", 1.0), "millilitre": ("volume", 1.0), "millilitres": ("volume", 1.0),
+        "milliliter": ("volume", 1.0), "milliliters": ("volume", 1.0),
+        "pcs": ("count", 1.0), "pc": ("count", 1.0), "piece": ("count", 1.0), "pieces": ("count", 1.0),
+        "pack": ("package", 1.0), "packs": ("package", 1.0), "package": ("package", 1.0), "packages": ("package", 1.0),
+    }
+    return aliases.get(normalized, (None, 1.0))
+
+
+def _flyer_package_measure(name: str | None, wanted_family: str | None) -> tuple[str | None, float | None]:
+    """Best-effort package-size parser used only to make flyer basket totals safer.
+
+    It intentionally returns no size when the ad text is ambiguous. We would rather skip an
+    exact basket calculation than pretend a 10 kg bag and a 1 kg request are the same unit.
+    """
+    text = (name or "").casefold().replace(",", ".")
+    unit_pattern = r"kg|g|l|ml|litres?|liters?|kilograms?|grams?|milliliters?"
+    multi = re.search(rf"(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*({unit_pattern})\b", text, re.IGNORECASE)
+    if multi:
+        count = float(multi.group(1))
+        if wanted_family == "count":
+            return "count", count
+        each = float(multi.group(2))
+        family, factor = _measure_family(multi.group(3))
+        if family and (wanted_family is None or family == wanted_family):
+            return family, count * each * factor
+
+    measures = list(re.finditer(rf"(\d+(?:\.\d+)?)\s*({unit_pattern})\b", text, re.IGNORECASE))
+    for match in reversed(measures):
+        family, factor = _measure_family(match.group(2))
+        if family and (wanted_family is None or family == wanted_family):
+            return family, float(match.group(1)) * factor
+
+    count = re.search(r"(\d+)\s*(?:pack|pk|ct|count|pieces?|pcs)\b", text, re.IGNORECASE)
+    if count and wanted_family in {None, "count"}:
+        return "count", float(count.group(1))
+    return None, None
+
+
+def _flyer_effective_unit_price(item: ShoppingListItem, deal) -> float | None:
+    """Return a price that can safely be multiplied by requested_quantity.
+
+    Flyer prices are usually package prices. For weight/volume shopping-list quantities we
+    convert the requested amount to the same base unit, determine how many advertised packages
+    are needed, and then convert that basket cost back to an effective per-requested-unit price.
+    """
+    try:
+        shelf_price = float(getattr(deal, "price", None))
+        required = max(float(item.requested_quantity or 1), 0.01)
+    except (TypeError, ValueError):
+        return None
+    if shelf_price < 0:
+        return None
+
+    family, factor = _measure_family(getattr(item.product, "unit", None))
+    if family in {"mass", "volume"}:
+        _, package_base = _flyer_package_measure(getattr(deal, "name", None), family)
+        if not package_base or package_base <= 0:
+            # One requested unit can safely be represented by one advertised package, but for
+            # larger/partial weight requests an unknown package size would create a false total.
+            return shelf_price if abs(required - 1.0) < 1e-9 else None
+        required_base = required * factor
+        packages = max(ceil(required_base / package_base), 1)
+        return (shelf_price * packages) / required
+
+    if family == "count":
+        _, package_count = _flyer_package_measure(getattr(deal, "name", None), "count")
+        if package_count and package_count > 0:
+            packages = max(ceil(required / package_count), 1)
+            return (shelf_price * packages) / required
+        # Most produce and single packaged products expose a per-piece/package flyer price.
+        return shelf_price
+
+    if family == "package":
+        return shelf_price
+
+    # Unknown units: only use a flyer price for a single requested unit.
+    return shelf_price if abs(required - 1.0) < 1e-9 else None
+
+
 def _classify_saved_source(source: str | None, recorded_at: datetime | None) -> str:
     raw = (source or "saved").lower()
     if raw.startswith("receipt"):
@@ -327,7 +433,21 @@ def _basket_comparison(
             live_error = safe_market_error(exc)
             live_rows = []
 
-    # item_id -> store -> supported price record. Newer/live data wins over old history;
+    flyer_rows = []
+    flyer_attempted = False
+    flyer_error = None
+    if include_live and settings.apify_api_token and clean_postal and len(clean_postal.replace(" ", "")) == 6:
+        flyer_attempted = True
+        try:
+            _, _, flyer_rows = get_weekly_flyer_deals(
+                db, postal_code=clean_postal, force_refresh=force_refresh
+            )
+        except Exception as exc:
+            flyer_error = safe_market_error(exc)
+            flyer_rows = []
+
+    # item_id -> store -> supported price record. Current direct prices win, then active flyer prices,
+    # then recent receipt history and older saved prices.
     # within the same source tier we keep the lower observed price.
     price_map: dict[int, dict[str, dict]] = {item.id: {} for item in items}
     data_sources: set[str] = set()
@@ -338,13 +458,15 @@ def _basket_comparison(
         store_name = " ".join(store.split()).strip()
         if not store_name:
             return
-        rank = {"live": 0, "recent_receipt": 1, "saved_price": 2}.get(source, 3)
+        rank = {"live": 0, "flyer": 1, "recent_receipt": 2, "saved_price": 3}.get(source, 4)
         current = price_map.setdefault(item_id, {}).get(store_name)
         candidate = {"price": float(price), "source": source, "rank": rank, "recorded_at": recorded_at}
         if current is None or rank < current["rank"] or (rank == current["rank"] and float(price) < current["price"]):
             price_map[item_id][store_name] = candidate
         if source == "live":
             data_sources.add("Live Canadian prices")
+        elif source == "flyer":
+            data_sources.add("Current weekly flyers")
         elif source == "recent_receipt":
             data_sources.add("Recent receipts")
         elif source == "saved_price":
@@ -369,12 +491,27 @@ def _basket_comparison(
             if _live_row_matches(item.product.name, row):
                 put_price(item.id, store, float(row_price), "live", getattr(row, "scraped_at", None) or now)
 
+    for deal in flyer_rows:
+        if getattr(deal, "price", None) is None or getattr(deal, "is_multi_product_bundle", False):
+            continue
+        valid_from = getattr(deal, "valid_from", None)
+        valid_to = getattr(deal, "valid_to", None)
+        if valid_from and valid_from > now + timedelta(days=1):
+            continue
+        if valid_to and valid_to < now - timedelta(days=1):
+            continue
+        for item in items:
+            if _flyer_row_matches(item.product.name, deal):
+                effective_price = _flyer_effective_unit_price(item, deal)
+                if effective_price is not None:
+                    put_price(item.id, getattr(deal, "merchant", None), effective_price, "flyer", getattr(deal, "scraped_at", None) or now)
+
     all_store_names = sorted({store for stores in price_map.values() for store in stores})
     store_options: list[BasketStoreOptionOut] = []
     for store in all_store_names:
         known_total = 0.0
         missing: list[str] = []
-        priced = live_count = receipt_count = saved_count = 0
+        priced = live_count = flyer_count = receipt_count = saved_count = 0
         freshest: datetime | None = None
         for item in items:
             qty = max(float(item.requested_quantity or 1), 0.01)
@@ -386,6 +523,8 @@ def _basket_comparison(
             priced += 1
             if record["source"] == "live":
                 live_count += 1
+            elif record["source"] == "flyer":
+                flyer_count += 1
             elif record["source"] == "recent_receipt":
                 receipt_count += 1
             else:
@@ -396,14 +535,21 @@ def _basket_comparison(
                 if freshest is None or stamp > freshest:
                     freshest = stamp
         coverage = round((priced / total_items) * 100) if total_items else 0
+        source_bits = []
         if live_count:
-            source_summary = f"{live_count} live" + (f", {receipt_count} recent receipt" if receipt_count else "") + (f", {saved_count} saved" if saved_count else "")
-            freshness = "Includes live/recent retailer results"
+            source_bits.append(f"{live_count} live")
+        if flyer_count:
+            source_bits.append(f"{flyer_count} flyer")
+        if receipt_count:
+            source_bits.append(f"{receipt_count} recent receipt")
+        if saved_count:
+            source_bits.append(f"{saved_count} saved")
+        source_summary = ", ".join(source_bits) if source_bits else "No supported prices"
+        if live_count or flyer_count:
+            freshness = "Includes current retailer/flyer prices"
         elif receipt_count:
-            source_summary = f"{receipt_count} recent receipt" + (f", {saved_count} saved" if saved_count else "")
             freshness = "Based on your recent receipts and saved history"
         else:
-            source_summary = f"{saved_count} saved price" + ("s" if saved_count != 1 else "")
             freshness = "Based on saved household price history"
         store_options.append(
             BasketStoreOptionOut(
@@ -416,6 +562,7 @@ def _basket_comparison(
                 complete=priced == total_items,
                 missing_items=missing,
                 live_items=live_count,
+                flyer_items=flyer_count,
                 recent_receipt_items=receipt_count,
                 saved_price_items=saved_count,
                 source_summary=source_summary,
@@ -486,6 +633,8 @@ def _basket_comparison(
             message = "No usable prices are available yet. Receipt scans and saved prices will be picked up automatically, and live Canadian prices are used when the live-price connection is configured."
         if live_error:
             message += f" Live lookup issue: {live_error}"
+        if flyer_error:
+            message += f" Flyer lookup issue: {flyer_error}"
         recommendation_reason = "Add or scan prices only when convenient; the app will reuse them automatically next time."
     elif complete_stores:
         winner = min(complete_stores, key=lambda row: row.known_total)
@@ -517,6 +666,9 @@ def _basket_comparison(
         live_attempted=live_attempted,
         live_configured=bool(settings.apify_api_token),
         live_rows_count=len(live_rows),
+        flyer_attempted=flyer_attempted,
+        flyer_configured=bool(settings.apify_api_token),
+        flyer_rows_count=len(flyer_rows),
         location_label=location_label,
         needs_postal_code=bool(include_live and not clean_postal),
         data_sources=sorted(data_sources),
@@ -548,6 +700,7 @@ def basket_comparison(
             list_title=shopping_list.title,
             total_items=db.query(ShoppingListItem).filter(ShoppingListItem.shopping_list_id == list_id).count(),
             live_configured=bool(settings.apify_api_token),
+            flyer_configured=bool(settings.apify_api_token),
             last_refreshed_at=datetime.now(timezone.utc),
         )
     return _basket_comparison(

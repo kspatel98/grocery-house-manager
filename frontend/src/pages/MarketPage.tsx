@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { AccountBootstrap, House, LivePriceCompareResponse, MarketCapabilities, ProductLookupResult, ProductLookupResponse, Section, User } from '../types';
+import type { AccountBootstrap, FlyerDealsResponse, House, LivePriceCompareResponse, MarketCapabilities, ProductLookupResult, ProductLookupResponse, Section, User } from '../types';
 import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 
 const retailerLabels: Record<string, string> = {
@@ -13,6 +13,20 @@ const retailerLabels: Record<string, string> = {
   pricesmart: 'PriceSmart Foods',
   tnt: 'T&T Supermarket',
 };
+
+
+const featuredFlyerMerchants = [
+  'No Frills',
+  'Walmart',
+  'FreshCo',
+  'Food Basics',
+  'Fortinos',
+  'Real Canadian Superstore',
+  'Loblaws',
+  'Metro',
+  'Sobeys',
+  'Costco',
+];
 
 function statusLabel(connected: boolean) {
   return connected ? 'Connected' : 'Not connected';
@@ -43,13 +57,18 @@ export default function MarketPage() {
   const [addFeedback, setAddFeedback] = useState('');
   const [itemsText, setItemsText] = useState('milk\neggs\nbread');
   const [postalCode, setPostalCode] = useState(() => localStorage.getItem('ghm_price_postal') || '');
+  const [flyerQuery, setFlyerQuery] = useState('');
+  const [flyers, setFlyers] = useState<FlyerDealsResponse | null>(null);
+  const [flyerBusy, setFlyerBusy] = useState(false);
   const [locationNote, setLocationNote] = useState('Postal code gives the most accurate Canadian store prices.');
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
+  const [selectedFlyerMerchants, setSelectedFlyerMerchants] = useState<string[]>([]);
   const [compare, setCompare] = useState<LivePriceCompareResponse | null>(null);
   const [compareBusy, setCompareBusy] = useState(false);
   const [error, setError] = useState('');
   const compareResultsRef = useRef<HTMLDivElement | null>(null);
   const lookupResultsRef = useRef<HTMLDivElement | null>(null);
+  const flyerResultsRef = useRef<HTMLDivElement | null>(null);
 
   async function load() {
     try {
@@ -91,6 +110,9 @@ export default function MarketPage() {
   useEffect(() => {
     if (lookup) setTimeout(() => lookupResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }, [lookup]);
+  useEffect(() => {
+    if (flyers) setTimeout(() => flyerResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }, [flyers]);
 
   const activeRetailers = useMemo(
     () => capabilities?.supported_retailers?.length ? capabilities.supported_retailers : ['loblaws', 'superstore', 'nofrills', 'saveon', 'pricesmart', 'tnt'],
@@ -100,6 +122,10 @@ export default function MarketPage() {
 
   function toggleRetailer(retailer: string) {
     setSelectedRetailers((current) => current.includes(retailer) ? current.filter((item) => item !== retailer) : [...current, retailer]);
+  }
+
+  function toggleFlyerMerchant(merchant: string) {
+    setSelectedFlyerMerchants((current) => current.includes(merchant) ? current.filter((item) => item !== merchant) : [...current, merchant]);
   }
 
   async function runLookup(event: React.FormEvent) {
@@ -229,6 +255,37 @@ export default function MarketPage() {
     await submitCompare({ city: user?.city || '', country: user?.country || 'Canada', forceRefresh });
   }
 
+  async function loadFlyers(forceRefresh = false) {
+    if (!selectedHouseId) {
+      setError('Choose a house first.');
+      return;
+    }
+    const typedPostal = postalCode.trim().toUpperCase();
+    if (!/^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/.test(typedPostal)) {
+      setError('Enter a complete Canadian postal code, for example L8P 1A1, to load local weekly flyers.');
+      return;
+    }
+    try {
+      setFlyerBusy(true);
+      setError('');
+      localStorage.setItem('ghm_price_postal', typedPostal);
+      const { data } = await api.get<FlyerDealsResponse>(`/market/houses/${selectedHouseId}/flyers`, {
+        params: {
+          postal_code: typedPostal,
+          query: flyerQuery.trim() || undefined,
+          merchants: selectedFlyerMerchants.length ? selectedFlyerMerchants.join(',') : undefined,
+          force_refresh: forceRefresh || undefined,
+          t: Date.now(),
+        },
+      });
+      setFlyers(data);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setFlyerBusy(false);
+    }
+  }
+
   return (
     <main className="page shell wide market-page market-page-v47">
       <header className="topbar market-hero-bar market-hero-v47">
@@ -263,6 +320,71 @@ export default function MarketPage() {
         </div>
         {!houses.length && <div className="guided-inline-empty"><span aria-hidden="true">🏡</span><div><strong>Create or join a Grocery Home first</strong><small>Once you have a Home, prices can connect directly to its inventory and shopping lists.</small></div><Link to="/houses" className="primary center-link">Start setup</Link></div>}
         {capabilities && <PlanAccessPreview connected={liveConnected} />}
+      </section>
+
+      <section className="panel weekly-flyer-panel animated-card-lift">
+        <div className="panel-title-row flyer-title-row">
+          <div>
+            <p className="eyebrow">Family Plus • weekly savings</p>
+            <h2>Weekly flyers near your Grocery Home</h2>
+            <p>Pull structured sale prices for your postal code, cache them for your area, and reuse them in whole-list shopping comparisons.</p>
+          </div>
+          <span className={capabilities?.flyer_configured ? 'market-status-pill connected' : 'market-status-pill offline'}>
+            <span className="status-dot" /> Flyers: {capabilities?.flyer_configured ? 'Connected' : 'Not connected'}
+          </span>
+        </div>
+        <div className="flyer-search-grid">
+          <label>Canadian postal code<input value={postalCode} onChange={(e) => setPostalCode(e.target.value.toUpperCase())} placeholder="L8P 1A1" maxLength={7} /></label>
+          <label>Find an item in this week’s flyers<input value={flyerQuery} onChange={(e) => setFlyerQuery(e.target.value)} placeholder="Milk, atta, tomatoes, paneer…" /></label>
+        </div>
+        <div>
+          <small className="small-muted">Optional store filter. Leave every store unselected to let the flyer provider use its local grocery-store set.</small>
+          <div className="retailer-chip-grid flyer-retailer-chips">
+            {featuredFlyerMerchants.map((merchant) => (
+              <button key={`flyer-${merchant}`} type="button" className={selectedFlyerMerchants.includes(merchant) ? 'retailer-chip active' : 'retailer-chip'} onClick={() => toggleFlyerMerchant(merchant)}>
+                {merchant}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="market-button-row">
+          <button className="primary" type="button" disabled={flyerBusy || !selectedHouseId} onClick={() => void loadFlyers(false)}>{flyerBusy ? 'Loading flyers…' : 'Find weekly deals'}</button>
+          <button className="secondary" type="button" disabled={flyerBusy || !selectedHouseId} onClick={() => void loadFlyers(true)}>Refresh flyer data</button>
+        </div>
+        {flyers ? (
+          <div ref={flyerResultsRef} className={flyers.premium_required || !flyers.configured ? 'hint flyer-results-wrap' : 'flyer-results-wrap'}>
+            <div className="compare-summary-card">
+              <span className={flyers.configured ? 'market-status-pill connected' : 'market-status-pill offline'}><span className="status-dot" /> {flyers.cached ? 'Cached local flyers' : 'Fresh local flyers'}</span>
+              {flyers.postal_code ? <span className="source-badge location-source">📍 {flyers.postal_code}</span> : null}
+              {flyers.fetched_at ? <span className="source-badge flyer-source">Updated {new Date(flyers.fetched_at).toLocaleString()}</span> : null}
+            </div>
+            <p>{flyers.message}</p>
+            {flyers.deals.length ? (
+              <div className="flyer-deal-grid">
+                {flyers.deals.slice(0, 60).map((deal, index) => (
+                  <article className="flyer-deal-card" key={`${deal.merchant}-${deal.item_id || deal.name}-${index}`}>
+                    <div className="flyer-deal-image">{deal.image_url ? <img src={deal.image_url} alt="" loading="lazy" /> : <span>🛒</span>}</div>
+                    <div className="flyer-deal-content">
+                      <div className="flyer-deal-badges">
+                        <span className="source-badge store-source">{deal.merchant}</span>
+                        {deal.change_type === 'price_drop' ? <span className="source-badge flyer-drop">↓ Price drop</span> : null}
+                        {deal.is_multi_product_bundle ? <span className="source-badge flyer-bundle">Bundle offer</span> : null}
+                      </div>
+                      <strong>{deal.name}</strong>
+                      {deal.brand ? <small>{deal.brand}</small> : null}
+                      <div className="flyer-price-row">
+                        <b>{deal.price != null ? money(deal.price, 'CAD') : deal.price_raw || 'See flyer'}</b>
+                        {deal.previous_price != null && deal.price != null && deal.previous_price > deal.price ? <small>was {money(deal.previous_price, 'CAD')}</small> : null}
+                      </div>
+                      <small>{deal.valid_from ? `Valid ${new Date(deal.valid_from).toLocaleDateString()}` : 'Current flyer'}{deal.valid_to ? ` – ${new Date(deal.valid_to).toLocaleDateString()}` : ''}</small>
+                      {deal.is_multi_product_bundle ? <small className="flyer-honesty-note">Shown as an offer only; excluded from exact basket pricing.</small> : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <div className="market-layout-grid">

@@ -313,7 +313,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
           </div>
           <span className={busy ? 'auto-status checking' : 'auto-status'}>{busy ? '● Checking prices…' : comparison ? '✓ Checked automatically' : 'Ready'}</span>
         </div>
-        <p>Prices are checked automatically: current Canadian prices first, then your recent receipts, then older prices you have saved. If a price cannot be found, we say so instead of guessing.</p>
+        <p>Prices are checked automatically: current Canadian prices first, then active weekly flyer deals, then your recent receipts and older saved prices. If a price cannot be found, we say so instead of guessing.</p>
 
         {comparison?.premium_required ? (
           <div className="basket-upgrade-line"><span>{comparison.message}</span><Link to="/pricing" className="secondary center-link">See Family Plus</Link></div>
@@ -347,7 +347,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
 
       <div className="whole-list-result-preview">
         {!comparison || busy ? (
-          <><span>AUTOMATIC CHECK</span><strong>{selectedList.items.length}</strong><small>{busy ? 'checking live + household prices…' : 'items checked together'}</small></>
+          <><span>AUTOMATIC CHECK</span><strong>{selectedList.items.length}</strong><small>{busy ? 'checking live + flyer + household prices…' : 'items checked together'}</small></>
         ) : comparison.premium_required ? (
           <><span>PREMIUM</span><strong>Family Plus</strong><small>Automatic whole-list comparison unlocks here.</small></>
         ) : winner && winner.complete ? (
@@ -366,7 +366,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
           <strong>{comparison.message}</strong>
           {comparison.recommendation_reason ? <span>{comparison.recommendation_reason}</span> : null}
           {comparison.live_configured && comparison.needs_postal_code ? <small>Tip: we are using your saved city. Add a postal code only if you want more local results.</small> : null}
-          {!comparison.live_configured ? <small>Current Canadian prices are unavailable right now, so Grocery House Manager is automatically using your receipt and saved prices instead.</small> : null}
+          {!comparison.live_configured ? <small>Current Canadian prices are unavailable right now, so Grocery House Manager is automatically using any cached weekly flyers plus your receipt and saved prices instead.</small> : null}
         </div>
       ) : null}
 
@@ -422,8 +422,9 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
     if (!selectedList) return;
     try {
       setBusy(true);
+      const flyerPostal = localStorage.getItem('ghm_price_postal') || '';
       const { data } = await api.get<ShoppingSuggestions>(`/market/houses/${houseId}/shopping-lists/${selectedList.id}/suggestions`, {
-        params: { city: city || undefined, country: country || undefined, lat: nextLat ?? undefined, lng: nextLng ?? undefined },
+        params: { city: city || undefined, country: country || undefined, postal_code: flyerPostal || undefined, lat: nextLat ?? undefined, lng: nextLng ?? undefined },
       });
       setSuggestions(data);
       setError('');

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import re
 import requests
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
@@ -11,8 +12,9 @@ from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, hous
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
-from app.schemas import MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
+from app.schemas import FlyerDealsOut, MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
+from app.utils.flyer_data import get_weekly_flyer_deals
 from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores, store_lookup_search_status
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -92,10 +94,79 @@ def market_capabilities(user: User = Depends(get_current_user)):
     return MarketCapabilitiesOut(
         product_lookup_available=True,
         live_price_compare_available=connected,
+        weekly_flyers_available=connected,
         apify_configured=connected,
+        flyer_configured=connected,
         live_price_status="connected" if connected else "not_connected",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        message=f"Product lookup is available by plan. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. {' '.join(store_lookup_search_status())} Canadian live price comparison works best with a Canadian postal code.",
+        message=f"Product lookup is available by plan. Weekly flyers and Canadian price comparison use the configured Apify connection. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. {' '.join(store_lookup_search_status())}",
+    )
+
+
+@router.get("/houses/{house_id}/flyers", response_model=FlyerDealsOut)
+def weekly_flyers(
+    house_id: int,
+    postal_code: str = Query(min_length=3, max_length=12),
+    query: str | None = Query(default=None, max_length=100),
+    merchants: str | None = Query(default=None, max_length=500),
+    force_refresh: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    plan = get_house_plan(db, house_id)
+    clean_postal = normalize_canadian_postal_code(postal_code)
+    if not clean_postal or len(clean_postal.replace(" ", "")) != 6:
+        return FlyerDealsOut(
+            premium_required=False, configured=bool(settings.apify_api_token), postal_code=clean_postal,
+            message="Enter a complete Canadian postal code, for example L8P 1A1.", deals=[], merchants=[]
+        )
+    if not house_plan_has_external_price_comparison(db, house_id):
+        return FlyerDealsOut(
+            premium_required=True, configured=bool(settings.apify_api_token), postal_code=clean_postal,
+            message=f"Weekly flyer intelligence is a Family Plus or Household Pro feature. This house is on the owner's {plan.name} plan.",
+            deals=[], merchants=[]
+        )
+    if not settings.apify_api_token:
+        return FlyerDealsOut(
+            configured=False, postal_code=clean_postal,
+            message="Weekly flyer fetching is not connected yet. Add APIFY_API_TOKEN on the backend.", deals=[], merchants=[]
+        )
+    merchant_list = [part.strip() for part in (merchants or "").split(",") if part.strip()]
+    try:
+        cached, fetched_at, deals = get_weekly_flyer_deals(
+            db, postal_code=clean_postal, merchants=merchant_list, force_refresh=force_refresh
+        )
+    except Exception as exc:
+        return FlyerDealsOut(
+            configured=True, postal_code=clean_postal,
+            message=f"Flyer refresh could not complete: {safe_market_error(exc)}", deals=[], merchants=[]
+        )
+
+    now = datetime.now(timezone.utc)
+    active = []
+    for deal in deals:
+        if deal.valid_from and deal.valid_from > now + timedelta(days=1):
+            continue
+        if deal.valid_to and deal.valid_to < now - timedelta(days=1):
+            continue
+        active.append(deal)
+    search = " ".join((query or "").casefold().split())
+    if search:
+        tokens = [token for token in search.split() if len(token) > 1]
+        def matches(deal):
+            haystack = " ".join([deal.name, deal.brand or "", deal.merchant, " ".join(deal.categories)]).casefold()
+            return search in haystack or all(token in haystack for token in tokens)
+        active = [deal for deal in active if matches(deal)]
+    active.sort(key=lambda deal: (deal.price is None, deal.price if deal.price is not None else 10**9, deal.merchant.casefold(), deal.name.casefold()))
+    active = active[: max(1, settings.flyer_max_results)]
+    found_merchants = sorted({deal.merchant for deal in deals if deal.merchant})
+    qualifier = f" for ‘{query.strip()}’" if query and query.strip() else ""
+    cache_note = "cached flyer data" if cached else "fresh flyer data"
+    return FlyerDealsOut(
+        configured=True, cached=cached, postal_code=clean_postal, fetched_at=fetched_at,
+        message=f"Showing {len(active)} active weekly flyer deals{qualifier} across {len(found_merchants)} local merchants from {cache_note}. Flyer prices are promotional prices valid only for the displayed dates.",
+        merchants=found_merchants, deals=active
     )
 
 
@@ -405,12 +476,28 @@ def nearby_stores(
     )
 
 
+def _simple_name_match(wanted: str | None, candidate: str | None) -> bool:
+    def clean(value: str | None) -> str:
+        return " ".join(re.sub(r"[^\w]+", " ", (value or "").casefold(), flags=re.UNICODE).split())
+    left = clean(wanted)
+    right = clean(candidate)
+    if not left or not right:
+        return False
+    if left == right or left in right or right in left:
+        return True
+    left_tokens = {token for token in left.split() if len(token) > 1}
+    right_tokens = {token for token in right.split() if len(token) > 1}
+    overlap = len(left_tokens & right_tokens)
+    return bool(overlap and overlap / max(len(left_tokens), 1) >= 0.6)
+
+
 @router.get("/houses/{house_id}/shopping-lists/{list_id}/suggestions", response_model=ShoppingSuggestionsOut)
 def shopping_suggestions(
     house_id: int,
     list_id: int,
     city: str | None = Query(default=None, max_length=120),
     country: str | None = Query(default=None, max_length=120),
+    postal_code: str | None = Query(default=None, max_length=20),
     lat: float | None = None,
     lng: float | None = None,
     db: Session = Depends(get_db),
@@ -443,6 +530,13 @@ def shopping_suggestions(
         )
 
     location_label, stores = get_nearby_store_results(user, city, country, lat, lng)
+    flyer_deals = []
+    clean_postal = normalize_canadian_postal_code(postal_code)
+    if clean_postal and len(clean_postal.replace(" ", "")) == 6 and settings.apify_api_token:
+        try:
+            _, _, flyer_deals = get_weekly_flyer_deals(db, postal_code=clean_postal, force_refresh=False)
+        except Exception:
+            flyer_deals = []
     suggestions: list[ShoppingItemSuggestionOut] = []
     for item in shopping_list.items:
         if item.status == ShoppingItemStatus.skipped or not item.product:
@@ -463,31 +557,55 @@ def shopping_suggestions(
             return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
         receipt_prices = [price for price in (product.store_prices or []) if str(price.source or "").startswith("receipt") and aware(price.recorded_at) and aware(price.recorded_at) >= recent_cutoff]
         prices = sorted(receipt_prices or (product.store_prices or []), key=lambda p: (float(p.price), p.store_name.lower()))
-        best = prices[0] if prices else None
+        saved_best = prices[0] if prices else None
         current_price = product.price
         current_store = product.store_name
-        savings = None
+
+        flyer_matches = [
+            deal for deal in flyer_deals
+            if deal.price is not None
+            and not deal.is_multi_product_bundle
+            and _simple_name_match(product.name, deal.name)
+            and (deal.valid_to is None or deal.valid_to >= now - timedelta(days=1))
+        ]
+        flyer_best = min(flyer_matches, key=lambda deal: float(deal.price)) if flyer_matches else None
+
+        best_store = None
+        best_price = None
+        best_recorded = None
         source_label = None
         freshness_label = None
-        if best and current_price is not None:
-            savings = round(max(float(current_price) - float(best.price), 0), 2)
-        if best:
-            best_recorded = aware(best.recorded_at)
-            if str(best.source or "").startswith("receipt") and best_recorded and best_recorded >= recent_cutoff:
+        if flyer_best is not None:
+            best_store = flyer_best.merchant
+            best_price = float(flyer_best.price)
+            best_recorded = flyer_best.scraped_at or now
+            source_label = "Weekly flyer"
+            freshness_label = f"valid to {flyer_best.valid_to.date().isoformat()}" if flyer_best.valid_to else "current flyer"
+        if saved_best is not None and (best_price is None or float(saved_best.price) < best_price):
+            best_store = saved_best.store_name
+            best_price = float(saved_best.price)
+            best_recorded = saved_best.recorded_at
+            recorded = aware(saved_best.recorded_at)
+            if str(saved_best.source or "").startswith("receipt") and recorded and recorded >= recent_cutoff:
                 source_label = "Last receipt"
-                days = max((now - best_recorded).days, 0)
+                days = max((now - recorded).days, 0)
                 freshness_label = "today" if days == 0 else f"{days}d ago"
-            elif str(best.source or "").startswith("apify") or str(best.source or "").startswith("live"):
+            elif str(saved_best.source or "").startswith("apify") or str(saved_best.source or "").startswith("live"):
                 source_label = "Live compare"
                 freshness_label = "latest available"
             else:
                 source_label = "Saved price"
                 freshness_label = "saved"
-            message = f"Suggested store: {best.store_name} at {float(best.price):.2f}. Source: {source_label}."
+
+        savings = round(max(float(current_price) - best_price, 0), 2) if best_price is not None and current_price is not None else None
+        if best_store and best_price is not None:
+            message = f"Suggested store: {best_store} at {best_price:.2f}. Source: {source_label}."
+            if source_label == "Weekly flyer":
+                message += " Confirm package size before buying."
             if savings and savings > 0:
                 message += f" Save about {savings:.2f} vs current product price."
         else:
-            message = "No recent receipt price yet. Upload a receipt or use live comparison to improve suggestions."
+            message = "No current flyer or recent household price match yet. Upload a receipt or use price comparison to improve suggestions."
         suggestions.append(
             ShoppingItemSuggestionOut(
                 product_id=product.id,
@@ -495,10 +613,10 @@ def shopping_suggestions(
                 requested_quantity=item.requested_quantity,
                 current_store=current_store,
                 current_price=current_price,
-                best_known_store=best.store_name if best else None,
-                best_known_price=float(best.price) if best else None,
+                best_known_store=best_store,
+                best_known_price=best_price,
                 best_known_source=source_label,
-                best_known_recorded_at=best.recorded_at if best else None,
+                best_known_recorded_at=best_recorded,
                 freshness_label=freshness_label,
                 savings_vs_current=savings,
                 message=message,
@@ -509,7 +627,7 @@ def shopping_suggestions(
         currency_code=currency_for_country(country or user.country),
         location_label=location_label,
         premium_required=False,
-        message="Suggestions combine your household's saved receipt/product prices with nearby grocery store results. Live product prices depend on retailer data availability and are not guaranteed.",
+        message="Suggestions combine current weekly flyers, your household receipt/product prices, and nearby grocery-store results. Always confirm package size and in-store availability before purchase.",
         nearby_stores=stores,
         item_suggestions=suggestions,
     )

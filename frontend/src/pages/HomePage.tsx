@@ -66,7 +66,7 @@ const planHighlights = [
     price: '$4.99/mo CAD',
     annual: '$39.99/year CAD',
     tag: 'MOST POPULAR • best value',
-    features: ['Automatic whole-list store comparison', '5 receipt scans/month', 'Canadian price comparison'],
+    features: ['Automatic whole-list store comparison', '5 receipt scans/month', 'Canadian prices + weekly flyers'],
     locked: ['Advanced nearby-store tools'],
   },
   {

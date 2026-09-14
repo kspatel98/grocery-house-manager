@@ -747,3 +747,7 @@ GOOGLE_SEARCH_CX=
 ```
 
 Without these keys, the app uses a best-effort public search fallback. Some stores may hide current price until the user selects a postal code, warehouse, or delivery location.
+
+## v75 — Weekly flyer price intelligence
+
+This build adds postal-code-aware Canadian weekly flyer imports, PostgreSQL caching, flyer search/filtering, and whole-list comparison support. Configure `APIFY_API_TOKEN` and optionally `APIFY_FLYER_ACTOR_ID`; see `V75_WEEKLY_FLYER_INTELLIGENCE.md` for details. Flyer prices are shown with validity dates and source labels. Multi-product flyer bundles are excluded from exact basket totals, and weight/volume package sizes are normalized where possible before totals are calculated.
