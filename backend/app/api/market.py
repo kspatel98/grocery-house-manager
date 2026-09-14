@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
 import re
 import requests
 from fastapi import APIRouter, Depends, Query
@@ -11,10 +13,10 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, house_plan_has_product_lookup, house_plan_has_external_price_comparison
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
-from app.schemas import FlyerDealsOut, MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
+from app.models import ExternalPriceCache, Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
+from app.schemas import FlyerDealsOut, FlyerMerchantOut, FlyerMerchantsOut, MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
-from app.utils.flyer_data import get_weekly_flyer_deals
+from app.utils.flyer_data import discover_weekly_flyer_merchants, get_weekly_flyer_deals
 from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores, store_lookup_search_status
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -78,6 +80,104 @@ def google_places_text_search(city: str | None, country: str | None, lat: float 
         return []
 
 
+
+
+def _merchant_match(left: str | None, right: str | None) -> bool:
+    def clean(value: str | None) -> str:
+        return " ".join(re.sub(r"[^\w]+", " ", (value or "").casefold(), flags=re.UNICODE).split())
+    a, b = clean(left), clean(right)
+    if not a or not b:
+        return False
+    return a == b or a in b or b in a
+
+
+def _flyer_store_cache_key(postal_code: str, merchant: str) -> str:
+    raw = f"{postal_code.replace(' ', '').upper()}|{merchant.casefold().strip()}"
+    return "flyer_store_location:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
+
+
+def _maps_search_url(merchant: str, postal_code: str) -> str:
+    from urllib.parse import quote_plus
+    return f"https://www.google.com/maps/search/?api=1&query={quote_plus(f'{merchant} {postal_code} Canada')}"
+
+
+def resolve_flyer_store_location(db: Session, merchant: str, postal_code: str) -> NearbyStoreOut:
+    """Resolve the nearest branch separately from the flyer region.
+
+    Flipp flyer rows are postal/region scoped and do not guarantee a branch address. This helper
+    therefore labels Google Places results as the nearest retailer location, never as the issuing
+    branch. Results are cached for 30 days because physical store addresses change infrequently.
+    """
+    fallback = NearbyStoreOut(
+        name=merchant,
+        address=None,
+        maps_url=_maps_search_url(merchant, postal_code),
+        source="maps_search",
+    )
+    key = _flyer_store_cache_key(postal_code, merchant)
+    now = datetime.now(timezone.utc)
+    existing = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == key).first()
+    if existing:
+        expires = existing.expires_at if existing.expires_at.tzinfo else existing.expires_at.replace(tzinfo=timezone.utc)
+        if expires > now:
+            try:
+                payload = json.loads(existing.payload_json)
+                return NearbyStoreOut(**payload)
+            except Exception:
+                pass
+    if not settings.google_places_api_key:
+        return fallback
+    payload = {
+        "textQuery": f"{merchant} near {postal_code}, Canada",
+        "maxResultCount": 3,
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": settings.google_places_api_key,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri",
+    }
+    resolved = fallback
+    try:
+        response = requests.post("https://places.googleapis.com/v1/places:searchText", json=payload, headers=headers, timeout=8)
+        response.raise_for_status()
+        places = response.json().get("places", [])
+        if places:
+            # Prefer a result whose displayed name contains the flyer merchant.
+            place = next((item for item in places if _merchant_match(merchant, ((item.get("displayName") or {}).get("text") if isinstance(item.get("displayName"), dict) else None))), places[0])
+            resolved = store_result_from_place(place)
+    except Exception:
+        resolved = fallback
+    cache_payload = resolved.model_dump()
+    if existing:
+        existing.source = "google_places_flyer_store"
+        existing.query = merchant
+        existing.location = postal_code
+        existing.payload_json = json.dumps(cache_payload, default=str)
+        existing.fetched_at = now
+        existing.expires_at = now + timedelta(days=30)
+    else:
+        db.add(ExternalPriceCache(
+            cache_key=key, source="google_places_flyer_store", query=merchant, location=postal_code,
+            payload_json=json.dumps(cache_payload, default=str), fetched_at=now, expires_at=now + timedelta(days=30),
+        ))
+    db.commit()
+    return resolved
+
+
+def _apply_flyer_store_locations(db: Session, postal_code: str, deals):
+    locations: dict[str, NearbyStoreOut] = {}
+    for merchant in sorted({deal.merchant for deal in deals if getattr(deal, "merchant", None)}):
+        locations[merchant] = resolve_flyer_store_location(db, merchant, postal_code)
+    for deal in deals:
+        location = locations.get(deal.merchant)
+        if not location:
+            continue
+        deal.store_name = location.name
+        deal.store_address = location.address
+        deal.store_maps_url = location.maps_url
+        deal.store_location_source = location.source
+    return deals
+
 def get_nearby_store_results(user: User, city: str | None, country: str | None, lat: float | None, lng: float | None) -> tuple[str, list[NearbyStoreOut]]:
     city = normalize_country(city) or user.city
     country = normalize_country(country) or user.country
@@ -100,6 +200,53 @@ def market_capabilities(user: User = Depends(get_current_user)):
         live_price_status="connected" if connected else "not_connected",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
         message=f"Product lookup is available by plan. Weekly flyers and Canadian price comparison use the configured Apify connection. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. {' '.join(store_lookup_search_status())}",
+    )
+
+
+@router.get("/houses/{house_id}/flyer-merchants", response_model=FlyerMerchantsOut)
+def flyer_merchants(
+    house_id: int,
+    postal_code: str = Query(min_length=3, max_length=12),
+    force_refresh: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    plan = get_house_plan(db, house_id)
+    clean_postal = normalize_canadian_postal_code(postal_code)
+    if not clean_postal or len(clean_postal.replace(" ", "")) != 6:
+        return FlyerMerchantsOut(configured=bool(settings.apify_api_token), postal_code=clean_postal, message="Enter a complete Canadian postal code to load available flyer stores.", merchants=[])
+    if not house_plan_has_external_price_comparison(db, house_id):
+        return FlyerMerchantsOut(premium_required=True, configured=bool(settings.apify_api_token), postal_code=clean_postal, message=f"Weekly flyer intelligence is a Family Plus or Household Pro feature. This house is on the owner's {plan.name} plan.", merchants=[])
+    if not settings.apify_api_token:
+        return FlyerMerchantsOut(configured=False, postal_code=clean_postal, message="Weekly flyer fetching is not connected yet.", merchants=[])
+    try:
+        cached, fetched_at, rows = discover_weekly_flyer_merchants(db, postal_code=clean_postal, force_refresh=force_refresh)
+    except Exception as exc:
+        return FlyerMerchantsOut(configured=True, postal_code=clean_postal, message=f"Local flyer stores could not be loaded: {safe_market_error(exc)}", merchants=[])
+    normalized: list[FlyerMerchantOut] = []
+    seen: set[str] = set()
+    for row in rows:
+        name = str(row.get("merchant") or row.get("merchantName") or row.get("name") or row.get("store") or "").strip()
+        merchant_id = str(row.get("merchantId") or row.get("merchant_id") or row.get("id") or "").strip() or None
+        if not name:
+            continue
+        unique = (merchant_id or name.casefold()).strip()
+        if unique in seen:
+            continue
+        seen.add(unique)
+        categories = row.get("categories") or []
+        if isinstance(categories, str):
+            categories = [part.strip() for part in re.split(r"[,;|]", categories) if part.strip()]
+        normalized.append(FlyerMerchantOut(
+            merchant=name, merchant_id=merchant_id, categories=[str(item) for item in categories if str(item).strip()],
+            valid_from=row.get("validFrom") or row.get("valid_from"), valid_to=row.get("validTo") or row.get("valid_to"),
+        ))
+    normalized.sort(key=lambda item: item.merchant.casefold())
+    return FlyerMerchantsOut(
+        configured=True, cached=cached, postal_code=clean_postal, fetched_at=fetched_at,
+        message=f"{len(normalized)} flyer stores are available for this postal code. Select any stores below, or leave all unselected to use the provider's local grocery set.",
+        merchants=normalized,
     )
 
 
@@ -160,6 +307,7 @@ def weekly_flyers(
         active = [deal for deal in active if matches(deal)]
     active.sort(key=lambda deal: (deal.price is None, deal.price if deal.price is not None else 10**9, deal.merchant.casefold(), deal.name.casefold()))
     active = active[: max(1, settings.flyer_max_results)]
+    active = _apply_flyer_store_locations(db, clean_postal, active)
     found_merchants = sorted({deal.merchant for deal in deals if deal.merchant})
     future_expiries = [deal.valid_to for deal in deals if deal.valid_to and deal.valid_to > now]
     cache_valid_until = min(future_expiries) if future_expiries else None
@@ -539,6 +687,7 @@ def shopping_suggestions(
             _, _, flyer_deals = get_weekly_flyer_deals(db, postal_code=clean_postal, force_refresh=False)
         except Exception:
             flyer_deals = []
+    flyer_location_cache: dict[str, NearbyStoreOut] = {}
     suggestions: list[ShoppingItemSuggestionOut] = []
     for item in shopping_list.items:
         if item.status == ShoppingItemStatus.skipped or not item.product:
@@ -571,6 +720,15 @@ def shopping_suggestions(
             and (deal.valid_to is None or deal.valid_to >= now - timedelta(days=1))
         ]
         flyer_best = min(flyer_matches, key=lambda deal: float(deal.price)) if flyer_matches else None
+        flyer_location = None
+        if flyer_best is not None and clean_postal:
+            flyer_location = flyer_location_cache.get(flyer_best.merchant)
+            if flyer_location is None:
+                # Reuse a nearby-store result when it clearly matches; otherwise resolve/cache the nearest branch.
+                flyer_location = next((store for store in stores if _merchant_match(flyer_best.merchant, store.name)), None)
+                if flyer_location is None:
+                    flyer_location = resolve_flyer_store_location(db, flyer_best.merchant, clean_postal)
+                flyer_location_cache[flyer_best.merchant] = flyer_location
 
         best_store = None
         best_price = None
@@ -631,6 +789,10 @@ def shopping_suggestions(
                 flyer_valid_to=flyer_best.valid_to if flyer_best else None,
                 flyer_discount=flyer_best.discount if flyer_best else None,
                 flyer_id=flyer_best.flyer_id if flyer_best else None,
+                flyer_source_url=flyer_best.source_url if flyer_best else None,
+                flyer_store_name=flyer_location.name if flyer_location else None,
+                flyer_store_address=flyer_location.address if flyer_location else None,
+                flyer_store_maps_url=flyer_location.maps_url if flyer_location else None,
                 message=message,
             )
         )

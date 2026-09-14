@@ -1,5 +1,9 @@
 # Grocery House Manager
 
+## V77 — Clickable Flyers / Store Locations / Working Merchant Filters
+
+Flyer deals now open into detail views from both Prices and Shopping. Flyer merchant filters are discovered for the entered postal code instead of using a static list, and nearest retailer addresses are resolved separately through Google Places when configured. See `V77_CLICKABLE_FLYERS_STORE_LOCATIONS.md`.
+
 ## V71 — Effortless UX / Business-Ready
 
 This release focuses on first-time-user clarity, guided four-step setup, adaptive “What should I do today?” actions, teaching empty states, simpler customer language, and one-handed mobile bottom navigation. See `docs/V71_EFFORTLESS_UX_BUSINESS_READY.md` for the complete change list.

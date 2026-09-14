@@ -812,6 +812,10 @@ class ShoppingItemSuggestionOut(BaseModel):
     flyer_valid_to: datetime | None = None
     flyer_discount: str | None = None
     flyer_id: str | None = None
+    flyer_source_url: str | None = None
+    flyer_store_name: str | None = None
+    flyer_store_address: str | None = None
+    flyer_store_maps_url: str | None = None
     message: str
 
 
@@ -922,7 +926,30 @@ class FlyerDealOut(BaseModel):
     previous_price: float | None = None
     price_delta: float | None = None
     is_multi_product_bundle: bool = False
+    source_url: str | None = None
+    store_name: str | None = None
+    store_address: str | None = None
+    store_maps_url: str | None = None
+    store_location_source: str | None = None
     source: str = "weekly_flyer"
+
+
+class FlyerMerchantOut(BaseModel):
+    merchant: str
+    merchant_id: str | None = None
+    categories: list[str] = Field(default_factory=list)
+    valid_from: datetime | None = None
+    valid_to: datetime | None = None
+
+
+class FlyerMerchantsOut(BaseModel):
+    premium_required: bool = False
+    configured: bool = False
+    cached: bool = False
+    postal_code: str | None = None
+    fetched_at: datetime | None = None
+    message: str
+    merchants: list[FlyerMerchantOut] = Field(default_factory=list)
 
 
 class FlyerDealsOut(BaseModel):

@@ -7,6 +7,7 @@ import ShoppingListPanel from '../components/ShoppingListPanel';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
+import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
 
 const SHOPPING_PRODUCT_LIMIT = 80;
 
@@ -417,6 +418,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
   const [suggestions, setSuggestions] = useState<ShoppingSuggestions | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [selectedFlyerDeal, setSelectedFlyerDeal] = useState<FlyerOpenDeal | null>(null);
 
   async function loadSuggestions(nextLat = lat, nextLng = lng) {
     if (!selectedList) return;
@@ -505,18 +507,24 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
               </div>
               <div className="shopping-flyer-match-grid">
                 {suggestions.item_suggestions.filter((item) => item.flyer_store && item.flyer_price != null).map((item) => (
-                  <article className="shopping-flyer-match-card" key={`flyer-match-${item.product_id}`}>
+                  <button type="button" className="shopping-flyer-match-card shopping-flyer-match-button" key={`flyer-match-${item.product_id}`} onClick={() => setSelectedFlyerDeal({
+                    merchant:item.flyer_store, name:item.flyer_name || item.product_name, brand:item.flyer_brand, price:item.flyer_price, priceRaw:item.flyer_price_raw, discount:item.flyer_discount,
+                    imageUrl:item.flyer_image_url, validFrom:item.flyer_valid_from, validTo:item.flyer_valid_to, sourceUrl:item.flyer_source_url, postalCode:localStorage.getItem('ghm_price_postal') || undefined,
+                    storeName:item.flyer_store_name || item.flyer_store, storeAddress:item.flyer_store_address, storeMapsUrl:item.flyer_store_maps_url, requestedQuantity:item.requested_quantity,
+                  })} aria-label={`Open flyer deal: ${item.flyer_name || item.product_name}`}>
                     <div className="shopping-flyer-thumb">{item.flyer_image_url ? <img src={item.flyer_image_url} alt="" loading="lazy" /> : <span>🏷️</span>}</div>
                     <div className="shopping-flyer-body">
-                      <div className="shopping-flyer-badges"><span className="source-badge store-source">{item.flyer_store}</span><span className="source-badge flyer-source">Weekly flyer</span></div>
-                      <strong>{item.product_name}</strong>
-                      <small>{item.flyer_name || item.product_name}{item.flyer_brand ? ` • ${item.flyer_brand}` : ''}</small>
-                      <div className="shopping-flyer-price"><b>{money(item.flyer_price || 0, suggestions.currency_code)}</b>{item.flyer_price_raw && !String(item.flyer_price_raw).includes(String(item.flyer_price)) ? <small>{item.flyer_price_raw}</small> : null}</div>
+                      <div className="shopping-flyer-badges"><span className="source-badge store-source" data-i18n-skip="true">{item.flyer_store}</span><span className="source-badge flyer-source">Weekly flyer</span></div>
+                      <strong data-i18n-skip="true">{item.product_name}</strong>
+                      <small data-i18n-skip="true">{item.flyer_name || item.product_name}{item.flyer_brand ? ` • ${item.flyer_brand}` : ''}</small>
+                      <div className="shopping-flyer-price"><b>{money(item.flyer_price || 0, suggestions.currency_code)}</b>{item.flyer_price_raw && !String(item.flyer_price_raw).includes(String(item.flyer_price)) ? <small data-i18n-skip="true">{item.flyer_price_raw}</small> : null}</div>
                       <small>{item.flyer_valid_from ? `Valid ${new Date(item.flyer_valid_from).toLocaleDateString()}` : 'Current flyer'}{item.flyer_valid_to ? ` – ${new Date(item.flyer_valid_to).toLocaleDateString()}` : ''}</small>
-                      {item.flyer_discount ? <small className="flyer-discount-line">{item.flyer_discount}</small> : null}
+                      {item.flyer_store_address ? <small className="flyer-store-address">📍 <span data-i18n-skip="true">{item.flyer_store_address}</span></small> : <small>Flyer area: <span data-i18n-skip="true">{localStorage.getItem('ghm_price_postal') || 'local area'}</span></small>}
+                      {item.flyer_discount ? <small className="flyer-discount-line" data-i18n-skip="true">{item.flyer_discount}</small> : null}
                       <small className="flyer-honesty-note">Requested quantity: {item.requested_quantity}. Confirm advertised package size before buying.</small>
+                      <small className="flyer-open-hint">View deal →</small>
                     </div>
-                  </article>
+                  </button>
                 ))}
               </div>
             </div>
@@ -534,6 +542,7 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
           ) : !suggestions.premium_required ? <p className="small-muted">No nearby store results were returned for this area.</p> : null}
         </div>
       ) : null}
+      <FlyerDealModal deal={selectedFlyerDeal} onClose={() => setSelectedFlyerDeal(null)} />
     </section>
   );
 }

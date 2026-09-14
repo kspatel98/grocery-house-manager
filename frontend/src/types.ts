@@ -402,6 +402,10 @@ export type ShoppingItemSuggestion = {
   flyer_valid_to?: string | null;
   flyer_discount?: string | null;
   flyer_id?: string | null;
+  flyer_source_url?: string | null;
+  flyer_store_name?: string | null;
+  flyer_store_address?: string | null;
+  flyer_store_maps_url?: string | null;
   message: string;
 };
 
@@ -446,7 +450,30 @@ export type FlyerDeal = {
   previous_price?: number | null;
   price_delta?: number | null;
   is_multi_product_bundle: boolean;
+  source_url?: string | null;
+  store_name?: string | null;
+  store_address?: string | null;
+  store_maps_url?: string | null;
+  store_location_source?: string | null;
   source: string;
+};
+
+export type FlyerMerchant = {
+  merchant: string;
+  merchant_id?: string | null;
+  categories: string[];
+  valid_from?: string | null;
+  valid_to?: string | null;
+};
+
+export type FlyerMerchantDirectoryResponse = {
+  premium_required: boolean;
+  configured: boolean;
+  cached: boolean;
+  postal_code?: string | null;
+  fetched_at?: string | null;
+  message: string;
+  merchants: FlyerMerchant[];
 };
 
 export type FlyerDealsResponse = {

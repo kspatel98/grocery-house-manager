@@ -112,6 +112,7 @@ def normalize_flyer_row(row: dict[str, Any]) -> FlyerDealOut:
         previous_price=_safe_float(row.get("previousPrice") or row.get("previous_price")),
         price_delta=_safe_float(row.get("priceDelta") or row.get("price_delta")),
         is_multi_product_bundle=bool(row.get("isMultiProductBundle") or row.get("is_multi_product_bundle") or False),
+        source_url=str(row.get("sourceUrl") or row.get("source_url") or row.get("itemUrl") or row.get("dealUrl") or row.get("url") or "") or None,
         source="weekly_flyer",
     )
 

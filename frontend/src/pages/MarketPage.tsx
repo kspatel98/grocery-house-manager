@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { AccountBootstrap, FlyerDealsResponse, House, LivePriceCompareResponse, MarketCapabilities, ProductLookupResult, ProductLookupResponse, Section, User } from '../types';
+import type { AccountBootstrap, FlyerDeal, FlyerDealsResponse, FlyerMerchantDirectoryResponse, House, LivePriceCompareResponse, MarketCapabilities, ProductLookupResult, ProductLookupResponse, Section, User } from '../types';
 import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
+import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
 
 const retailerLabels: Record<string, string> = {
   loblaws: 'Loblaws',
@@ -15,18 +16,7 @@ const retailerLabels: Record<string, string> = {
 };
 
 
-const featuredFlyerMerchants = [
-  'No Frills',
-  'Walmart',
-  'FreshCo',
-  'Food Basics',
-  'Fortinos',
-  'Real Canadian Superstore',
-  'Loblaws',
-  'Metro',
-  'Sobeys',
-  'Costco',
-];
+
 
 function statusLabel(connected: boolean) {
   return connected ? 'Connected' : 'Not connected';
@@ -60,6 +50,9 @@ export default function MarketPage() {
   const [flyerQuery, setFlyerQuery] = useState('');
   const [flyers, setFlyers] = useState<FlyerDealsResponse | null>(null);
   const [flyerBusy, setFlyerBusy] = useState(false);
+  const [flyerMerchantDirectory, setFlyerMerchantDirectory] = useState<FlyerMerchantDirectoryResponse | null>(null);
+  const [flyerMerchantBusy, setFlyerMerchantBusy] = useState(false);
+  const [selectedFlyerDeal, setSelectedFlyerDeal] = useState<FlyerOpenDeal | null>(null);
   const [expandedFlyers, setExpandedFlyers] = useState<Record<string, boolean>>({});
   const [locationNote, setLocationNote] = useState('Postal code gives the most accurate Canadian store prices.');
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
@@ -114,6 +107,16 @@ export default function MarketPage() {
   useEffect(() => {
     if (flyers) setTimeout(() => flyerResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }, [flyers]);
+  useEffect(() => {
+    const typedPostal = postalCode.trim().toUpperCase();
+    if (!selectedHouseId || !/^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/.test(typedPostal)) {
+      setFlyerMerchantDirectory(null);
+      setSelectedFlyerMerchants([]);
+      return;
+    }
+    const timer = window.setTimeout(() => { void loadFlyerMerchants(false); }, 450);
+    return () => window.clearTimeout(timer);
+  }, [selectedHouseId, postalCode]);
 
   const activeRetailers = useMemo(
     () => capabilities?.supported_retailers?.length ? capabilities.supported_retailers : ['loblaws', 'superstore', 'nofrills', 'saveon', 'pricesmart', 'tnt'],
@@ -138,7 +141,15 @@ export default function MarketPage() {
   }
 
   function toggleFlyerMerchant(merchant: string) {
-    setSelectedFlyerMerchants((current) => current.includes(merchant) ? current.filter((item) => item !== merchant) : [...current, merchant]);
+    setSelectedFlyerMerchants((current) => {
+      if (current.includes(merchant)) return current.filter((item) => item !== merchant);
+      if (current.length >= 12) {
+        setError('Select up to 12 flyer stores at a time to control provider usage. Clear a store before adding another.');
+        return current;
+      }
+      setError('');
+      return [...current, merchant];
+    });
   }
 
   async function runLookup(event: React.FormEvent) {
@@ -268,6 +279,34 @@ export default function MarketPage() {
     await submitCompare({ city: user?.city || '', country: user?.country || 'Canada', forceRefresh });
   }
 
+  async function loadFlyerMerchants(forceRefresh = false) {
+    if (!selectedHouseId) return;
+    const typedPostal = postalCode.trim().toUpperCase();
+    if (!/^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/.test(typedPostal)) return;
+    try {
+      setFlyerMerchantBusy(true);
+      const { data } = await api.get<FlyerMerchantDirectoryResponse>(`/market/houses/${selectedHouseId}/flyer-merchants`, {
+        params: { postal_code: typedPostal, force_refresh: forceRefresh || undefined, t: Date.now() },
+      });
+      setFlyerMerchantDirectory(data);
+      const allowed = new Set(data.merchants.map((item) => item.merchant_id || item.merchant));
+      setSelectedFlyerMerchants((current) => current.filter((item) => allowed.has(item)));
+    } catch (err) {
+      setFlyerMerchantDirectory(null);
+      setError(errorMessage(err));
+    } finally {
+      setFlyerMerchantBusy(false);
+    }
+  }
+
+  function openFlyerDeal(deal: FlyerDeal) {
+    setSelectedFlyerDeal({
+      merchant: deal.merchant, name: deal.name, brand: deal.brand, price: deal.price, priceRaw: deal.price_raw, discount: deal.discount,
+      imageUrl: deal.image_url, validFrom: deal.valid_from, validTo: deal.valid_to, sourceUrl: deal.source_url, postalCode: deal.postal_code || flyers?.postal_code,
+      storeName: deal.store_name, storeAddress: deal.store_address, storeMapsUrl: deal.store_maps_url, isBundle: deal.is_multi_product_bundle,
+    });
+  }
+
   async function loadFlyers(forceRefresh = false) {
     if (!selectedHouseId) {
       setError('Choose a house first.');
@@ -351,15 +390,30 @@ export default function MarketPage() {
           <label>Canadian postal code<input value={postalCode} onChange={(e) => setPostalCode(e.target.value.toUpperCase())} placeholder="L8P 1A1" maxLength={7} /></label>
           <label>Find an item in this week’s flyers<input value={flyerQuery} onChange={(e) => setFlyerQuery(e.target.value)} placeholder="Milk, atta, tomatoes, paneer…" /></label>
         </div>
-        <div>
-          <small className="small-muted">Optional store filter. Leave every store unselected to let the flyer provider use its local grocery-store set.</small>
-          <div className="retailer-chip-grid flyer-retailer-chips">
-            {featuredFlyerMerchants.map((merchant) => (
-              <button key={`flyer-${merchant}`} type="button" className={selectedFlyerMerchants.includes(merchant) ? 'retailer-chip active' : 'retailer-chip'} onClick={() => toggleFlyerMerchant(merchant)}>
-                {merchant}
-              </button>
-            ))}
+        <div className="flyer-local-filter-panel">
+          <div className="flyer-filter-head">
+            <div>
+              <strong>Available flyer stores for this postal code</strong>
+              <small className="small-muted">Filters are loaded from the flyer provider for this postal code, so only valid local merchants are shown. Leave all unselected to use the provider’s local grocery set.</small>
+            </div>
+            <button className="text-button" type="button" disabled={flyerMerchantBusy || !selectedHouseId} onClick={() => void loadFlyerMerchants(true)}>{flyerMerchantBusy ? 'Loading local stores…' : 'Refresh local stores'}</button>
           </div>
+          {flyerMerchantDirectory?.merchants?.length ? (
+            <>
+              <div className="retailer-chip-grid flyer-retailer-chips">
+                {flyerMerchantDirectory.merchants.map((merchant) => {
+                  const token = merchant.merchant_id || merchant.merchant;
+                  return <button key={`flyer-${token}`} type="button" className={selectedFlyerMerchants.includes(token) ? 'retailer-chip active' : 'retailer-chip'} onClick={() => toggleFlyerMerchant(token)}>
+                    <span data-i18n-skip="true">{merchant.merchant}</span>
+                  </button>;
+                })}
+              </div>
+              <div className="flyer-filter-summary">
+                <small>{selectedFlyerMerchants.length ? `${selectedFlyerMerchants.length} stores selected • max 12` : 'All local stores • select up to 12'}</small>
+                {selectedFlyerMerchants.length ? <button type="button" className="text-button" onClick={() => setSelectedFlyerMerchants([])}>Clear store filters</button> : null}
+              </div>
+            </>
+          ) : <small className="small-muted">{flyerMerchantBusy ? 'Loading local stores…' : flyerMerchantDirectory?.message || 'Enter a complete postal code to load the stores that actually have flyers in your area.'}</small>}
         </div>
         <div className="market-button-row">
           <button className="primary" type="button" disabled={flyerBusy || !selectedHouseId} onClick={() => void loadFlyers(false)}>{flyerBusy ? 'Loading flyers…' : 'Find weekly deals'}</button>
@@ -377,7 +431,7 @@ export default function MarketPage() {
             {flyerGroups.length ? (
               <div className="flyer-store-groups">
                 <div className="flyer-directory-head">
-                  <div><p className="eyebrow">All flyer deals</p><h3>Browse full weekly flyers by store</h3><p className="small-muted">Open any store to see every deal returned for its current flyer. Search above when you only want one grocery item.</p></div>
+                  <div><p className="eyebrow">All flyer deals</p><h3>Browse full weekly flyers by store</h3><p className="small-muted">Open any store to see every deal returned for its current flyer. Click any deal to open details, price, flyer area, and the nearest store location when available.</p></div>
                   <span className="badge">{flyers.deals.length} deals • {flyerGroups.length} flyers</span>
                 </div>
                 {flyerGroups.map((group) => {
@@ -385,12 +439,12 @@ export default function MarketPage() {
                   const visible = expanded ? group.deals : group.deals.slice(0, 12);
                   return <section className="flyer-store-group" key={group.key}>
                     <div className="flyer-store-group-head">
-                      <div><h3>{group.merchant}</h3><small>{group.validFrom ? `Valid ${new Date(group.validFrom).toLocaleDateString()}` : 'Current flyer'}{group.validTo ? ` – ${new Date(group.validTo).toLocaleDateString()}` : ''} • {group.deals.length} deals</small></div>
+                      <div><h3 data-i18n-skip="true">{group.merchant}</h3><small>{group.validFrom ? `Valid ${new Date(group.validFrom).toLocaleDateString()}` : 'Current flyer'}{group.validTo ? ` – ${new Date(group.validTo).toLocaleDateString()}` : ''} • {group.deals.length} deals</small>{group.deals[0]?.store_address ? <small className="flyer-store-address">📍 <span data-i18n-skip="true">{group.deals[0].store_address}</span></small> : flyers.postal_code ? <small>Flyer area: <span data-i18n-skip="true">{flyers.postal_code}</span></small> : null}</div>
                       {group.deals.length > 12 ? <button type="button" className="secondary" onClick={() => setExpandedFlyers((current) => ({...current,[group.key]:!current[group.key]}))}>{expanded ? 'Show fewer' : `Show all deals (${group.deals.length})`}</button> : null}
                     </div>
                     <div className="flyer-deal-grid">
                       {visible.map((deal, index) => (
-                        <article className="flyer-deal-card" key={`${group.key}-${deal.item_id || deal.name}-${index}`}>
+                        <button type="button" className="flyer-deal-card flyer-deal-button" key={`${group.key}-${deal.item_id || deal.name}-${index}`} onClick={() => openFlyerDeal(deal)} aria-label={`Open flyer deal: ${deal.name}`}>
                           <div className="flyer-deal-image">{deal.image_url ? <img src={deal.image_url} alt="" loading="lazy" /> : <span>🛒</span>}</div>
                           <div className="flyer-deal-content">
                             <div className="flyer-deal-badges">
@@ -398,8 +452,8 @@ export default function MarketPage() {
                               {deal.change_type === 'price_drop' ? <span className="source-badge flyer-drop">↓ Price drop</span> : null}
                               {deal.is_multi_product_bundle ? <span className="source-badge flyer-bundle">Bundle offer</span> : null}
                             </div>
-                            <strong>{deal.name}</strong>
-                            {deal.brand ? <small>{deal.brand}</small> : null}
+                            <strong data-i18n-skip="true">{deal.name}</strong>
+                            {deal.brand ? <small data-i18n-skip="true">{deal.brand}</small> : null}
                             <div className="flyer-price-row">
                               <b>{deal.price != null ? money(deal.price, 'CAD') : deal.price_raw || 'See flyer'}</b>
                               {deal.previous_price != null && deal.price != null && deal.previous_price > deal.price ? <small>was {money(deal.previous_price, 'CAD')}</small> : null}
@@ -407,8 +461,9 @@ export default function MarketPage() {
                             <small>{deal.valid_from ? `Valid ${new Date(deal.valid_from).toLocaleDateString()}` : 'Current flyer'}{deal.valid_to ? ` – ${new Date(deal.valid_to).toLocaleDateString()}` : ''}</small>
                             {deal.discount ? <small className="flyer-discount-line">{deal.discount}</small> : null}
                             {deal.is_multi_product_bundle ? <small className="flyer-honesty-note">Shown as an offer only; excluded from exact basket pricing.</small> : null}
+                            <small className="flyer-open-hint">View deal →</small>
                           </div>
-                        </article>
+                        </button>
                       ))}
                     </div>
                   </section>;
@@ -514,6 +569,7 @@ export default function MarketPage() {
           )}
         </section>
       </div>
+      <FlyerDealModal deal={selectedFlyerDeal} onClose={() => setSelectedFlyerDeal(null)} />
     </main>
   );
 }
