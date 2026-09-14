@@ -751,3 +751,7 @@ Without these keys, the app uses a best-effort public search fallback. Some stor
 ## v75 — Weekly flyer price intelligence
 
 This build adds postal-code-aware Canadian weekly flyer imports, PostgreSQL caching, flyer search/filtering, and whole-list comparison support. Configure `APIFY_API_TOKEN` and optionally `APIFY_FLYER_ACTOR_ID`; see `V75_WEEKLY_FLYER_INTELLIGENCE.md` for details. Flyer prices are shown with validity dates and source labels. Multi-product flyer bundles are excluded from exact basket totals, and weight/volume package sizes are normalized where possible before totals are calculated.
+
+## v76 — Flyer expiry caching and full-site languages
+
+v76 keeps weekly flyer data cached until the provider's actual `validTo` date (with a 7-day fallback), expands flyer browsing by store/current flyer, adds relevant flyer offers beside shopping-list items, and extends the English / Gujarati / Hindi / French selector across the complete public and authenticated interface. See `V76_FLYER_CACHE_FULL_LOCALIZATION.md`.

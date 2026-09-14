@@ -6,8 +6,9 @@ Production example (run from backend container/project):
 Optional store list shared by all configured regions:
     FLYER_MERCHANTS="No Frills,FreshCo,Food Basics,Walmart,Fortinos" ...
 
-Schedule this once weekly after local flyers publish, or daily if you want quicker change labels.
-The normal API also refreshes stale caches lazily, so this job is optional.
+Schedule this once weekly after local flyers publish. The normal API keeps each fetch until
+the earliest flyer validTo date and then refreshes lazily, so this job is optional and should
+not be run daily unless you intentionally want extra provider usage.
 """
 
 from __future__ import annotations

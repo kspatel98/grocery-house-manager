@@ -800,6 +800,18 @@ class ShoppingItemSuggestionOut(BaseModel):
     best_known_recorded_at: datetime | None = None
     freshness_label: str | None = None
     savings_vs_current: float | None = None
+    # When an active flyer has a relevant offer, expose it even if another saved/current price
+    # wins the recommendation. The shopping UI can then show the actual ad beside the list item.
+    flyer_store: str | None = None
+    flyer_name: str | None = None
+    flyer_brand: str | None = None
+    flyer_price: float | None = None
+    flyer_price_raw: str | None = None
+    flyer_image_url: str | None = None
+    flyer_valid_from: datetime | None = None
+    flyer_valid_to: datetime | None = None
+    flyer_discount: str | None = None
+    flyer_id: str | None = None
     message: str
 
 
@@ -919,6 +931,7 @@ class FlyerDealsOut(BaseModel):
     cached: bool = False
     postal_code: str | None = None
     fetched_at: datetime | None = None
+    cache_valid_until: datetime | None = None
     message: str
     merchants: list[str] = Field(default_factory=list)
     deals: list[FlyerDealOut] = Field(default_factory=list)

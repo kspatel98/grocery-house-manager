@@ -497,6 +497,30 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
       {suggestions ? (
         <div className="suggestion-results">
           <div className={suggestions.premium_required ? 'hint' : 'success compact-message'}>{suggestions.message}</div>
+          {!suggestions.premium_required && suggestions.item_suggestions.some((item) => item.flyer_store && item.flyer_price != null) ? (
+            <div className="shopping-flyer-match-section">
+              <div className="shopping-flyer-match-head">
+                <div><p className="eyebrow">Flyer deal for your list</p><h3>Weekly deals matching this grocery list</h3><p className="small-muted">These are current advertised offers for items already on this list. Package sizes and in-store availability should still be confirmed.</p></div>
+                <Link className="secondary center-link" to="/market">Open full flyers</Link>
+              </div>
+              <div className="shopping-flyer-match-grid">
+                {suggestions.item_suggestions.filter((item) => item.flyer_store && item.flyer_price != null).map((item) => (
+                  <article className="shopping-flyer-match-card" key={`flyer-match-${item.product_id}`}>
+                    <div className="shopping-flyer-thumb">{item.flyer_image_url ? <img src={item.flyer_image_url} alt="" loading="lazy" /> : <span>🏷️</span>}</div>
+                    <div className="shopping-flyer-body">
+                      <div className="shopping-flyer-badges"><span className="source-badge store-source">{item.flyer_store}</span><span className="source-badge flyer-source">Weekly flyer</span></div>
+                      <strong>{item.product_name}</strong>
+                      <small>{item.flyer_name || item.product_name}{item.flyer_brand ? ` • ${item.flyer_brand}` : ''}</small>
+                      <div className="shopping-flyer-price"><b>{money(item.flyer_price || 0, suggestions.currency_code)}</b>{item.flyer_price_raw && !String(item.flyer_price_raw).includes(String(item.flyer_price)) ? <small>{item.flyer_price_raw}</small> : null}</div>
+                      <small>{item.flyer_valid_from ? `Valid ${new Date(item.flyer_valid_from).toLocaleDateString()}` : 'Current flyer'}{item.flyer_valid_to ? ` – ${new Date(item.flyer_valid_to).toLocaleDateString()}` : ''}</small>
+                      {item.flyer_discount ? <small className="flyer-discount-line">{item.flyer_discount}</small> : null}
+                      <small className="flyer-honesty-note">Requested quantity: {item.requested_quantity}. Confirm advertised package size before buying.</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {suggestions.nearby_stores.length > 0 ? (
             <div className="nearby-store-list">
               <strong>Nearby grocery stores {suggestions.location_label ? `near ${suggestions.location_label}` : ''}</strong>

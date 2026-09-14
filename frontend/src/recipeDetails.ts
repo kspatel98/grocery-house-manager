@@ -1,8 +1,9 @@
 import type { AppLanguage } from './i18n';
+import { localizedStepSet } from './recipeLocalizer';
 
 export type RecipeStepSet = Record<AppLanguage, string[]>;
 
-const allLanguages = (steps:string[]):RecipeStepSet => ({en:steps, gu:steps, hi:steps, fr:steps});
+const allLanguages = (steps:string[]):RecipeStepSet => localizedStepSet(steps);
 
 // Detailed cooking methods for the built-in catalogue. The arrays are intentionally
 // step-by-step so the UI can render one clear action at a time instead of a paragraph.

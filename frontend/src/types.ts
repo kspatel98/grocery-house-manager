@@ -392,6 +392,16 @@ export type ShoppingItemSuggestion = {
   best_known_recorded_at?: string | null;
   freshness_label?: string | null;
   savings_vs_current?: number;
+  flyer_store?: string | null;
+  flyer_name?: string | null;
+  flyer_brand?: string | null;
+  flyer_price?: number | null;
+  flyer_price_raw?: string | null;
+  flyer_image_url?: string | null;
+  flyer_valid_from?: string | null;
+  flyer_valid_to?: string | null;
+  flyer_discount?: string | null;
+  flyer_id?: string | null;
   message: string;
 };
 
@@ -445,6 +455,7 @@ export type FlyerDealsResponse = {
   cached: boolean;
   postal_code?: string | null;
   fetched_at?: string | null;
+  cache_valid_until?: string | null;
   message: string;
   merchants: string[];
   deals: FlyerDeal[];

@@ -30,6 +30,40 @@ def _parse_datetime(value: Any) -> datetime | None:
         return None
 
 
+def _parse_valid_to(value: Any) -> datetime | None:
+    """Parse flyer end dates as inclusive. Date-only values remain valid through local end-of-day.
+
+    Flipp-style feeds often send YYYY-MM-DD. Treating that as midnight would expire a flyer
+    almost a full day early, causing unnecessary paid refreshes.
+    """
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    parsed = _parse_datetime(value)
+    if parsed is None:
+        return None
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
+    return parsed
+
+
+def _flyer_cache_expiry(rows: list[dict[str, Any]], now: datetime) -> datetime:
+    """Keep a postal-code flyer fetch until the first active flyer actually expires.
+
+    This minimizes duplicate Apify calls while ensuring a mixed-store cache refreshes as soon
+    as one merchant's current flyer rolls over. If the feed has no usable validity dates, keep
+    the data for the configured fallback (default seven days in v76).
+    """
+    future_ends: list[datetime] = []
+    for row in rows:
+        end = _parse_valid_to(row.get("validTo") or row.get("valid_to") or row.get("flyerValidTo"))
+        if end and end > now:
+            future_ends.append(end)
+    if future_ends:
+        return min(future_ends)
+    return now + timedelta(hours=max(24, settings.flyer_cache_hours))
+
+
 def _safe_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
@@ -67,7 +101,7 @@ def normalize_flyer_row(row: dict[str, Any]) -> FlyerDealOut:
         price_raw=str(row.get("priceRaw") or row.get("price_raw") or "") or None,
         discount=str(row.get("discount")) if row.get("discount") not in (None, "") else None,
         valid_from=_parse_datetime(row.get("validFrom") or row.get("valid_from") or row.get("flyerValidFrom")),
-        valid_to=_parse_datetime(row.get("validTo") or row.get("valid_to") or row.get("flyerValidTo")),
+        valid_to=_parse_valid_to(row.get("validTo") or row.get("valid_to") or row.get("flyerValidTo")),
         image_url=str(row.get("imageUrl") or row.get("image_url") or "") or None,
         categories=_normalize_categories(row.get("categories")),
         flyer_id=str(row.get("flyerId") or row.get("flyer_id") or "") or None,
@@ -163,7 +197,7 @@ def get_weekly_flyer_deals(
         raw_items = []
     raw_items = [row for row in raw_items if isinstance(row, dict)]
 
-    expires = now + timedelta(hours=max(1, settings.flyer_cache_hours))
+    expires = _flyer_cache_expiry(raw_items, now)
     if existing:
         existing.source = "apify_flipp_flyer"
         existing.query = "weekly flyers"

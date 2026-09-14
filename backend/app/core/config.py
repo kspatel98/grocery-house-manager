@@ -70,11 +70,11 @@ class Settings(BaseSettings):
     # Weekly Canadian flyer integration. Reuses APIFY_API_TOKEN and stores results in
     # ExternalPriceCache (PostgreSQL) so nearby users can reuse the same postal-code fetch.
     apify_flyer_actor_id: str = "scrapersdelight/flipp-flyer-digest"
-    flyer_cache_hours: int = 36
+    flyer_cache_hours: int = 168
     flyer_merchant_cache_hours: int = 168
     flyer_timeout_seconds: int = 120
-    flyer_max_merchants: int = 15
-    flyer_max_results: int = 180
+    flyer_max_merchants: int = 12
+    flyer_max_results: int = 1200
 
     # Smart receipt scanning. Tabscanner is the recommended default for grocery receipts.
     # Supported provider values: local, tabscanner, veryfi.

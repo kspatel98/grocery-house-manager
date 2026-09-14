@@ -146,9 +146,9 @@ def weekly_flyers(
     now = datetime.now(timezone.utc)
     active = []
     for deal in deals:
-        if deal.valid_from and deal.valid_from > now + timedelta(days=1):
+        if deal.valid_from and deal.valid_from > now:
             continue
-        if deal.valid_to and deal.valid_to < now - timedelta(days=1):
+        if deal.valid_to and deal.valid_to < now:
             continue
         active.append(deal)
     search = " ".join((query or "").casefold().split())
@@ -161,10 +161,12 @@ def weekly_flyers(
     active.sort(key=lambda deal: (deal.price is None, deal.price if deal.price is not None else 10**9, deal.merchant.casefold(), deal.name.casefold()))
     active = active[: max(1, settings.flyer_max_results)]
     found_merchants = sorted({deal.merchant for deal in deals if deal.merchant})
+    future_expiries = [deal.valid_to for deal in deals if deal.valid_to and deal.valid_to > now]
+    cache_valid_until = min(future_expiries) if future_expiries else None
     qualifier = f" for ‘{query.strip()}’" if query and query.strip() else ""
     cache_note = "cached flyer data" if cached else "fresh flyer data"
     return FlyerDealsOut(
-        configured=True, cached=cached, postal_code=clean_postal, fetched_at=fetched_at,
+        configured=True, cached=cached, postal_code=clean_postal, fetched_at=fetched_at, cache_valid_until=cache_valid_until,
         message=f"Showing {len(active)} active weekly flyer deals{qualifier} across {len(found_merchants)} local merchants from {cache_note}. Flyer prices are promotional prices valid only for the displayed dates.",
         merchants=found_merchants, deals=active
     )
@@ -619,6 +621,16 @@ def shopping_suggestions(
                 best_known_recorded_at=best_recorded,
                 freshness_label=freshness_label,
                 savings_vs_current=savings,
+                flyer_store=flyer_best.merchant if flyer_best else None,
+                flyer_name=flyer_best.name if flyer_best else None,
+                flyer_brand=flyer_best.brand if flyer_best else None,
+                flyer_price=float(flyer_best.price) if flyer_best and flyer_best.price is not None else None,
+                flyer_price_raw=flyer_best.price_raw if flyer_best else None,
+                flyer_image_url=flyer_best.image_url if flyer_best else None,
+                flyer_valid_from=flyer_best.valid_from if flyer_best else None,
+                flyer_valid_to=flyer_best.valid_to if flyer_best else None,
+                flyer_discount=flyer_best.discount if flyer_best else None,
+                flyer_id=flyer_best.flyer_id if flyer_best else None,
                 message=message,
             )
         )

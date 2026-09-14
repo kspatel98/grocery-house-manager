@@ -9807,3 +9807,30 @@ body,
 @media (max-width: 1180px) { .flyer-deal-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media (max-width: 880px) { .flyer-deal-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .flyer-search-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .flyer-deal-grid { grid-template-columns: 1fr; } .flyer-deal-card { grid-template-columns: 82px 1fr; } .flyer-title-row { display: grid; } }
+
+/* v76 — full flyer directory + shopping-list flyer matches */
+.flyer-cache-summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.flyer-valid-cache { background:#eef7ff; color:#24506c; }
+.flyer-store-groups { display:grid; gap:18px; margin-top:16px; }
+.flyer-directory-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:16px; border-radius:18px; background:linear-gradient(135deg,rgba(238,248,240,.92),rgba(255,249,232,.92)); border:1px solid rgba(49,92,66,.12); }
+.flyer-directory-head h3,.flyer-store-group-head h3 { margin:2px 0 4px; }
+.flyer-store-group { padding:15px; border:1px solid rgba(49,92,66,.12); border-radius:22px; background:rgba(255,255,255,.72); }
+.flyer-store-group-head { display:flex; justify-content:space-between; gap:14px; align-items:center; }
+.flyer-store-group-head small { color:var(--muted,#65736a); }
+.flyer-discount-line { font-weight:750; color:#7a4e00 !important; }
+.shopping-flyer-match-section { margin:18px 0; padding:16px; border-radius:22px; background:linear-gradient(140deg,rgba(246,252,242,.96),rgba(255,249,234,.94)); border:1px solid rgba(49,92,66,.14); }
+.shopping-flyer-match-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:12px; }
+.shopping-flyer-match-head h3 { margin:2px 0 4px; }
+.shopping-flyer-match-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.shopping-flyer-match-card { min-width:0; display:grid; grid-template-columns:90px minmax(0,1fr); gap:0; overflow:hidden; border-radius:18px; border:1px solid rgba(49,92,66,.12); background:#fff; box-shadow:0 10px 24px rgba(29,69,46,.06); }
+.shopping-flyer-thumb { min-height:132px; display:grid; place-items:center; background:linear-gradient(150deg,#f4f9ef,#fff7e7); font-size:1.8rem; padding:8px; }
+.shopping-flyer-thumb img { width:100%; height:100%; max-height:142px; object-fit:contain; }
+.shopping-flyer-body { min-width:0; display:grid; gap:5px; align-content:start; padding:11px 12px; }
+.shopping-flyer-body > strong { overflow-wrap:anywhere; }
+.shopping-flyer-body small { color:var(--muted,#65736a); line-height:1.3; }
+.shopping-flyer-badges { display:flex; flex-wrap:wrap; gap:5px; }
+.shopping-flyer-price { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; }
+.shopping-flyer-price b { color:#185934; font-size:1.25rem; }
+html[data-language="gu"] body, html[data-language="hi"] body { font-family: Inter, "Noto Sans Gujarati", "Noto Sans Devanagari", system-ui, sans-serif; }
+@media (max-width:1100px){.shopping-flyer-match-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width:700px){.flyer-directory-head,.flyer-store-group-head,.shopping-flyer-match-head{display:grid;}.shopping-flyer-match-grid{grid-template-columns:1fr;}.shopping-flyer-match-card{grid-template-columns:82px minmax(0,1fr);}}

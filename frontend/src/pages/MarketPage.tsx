@@ -60,6 +60,7 @@ export default function MarketPage() {
   const [flyerQuery, setFlyerQuery] = useState('');
   const [flyers, setFlyers] = useState<FlyerDealsResponse | null>(null);
   const [flyerBusy, setFlyerBusy] = useState(false);
+  const [expandedFlyers, setExpandedFlyers] = useState<Record<string, boolean>>({});
   const [locationNote, setLocationNote] = useState('Postal code gives the most accurate Canadian store prices.');
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [selectedFlyerMerchants, setSelectedFlyerMerchants] = useState<string[]>([]);
@@ -119,6 +120,18 @@ export default function MarketPage() {
     [capabilities],
   );
   const liveConnected = Boolean(capabilities?.apify_configured);
+  const flyerGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; merchant: string; flyerId: string | null; validFrom: string | null; validTo: string | null; deals: NonNullable<FlyerDealsResponse['deals']> }>();
+    for (const deal of flyers?.deals || []) {
+      const key = `${deal.merchant}::${deal.flyer_id || 'current'}`;
+      const current = groups.get(key) || { key, merchant: deal.merchant, flyerId: deal.flyer_id || null, validFrom: deal.valid_from || null, validTo: deal.valid_to || null, deals: [] };
+      current.deals.push(deal);
+      if (!current.validFrom && deal.valid_from) current.validFrom = deal.valid_from;
+      if (!current.validTo && deal.valid_to) current.validTo = deal.valid_to;
+      groups.set(key, current);
+    }
+    return Array.from(groups.values()).sort((a,b) => a.merchant.localeCompare(b.merchant));
+  }, [flyers]);
 
   function toggleRetailer(retailer: string) {
     setSelectedRetailers((current) => current.includes(retailer) ? current.filter((item) => item !== retailer) : [...current, retailer]);
@@ -279,6 +292,7 @@ export default function MarketPage() {
         },
       });
       setFlyers(data);
+      setExpandedFlyers({});
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -353,34 +367,52 @@ export default function MarketPage() {
         </div>
         {flyers ? (
           <div ref={flyerResultsRef} className={flyers.premium_required || !flyers.configured ? 'hint flyer-results-wrap' : 'flyer-results-wrap'}>
-            <div className="compare-summary-card">
+            <div className="compare-summary-card flyer-cache-summary">
               <span className={flyers.configured ? 'market-status-pill connected' : 'market-status-pill offline'}><span className="status-dot" /> {flyers.cached ? 'Cached local flyers' : 'Fresh local flyers'}</span>
               {flyers.postal_code ? <span className="source-badge location-source">📍 {flyers.postal_code}</span> : null}
               {flyers.fetched_at ? <span className="source-badge flyer-source">Updated {new Date(flyers.fetched_at).toLocaleString()}</span> : null}
+              {flyers.cache_valid_until ? <span className="source-badge flyer-valid-cache">♻️ Cache valid until {new Date(flyers.cache_valid_until).toLocaleString()}</span> : null}
             </div>
             <p>{flyers.message}</p>
-            {flyers.deals.length ? (
-              <div className="flyer-deal-grid">
-                {flyers.deals.slice(0, 60).map((deal, index) => (
-                  <article className="flyer-deal-card" key={`${deal.merchant}-${deal.item_id || deal.name}-${index}`}>
-                    <div className="flyer-deal-image">{deal.image_url ? <img src={deal.image_url} alt="" loading="lazy" /> : <span>🛒</span>}</div>
-                    <div className="flyer-deal-content">
-                      <div className="flyer-deal-badges">
-                        <span className="source-badge store-source">{deal.merchant}</span>
-                        {deal.change_type === 'price_drop' ? <span className="source-badge flyer-drop">↓ Price drop</span> : null}
-                        {deal.is_multi_product_bundle ? <span className="source-badge flyer-bundle">Bundle offer</span> : null}
-                      </div>
-                      <strong>{deal.name}</strong>
-                      {deal.brand ? <small>{deal.brand}</small> : null}
-                      <div className="flyer-price-row">
-                        <b>{deal.price != null ? money(deal.price, 'CAD') : deal.price_raw || 'See flyer'}</b>
-                        {deal.previous_price != null && deal.price != null && deal.previous_price > deal.price ? <small>was {money(deal.previous_price, 'CAD')}</small> : null}
-                      </div>
-                      <small>{deal.valid_from ? `Valid ${new Date(deal.valid_from).toLocaleDateString()}` : 'Current flyer'}{deal.valid_to ? ` – ${new Date(deal.valid_to).toLocaleDateString()}` : ''}</small>
-                      {deal.is_multi_product_bundle ? <small className="flyer-honesty-note">Shown as an offer only; excluded from exact basket pricing.</small> : null}
+            {flyerGroups.length ? (
+              <div className="flyer-store-groups">
+                <div className="flyer-directory-head">
+                  <div><p className="eyebrow">All flyer deals</p><h3>Browse full weekly flyers by store</h3><p className="small-muted">Open any store to see every deal returned for its current flyer. Search above when you only want one grocery item.</p></div>
+                  <span className="badge">{flyers.deals.length} deals • {flyerGroups.length} flyers</span>
+                </div>
+                {flyerGroups.map((group) => {
+                  const expanded = Boolean(expandedFlyers[group.key]);
+                  const visible = expanded ? group.deals : group.deals.slice(0, 12);
+                  return <section className="flyer-store-group" key={group.key}>
+                    <div className="flyer-store-group-head">
+                      <div><h3>{group.merchant}</h3><small>{group.validFrom ? `Valid ${new Date(group.validFrom).toLocaleDateString()}` : 'Current flyer'}{group.validTo ? ` – ${new Date(group.validTo).toLocaleDateString()}` : ''} • {group.deals.length} deals</small></div>
+                      {group.deals.length > 12 ? <button type="button" className="secondary" onClick={() => setExpandedFlyers((current) => ({...current,[group.key]:!current[group.key]}))}>{expanded ? 'Show fewer' : `Show all deals (${group.deals.length})`}</button> : null}
                     </div>
-                  </article>
-                ))}
+                    <div className="flyer-deal-grid">
+                      {visible.map((deal, index) => (
+                        <article className="flyer-deal-card" key={`${group.key}-${deal.item_id || deal.name}-${index}`}>
+                          <div className="flyer-deal-image">{deal.image_url ? <img src={deal.image_url} alt="" loading="lazy" /> : <span>🛒</span>}</div>
+                          <div className="flyer-deal-content">
+                            <div className="flyer-deal-badges">
+                              <span className="source-badge store-source">{deal.merchant}</span>
+                              {deal.change_type === 'price_drop' ? <span className="source-badge flyer-drop">↓ Price drop</span> : null}
+                              {deal.is_multi_product_bundle ? <span className="source-badge flyer-bundle">Bundle offer</span> : null}
+                            </div>
+                            <strong>{deal.name}</strong>
+                            {deal.brand ? <small>{deal.brand}</small> : null}
+                            <div className="flyer-price-row">
+                              <b>{deal.price != null ? money(deal.price, 'CAD') : deal.price_raw || 'See flyer'}</b>
+                              {deal.previous_price != null && deal.price != null && deal.previous_price > deal.price ? <small>was {money(deal.previous_price, 'CAD')}</small> : null}
+                            </div>
+                            <small>{deal.valid_from ? `Valid ${new Date(deal.valid_from).toLocaleDateString()}` : 'Current flyer'}{deal.valid_to ? ` – ${new Date(deal.valid_to).toLocaleDateString()}` : ''}</small>
+                            {deal.discount ? <small className="flyer-discount-line">{deal.discount}</small> : null}
+                            {deal.is_multi_product_bundle ? <small className="flyer-honesty-note">Shown as an offer only; excluded from exact basket pricing.</small> : null}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>;
+                })}
               </div>
             ) : null}
           </div>
