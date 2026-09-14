@@ -6,7 +6,7 @@ import type { AccountBootstrap, House } from '../types';
 type HouseContextSwitcherProps = {
   currentHouseId: number;
   currentHouseName?: string;
-  section: 'inventory' | 'shopping';
+  section: 'inventory' | 'shopping' | 'meals';
 };
 
 export default function HouseContextSwitcher({ currentHouseId, currentHouseName, section }: HouseContextSwitcherProps) {

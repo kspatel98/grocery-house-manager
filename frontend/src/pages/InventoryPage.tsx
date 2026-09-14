@@ -104,9 +104,9 @@ export default function InventoryPage() {
 
       <nav className="house-mini-nav" aria-label="House sections">
         <Link to={`/houses/${id}/shopping`}>🛒 Grocery lists</Link>
+        <Link to={`/houses/${id}/meals`}>🍲 Meals</Link>
         <Link to={`/houses/${id}/scan`}>🧾 Scan receipt</Link>
-        <Link to={`/houses/${id}/receipts`}>🗂️ Receipt history</Link>
-        <Link to="/market">🏷️ Prices</Link>
+        <Link to="/market">🏷️ Prices & Flyers</Link>
       </nav>
 
       {error && <div className="error">{error}</div>}

@@ -104,7 +104,6 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
   useEffect(() => {
     if (!open) return;
     requestAnimationFrame(() => {
-      drawerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'end' });
       drawerRef.current?.focus({ preventScroll: true });
     });
   }, [open]);
@@ -119,14 +118,14 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
 
   return (
     <div className="side-drawer-backdrop" role="presentation" onClick={onClose}>
-      <aside ref={drawerRef} tabIndex={-1} className="side-drawer members-drawer action-focus-panel" role="dialog" aria-modal="true" aria-label="House members" onClick={(event) => event.stopPropagation()}>
+      <aside ref={drawerRef} tabIndex={-1} className="side-drawer members-drawer action-focus-panel focus-dialog" role="dialog" aria-modal="true" aria-label="House members" onClick={(event) => event.stopPropagation()}>
         <div className="drawer-header">
           <div>
             <p className="eyebrow">House members</p>
             <h2>{members.length} member{members.length === 1 ? '' : 's'}</h2>
             <p>People who can access this house. Owners can remove non-owner members.</p>
           </div>
-          <button className="drawer-close" onClick={onClose} aria-label="Close members panel">×</button>
+          <button className="drawer-close" data-dialog-close="true" onClick={onClose} aria-label="Close members panel">×</button>
         </div>
 
         <div className="drawer-actions">
@@ -164,7 +163,6 @@ export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]
   useEffect(() => {
     if (!showAll) return;
     requestAnimationFrame(() => {
-      modalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       modalRef.current?.focus({ preventScroll: true });
     });
   }, [showAll]);
@@ -190,13 +188,13 @@ export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]
 
       {showAll && (
         <div className="modal-backdrop activity-modal-backdrop" onClick={() => setShowAll(false)}>
-          <section ref={modalRef} tabIndex={-1} className="modal activity-modal action-focus-panel" role="dialog" aria-modal="true" aria-label="All house activity" onClick={(event) => event.stopPropagation()}>
+          <section ref={modalRef} tabIndex={-1} className="modal activity-modal action-focus-panel focus-dialog" role="dialog" aria-modal="true" aria-label="All house activity" onClick={(event) => event.stopPropagation()}>
             <div className="modal-title">
               <div>
                 <p className="eyebrow">House activity</p>
                 <h2>All recent updates</h2>
               </div>
-              <button onClick={() => setShowAll(false)} aria-label="Close activity">×</button>
+              <button data-dialog-close="true" onClick={() => setShowAll(false)} aria-label="Close activity">×</button>
             </div>
             <div className="activity-list full-activity-list timeline-activity-list">
               {activities.map((activity) => <ActivityRow key={activity.id} activity={activity} />)}

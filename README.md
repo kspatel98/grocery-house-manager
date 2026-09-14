@@ -1,5 +1,9 @@
 # Grocery House Manager
 
+## V78 — Focused Forms / Full-Screen Dialogs / Calmer UX
+
+Every modal, drawer, and focused form now locks the page underneath and keeps the user inside the opened task until it is closed. Add/Edit Product is reorganized around essentials first, with optional appearance controls collapsed. The house dashboard is grouped into Everyday, After shopping, and Insights, Meals is promoted into the core workflow, and Prices & Flyers is a primary desktop destination. See `V78_FOCUSED_OVERLAYS_AND_UX.md`.
+
 ## V77 — Clickable Flyers / Store Locations / Working Merchant Filters
 
 Flyer deals now open into detail views from both Prices and Shopping. Flyer merchant filters are discovered for the entered postal code instead of using a static list, and nearest retailer addresses are resolved separately through Google Places when configured. See `V77_CLICKABLE_FLYERS_STORE_LOCATIONS.md`.

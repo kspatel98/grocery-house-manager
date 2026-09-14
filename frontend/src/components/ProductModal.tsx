@@ -257,97 +257,121 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal product-modal-enhanced">
+    <div className="modal-backdrop focus-overlay" role="presentation">
+      <div className="modal product-modal-enhanced focus-dialog" role="dialog" aria-modal="true" aria-label={modal.mode === 'create' ? 'Add inventory product' : 'Edit inventory product'}>
         <div className="modal-title">
           <div>
             <p className="eyebrow warm-eyebrow">Inventory item</p>
             <h2>{modal.mode === 'create' ? 'Add product' : 'Edit product'}</h2>
           </div>
-          <button onClick={() => { stopBarcodeScanner(); onClose(); }} aria-label="Close product form">×</button>
+          <button data-dialog-close="true" onClick={() => { stopBarcodeScanner(); onClose(); }} aria-label="Close product form">×</button>
         </div>
         {error && <div className="error">{error}</div>}
         <form onSubmit={submit} className="product-form enhanced-product-form">
-          <section className="product-visual-editor">
-            <div className="product-preview-card">
-              <div className="product-image-preview">
-                {form.image_url && !previewBroken ? (
-                  <img src={form.image_url} alt="Product preview" onError={() => setPreviewBroken(true)} />
-                ) : (
-                  <span>{form.icon || '🛒'}</span>
-                )}
-              </div>
-              <strong>{form.name || 'Product preview'}</strong>
-              <small>{form.store_name || 'Any store'}{form.price !== '' && form.price !== null ? ` • ${money(Number(form.price))}` : ''}</small>
+          <section className="product-form-section product-form-primary">
+            <div className="product-form-section-head">
+              <div><p className="eyebrow">Basics</p><h3>What is this product?</h3></div>
+              <small>Only the name is required. Category and unit are suggested automatically.</small>
             </div>
-
-            <div className="preset-panel">
-              <label>Choose from built-in product images</label>
-              <div className="preset-grid">
-                {PRODUCT_PRESETS.map((preset) => (
-                  <button type="button" key={preset.image} className="preset-tile" onClick={() => applyPreset(preset)}>
-                    <img src={preset.image} alt="" />
-                    <span>{preset.label}</span>
-                  </button>
-                ))}
-              </div>
-              <label>Quick emoji icon</label>
-              <div className="emoji-preset-row">
-                {EMOJI_LIBRARY.map((emoji) => (
-                  <button type="button" key={emoji} onClick={() => setField('icon', emoji)}>{emoji}</button>
-                ))}
-              </div>
+            <div className="form-row">
+              <label>Name<input autoFocus value={form.name} onChange={(e) => setField('name', e.target.value)} required placeholder="Example: Milk" /></label>
+              <label>Category<select value={form.section_id} onChange={(e) => setField('section_id', Number(e.target.value))}>{sections.map((s) => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select><small>Auto-selected from the product name. You can change it anytime.</small></label>
+            </div>
+            <div className="form-row">
+              <label>Quantity<input type="number" step="0.01" value={form.quantity} onChange={(e) => setField('quantity', e.target.value)} /></label>
+              <label>Unit<input placeholder="bags, kg, pcs" value={form.unit} onChange={(e) => setField('unit', e.target.value)} /></label>
             </div>
           </section>
 
-          <div className="form-row">
-            <label>Category<select value={form.section_id} onChange={(e) => setField('section_id', Number(e.target.value))}>{sections.map((s) => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select><small>Auto-selected from the product name. You can change it anytime.</small></label>
-            <label>Name<input value={form.name} onChange={(e) => setField('name', e.target.value)} required /></label>
-          </div>
-
-          <div className="form-row">
-            <label>Icon<input placeholder="🥛" value={form.icon} onChange={(e) => setField('icon', e.target.value)} /></label>
-            <label>Image URL<input placeholder="Paste image URL or choose/upload above" value={form.image_url} onChange={(e) => setField('image_url', e.target.value)} /></label>
-          </div>
-
-          <label className="file-upload-box">
-            Upload product photo — it will be resized automatically
-            <input type="file" accept="image/*" onChange={handleImageFile} />
-            {imageBusy && <span>Resizing image...</span>}
-          </label>
-
-          <div className="form-row">
-            <label>Quantity<input type="number" step="0.01" value={form.quantity} onChange={(e) => setField('quantity', e.target.value)} /></label>
-            <label>Unit<input placeholder="bags, kg, pcs" value={form.unit} onChange={(e) => setField('unit', e.target.value)} /></label>
-          </div>
-          <div className="form-row">
-            <label>Price<input type="number" step="0.01" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="Leave blank to remove price" /></label>
-            <label>Store<input value={form.store_name} onChange={(e) => setField('store_name', e.target.value)} /></label>
-          </div>
-          <div className="form-row">
-            <label>Brand<input value={form.brand} onChange={(e) => setField('brand', e.target.value)} /></label>
-            <label>Barcode
-              <div className="barcode-input-row">
-                <input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} inputMode="numeric" />
-                <button type="button" className="secondary barcode-scan-button" onClick={scannerOpen ? stopBarcodeScanner : startBarcodeScanner}>{scannerOpen ? 'Stop camera' : 'Scan'}</button>
-              </div>
-              <small>On supported phones, Scan uses the rear camera and fills the barcode automatically.</small>
-            </label>
-          </div>
-          {scannerError && <div className="hint compact-message">{scannerError}</div>}
-          {scannerOpen && (
-            <div className="barcode-camera-panel">
-              <video ref={scannerVideoRef} muted playsInline aria-label="Barcode camera preview" />
-              <div className="barcode-scan-frame" aria-hidden="true"><span /></div>
-              <p>Hold the product barcode inside the frame. It will stop automatically when a code is found.</p>
+          <section className="product-form-section">
+            <div className="product-form-section-head">
+              <div><p className="eyebrow">Stock & price</p><h3>Where did you buy it?</h3></div>
+              <small>Price, store, brand, and barcode are optional and improve future suggestions.</small>
             </div>
-          )}
-          <div className="form-row">
-            <label>Expiry date<input type="date" value={form.expiry_date} onChange={(e) => setField('expiry_date', e.target.value)} /></label>
-            <label>Low stock alert<input type="number" step="0.01" value={form.low_stock_threshold} onChange={(e) => setField('low_stock_threshold', e.target.value)} /></label>
-          </div>
-          <div className="form-row"><button type="button" className="secondary" onClick={() => setField('price', '')}>Clear product price</button><span className="small-muted inline-help">Blank price saves as no price and removes the manual product price.</span></div>
-          <label>Notes<textarea value={form.notes} onChange={(e) => setField('notes', e.target.value)} /></label>
+            <div className="form-row">
+              <label>Price<input type="number" step="0.01" value={form.price} onChange={(e) => setField('price', e.target.value)} placeholder="Leave blank if unknown" /></label>
+              <label>Store<input value={form.store_name} onChange={(e) => setField('store_name', e.target.value)} placeholder="Example: Walmart" /></label>
+            </div>
+            <div className="form-row">
+              <label>Brand<input value={form.brand} onChange={(e) => setField('brand', e.target.value)} /></label>
+              <label>Barcode
+                <div className="barcode-input-row">
+                  <input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} inputMode="numeric" />
+                  <button type="button" className="secondary barcode-scan-button" onClick={scannerOpen ? stopBarcodeScanner : startBarcodeScanner}>{scannerOpen ? 'Stop camera' : 'Scan'}</button>
+                </div>
+                <small>On supported phones, Scan uses the rear camera and fills the barcode automatically.</small>
+              </label>
+            </div>
+            {scannerError && <div className="hint compact-message">{scannerError}</div>}
+            {scannerOpen && (
+              <div className="barcode-camera-panel">
+                <video ref={scannerVideoRef} muted playsInline aria-label="Barcode camera preview" />
+                <div className="barcode-scan-frame" aria-hidden="true"><span /></div>
+                <p>Hold the product barcode inside the frame. It will stop automatically when a code is found.</p>
+              </div>
+            )}
+            {form.price !== '' && form.price !== null ? <button type="button" className="text-button product-clear-price" onClick={() => setField('price', '')}>Clear product price</button> : null}
+          </section>
+
+          <details className="product-form-section product-optional-section">
+            <summary>
+              <span><b>Optional appearance</b><small>Add a photo or icon only if you want one.</small></span>
+              <span aria-hidden="true">＋</span>
+            </summary>
+            <section className="product-visual-editor">
+              <div className="product-preview-card">
+                <div className="product-image-preview">
+                  {form.image_url && !previewBroken ? (
+                    <img src={form.image_url} alt="Product preview" onError={() => setPreviewBroken(true)} />
+                  ) : (
+                    <span>{form.icon || '🛒'}</span>
+                  )}
+                </div>
+                <strong>{form.name || 'Product preview'}</strong>
+                <small>{form.store_name || 'Any store'}{form.price !== '' && form.price !== null ? ` • ${money(Number(form.price))}` : ''}</small>
+              </div>
+
+              <div className="preset-panel">
+                <label>Choose from built-in product images</label>
+                <div className="preset-grid">
+                  {PRODUCT_PRESETS.map((preset) => (
+                    <button type="button" key={preset.image} className="preset-tile" onClick={() => applyPreset(preset)}>
+                      <img src={preset.image} alt="" />
+                      <span>{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <label>Quick emoji icon</label>
+                <div className="emoji-preset-row">
+                  {EMOJI_LIBRARY.map((emoji) => (
+                    <button type="button" key={emoji} onClick={() => setField('icon', emoji)}>{emoji}</button>
+                  ))}
+                </div>
+              </div>
+            </section>
+            <div className="form-row">
+              <label>Icon<input placeholder="🥛" value={form.icon} onChange={(e) => setField('icon', e.target.value)} /></label>
+              <label>Image URL<input placeholder="Paste image URL or choose/upload above" value={form.image_url} onChange={(e) => setField('image_url', e.target.value)} /></label>
+            </div>
+            <label className="file-upload-box">
+              Upload product photo — it will be resized automatically
+              <input type="file" accept="image/*" onChange={handleImageFile} />
+              {imageBusy && <span>Resizing image...</span>}
+            </label>
+          </details>
+
+          <section className="product-form-section">
+            <div className="product-form-section-head">
+              <div><p className="eyebrow">Alerts & notes</p><h3>Anything to remember?</h3></div>
+              <small>Add these only when they are useful for this item.</small>
+            </div>
+            <div className="form-row">
+              <label>Expiry date<input type="date" value={form.expiry_date} onChange={(e) => setField('expiry_date', e.target.value)} /></label>
+              <label>Low stock alert<input type="number" step="0.01" value={form.low_stock_threshold} onChange={(e) => setField('low_stock_threshold', e.target.value)} /></label>
+            </div>
+            <label>Notes<textarea value={form.notes} onChange={(e) => setField('notes', e.target.value)} /></label>
+          </section>
+
           <div className="modal-actions">
             <button type="button" onClick={() => { stopBarcodeScanner(); onClose(); }} className="secondary">Cancel</button>
             <button className="primary orange-cta">Save product</button>

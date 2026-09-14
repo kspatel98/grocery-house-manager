@@ -4,6 +4,7 @@ import { api } from '../api';
 import type { Product, ShoppingList } from '../types';
 import { ingredientNames, recipes, type Diet, type MealKind, type Recipe, type RecipeIngredient } from '../recipes';
 import { useLanguage } from '../i18n';
+import HouseContextSwitcher from '../components/HouseContextSwitcher';
 
 type Row=RecipeIngredient & {required:number; owned:number; shortage:number; matched?:Product; selected:boolean; autoShop:boolean};
 const copy={
@@ -105,6 +106,7 @@ export default function MealsPage(){
  }[language][value]);
  return <main className="page shell wide meals-page">
    <section className="meals-hero"><div><p className="eyebrow">SMART MEAL PLANNER</p><h1>{c.title}</h1><p>{c.sub}</p></div><div className="serving-box"><span>👥 {c.servings}</span><input type="number" min="1" max="100" value={servings} onChange={e=>setServings(Math.max(1,Number(e.target.value)||1))}/></div></section>
+   <HouseContextSwitcher currentHouseId={id} section="meals" />
    <section className="panel meal-controls"><input placeholder={c.search} value={q} onChange={e=>setQ(e.target.value)}/><select value={kind} onChange={e=>setKind(e.target.value as any)}><option value="all">{c.all}</option><option value="proper">{c.proper}</option><option value="light">{c.light}</option><option value="breakfast">{c.breakfast}</option><option value="dessert">{c.dessert}</option><option value="drink">{c.drink}</option></select><select value={diet} onChange={e=>setDiet(e.target.value as any)}><option value="all">{c.diet}: {c.all}</option><option value="jain">Jain</option><option value="swaminarayan">Swaminarayan (no onion/garlic)</option><option value="veg">Veg</option><option value="vegan">Vegan</option><option value="nonveg">Non-veg</option></select></section>
    <div className="meals-layout"><aside className="meal-library panel"><h2>{c.browse}</h2>{filtered.map(r=>{const a=availability(r);return <button className={`meal-tile ${selected.id===r.id?'active':''}`} key={r.id} onClick={()=>setSelected(r)}><span><strong>{r.names[language]}</strong><small>{kindLabel(r.kind)} · {r.diets.map(dietLabel).join(' / ')}</small></span><em className={a===1?'ready':a>.5?'almost':'missing'}>{a===1?'✓ '+c.canMake:a>.5?'◐ '+c.almost:`${Math.round(a*100)}%`}</em></button>})}{!filtered.length&&<p>{c.noMatch}</p>}</aside>
    <section className="recipe-card panel"><div className="recipe-card-head"><div><p className="eyebrow">{kindLabel(selected.kind).toUpperCase()}</p><h2>{selected.names[language]}</h2><div className="diet-chips">{selected.diets.map(d=><span key={d}>{dietLabel(d)}</span>)}</div></div><div className="recipe-ready-score"><strong>{Math.round(availability(selected)*100)}%</strong><small>{c.inventory}</small></div></div>

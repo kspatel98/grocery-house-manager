@@ -23,14 +23,14 @@ export default function FlyerDealModal({deal,onClose}:{deal:FlyerOpenDeal|null;o
   if (!deal) return null;
   const merchant = deal.merchant || deal.storeName || 'Store';
   return <div className="modal-backdrop flyer-detail-backdrop" role="presentation" onMouseDown={(event)=>{if(event.currentTarget===event.target)onClose();}}>
-    <section className="modal flyer-detail-modal" role="dialog" aria-modal="true" aria-label="Flyer deal details">
+    <section className="modal flyer-detail-modal focus-dialog" role="dialog" aria-modal="true" aria-label="Flyer deal details">
       <div className="flyer-detail-head">
         <div>
           <p className="eyebrow">Flyer deal details</p>
           <h2 data-i18n-skip="true">{deal.name}</h2>
           <p className="small-muted" data-i18n-skip="true">{merchant}{deal.brand ? ` • ${deal.brand}` : ''}</p>
         </div>
-        <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>✕</button>
+        <button type="button" className="icon-button" data-dialog-close="true" aria-label="Close" onClick={onClose}>✕</button>
       </div>
       <div className="flyer-detail-grid">
         <div className="flyer-detail-image">{deal.imageUrl ? <img src={deal.imageUrl} alt="" /> : <span>🛒</span>}</div>

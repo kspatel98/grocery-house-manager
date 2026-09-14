@@ -197,7 +197,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         { to: `/houses/${contextHouseId}/inventory`, label: t('inventory') },
         { to: `/houses/${contextHouseId}/shopping`, label: t('shopping') },
         { to: `/houses/${contextHouseId}/meals`, label: t('meals') },
-        { to: `/assistant?house=${contextHouseId}`, label: t('assistant') },
+        { to: '/market', label: t('prices') },
       ]
     : [
         { to: '/houses', label: t('home') },
@@ -206,10 +206,10 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       ];
   const extraNavItems = [
     ...(contextHouseId ? [
+      { to: `/assistant?house=${contextHouseId}`, label: t('assistant'), icon: '✦' },
       { to: `/houses/${contextHouseId}/scan`, label: t('scanReceipt'), icon: '🧾' },
       { to: `/houses/${contextHouseId}/receipts`, label: t('receiptHistory'), icon: '🗂️' },
     ] : []),
-    { to: '/market', label: t('prices'), icon: '🏷️' },
     { to: '/reports', label: t('reports'), icon: '📈' },
     { to: '/pricing', label: t('plans'), icon: '✨' },
     { to: '/support', label: t('support'), icon: '💬' },
@@ -352,9 +352,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         <div className="mobile-more-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
           <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More Grocery House Manager options" onClick={(event) => event.stopPropagation()}>
             <div className="mobile-more-handle" aria-hidden="true" />
-            <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
+            <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" data-dialog-close="true" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
             <div className="mobile-more-grid">
-              <Link to={contextHouseId ? `/assistant?house=${contextHouseId}` : '/assistant'} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">✦</span><strong>{t('assistant')}</strong></Link>
               {extraNavItems.map((item) => (
                 <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
               ))}
