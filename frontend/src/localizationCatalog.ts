@@ -461,7 +461,6 @@ const exact: Record<string, L> = {
   'Validity': {gu:'માન્યતા',hi:'वैधता',fr:'Validité'},
   'See flyer': {gu:'ફ્લાયર જુઓ',hi:'फ्लायर देखें',fr:'Voir la circulaire'},
   'Flyer area': {gu:'ફ્લાયર વિસ્તાર',hi:'फ्लायर क्षेत्र',fr:'Zone de circulaire'},
-  'Requested quantity': {gu:'જરૂરી માત્રા',hi:'आवश्यक मात्रा',fr:'Quantité demandée'},
   'Nearest store location': {gu:'નજીકનું સ્ટોર સ્થાન',hi:'निकटतम स्टोर स्थान',fr:'Magasin le plus proche'},
   'Open in Maps': {gu:'Maps માં ખોલો',hi:'Maps में खोलें',fr:'Ouvrir dans Maps'},
   'Open source deal': {gu:'મૂળ ડીલ ખોલો',hi:'मूल ऑफ़र खोलें',fr:'Ouvrir l’offre source'},
