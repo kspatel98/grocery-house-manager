@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import type { PremiumCrownStats } from '../types';
+import OverlayPortal from './OverlayPortal';
 
 type FlightBox = {
   left: number;
@@ -160,7 +161,7 @@ export default function PremiumAwardCelebration({
   } as CSSProperties) : undefined;
 
   return (
-    <div className={`premium-win-overlay phase-${phase}`} role="dialog" aria-modal="true" aria-labelledby="premium-win-title">
+    <OverlayPortal><div className={`premium-win-overlay phase-${phase}`} role="dialog" aria-modal="true" aria-labelledby="premium-win-title">
       <div className="premium-win-backdrop" aria-hidden="true" />
       <div className="premium-confetti" aria-hidden="true">
         {confetti.map((piece, index) => (
@@ -173,7 +174,7 @@ export default function PremiumAwardCelebration({
       </div>
 
       <div className="premium-win-stage">
-        <button type="button" className="premium-win-skip" onClick={finish}>Skip animation</button>
+        <button type="button" data-dialog-close="true" className="premium-win-skip" onClick={finish}>Skip animation</button>
         <div className="premium-jackpot-kicker"><span>★</span> PREMIUM JACKPOT <span>★</span></div>
         <div className="premium-jackpot-reels" aria-hidden="true">
           <span>✦</span><span className="reel-crown">👑</span><span>✦</span>
@@ -215,6 +216,6 @@ export default function PremiumAwardCelebration({
           </div>
         </>
       )}
-    </div>
+    </div></OverlayPortal>
   );
 }

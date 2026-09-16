@@ -3,7 +3,7 @@ import { detailedRecipeSteps } from './recipeDetails';
 export type Diet='jain'|'swaminarayan'|'veg'|'vegan'|'nonveg';
 export type MealKind='proper'|'light'|'breakfast'|'dessert'|'drink';
 export type RecipeIngredient={name:string; qty:number; unit:string; optional?:boolean};
-export type Recipe={id:string; names:Record<AppLanguage,string>; baseServings:number; kind:MealKind; diets:Diet[]; ingredients:RecipeIngredient[]; steps:Record<AppLanguage,string[]>};
+export type Recipe={id:string; names:Record<AppLanguage,string>; baseServings:number; kind:MealKind; diets:Diet[]; ingredients:RecipeIngredient[]; steps:Record<AppLanguage,string[]>; image?:string};
 const N=(en:string,gu:string,hi:string,fr:string):Record<AppLanguage,string>=>({en,gu,hi,fr});
 const S=(en:string,gu?:string,hi?:string,fr?:string):Record<AppLanguage,string[]>=>({en:[en],gu:[gu||en],hi:[hi||en],fr:[fr||en]});
 const r=(id:string,n:Record<AppLanguage,string>,kind:MealKind,diets:Diet[],ingredients:RecipeIngredient[],step:string):Recipe=>({id,names:n,baseServings:4,kind,diets,ingredients,steps:S(step)});
@@ -53,7 +53,7 @@ r('chicken-curry',N('Chicken Curry','ચિકન કરી','चिकन क�
 r('egg-curry',N('Egg Curry','ઇંડા કરી','अंडा करी','Curry aux œufs'),'proper',['nonveg'],[{name:'Eggs',qty:8,unit:'pcs'},{name:'Tomato',qty:300,unit:'g'},{name:'Onion',qty:200,unit:'g'},{name:'Oil',qty:30,unit:'ml'}], 'Boil eggs, prepare a spiced tomato-onion gravy and simmer the eggs in it.')
 ];
 
-export const recipes:Recipe[]=baseRecipes.map(recipe=>({ ...recipe, steps:detailedRecipeSteps[recipe.id]||recipe.steps }));
+export const recipes:Recipe[]=baseRecipes.map(recipe=>({ ...recipe, image:`/recipe-images/${recipe.id}.svg`, steps:detailedRecipeSteps[recipe.id]||recipe.steps }));
 
 export const ingredientNames:Record<AppLanguage,Record<string,string>>={
  en:{},

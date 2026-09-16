@@ -21,6 +21,7 @@ import MarketPage from './pages/MarketPage';
 import AdminPage from './pages/AdminPage';
 import AssistantPage from './pages/AssistantPage';
 import MealsPage from './pages/MealsPage';
+import ExpensesPage from './pages/ExpensesPage';
 import AppFrame from './components/AppFrame';
 import PublicFrame from './components/PublicFrame';
 
@@ -57,6 +58,7 @@ export default function App() {
       <Route path="/houses/:houseId/scan" element={<RequireAuth><ReceiptScanPage /></RequireAuth>} />
       <Route path="/houses/:houseId/shopping" element={<RequireAuth><ShoppingPage /></RequireAuth>} />
       <Route path="/houses/:houseId/meals" element={<RequireAuth><MealsPage /></RequireAuth>} />
+      <Route path="/houses/:houseId/expenses" element={<RequireAuth><ExpensesPage /></RequireAuth>} />
       <Route path="/houses/:houseId/receipts" element={<RequireAuth><ReceiptHistoryPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

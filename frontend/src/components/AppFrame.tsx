@@ -7,6 +7,7 @@ import PremiumAwardCelebration from './PremiumAwardCelebration';
 import SetupCoach from './SetupCoach';
 import type { AccountBootstrap, PremiumCrownStats, UserProfile } from '../types';
 import { LanguagePicker, useLanguage } from '../i18n';
+import OverlayPortal from './OverlayPortal';
 
 function EmailIcon() {
   return (
@@ -209,6 +210,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       { to: `/assistant?house=${contextHouseId}`, label: t('assistant'), icon: '✦' },
       { to: `/houses/${contextHouseId}/scan`, label: t('scanReceipt'), icon: '🧾' },
       { to: `/houses/${contextHouseId}/receipts`, label: t('receiptHistory'), icon: '🗂️' },
+      { to: `/houses/${contextHouseId}/expenses`, label: t('expenses'), icon: '💸' },
     ] : []),
     { to: '/reports', label: t('reports'), icon: '📈' },
     { to: '/pricing', label: t('plans'), icon: '✨' },
@@ -349,6 +351,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       </nav>
 
       {mobileMoreOpen && (
+        <OverlayPortal>
         <div className="mobile-more-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
           <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More Grocery House Manager options" onClick={(event) => event.stopPropagation()}>
             <div className="mobile-more-handle" aria-hidden="true" />
@@ -361,6 +364,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             </div>
           </section>
         </div>
+        </OverlayPortal>
       )}
 
       <PremiumAwardCelebration

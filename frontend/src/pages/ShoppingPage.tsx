@@ -223,6 +223,13 @@ export default function ShoppingPage() {
             </div>
           </section>
 
+          {!creatingNew && selectedList && (
+            <div className="shopping-receipt-bridge panel">
+              <div><strong>🧾 Bought these groceries?</strong><span>Attach the receipt to verify the list before inventory is finalized. Missing and extra products will always ask for your confirmation.</span></div>
+              <Link className="primary center-link" to={`/houses/${id}/scan?shoppingListId=${selectedList.id}`}>Finish with receipt</Link>
+            </div>
+          )}
+
           <ShoppingListPanel
             houseId={id}
             products={products}

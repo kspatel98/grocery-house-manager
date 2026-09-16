@@ -216,6 +216,7 @@ export type ReceiptLineItem = {
 export type Receipt = {
   id: number;
   house_id: number;
+  shopping_list_id?: number | null;
   store_name?: string;
   receipt_date?: string;
   image_url?: string;
@@ -752,3 +753,10 @@ export type WeeklyAssistant = {
   recipes: WeeklyAssistantRecipe[];
   message: string;
 };
+
+export type ExpenseShare = { user_id: number; user_name: string; share_amount: number };
+export type HouseExpense = { id:number; house_id:number; title:string; amount:number; currency:string; category:string; paid_by_user_id:number; paid_by_name:string; expense_date:string; notes?:string|null; receipt_id?:number|null; created_at:string; shares:ExpenseShare[] };
+export type ExpenseSettlement = { id:number; from_user_id:number; from_user_name:string; to_user_id:number; to_user_name:string; amount:number; currency:string; notes?:string|null; created_at:string };
+export type ExpenseBalance = { user_id:number; user_name:string; balance:number };
+export type ExpenseSuggestedPayment = { from_user_id:number; from_user_name:string; to_user_id:number; to_user_name:string; amount:number };
+export type ExpenseSummary = { expenses:HouseExpense[]; settlements:ExpenseSettlement[]; balances:ExpenseBalance[]; suggested_payments:ExpenseSuggestedPayment[] };

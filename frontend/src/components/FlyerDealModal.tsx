@@ -1,4 +1,5 @@
 import { money } from '../currency';
+import OverlayPortal from './OverlayPortal';
 
 export type FlyerOpenDeal = {
   merchant?: string | null;
@@ -22,9 +23,9 @@ export type FlyerOpenDeal = {
 export default function FlyerDealModal({deal,onClose}:{deal:FlyerOpenDeal|null;onClose:()=>void}) {
   if (!deal) return null;
   const merchant = deal.merchant || deal.storeName || 'Store';
-  return <div className="modal-backdrop flyer-detail-backdrop" role="presentation" onMouseDown={(event)=>{if(event.currentTarget===event.target)onClose();}}>
+  return <OverlayPortal><div className="modal-backdrop flyer-detail-backdrop" role="presentation" onMouseDown={(event)=>{if(event.currentTarget===event.target)onClose();}}>
     <section className="modal flyer-detail-modal focus-dialog" role="dialog" aria-modal="true" aria-label="Flyer deal details">
-      <div className="flyer-detail-head">
+      <div className="flyer-detail-head focus-dialog-titlebar">
         <div>
           <p className="eyebrow">Flyer deal details</p>
           <h2 data-i18n-skip="true">{deal.name}</h2>
@@ -32,6 +33,7 @@ export default function FlyerDealModal({deal,onClose}:{deal:FlyerOpenDeal|null;o
         </div>
         <button type="button" className="icon-button" data-dialog-close="true" aria-label="Close" onClick={onClose}>✕</button>
       </div>
+      <div className="focus-dialog-scroll flyer-detail-scroll">
       <div className="flyer-detail-grid">
         <div className="flyer-detail-image">{deal.imageUrl ? <img src={deal.imageUrl} alt="" /> : <span>🛒</span>}</div>
         <div className="flyer-detail-info">
@@ -55,6 +57,7 @@ export default function FlyerDealModal({deal,onClose}:{deal:FlyerOpenDeal|null;o
         </div>
       </div>
       <p className="small-muted flyer-location-honesty">Flyer availability is tied to the postal-code area. The nearest store shown above is a convenience lookup and may not be the branch that published the flyer.</p>
+      </div>
     </section>
-  </div>;
+  </div></OverlayPortal>;
 }

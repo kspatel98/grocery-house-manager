@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { Product, Receipt, ReceiptLineItem, ReceiptScanUsage, ReceiptUploadResult, Section } from '../types';
+import type { Product, Receipt, ReceiptLineItem, ReceiptScanUsage, ReceiptUploadResult, Section, ShoppingList } from '../types';
 
 type ReviewLine = {
   id?: number;
@@ -84,7 +84,7 @@ function confidenceLabel(value?: number | null) {
   return 'Review';
 }
 
-export default function ReceiptStudio({ houseId, products, sections, receipts, onChange }: { houseId: number; products: Product[]; sections: Section[]; receipts: Receipt[]; onChange: () => void | Promise<void> }) {
+export default function ReceiptStudio({ houseId, products, sections, receipts, shoppingLists = [], initialShoppingListId = null, onChange }: { houseId: number; products: Product[]; sections: Section[]; receipts: Receipt[]; shoppingLists?: ShoppingList[]; initialShoppingListId?: number | null; onChange: () => void | Promise<void> }) {
   const [storeName, setStoreName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [notes, setNotes] = useState('');
@@ -105,6 +105,9 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
   const [uploadBusy, setUploadBusy] = useState(false);
   const [saveScanBusy, setSaveScanBusy] = useState(false);
   const [error, setError] = useState('');
+  const [linkedShoppingListId, setLinkedShoppingListId] = useState<number | ''>(initialShoppingListId || '');
+  const [missingDecisions, setMissingDecisions] = useState<Record<number, 'bought' | 'not_bought'>>({});
+  const [extraDecisions, setExtraDecisions] = useState<Record<number, 'add' | 'receipt_only'>>({});
 
   async function loadScanUsage() {
     try {
@@ -118,6 +121,10 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
   useEffect(() => {
     loadScanUsage();
   }, [houseId]);
+
+  useEffect(() => {
+    if (initialShoppingListId && shoppingLists.some((list) => list.id === initialShoppingListId)) setLinkedShoppingListId(initialShoppingListId);
+  }, [initialShoppingListId, shoppingLists]);
 
   function addLine() {
     const product = products.find((p) => p.id === Number(selectedProductId));
@@ -142,7 +149,12 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
     setTax(receipt.tax_amount !== null && receipt.tax_amount !== undefined ? String(receipt.tax_amount) : '');
     setDiscount(receipt.discount_amount !== null && receipt.discount_amount !== undefined ? String(receipt.discount_amount) : '');
     setTotal(receipt.total_amount !== null && receipt.total_amount !== undefined ? String(receipt.total_amount) : '');
-    setReviewLines((receipt.line_items || []).map(lineFromReceiptItem));
+    const hydrated = (receipt.line_items || []).map(lineFromReceiptItem);
+    const linked = shoppingLists.find((list) => list.id === Number(linkedShoppingListId || receipt.shopping_list_id || 0));
+    const listProductIds = new Set((linked?.items || []).map((item) => item.product_id));
+    setReviewLines(hydrated.map((line) => linked && (!line.product_id || !listProductIds.has(Number(line.product_id))) ? { ...line, update_inventory: false, create_product: false } : line));
+    setMissingDecisions({});
+    setExtraDecisions({});
   }
 
   async function uploadReceipt() {
@@ -165,6 +177,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
     formData.append('file', receiptFile);
     if (storeName.trim()) formData.append('store_name', storeName.trim());
     if (notes.trim()) formData.append('notes', notes.trim());
+    if (linkedShoppingListId) formData.append('shopping_list_id', String(linkedShoppingListId));
     try {
       setUploadBusy(true);
       setUploadResult(null);
@@ -217,12 +230,32 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
     ]);
   }
 
+  const linkedShoppingList = shoppingLists.find((list) => list.id === Number(linkedShoppingListId)) || null;
+  const linkedProductIds = new Set((linkedShoppingList?.items || []).map((item) => item.product_id));
+  const receiptMatchedProductIds = new Set(reviewLines.filter((line) => line.is_selected && line.line_type === 'product' && line.product_id).map((line) => Number(line.product_id)));
+  const missingListItems = linkedShoppingList ? linkedShoppingList.items.filter((item) => !receiptMatchedProductIds.has(item.product_id)) : [];
+  const extraReceiptRows = linkedShoppingList ? reviewLines.map((line, index) => ({ line, index })).filter(({ line }) => line.is_selected && line.line_type === 'product' && (!line.product_id || !linkedProductIds.has(Number(line.product_id)))) : [];
+
+  function decideExtra(index: number, decision: 'add' | 'receipt_only') {
+    setExtraDecisions((prev) => ({ ...prev, [index]: decision }));
+    const line = reviewLines[index];
+    updateReviewLine(index, { update_inventory: decision === 'add', create_product: decision === 'add' && !line?.product_id });
+  }
+
   async function saveReviewedReceipt() {
     if (!uploadResult?.receipt?.id) {
       setError('Scan a receipt first.');
       return;
     }
     const selectedLines = reviewLines.filter((line) => line.is_selected && line.line_type === 'product');
+    if (linkedShoppingList) {
+      const unresolvedMissing = missingListItems.filter((item) => !missingDecisions[item.id]);
+      const unresolvedExtra = extraReceiptRows.filter(({ index }) => !extraDecisions[index]);
+      if (unresolvedMissing.length || unresolvedExtra.length) {
+        setError('Confirm every missing shopping-list item and every extra receipt item before saving.');
+        return;
+      }
+    }
     if (!selectedLines.length) {
       setError('Select at least one product row before saving.');
       return;
@@ -230,6 +263,8 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
     try {
       setSaveScanBusy(true);
       const { data } = await api.post<Receipt>(`/houses/${houseId}/receipts/${uploadResult.receipt.id}/confirm`, {
+        shopping_list_id: linkedShoppingList?.id || null,
+        missing_list_items: missingListItems.map((item) => ({ item_id: item.id, bought: missingDecisions[item.id] === 'bought' })),
         store_name: storeName || null,
         receipt_date: receiptDate || null,
         receipt_number: receiptNumber || null,
@@ -359,6 +394,13 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
           <p className="small-muted">Best results: upload a clear JPG or PNG photo with the receipt flat, well-lit, fully visible, and no cropped totals.</p>
           <p className="small-muted"><strong>{scanLimitText}</strong>. Manual receipt price entry stays available without using a scan.</p>
         </div>
+        <label>Shopping list, optional
+          <select value={linkedShoppingListId} onChange={(e) => { setLinkedShoppingListId(e.target.value ? Number(e.target.value) : ''); setMissingDecisions({}); setExtraDecisions({}); }}>
+            <option value="">Standalone receipt — no shopping list</option>
+            {shoppingLists.map((list) => <option key={list.id} value={list.id}>{list.title}{list.is_done ? ' · completed' : ' · active'}</option>)}
+          </select>
+          <small className="small-muted">Link a trip to verify what was actually bought. Standalone receipt scanning still works exactly as before.</small>
+        </label>
         <label>Store name, optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
         <label>Attach receipt photo (JPG or PNG only)<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] || null; if (file && !['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) { setError('Please upload a JPG or PNG receipt image only.'); e.target.value = ''; setReceiptFile(null); return; } setError(''); setReceiptFile(file); }} /></label>
         <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything you want to remember about this receipt" /></label>
@@ -375,6 +417,15 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
             </div>
             <button className="secondary" type="button" onClick={addReviewLine}>Add missing row</button>
           </div>
+
+          {linkedShoppingList && (
+            <div className="receipt-reconciliation panel">
+              <div className="panel-title-row"><div><p className="eyebrow">Shopping trip check</p><h3>Compare receipt with “{linkedShoppingList.title}”</h3><p>Matched products are handled automatically. You decide every mismatch before inventory changes.</p></div><span className="badge">{Math.max(0, linkedShoppingList.items.length - missingListItems.length)} matched</span></div>
+              {missingListItems.length > 0 && <div className="reconcile-group"><h4>Missing from receipt</h4><p className="small-muted">These were on your list but were not matched on the receipt. Confirm whether you actually bought them.</p>{missingListItems.map((item) => <div className="reconcile-row" key={item.id}><span><strong>{item.product.name}</strong><small>{item.requested_quantity} {item.product.unit}</small></span><div className="segmented"><button type="button" className={missingDecisions[item.id] === 'bought' ? 'active' : ''} onClick={() => setMissingDecisions((prev) => ({ ...prev, [item.id]: 'bought' }))}>Bought anyway</button><button type="button" className={missingDecisions[item.id] === 'not_bought' ? 'active' : ''} onClick={() => setMissingDecisions((prev) => ({ ...prev, [item.id]: 'not_bought' }))}>Not bought</button></div></div>)}</div>}
+              {extraReceiptRows.length > 0 && <div className="reconcile-group"><h4>Extra items on receipt</h4><p className="small-muted">These were not on the shopping list. Nothing extra is added to inventory until you approve it.</p>{extraReceiptRows.map(({ line, index }) => <div className="reconcile-row" key={`${line.id || 'extra'}-${index}`}><span><strong>{line.description || 'Receipt item'}</strong><small>{line.quantity || 1} {line.line_unit}</small></span><div className="segmented"><button type="button" className={extraDecisions[index] === 'add' ? 'active' : ''} onClick={() => decideExtra(index, 'add')}>Add to inventory</button><button type="button" className={extraDecisions[index] === 'receipt_only' ? 'active' : ''} onClick={() => decideExtra(index, 'receipt_only')}>Receipt only</button></div></div>)}</div>}
+              {!missingListItems.length && !extraReceiptRows.length && <div className="success compact-message">✓ Receipt matches the shopping list.</div>}
+            </div>
+          )}
 
           <div className="receipt-meta-grid">
             <label>Store<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Store name" /></label>
@@ -436,6 +487,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, o
             })}
           </div>
           <button className="primary full" type="button" onClick={saveReviewedReceipt} disabled={saveScanBusy || !reviewLines.length}>{saveScanBusy ? 'Saving reviewed receipt...' : 'Save reviewed receipt'}</button>
+          {uploadResult?.receipt?.reviewed_at && <Link className="secondary full center-link" to={`/houses/${houseId}/expenses?receiptId=${uploadResult.receipt.id}`}>💸 Split this receipt as a shared expense</Link>}
         </div>
       ) : null}
 

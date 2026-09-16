@@ -235,6 +235,14 @@ export default function HousePage() {
             <em>Flyer + receipt + live signals</em>
           </Link>
 
+          <Link to={`/houses/${id}/expenses`} className="module-card expenses-module">
+            <span className="module-icon">💸</span>
+            <small>Share household costs</small>
+            <strong>Expenses</strong>
+            <p>Split grocery and household expenses, attach receipts, and see who owes whom.</p>
+            <em>Splitwise-style balances</em>
+          </Link>
+
           <Link to="/reports" className="module-card reports-module">
             <span className="module-icon">📈</span>
             <small>Review patterns</small>

@@ -3,10 +3,10 @@ import { languageDisplayName, translateUiText, type SiteLanguage } from './local
 
 export type AppLanguage = SiteLanguage;
 const labels: Record<AppLanguage, Record<string,string>> = {
-  en: { language:'Language', home:'Home', inventory:'Inventory', shopping:'Shopping', meals:'Meals', assistant:'Assistant', more:'More', plans:'Plans', support:'Support', prices:'Prices', reports:'Reports', profile:'Profile', scanReceipt:'Scan receipt', receiptHistory:'Receipt history', admin:'Admin' },
-  gu: { language:'ભાષા', home:'હોમ', inventory:'ઇન્વેન્ટરી', shopping:'ખરીદી', meals:'ભોજન', assistant:'સહાયક', more:'વધુ', plans:'પ્લાન્સ', support:'મદદ', prices:'ભાવ', reports:'રિપોર્ટ્સ', profile:'પ્રોફાઇલ', scanReceipt:'રસીદ સ્કેન', receiptHistory:'રસીદ ઇતિહાસ', admin:'એડમિન' },
-  hi: { language:'भाषा', home:'होम', inventory:'इन्वेंटरी', shopping:'खरीदारी', meals:'भोजन', assistant:'सहायक', more:'अधिक', plans:'प्लान', support:'सहायता', prices:'कीमतें', reports:'रिपोर्ट', profile:'प्रोफ़ाइल', scanReceipt:'रसीद स्कैन', receiptHistory:'रसीद इतिहास', admin:'एडमिन' },
-  fr: { language:'Langue', home:'Accueil', inventory:'Inventaire', shopping:'Courses', meals:'Repas', assistant:'Assistant', more:'Plus', plans:'Forfaits', support:'Aide', prices:'Prix', reports:'Rapports', profile:'Profil', scanReceipt:'Scanner un reçu', receiptHistory:'Historique des reçus', admin:'Admin' },
+  en: { language:'Language', home:'Home', inventory:'Inventory', shopping:'Shopping', meals:'Meals', assistant:'Assistant', more:'More', plans:'Plans', support:'Support', prices:'Prices', reports:'Reports', profile:'Profile', scanReceipt:'Scan receipt', receiptHistory:'Receipt history', admin:'Admin', expenses:'Expenses' },
+  gu: { language:'ભાષા', home:'હોમ', inventory:'ઇન્વેન્ટરી', shopping:'ખરીદી', meals:'ભોજન', assistant:'સહાયક', more:'વધુ', plans:'પ્લાન્સ', support:'મદદ', prices:'ભાવ', reports:'રિપોર્ટ્સ', profile:'પ્રોફાઇલ', scanReceipt:'રસીદ સ્કેન', receiptHistory:'રસીદ ઇતિહાસ', admin:'એડમિન', expenses:'ખર્ચ' },
+  hi: { language:'भाषा', home:'होम', inventory:'इन्वेंटरी', shopping:'खरीदारी', meals:'भोजन', assistant:'सहायक', more:'अधिक', plans:'प्लान', support:'सहायता', prices:'कीमतें', reports:'रिपोर्ट', profile:'प्रोफ़ाइल', scanReceipt:'रसीद स्कैन', receiptHistory:'रसीद इतिहास', admin:'एडमिन', expenses:'खर्च' },
+  fr: { language:'Langue', home:'Accueil', inventory:'Inventaire', shopping:'Courses', meals:'Repas', assistant:'Assistant', more:'Plus', plans:'Forfaits', support:'Aide', prices:'Prix', reports:'Rapports', profile:'Profil', scanReceipt:'Scanner un reçu', receiptHistory:'Historique des reçus', admin:'Admin', expenses:'Dépenses' },
 };
 
 type Ctx = { language: AppLanguage; setLanguage:(l:AppLanguage)=>void; t:(key:string)=>string; tr:(text:string)=>string };
@@ -74,7 +74,9 @@ function translateTree(root: Node, language: AppLanguage) {
 
 function GlobalLanguageBridge({language}:{language:AppLanguage}) {
   useEffect(() => {
-    const root = document.getElementById('root');
+    // Translate the body rather than only #root because focus dialogs are rendered
+    // through portals directly under document.body. This keeps the whole UI localized.
+    const root = document.body;
     if (!root) return;
     translateTree(root, language);
     let scheduled = false;

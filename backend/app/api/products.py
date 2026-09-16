@@ -13,7 +13,7 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage, choose_receipt_scan_credit_source, consume_extra_receipt_scan_credit
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingListItem
+from app.models import HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus
 from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
 from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut, ReceiptDeleteOut
 
@@ -452,6 +452,7 @@ def serialize_receipt(receipt: Receipt) -> ReceiptOut:
     return ReceiptOut(
         id=receipt.id,
         house_id=receipt.house_id,
+        shopping_list_id=receipt.shopping_list_id,
         store_name=receipt.store_name,
         receipt_date=receipt.receipt_date,
         image_url=receipt.image_url,
@@ -663,10 +664,16 @@ def upload_receipt_file(
     receipt_date: date | None = Form(default=None),
     notes: str | None = Form(default=None),
     receipt_text: str | None = Form(default=None),
+    shopping_list_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
+    linked_list = None
+    if shopping_list_id is not None:
+        linked_list = db.query(ShoppingList).filter(ShoppingList.id == shopping_list_id, ShoppingList.house_id == house_id).first()
+        if not linked_list:
+            raise HTTPException(status_code=400, detail="Shopping list not found in this house.")
     ensure_receipt_scan_limit(db, house_id, user)
     credit_source = choose_receipt_scan_credit_source(db, house_id, user)
     receipt_upload_size_ok(file)
@@ -693,6 +700,7 @@ def upload_receipt_file(
     products = db.query(Product).filter(Product.house_id == house_id).all()
     receipt = Receipt(
         house_id=house_id,
+        shopping_list_id=shopping_list_id,
         uploaded_by_id=user.id,
         store_name=(store_name or scan.get("store_name") or None),
         receipt_date=receipt_date or scan.get("receipt_date"),
@@ -789,6 +797,20 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
 
     was_already_reviewed = receipt.reviewed_at is not None
 
+    linked_list_id = payload.shopping_list_id or receipt.shopping_list_id
+    linked_list = None
+    linked_items = []
+    original_status: dict[int, ShoppingItemStatus] = {}
+    if linked_list_id is not None:
+        linked_list = db.query(ShoppingList).filter(ShoppingList.id == linked_list_id, ShoppingList.house_id == house_id).first()
+        if not linked_list:
+            raise HTTPException(status_code=400, detail="Shopping list not found in this house.")
+        linked_items = db.query(ShoppingListItem).filter(ShoppingListItem.shopping_list_id == linked_list.id).all()
+        original_status = {row.id: row.status for row in linked_items}
+        receipt.shopping_list_id = linked_list.id
+    missing_decisions = {row.item_id: row.bought for row in payload.missing_list_items}
+    matched_list_product_ids: set[int] = set()
+
     receipt.store_name = payload.store_name or receipt.store_name or "Receipt store"
     receipt.receipt_date = payload.receipt_date or receipt.receipt_date
     receipt.receipt_number = payload.receipt_number or receipt.receipt_number
@@ -852,6 +874,13 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
                 product_created_for_line = True
                 created_count += 1
 
+        linked_item = None
+        if linked_list and product_id:
+            linked_item = next((row for row in linked_items if row.product_id == product_id), None)
+            if linked_item and line.is_selected and line.line_type == "product":
+                matched_list_product_ids.add(product_id)
+                linked_item.status = ShoppingItemStatus.in_cart
+
         item.description = line.description.strip()
         item.normalized_name = (line.new_product_name or line.description).strip()[:220]
         item.line_type = line.line_type or "product"
@@ -871,16 +900,43 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
         if not line.is_selected or line.line_type != "product" or not product:
             continue
         price = price_for_history(qty, unit_price, line.line_total, line.discount_amount)
-        if price is None:
-            continue
-        upsert_store_price(db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store", price=price, source="receipt_scan_reviewed", receipt_id=receipt.id, user_id=user.id, recorded_at=receipt_price_datetime(receipt))
-        updated_count += 1
-        if line.update_inventory and not was_already_reviewed:
+        if price is not None:
+            upsert_store_price(db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store", price=price, source="receipt_scan_reviewed", receipt_id=receipt.id, user_id=user.id, recorded_at=receipt_price_datetime(receipt))
+            updated_count += 1
+        should_update_inventory = bool(line.update_inventory and not was_already_reviewed)
+        if linked_item and linked_list and linked_list.is_done and original_status.get(linked_item.id) == ShoppingItemStatus.in_cart:
+            # Shopping Done already applied this list row to inventory. Receipt verification must not double-count it.
+            should_update_inventory = False
+        if should_update_inventory:
             apply_receipt_inventory_update(product, quantity=qty, line_unit=line_unit, store_name=receipt.store_name or "Receipt store", price=price)
             item.inventory_applied = True
             item.inventory_quantity_applied = qty
             item.inventory_unit_applied = line_unit
             inventory_count += 1
+
+    if linked_list and not was_already_reviewed:
+        missing_rows = [row for row in linked_items if row.product_id not in matched_list_product_ids]
+        unresolved = [row.id for row in missing_rows if row.id not in missing_decisions]
+        if unresolved:
+            raise HTTPException(status_code=400, detail="Confirm each shopping-list item that is missing from the receipt before saving.")
+        for row in missing_rows:
+            bought = bool(missing_decisions.get(row.id))
+            if bought:
+                already_applied = linked_list.is_done and original_status.get(row.id) == ShoppingItemStatus.in_cart
+                if not already_applied:
+                    product = db.query(Product).filter(Product.id == row.product_id, Product.house_id == house_id).first()
+                    if product:
+                        qty = float(row.bought_quantity or row.requested_quantity or 1)
+                        product.quantity = float(product.quantity or 0) + qty
+                        product.last_bought_at = datetime.now(timezone.utc)
+                        inventory_count += 1
+                row.status = ShoppingItemStatus.in_cart
+            else:
+                row.status = ShoppingItemStatus.skipped
+        if not linked_list.is_done:
+            linked_list.is_done = True
+            linked_list.completed_by_id = user.id
+            linked_list.completed_at = datetime.now(timezone.utc)
 
     log_activity(
         db,

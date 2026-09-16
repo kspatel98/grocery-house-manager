@@ -4,6 +4,7 @@ import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { Product, Section } from '../types';
 import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
+import OverlayPortal from './OverlayPortal';
 
 type Props = {
   houseId: number;
@@ -257,9 +258,10 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   }
 
   return (
-    <div className="modal-backdrop focus-overlay" role="presentation">
+    <OverlayPortal>
+      <div className="modal-backdrop focus-overlay" role="presentation">
       <div className="modal product-modal-enhanced focus-dialog" role="dialog" aria-modal="true" aria-label={modal.mode === 'create' ? 'Add inventory product' : 'Edit inventory product'}>
-        <div className="modal-title">
+        <div className="modal-title focus-dialog-titlebar">
           <div>
             <p className="eyebrow warm-eyebrow">Inventory item</p>
             <h2>{modal.mode === 'create' ? 'Add product' : 'Edit product'}</h2>
@@ -267,7 +269,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
           <button data-dialog-close="true" onClick={() => { stopBarcodeScanner(); onClose(); }} aria-label="Close product form">×</button>
         </div>
         {error && <div className="error">{error}</div>}
-        <form onSubmit={submit} className="product-form enhanced-product-form">
+        <form onSubmit={submit} className="product-form enhanced-product-form focus-dialog-scroll">
           <section className="product-form-section product-form-primary">
             <div className="product-form-section-head">
               <div><p className="eyebrow">Basics</p><h3>What is this product?</h3></div>
@@ -372,12 +374,13 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
             <label>Notes<textarea value={form.notes} onChange={(e) => setField('notes', e.target.value)} /></label>
           </section>
 
-          <div className="modal-actions">
+          <div className="modal-actions focus-dialog-actions">
             <button type="button" onClick={() => { stopBarcodeScanner(); onClose(); }} className="secondary">Cancel</button>
             <button className="primary orange-cta">Save product</button>
           </div>
         </form>
       </div>
     </div>
+    </OverlayPortal>
   );
 }

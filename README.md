@@ -763,3 +763,28 @@ This build adds postal-code-aware Canadian weekly flyer imports, PostgreSQL cach
 ## v76 — Flyer expiry caching and full-site languages
 
 v76 keeps weekly flyer data cached until the provider's actual `validTo` date (with a 7-day fallback), expands flyer browsing by store/current flyer, adds relevant flyer offers beside shopping-list items, and extends the English / Gujarati / Hindi / French selector across the complete public and authenticated interface. See `V76_FLYER_CACHE_FULL_LOCALIZATION.md`.
+
+---
+
+## v79: focused overlays, visual meals, shared expenses and shopping-trip receipt verification
+
+v79 adds a document-body overlay portal so important forms and detail cards open in the user's **current viewport**, not in the visual center of a long underlying page. The background stays locked and long dialogs scroll internally. See `V79_RELEASE_NOTES.md` for the complete change list.
+
+### Optional recipe discovery
+
+Built-in recipes do not need an external service. To enable the new **Discover more recipes** search, configure the backend:
+
+```env
+THEMEALDB_API_KEY=your_production_or_supporter_key
+THEMEALDB_TIMEOUT_SECONDS=15
+```
+
+If the key is omitted, the built-in meal library and all inventory-aware recipe functions continue to work normally.
+
+### Shopping trip receipt verification
+
+Open a saved shopping list and choose **Finish with receipt**. The scan is linked to that list. Before inventory changes are finalized, Grocery House Manager asks about every mismatch between the list and receipt. Standalone receipt scan remains available from the normal Receipt Scan page.
+
+### Shared expenses
+
+Each house now has an **Expenses** page for payer tracking, equal/custom splits, linked receipts, balances, suggested settlements and recorded payments.

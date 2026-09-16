@@ -242,6 +242,7 @@ class Receipt(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    shopping_list_id: Mapped[int | None] = mapped_column(ForeignKey("shopping_lists.id", ondelete="SET NULL"), nullable=True, index=True)
     uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     store_name: Mapped[str | None] = mapped_column(String(150), index=True)
     receipt_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -299,6 +300,58 @@ class ReceiptLineItem(Base):
 
     receipt: Mapped[Receipt] = relationship(back_populates="line_items")
     matched_product: Mapped[Product | None] = relationship()
+
+
+class HouseExpense(Base):
+    __tablename__ = "house_expenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(180))
+    amount: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(12), default="CAD")
+    category: Mapped[str] = mapped_column(String(80), default="Groceries")
+    paid_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    receipt_id: Mapped[int | None] = mapped_column(ForeignKey("receipts.id", ondelete="SET NULL"), nullable=True, index=True)
+    expense_date: Mapped[date] = mapped_column(Date, default=date.today)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    shares: Mapped[list["ExpenseShare"]] = relationship(back_populates="expense", cascade="all, delete-orphan")
+    paid_by: Mapped[User] = relationship(foreign_keys=[paid_by_user_id])
+    created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_user_id])
+    receipt: Mapped[Receipt | None] = relationship()
+
+
+class ExpenseShare(Base):
+    __tablename__ = "expense_shares"
+    __table_args__ = (UniqueConstraint("expense_id", "user_id", name="uq_expense_share_user"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    expense_id: Mapped[int] = mapped_column(ForeignKey("house_expenses.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    share_amount: Mapped[float] = mapped_column(Float)
+
+    expense: Mapped[HouseExpense] = relationship(back_populates="shares")
+    user: Mapped[User] = relationship()
+
+
+class ExpenseSettlement(Base):
+    __tablename__ = "expense_settlements"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    from_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    to_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    amount: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(12), default="CAD")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    from_user: Mapped[User] = relationship(foreign_keys=[from_user_id])
+    to_user: Mapped[User] = relationship(foreign_keys=[to_user_id])
 
 
 class ProductStorePrice(Base):

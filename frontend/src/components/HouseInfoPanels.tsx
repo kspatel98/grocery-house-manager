@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Activity, HouseMember } from '../types';
+import OverlayPortal from './OverlayPortal';
 
 type MembersPanelProps = {
   members: HouseMember[];
@@ -117,6 +118,7 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
   if (!open) return null;
 
   return (
+    <OverlayPortal>
     <div className="side-drawer-backdrop" role="presentation" onClick={onClose}>
       <aside ref={drawerRef} tabIndex={-1} className="side-drawer members-drawer action-focus-panel focus-dialog" role="dialog" aria-modal="true" aria-label="House members" onClick={(event) => event.stopPropagation()}>
         <div className="drawer-header">
@@ -142,6 +144,7 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
         </div>
       </aside>
     </div>
+    </OverlayPortal>
   );
 }
 
@@ -187,20 +190,22 @@ export function ActivityFeed({ activities, onRefresh }: { activities: Activity[]
       )}
 
       {showAll && (
+        <OverlayPortal>
         <div className="modal-backdrop activity-modal-backdrop" onClick={() => setShowAll(false)}>
           <section ref={modalRef} tabIndex={-1} className="modal activity-modal action-focus-panel focus-dialog" role="dialog" aria-modal="true" aria-label="All house activity" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-title">
+            <div className="modal-title focus-dialog-titlebar">
               <div>
                 <p className="eyebrow">House activity</p>
                 <h2>All recent updates</h2>
               </div>
               <button data-dialog-close="true" onClick={() => setShowAll(false)} aria-label="Close activity">×</button>
             </div>
-            <div className="activity-list full-activity-list timeline-activity-list">
+            <div className="activity-list full-activity-list timeline-activity-list focus-dialog-scroll">
               {activities.map((activity) => <ActivityRow key={activity.id} activity={activity} />)}
             </div>
           </section>
         </div>
+        </OverlayPortal>
       )}
     </section>
   );

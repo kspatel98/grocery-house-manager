@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     flyer_max_merchants: int = 12
     flyer_max_results: int = 1200
 
+    # Optional external recipe discovery (TheMealDB). Use a supporter/production key for a public deployment.
+    themealdb_api_key: str | None = None
+    themealdb_timeout_seconds: int = 15
+
     # Smart receipt scanning. Tabscanner is the recommended default for grocery receipts.
     # Supported provider values: local, tabscanner, veryfi.
     # Tabscanner accepts JPG/JPEG and PNG receipt images. PDFs are intentionally blocked

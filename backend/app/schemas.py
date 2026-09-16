@@ -417,6 +417,7 @@ class ReceiptLineItemOut(BaseModel):
 class ReceiptOut(BaseModel):
     id: int
     house_id: int
+    shopping_list_id: int | None = None
     store_name: str | None = None
     receipt_date: date | None = None
     image_url: str | None = None
@@ -514,7 +515,14 @@ class ReceiptReviewLineIn(BaseModel):
     new_product_quantity: float | None = Field(default=None, ge=0)
 
 
+class ReceiptMissingShoppingDecision(BaseModel):
+    item_id: int
+    bought: bool
+
+
 class ReceiptReviewSaveIn(BaseModel):
+    shopping_list_id: int | None = None
+    missing_list_items: list[ReceiptMissingShoppingDecision] = Field(default_factory=list)
     store_name: str | None = Field(default=None, max_length=150)
     receipt_date: date | None = None
     receipt_number: str | None = Field(default=None, max_length=120)
@@ -525,6 +533,86 @@ class ReceiptReviewSaveIn(BaseModel):
     total_amount: float | None = Field(default=None, ge=0)
     notes: str | None = None
     items: list[ReceiptReviewLineIn] = Field(default_factory=list)
+
+
+class ExpenseShareIn(BaseModel):
+    user_id: int
+    share_amount: float = Field(ge=0)
+
+
+class ExpenseCreateIn(BaseModel):
+    title: str = Field(min_length=1, max_length=180)
+    amount: float = Field(gt=0)
+    currency: str = Field(default="CAD", max_length=12)
+    category: str = Field(default="Groceries", max_length=80)
+    paid_by_user_id: int
+    expense_date: date | None = None
+    notes: str | None = None
+    receipt_id: int | None = None
+    shares: list[ExpenseShareIn] = Field(default_factory=list)
+
+
+class ExpenseShareOut(BaseModel):
+    user_id: int
+    user_name: str
+    share_amount: float
+
+
+class ExpenseOut(BaseModel):
+    id: int
+    house_id: int
+    title: str
+    amount: float
+    currency: str
+    category: str
+    paid_by_user_id: int
+    paid_by_name: str
+    expense_date: date
+    notes: str | None = None
+    receipt_id: int | None = None
+    created_at: datetime
+    shares: list[ExpenseShareOut] = Field(default_factory=list)
+
+
+class ExpenseSettlementIn(BaseModel):
+    from_user_id: int
+    to_user_id: int
+    amount: float = Field(gt=0)
+    currency: str = Field(default="CAD", max_length=12)
+    notes: str | None = None
+
+
+class ExpenseSettlementOut(BaseModel):
+    id: int
+    from_user_id: int
+    from_user_name: str
+    to_user_id: int
+    to_user_name: str
+    amount: float
+    currency: str
+    notes: str | None = None
+    created_at: datetime
+
+
+class ExpenseBalanceOut(BaseModel):
+    user_id: int
+    user_name: str
+    balance: float
+
+
+class ExpenseSuggestedPaymentOut(BaseModel):
+    from_user_id: int
+    from_user_name: str
+    to_user_id: int
+    to_user_name: str
+    amount: float
+
+
+class ExpenseSummaryOut(BaseModel):
+    expenses: list[ExpenseOut] = Field(default_factory=list)
+    settlements: list[ExpenseSettlementOut] = Field(default_factory=list)
+    balances: list[ExpenseBalanceOut] = Field(default_factory=list)
+    suggested_payments: list[ExpenseSuggestedPaymentOut] = Field(default_factory=list)
 
 
 class PersonalInsightsOut(BaseModel):

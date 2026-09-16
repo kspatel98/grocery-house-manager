@@ -84,7 +84,9 @@ export default function DialogFocusManager() {
     };
 
     const observer = new MutationObserver(sync);
-    observer.observe(document.getElementById('root') || body, { subtree: true, childList: true });
+    // Observe the document body because important dialogs are rendered through React portals.
+    // Watching only #root misses a portaled modal and leaves the page unlocked.
+    observer.observe(body, { subtree: true, childList: true });
 
     const onKeyDown = (event: KeyboardEvent) => {
       const dialog = topDialog();
