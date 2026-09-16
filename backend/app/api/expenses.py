@@ -259,6 +259,76 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
     return _summary(db, house_id)
 
 
+@router.put("/{expense_id}", response_model=ExpenseSummaryOut)
+def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    row = (
+        db.query(HouseExpense)
+        .options(joinedload(HouseExpense.shares))
+        .filter(HouseExpense.id == expense_id, HouseExpense.house_id == house_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Expense not found.")
+
+    members = _members(db, house_id)
+    member_ids = {m.user_id for m in members}
+    if payload.paid_by_user_id not in member_ids:
+        raise HTTPException(status_code=400, detail="Payer must be a member of this house.")
+
+    if payload.receipt_id is not None:
+        receipt = db.query(Receipt).filter(Receipt.id == payload.receipt_id, Receipt.house_id == house_id).first()
+        if not receipt:
+            raise HTTPException(status_code=400, detail="Receipt does not belong to this house.")
+        existing_receipt_expense = db.query(HouseExpense).filter(
+            HouseExpense.house_id == house_id,
+            HouseExpense.receipt_id == payload.receipt_id,
+            HouseExpense.id != expense_id,
+        ).first()
+        if existing_receipt_expense:
+            raise HTTPException(status_code=409, detail="This receipt is already linked to another shared expense.")
+
+    shares = payload.shares
+    if not shares:
+        ordered = sorted(member_ids)
+        if not ordered:
+            raise HTTPException(status_code=400, detail="This house has no members.")
+        total_cents = _cents(payload.amount)
+        base, remainder = divmod(total_cents, len(ordered))
+        from app.schemas import ExpenseShareIn
+        shares = [ExpenseShareIn(user_id=uid, share_amount=_dollars(base + (1 if i < remainder else 0))) for i, uid in enumerate(ordered)]
+
+    if any(s.user_id not in member_ids for s in shares):
+        raise HTTPException(status_code=400, detail="Every split participant must be a house member.")
+    if len({s.user_id for s in shares}) != len(shares):
+        raise HTTPException(status_code=400, detail="A member can appear only once in a split.")
+    if sum(_cents(s.share_amount) for s in shares) != _cents(payload.amount):
+        raise HTTPException(status_code=400, detail="Split amounts must add up exactly to the total expense.")
+
+    row.title = payload.title.strip()
+    row.amount = float(payload.amount)
+    row.currency = payload.currency.upper()
+    row.category = payload.category.strip() or "Groceries"
+    row.paid_by_user_id = payload.paid_by_user_id
+    row.expense_date = payload.expense_date or date.today()
+    row.notes = payload.notes
+    row.receipt_id = payload.receipt_id
+
+    for old_share in list(row.shares):
+        db.delete(old_share)
+    db.flush()
+    for share in shares:
+        db.add(ExpenseShare(expense_id=row.id, user_id=share.user_id, share_amount=float(share.share_amount)))
+
+    log_activity(
+        db, house_id=house_id, user=user, action="expense_updated",
+        message=f"{display_name(user)} updated shared expense: {row.title} (${row.amount:.2f}).",
+        entity_type="expense", entity_id=row.id,
+    )
+    db.commit()
+    return _summary(db, house_id)
+
+
 @router.get("/categories", response_model=list[ExpenseCategoryOut])
 def list_expense_categories(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_house_member(house_id, user, db)

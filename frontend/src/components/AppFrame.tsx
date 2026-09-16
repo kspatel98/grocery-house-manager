@@ -297,7 +297,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   aria-expanded={desktopMoreOpen}
                   onClick={() => setDesktopMoreOpen((open) => !open)}
                 >
-                  {t('more')} <span aria-hidden="true">⌄</span>
+                  <span>{t('more')}</span><span className="more-static-icon" aria-hidden="true">•••</span>
                 </button>
                 {desktopMoreOpen && (
                   <div className="desktop-more-popover" role="menu">

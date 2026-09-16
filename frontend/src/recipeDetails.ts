@@ -377,5 +377,146 @@ export const detailedRecipeSteps:Record<string,RecipeStepSet> = {
     'Add the required water and simmer to form the curry gravy. Adjust salt before adding the eggs.',
     'Make shallow slits in the boiled eggs if desired, add them to the gravy and simmer for several minutes so they absorb flavour.',
     'Adjust the gravy consistency, garnish and serve hot with rice or roti.'
-  ])
+  ]),
+  chole: allLanguages([
+    'Soak dried chickpeas overnight if using dried beans, then cook until completely tender. If using cooked chickpeas, rinse and drain them.',
+    'Heat oil in a heavy pan. Add cumin and the listed whole spices, then cook onion until deep golden.',
+    'Add ginger, tomato and powdered spices. Cook until the tomato breaks down and the masala becomes glossy.',
+    'Add chickpeas and enough cooking liquid or water for the desired consistency. Mash a small spoonful of chickpeas to naturally thicken the gravy.',
+    'Simmer for 15–20 minutes so the chickpeas absorb the masala. Adjust salt and acidity.',
+    'Finish with coriander and lemon if desired. Serve hot with roti, rice or bhature.'
+  ]),
+  'rajma-masala': allLanguages([
+    'Soak kidney beans overnight, drain and pressure-cook with fresh water until very soft; undercooked kidney beans should not be served.',
+    'Heat oil and cook onion until golden. Add ginger, tomato and the listed spices.',
+    'Cook the masala until the tomato is fully softened and the oil begins to separate.',
+    'Add cooked rajma with some bean cooking liquid. Mash a few beans against the pan to make the gravy creamy.',
+    'Simmer gently for 15–25 minutes, stirring occasionally and adding water if needed.',
+    'Taste, adjust seasoning and serve with steamed rice or roti.'
+  ]),
+  'dal-makhani': allLanguages([
+    'Soak whole urad dal and kidney beans overnight, then rinse well.',
+    'Pressure-cook with plenty of water until the lentils are exceptionally soft and creamy.',
+    'Cook tomato with the listed spices in butter or ghee until the raw tomato flavour disappears.',
+    'Add the cooked lentils and simmer on low heat for at least 25–30 minutes, stirring often. Add hot water as needed.',
+    'Stir in cream near the end and simmer briefly without letting the sauce catch on the bottom.',
+    'Finish with a small amount of butter or cream and serve hot.'
+  ]),
+  'paneer-butter-masala': allLanguages([
+    'Cut paneer into even cubes and keep it covered so it does not dry out.',
+    'Cook tomato, butter and the listed spices until the tomato is completely soft.',
+    'Blend the cooked tomato mixture until smooth if you want a restaurant-style gravy, then return it to the pan.',
+    'Add a little water and simmer the gravy until glossy and well seasoned.',
+    'Add paneer and simmer only a few minutes so it stays soft.',
+    'Stir in cream, adjust salt and serve with naan, roti or rice.'
+  ]),
+  'paneer-bhurji': allLanguages([
+    'Crumble paneer into medium pieces with your fingers or a fork. Do not mash it into a paste.',
+    'Heat oil in a wide pan and cook onion until soft and lightly golden.',
+    'Add tomato and the listed spices. Cook until the tomato breaks down and the masala is no longer watery.',
+    'Add the crumbled paneer and fold gently so the paneer is evenly coated.',
+    'Cook only 2–4 minutes on medium-low heat; overcooking makes paneer dry.',
+    'Adjust salt, garnish with coriander and serve hot with roti, pav or toast.'
+  ]),
+  'aloo-paratha': allLanguages([
+    'Boil potatoes until tender, cool, peel and mash them completely so no hard lumps remain.',
+    'Mix the potato with salt and your listed seasonings. Keep the filling fairly dry.',
+    'Knead whole wheat flour with water into a soft dough, cover and rest for 15–20 minutes.',
+    'Flatten a dough ball, place potato filling in the centre, bring the edges together and seal.',
+    'Dust lightly and roll gently into a medium-thick paratha without tearing.',
+    'Cook on a medium-hot tawa, applying a little ghee or oil, until both sides have golden spots. Serve hot.'
+  ]),
+  'idli-sambar': allLanguages([
+    'Soak idli rice and urad dal separately for several hours, then grind them to smooth batters and combine.',
+    'Add salt and ferment the batter in a warm place until visibly risen and airy.',
+    'Grease idli moulds lightly, fill them with batter and steam until the idlis are set and springy.',
+    'For sambar, pressure-cook tuvar dal until soft and prepare the vegetables separately.',
+    'Combine dal, vegetables, tamarind or your souring ingredient and sambar spices; simmer until flavours blend.',
+    'Finish sambar with a mustard-curry-leaf tempering and serve hot with fresh idlis.'
+  ]),
+  'masala-dosa': allLanguages([
+    'Soak rice and urad dal separately, grind smoothly and ferment the combined batter until lightly sour and airy.',
+    'Boil potatoes and prepare a dry potato masala with mustard, curry leaves and the listed seasonings.',
+    'Heat a flat tawa well, then lower slightly. Spread one ladle of batter into a thin circle.',
+    'Drizzle a little oil around the dosa and cook until the underside is crisp and the edges release.',
+    'Place potato masala in the centre, fold the dosa and remove immediately.',
+    'Serve hot with sambar and chutney.'
+  ]),
+  'vegetable-upma': allLanguages([
+    'Dry-roast semolina on medium-low heat until fragrant but not browned, then transfer to a bowl.',
+    'Heat oil, add mustard and the listed tempering ingredients, then sauté the vegetables briefly.',
+    'Add measured water and salt and bring to a boil.',
+    'Lower the heat and slowly rain in the roasted semolina while stirring continuously to prevent lumps.',
+    'Cover and cook on low until the semolina absorbs the water and becomes fluffy.',
+    'Rest for a few minutes, fluff with a spoon and serve warm.'
+  ]),
+  'lemon-rice': allLanguages([
+    'Cook rice until the grains are tender but separate, then spread it out to cool slightly.',
+    'Heat oil and add mustard seeds, peanuts and the listed tempering ingredients.',
+    'Add turmeric and switch off the heat before adding fresh lemon juice.',
+    'Pour the tempering over the rice and fold gently so the grains do not break.',
+    'Taste and adjust salt and lemon. Rest for 5 minutes before serving so the flavours settle.'
+  ]),
+  'curd-rice': allLanguages([
+    'Cook rice with a little extra water until very soft, then mash it lightly while warm.',
+    'Let the rice cool until just warm; very hot rice can split the yogurt.',
+    'Mix in yogurt and enough milk to keep the texture creamy.',
+    'Prepare a gentle mustard and curry-leaf tempering and pour it over the rice.',
+    'Add salt, mix and chill slightly or serve at room temperature.'
+  ]),
+  poha: allLanguages([
+    'Place poha in a colander, rinse quickly with water and let it drain until soft but not mushy.',
+    'Heat oil, fry peanuts until crisp, then add mustard and the listed tempering ingredients.',
+    'Add onion and cook until softened but not deeply browned.',
+    'Add turmeric, drained poha and salt. Toss gently over low heat until hot throughout.',
+    'Finish with lemon and coriander and serve immediately.'
+  ]),
+  'pav-bhaji': allLanguages([
+    'Boil or pressure-cook the mixed vegetables until very soft, then mash them roughly.',
+    'Heat butter on a wide pan and cook tomato with pav bhaji masala until thick and glossy.',
+    'Add the mashed vegetables and enough hot water to reach a spoonable consistency.',
+    'Mash and cook together for 10–15 minutes, adding butter and seasoning to taste.',
+    'Split the pav and toast the cut sides on a little butter.',
+    'Serve the bhaji hot with toasted pav and your preferred garnish.'
+  ]),
+  'misal-pav': allLanguages([
+    'Cook sprouted moth beans until tender but still holding their shape.',
+    'Prepare a spicy tomato-onion masala and add water to form the misal gravy.',
+    'Add the cooked sprouts and simmer until the flavours blend.',
+    'Spoon the misal into bowls and top with farsan only just before serving so it stays crisp.',
+    'Add optional fresh onion, coriander and lemon according to preference.',
+    'Serve immediately with pav.'
+  ]),
+  'dal-baati': allLanguages([
+    'Mix whole wheat flour, salt and part of the ghee, then add enough water to make a firm dough.',
+    'Shape the dough into smooth baati balls and arrange on a baking tray.',
+    'Bake in a hot oven until the baati are cooked through and deeply golden, turning if needed for even colour.',
+    'Meanwhile cook the mixed dal until soft and season it with your preferred tempering.',
+    'Crack the hot baati slightly and spoon ghee over them.',
+    'Serve baati with hot dal and additional accompaniments as desired.'
+  ]),
+  'gatte-ki-sabzi': allLanguages([
+    'Mix besan with the listed spices, oil and enough yogurt or water to make a firm dough.',
+    'Shape into long rolls and boil them in water until cooked through.',
+    'Remove, cool slightly and slice the rolls into bite-size gatte.',
+    'Whisk yogurt with spices for the gravy and cook gently, stirring so it stays smooth.',
+    'Add the gatte and simmer until they absorb some of the gravy.',
+    'Finish with tempering and serve hot.'
+  ]),
+  'dal-tadka': allLanguages([
+    'Rinse dal and pressure-cook with turmeric and enough water until completely soft.',
+    'Whisk the cooked dal to your preferred consistency and season with salt.',
+    'Cook tomato and onion with part of the spices until soft, then combine with the dal.',
+    'Simmer for several minutes and adjust water if needed.',
+    'Heat ghee separately until hot, add the final tempering spices and let them sizzle briefly.',
+    'Pour the hot tadka over the dal and serve immediately.'
+  ]),
+  'baingan-bharta': allLanguages([
+    'Roast the whole eggplant over a flame or under a hot broiler until the skin is charred and the inside is completely soft.',
+    'Cool enough to handle, peel away the burnt skin and mash the flesh.',
+    'Heat oil and cook onion until softened, then add tomato and the listed spices.',
+    'Cook until the tomato breaks down and the masala is no longer raw.',
+    'Add mashed eggplant and cook for several minutes so the smoky flavour blends with the masala.',
+    'Adjust seasoning, garnish and serve hot with roti.'
+  ]),
 };
