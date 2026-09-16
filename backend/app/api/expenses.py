@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
 from app.db.session import get_db
-from app.models import ExpenseSettlement, ExpenseShare, HouseExpense, HouseMember, Receipt, User
+from app.models import ExpenseCategory, ExpenseSettlement, ExpenseShare, HouseExpense, HouseMember, Receipt, User
 from app.schemas import (
     ExpenseBalanceOut,
+    ExpenseCategoryIn,
+    ExpenseCategoryOut,
     ExpenseCreateIn,
     ExpenseOut,
     ExpenseSettlementIn,
@@ -142,6 +145,11 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
         receipt = db.query(Receipt).filter(Receipt.id == payload.receipt_id, Receipt.house_id == house_id).first()
         if not receipt:
             raise HTTPException(status_code=400, detail="Receipt does not belong to this house.")
+        existing_receipt_expense = db.query(HouseExpense).filter(
+            HouseExpense.house_id == house_id, HouseExpense.receipt_id == payload.receipt_id
+        ).first()
+        if existing_receipt_expense:
+            raise HTTPException(status_code=409, detail="This receipt is already linked to a shared expense.")
     shares = payload.shares
     if not shares:
         each = round(float(payload.amount) / max(len(member_ids), 1), 2)
@@ -172,18 +180,58 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
     return _summary(db, house_id)
 
 
-@router.post("/settlements", response_model=ExpenseSummaryOut)
-def add_settlement(house_id: int, payload: ExpenseSettlementIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+@router.get("/categories", response_model=list[ExpenseCategoryOut])
+def list_expense_categories(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    return (
+        db.query(ExpenseCategory)
+        .filter(ExpenseCategory.house_id == house_id)
+        .order_by(ExpenseCategory.name.asc())
+        .all()
+    )
+
+
+@router.post("/categories", response_model=ExpenseCategoryOut)
+def create_expense_category(house_id: int, payload: ExpenseCategoryIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    name = " ".join(payload.name.strip().split())[:80]
+    if not name:
+        raise HTTPException(status_code=400, detail="Enter a category name.")
+    existing = db.query(ExpenseCategory).filter(
+        ExpenseCategory.house_id == house_id,
+        func.lower(ExpenseCategory.name) == name.lower(),
+    ).first()
+    if existing:
+        return existing
+    row = ExpenseCategory(
+        house_id=house_id, name=name, icon=(payload.icon.strip() or "✨")[:16], created_by_user_id=user.id
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _record_reimbursement(house_id: int, payload: ExpenseSettlementIn, db: Session, user: User) -> ExpenseSummaryOut:
     require_house_member(house_id, user, db)
     member_ids = {m.user_id for m in _members(db, house_id)}
     if payload.from_user_id == payload.to_user_id or payload.from_user_id not in member_ids or payload.to_user_id not in member_ids:
         raise HTTPException(status_code=400, detail="Choose two different house members.")
     row = ExpenseSettlement(house_id=house_id, from_user_id=payload.from_user_id, to_user_id=payload.to_user_id, amount=float(payload.amount), currency=payload.currency.upper(), notes=payload.notes, created_by_user_id=user.id)
     db.add(row)
-    log_activity(db, house_id=house_id, user=user, action="expense_settled", message=f"{display_name(user)} recorded a shared expense payment of ${row.amount:.2f}.", entity_type="expense_settlement")
+    log_activity(db, house_id=house_id, user=user, action="expense_reimbursed", message=f"{display_name(user)} recorded a reimbursement of ${row.amount:.2f}.", entity_type="expense_settlement")
     db.commit()
     return _summary(db, house_id)
 
+
+@router.post("/reimbursements", response_model=ExpenseSummaryOut)
+def add_reimbursement(house_id: int, payload: ExpenseSettlementIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return _record_reimbursement(house_id, payload, db, user)
+
+
+@router.post("/settlements", response_model=ExpenseSummaryOut)
+def add_settlement(house_id: int, payload: ExpenseSettlementIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return _record_reimbursement(house_id, payload, db, user)
 
 @router.delete("/{expense_id}", response_model=ExpenseSummaryOut)
 def delete_expense(house_id: int, expense_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

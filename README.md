@@ -1,5 +1,9 @@
 # Grocery House Manager
 
+## V80 — Visual Expenses / Smart Custom Splits / Reimbursements / Spending Insights
+
+Expenses now use a clearer reimbursement-first workflow, automatically balanced custom splits, graphical and custom categories, category/month insights, and a direct reviewed-receipt → shared-expense handoff. The old generic Record payment action is removed from the UI. See `V80_EXPENSES_REIMBURSEMENTS_INSIGHTS.md`.
+
 ## V78 — Focused Forms / Full-Screen Dialogs / Calmer UX
 
 Every modal, drawer, and focused form now locks the page underneath and keeps the user inside the opened task until it is closed. Add/Edit Product is reorganized around essentials first, with optional appearance controls collapsed. The house dashboard is grouped into Everyday, After shopping, and Insights, Meals is promoted into the core workflow, and Prices & Flyers is a primary desktop destination. See `V78_FOCUSED_OVERLAYS_AND_UX.md`.

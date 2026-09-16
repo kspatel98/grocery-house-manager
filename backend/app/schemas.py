@@ -535,6 +535,21 @@ class ReceiptReviewSaveIn(BaseModel):
     items: list[ReceiptReviewLineIn] = Field(default_factory=list)
 
 
+class ExpenseCategoryIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    icon: str = Field(default="✨", min_length=1, max_length=16)
+
+
+class ExpenseCategoryOut(BaseModel):
+    id: int
+    name: str
+    icon: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+
 class ExpenseShareIn(BaseModel):
     user_id: int
     share_amount: float = Field(ge=0)

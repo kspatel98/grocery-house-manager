@@ -754,6 +754,7 @@ export type WeeklyAssistant = {
   message: string;
 };
 
+export type ExpenseCategory = { id:number; name:string; icon:string; created_at:string };
 export type ExpenseShare = { user_id: number; user_name: string; share_amount: number };
 export type HouseExpense = { id:number; house_id:number; title:string; amount:number; currency:string; category:string; paid_by_user_id:number; paid_by_name:string; expense_date:string; notes?:string|null; receipt_id?:number|null; created_at:string; shares:ExpenseShare[] };
 export type ExpenseSettlement = { id:number; from_user_id:number; from_user_name:string; to_user_id:number; to_user_name:string; amount:number; currency:string; notes?:string|null; created_at:string };

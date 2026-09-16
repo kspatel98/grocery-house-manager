@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
+import OverlayPortal from './OverlayPortal';
 import type { Product, Receipt, ReceiptLineItem, ReceiptScanUsage, ReceiptUploadResult, Section, ShoppingList } from '../types';
 
 type ReviewLine = {
@@ -85,6 +86,7 @@ function confidenceLabel(value?: number | null) {
 }
 
 export default function ReceiptStudio({ houseId, products, sections, receipts, shoppingLists = [], initialShoppingListId = null, onChange }: { houseId: number; products: Product[]; sections: Section[]; receipts: Receipt[]; shoppingLists?: ShoppingList[]; initialShoppingListId?: number | null; onChange: () => void | Promise<void> }) {
+  const navigate = useNavigate();
   const [storeName, setStoreName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [notes, setNotes] = useState('');
@@ -108,6 +110,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
   const [linkedShoppingListId, setLinkedShoppingListId] = useState<number | ''>(initialShoppingListId || '');
   const [missingDecisions, setMissingDecisions] = useState<Record<number, 'bought' | 'not_bought'>>({});
   const [extraDecisions, setExtraDecisions] = useState<Record<number, 'add' | 'receipt_only'>>({});
+  const [expensePromptReceipt, setExpensePromptReceipt] = useState<Receipt | null>(null);
 
   async function loadScanUsage() {
     try {
@@ -298,6 +301,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
       setReviewLines((data.line_items || []).map(lineFromReceiptItem));
       setError('');
       await onChange();
+      setExpensePromptReceipt(data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -519,6 +523,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
         </div>
         <Link className="secondary center-link" to={`/houses/${houseId}/receipts`}>Open receipt history</Link>
       </div>
+      {expensePromptReceipt && <OverlayPortal><div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setExpensePromptReceipt(null); }}><section className="modal focus-dialog receipt-expense-prompt" role="dialog" aria-modal="true" aria-label="Add receipt to shared expenses?"><header className="focus-dialog-titlebar"><div><p className="eyebrow">ONE MORE USEFUL STEP</p><h2>💸 Add this receipt to shared expenses?</h2><p>Only do this if the household should split or track this purchase together.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setExpensePromptReceipt(null)}>×</button></header><div className="focus-dialog-scroll"><div className="receipt-expense-summary"><span>🧾</span><div><strong>{expensePromptReceipt.store_name || 'Grocery receipt'}</strong><small>{expensePromptReceipt.receipt_date || expensePromptReceipt.created_at.slice(0,10)}</small></div><b>{expensePromptReceipt.total_amount != null ? money(expensePromptReceipt.total_amount) : 'Total not detected'}</b></div><div className="receipt-expense-prompt-points"><span>✓ Total is prefilled when available</span><span>✓ Paid by defaults to the person who uploaded the receipt</span><span>✓ All house members start selected and can be edited</span></div></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setExpensePromptReceipt(null)}>Not now</button><button onClick={() => navigate(`/houses/${houseId}/expenses?receiptId=${expensePromptReceipt.id}&fromReceipt=1`)}>Add to expenses</button></footer></section></div></OverlayPortal>}
     </section>
   );
 }

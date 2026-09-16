@@ -302,6 +302,19 @@ class ReceiptLineItem(Base):
     matched_product: Mapped[Product | None] = relationship()
 
 
+class ExpenseCategory(Base):
+    __tablename__ = "expense_categories"
+    __table_args__ = (UniqueConstraint("house_id", "name", name="uq_expense_category_house_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    icon: Mapped[str] = mapped_column(String(16), default="✨")
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+
 class HouseExpense(Base):
     __tablename__ = "house_expenses"
 
