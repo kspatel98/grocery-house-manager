@@ -138,7 +138,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         })
         .catch(() => {
           // Keep navigation usable if bootstrap is temporarily unavailable.
-          // Protected API calls still handle expired sessions globally.
         });
     };
 
@@ -238,7 +237,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     if (localStorage.getItem(seenKey) === '1') return;
     setCelebrationKey(seenKey);
     setCelebrationOpen(true);
-  }, [accountReady, adminGrantedPremium, celebrationOpen, householdProPremium, profile?.id, showPremiumCrown]);
+  }, [accountReady, adminGrantedPremium, celebrationOpen, householdProPremium, profile?.id, showPremiumCrown, planName, profile?.subscription_current_period_end]);
 
   const completePremiumCelebration = () => {
     if (celebrationKey) localStorage.setItem(celebrationKey, '1');
@@ -252,8 +251,17 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [premiumArrival]);
 
+  const pageTitle = [
+    ...navItems,
+    ...extraNavItems,
+    { to: '/profile', label: t('profile'), icon: '👤' },
+  ].find((item) => {
+    const itemPath = item.to.split('?')[0];
+    return location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath));
+  })?.label || 'Grocery House Manager';
+
   return (
-    <div className="app-frame">
+    <div className="app-frame desktop-sidebar-layout">
       <header ref={siteHeaderRef} className="site-header">
         <div className="site-header-inner shell wide">
           <div className="site-brand-premium-wrap">
@@ -338,9 +346,138 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         aria-hidden="true"
       />
 
-      <div className="app-main-content">{children}</div>
+      <div className="desktop-shell-v86">
+        <aside className="desktop-sidebar-v86" aria-label="Desktop navigation">
+          <div className="desktop-sidebar-brand-v86">
+            <Link to="/houses" className="desktop-sidebar-logo-v86">
+              <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
+              <span>
+                <strong>Grocery House Manager</strong>
+                <small>Plan together. Live better.</small>
+              </span>
+            </Link>
+            {showPremiumCrown && (
+              <div className="desktop-sidebar-premium-v86" aria-label={`Premium: ${premiumSubtext}`}>
+                <span aria-hidden="true">👑</span>
+                <div>
+                  <strong>Premium</strong>
+                  <small>{premiumSubtext}</small>
+                </div>
+              </div>
+            )}
+          </div>
 
-      <SetupCoach />
+          <div className="desktop-sidebar-navblock-v86">
+            <small className="desktop-sidebar-label-v86">Main</small>
+            <nav className="desktop-sidebar-nav-v86">
+              {navItems.map((item) => {
+                const itemPath = item.to.split('?')[0];
+                const active = location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath));
+                return (
+                  <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
+                    <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="desktop-sidebar-navblock-v86 secondary">
+            <small className="desktop-sidebar-label-v86">Workspace</small>
+            <nav className="desktop-sidebar-nav-v86 secondary">
+              {extraNavItems.map((item) => {
+                const itemPath = item.to.split('?')[0];
+                const active = location.pathname === itemPath || location.pathname.startsWith(itemPath);
+                return (
+                  <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
+                    <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="desktop-sidebar-footer-v86">
+            <div className="desktop-sidebar-language-v86">
+              <LanguagePicker compact />
+            </div>
+            <Link to="/profile" className="desktop-sidebar-account-v86">
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" />
+              ) : (
+                <span className="desktop-sidebar-avatar-v86" aria-hidden="true">{initialsFor(profile)}</span>
+              )}
+              <span>
+                <strong>{profileName}</strong>
+                <small>{profile?.plan_name || 'Free plan'}</small>
+              </span>
+              <b aria-hidden="true">›</b>
+            </Link>
+          </div>
+        </aside>
+
+        <div className="desktop-main-v86">
+          <div className="desktop-topbar-v86">
+            <div>
+              <small>GROCERY HOUSE MANAGER</small>
+              <h1>{pageTitle}</h1>
+            </div>
+            <div className="desktop-topbar-actions-v86">
+              <Link to="/support" className="desktop-topbar-pill-v86">{t('support')}</Link>
+              <Link to="/reports" className="desktop-topbar-pill-v86 alt">{t('reports')}</Link>
+            </div>
+          </div>
+
+          <div className="app-main-content">{children}</div>
+
+          <SetupCoach />
+          <OfferCrownWidget />
+
+          <section className="parent-company-royal" aria-label="SupremDas Group parent company">
+            <div className="shell wide parent-company-inner">
+              <span className="royal-crown" aria-hidden="true">♛</span>
+              <div>
+                <p>Built by</p>
+                <h2>SupremDas Group</h2>
+                <strong>Made for families, couples, and roommates</strong>
+              </div>
+            </div>
+          </section>
+
+          <footer className="site-footer">
+            <div className="shell wide site-footer-inner">
+              <div>
+                <strong>Grocery House Manager</strong>
+                <p>
+                  Smart grocery management for organized homes.
+                </p>
+              </div>
+              <div className="footer-brand-stack" aria-label="Product details">
+                <span>Product: <strong>Grocery House Manager</strong></span>
+                <span>Website: <strong>grocery-house-manager.com</strong></span>
+                <span>Support: <strong>Fast help for users</strong></span>
+              </div>
+              <div className="footer-links">
+                <Link to="/about">About</Link>
+                <Link to="/pricing">Plans</Link>
+                <Link to="/privacy">Privacy</Link>
+                <Link to="/terms">Terms</Link>
+                <Link to="/refund-policy">Refunds</Link>
+                <Link to="/support">Support</Link>
+              </div>
+              <div className="footer-contact-pills">
+                <a className="contact-pill email-pill" href="mailto:support@grocery-house-manager.com"><span className="social-icon"><EmailIcon /></span><span>support@grocery-house-manager.com</span></a>
+                <a className="contact-pill instagram-pill" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
+                  <span className="social-icon"><InstagramIcon /></span>
+                  <span>@groceryhousemanager</span>
+                </a>
+              </div>
+            </div>
+          </footer>
+        </div>
+      </div>
 
       <nav className="mobile-bottom-nav" aria-label="Mobile app navigation">
         <Link to="/houses" className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>{t('home')}</small></Link>
@@ -352,18 +489,18 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
       {mobileMoreOpen && (
         <OverlayPortal>
-        <div className="mobile-more-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
-          <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More Grocery House Manager options" onClick={(event) => event.stopPropagation()}>
-            <div className="mobile-more-handle" aria-hidden="true" />
-            <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" data-dialog-close="true" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
-            <div className="mobile-more-grid">
-              {extraNavItems.map((item) => (
-                <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
-              ))}
-              <Link to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><strong>{t('profile')}</strong></Link>
-            </div>
-          </section>
-        </div>
+          <div className="mobile-more-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
+            <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More Grocery House Manager options" onClick={(event) => event.stopPropagation()}>
+              <div className="mobile-more-handle" aria-hidden="true" />
+              <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" data-dialog-close="true" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
+              <div className="mobile-more-grid">
+                {extraNavItems.map((item) => (
+                  <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
+                ))}
+                <Link to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><strong>{t('profile')}</strong></Link>
+              </div>
+            </section>
+          </div>
         </OverlayPortal>
       )}
 
@@ -376,49 +513,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         crownTargetRef={premiumCrownRef}
         onComplete={completePremiumCelebration}
       />
-      <OfferCrownWidget />
-
-      <section className="parent-company-royal" aria-label="SupremDas Group parent company">
-        <div className="shell wide parent-company-inner">
-          <span className="royal-crown" aria-hidden="true">♛</span>
-          <div>
-            <p>Built by</p>
-            <h2>SupremDas Group</h2>
-            <strong>Made for families, couples, and roommates</strong>
-          </div>
-        </div>
-      </section>
-
-      <footer className="site-footer">
-        <div className="shell wide site-footer-inner">
-          <div>
-            <strong>Grocery House Manager</strong>
-            <p>
-              Smart grocery management for organized homes.
-            </p>
-          </div>
-          <div className="footer-brand-stack" aria-label="Product details">
-            <span>Product: <strong>Grocery House Manager</strong></span>
-            <span>Website: <strong>grocery-house-manager.com</strong></span>
-            <span>Support: <strong>Fast help for users</strong></span>
-          </div>
-          <div className="footer-links">
-            <Link to="/about">About</Link>
-            <Link to="/pricing">Plans</Link>
-            <Link to="/privacy">Privacy</Link>
-            <Link to="/terms">Terms</Link>
-            <Link to="/refund-policy">Refunds</Link>
-            <Link to="/support">Support</Link>
-          </div>
-          <div className="footer-contact-pills">
-            <a className="contact-pill email-pill" href="mailto:support@grocery-house-manager.com"><span className="social-icon"><EmailIcon /></span><span>support@grocery-house-manager.com</span></a>
-            <a className="contact-pill instagram-pill" href="https://instagram.com/groceryhousemanager" target="_blank" rel="noreferrer">
-              <span className="social-icon"><InstagramIcon /></span>
-              <span>@groceryhousemanager</span>
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
