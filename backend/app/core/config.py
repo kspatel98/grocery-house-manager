@@ -76,8 +76,10 @@ class Settings(BaseSettings):
     flyer_max_merchants: int = 12
     flyer_max_results: int = 1200
 
-    # Optional external recipe discovery (TheMealDB). Use a supporter/production key for a public deployment.
-    themealdb_api_key: str | None = None
+    # External recipe discovery (TheMealDB). The public search endpoint supplied by
+    # TheMealDB uses key "1". Keep it configurable so a supporter/production key can
+    # be dropped in later without changing code.
+    themealdb_api_key: str = "1"
     themealdb_timeout_seconds: int = 15
 
     # Smart receipt scanning. Tabscanner is the recommended default for grocery receipts.

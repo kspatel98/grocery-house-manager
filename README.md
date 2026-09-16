@@ -1,5 +1,14 @@
 # Grocery House Manager
 
+## V82 — Personal Expenses, Monthly Books & Reimbursement History
+
+Shared Expenses now includes automatic monthly books, a current-month house/personal snapshot, personal spending based on the user's actual expense share, selectable 1/2/4/6/12/24-month or all-time insights, category/month views, and month-grouped reimbursement history. Months are created automatically from expense dates; users never need to create a monthly ledger manually. See `V82_PERSONAL_EXPENSES_MONTHLY_BOOKS.md`.
+
+
+## V81 — Direct TheMealDB Recipe Search
+
+The Meals page now uses the supplied TheMealDB search endpoint directly (`https://www.themealdb.com/api/json/v1/1/search.php?s=<search>`) without requiring a separate API-key setup. Search results include meal images, category/area, up to 20 ingredient/measure pairs, normalized step-by-step instructions, source links and cooking videos when provided. Key `1` remains configurable through `THEMEALDB_API_KEY` if you later want to replace it. See `V81_THEMEALDB_DIRECT_SEARCH.md`.
+
 ## V80 — Visual Expenses / Smart Custom Splits / Reimbursements / Spending Insights
 
 Expenses now use a clearer reimbursement-first workflow, automatically balanced custom splits, graphical and custom categories, category/month insights, and a direct reviewed-receipt → shared-expense handoff. The old generic Record payment action is removed from the UI. See `V80_EXPENSES_REIMBURSEMENTS_INSIGHTS.md`.
