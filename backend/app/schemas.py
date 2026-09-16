@@ -606,6 +606,9 @@ class ExpenseSettlementOut(BaseModel):
     amount: float
     currency: str
     notes: str | None = None
+    status: str = "confirmed"
+    confirmed_at: datetime | None = None
+    cancelled_at: datetime | None = None
     created_at: datetime
 
 
@@ -623,11 +626,25 @@ class ExpenseSuggestedPaymentOut(BaseModel):
     amount: float
 
 
+class ExpenseBalanceBreakdownOut(BaseModel):
+    user_id: int
+    user_name: str
+    paid: float = 0
+    share: float = 0
+    reimbursements_sent: float = 0
+    reimbursements_received: float = 0
+    pending_sent: float = 0
+    pending_received: float = 0
+    balance: float = 0
+
+
 class ExpenseSummaryOut(BaseModel):
     expenses: list[ExpenseOut] = Field(default_factory=list)
     settlements: list[ExpenseSettlementOut] = Field(default_factory=list)
     balances: list[ExpenseBalanceOut] = Field(default_factory=list)
+    balance_breakdown: list[ExpenseBalanceBreakdownOut] = Field(default_factory=list)
     suggested_payments: list[ExpenseSuggestedPaymentOut] = Field(default_factory=list)
+    balance_is_valid: bool = True
 
 
 class PersonalInsightsOut(BaseModel):

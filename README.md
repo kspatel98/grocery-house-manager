@@ -801,3 +801,6 @@ Open a saved shopping list and choose **Finish with receipt**. The scan is linke
 ### Shared expenses
 
 Each house now has an **Expenses** page for payer tracking, equal/custom splits, linked receipts, balances, suggested settlements and recorded payments.
+## v83 reimbursement accounting
+
+Shared-expense reimbursements now use exact-cent zero-sum ledger calculations, a transparent balance audit, and a sent/confirmed reimbursement workflow. See `V83_REIMBURSEMENT_LEDGER_FIX.md`.

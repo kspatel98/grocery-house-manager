@@ -51,6 +51,25 @@ const copy: Record<Lang, any> = {
   },
 };
 
+const ledgerCopy: Record<Lang, any> = {
+  en: {
+    audit: 'Balance calculation', auditSub: 'See exactly why each person owes or receives this amount.', paidTotal: 'Paid for house', shareTotal: 'Their share', sentTotal: 'Reimbursements sent', receivedTotal: 'Reimbursements received', net: 'Net balance', formula: 'Paid − share + sent − received',
+    pendingTransfers: 'Waiting for confirmation', pendingSub: 'These payments are marked as sent but do not change balances until the receiver confirms them.', markSent: 'Mark as sent', waitingPayer: 'Waiting for payer', waitingReceiver: 'Waiting for receiver', confirmReceived: 'Confirm received', cancelTransfer: 'Cancel', correctRecord: 'Undo / correct', confirmed: 'Confirmed', pending: 'Pending', cancelled: 'Cancelled', balanceOk: 'Balances reconcile exactly', balanceBad: 'Balance data does not reconcile. Please review expense splits.', pendingSent: 'pending sent', pendingReceived: 'pending received', affectsBalance: 'Confirmed reimbursements are included in the net balance.',
+  },
+  gu: {
+    audit: 'બેલેન્સ ગણતરી', auditSub: 'દરેક વ્યક્તિએ કેટલી રકમ આપવાની અથવા મેળવવાની છે તે કેમ છે તે સ્પષ્ટ જુઓ.', paidTotal: 'ઘર માટે ચૂકવ્યું', shareTotal: 'તેમનો હિસ્સો', sentTotal: 'મોકલેલ રીઇમ્બર્સમેન્ટ', receivedTotal: 'મળેલ રીઇમ્બર્સમેન્ટ', net: 'નેટ બેલેન્સ', formula: 'ચૂકવ્યું − હિસ્સો + મોકલ્યું − મળ્યું',
+    pendingTransfers: 'પુષ્ટિની રાહમાં', pendingSub: 'આ ચુકવણીઓ મોકલેલી તરીકે નોંધાઈ છે, પરંતુ મેળવનાર પુષ્ટિ કરે ત્યાં સુધી બેલેન્સ બદલાતું નથી.', markSent: 'મોકલ્યું તરીકે નોંધો', waitingPayer: 'ચૂકવનારની રાહમાં', waitingReceiver: 'મેળવનારની રાહમાં', confirmReceived: 'મળ્યું તેની પુષ્ટિ', cancelTransfer: 'રદ કરો', correctRecord: 'પાછું લો / સુધારો', confirmed: 'પુષ્ટિ થયેલ', pending: 'બાકી', cancelled: 'રદ થયેલ', balanceOk: 'બેલેન્સ સંપૂર્ણ રીતે મેળ ખાય છે', balanceBad: 'બેલેન્સ ડેટા મેળ ખાતો નથી. ખર્ચની વહેંચણી તપાસો.', pendingSent: 'મોકલવાનું બાકી', pendingReceived: 'મળવાનું બાકી', affectsBalance: 'પુષ્ટિ થયેલ રીઇમ્બર્સમેન્ટ નેટ બેલેન્સમાં ગણાય છે.',
+  },
+  hi: {
+    audit: 'बैलेंस की गणना', auditSub: 'साफ़ देखें कि हर व्यक्ति को यह राशि क्यों देनी या मिलनी है।', paidTotal: 'घर के लिए भुगतान', shareTotal: 'उनका हिस्सा', sentTotal: 'भेजा reimbursement', receivedTotal: 'मिला reimbursement', net: 'नेट बैलेंस', formula: 'भुगतान − हिस्सा + भेजा − मिला',
+    pendingTransfers: 'पुष्टि का इंतज़ार', pendingSub: 'ये भुगतान भेजे गए हैं, लेकिन पाने वाला पुष्टि करे तब तक बैलेंस नहीं बदलता।', markSent: 'भेजा हुआ दर्ज करें', waitingPayer: 'भुगतानकर्ता का इंतज़ार', waitingReceiver: 'प्राप्तकर्ता का इंतज़ार', confirmReceived: 'प्राप्ति की पुष्टि', cancelTransfer: 'रद्द करें', correctRecord: 'वापस लें / सुधारें', confirmed: 'पुष्टि हुई', pending: 'लंबित', cancelled: 'रद्द', balanceOk: 'बैलेंस पूरी तरह मेल खाता है', balanceBad: 'बैलेंस डेटा मेल नहीं खाता। खर्च की हिस्सेदारी जाँचें।', pendingSent: 'लंबित भेजा', pendingReceived: 'लंबित प्राप्त', affectsBalance: 'पुष्टि किए गए reimbursement नेट बैलेंस में शामिल हैं।',
+  },
+  fr: {
+    audit: 'Calcul du solde', auditSub: 'Voyez exactement pourquoi chaque personne doit payer ou recevoir ce montant.', paidTotal: 'Payé pour le foyer', shareTotal: 'Sa part', sentTotal: 'Remboursements envoyés', receivedTotal: 'Remboursements reçus', net: 'Solde net', formula: 'Payé − part + envoyé − reçu',
+    pendingTransfers: 'En attente de confirmation', pendingSub: 'Ces paiements sont marqués comme envoyés, mais ne modifient pas les soldes avant confirmation du destinataire.', markSent: 'Marquer comme envoyé', waitingPayer: 'En attente du payeur', waitingReceiver: 'En attente du destinataire', confirmReceived: 'Confirmer la réception', cancelTransfer: 'Annuler', correctRecord: 'Annuler / corriger', confirmed: 'Confirmé', pending: 'En attente', cancelled: 'Annulé', balanceOk: 'Les soldes correspondent exactement', balanceBad: 'Les soldes ne correspondent pas. Vérifiez les répartitions.', pendingSent: 'envoi en attente', pendingReceived: 'réception en attente', affectsBalance: 'Les remboursements confirmés sont inclus dans le solde net.',
+  },
+};
+
 const BUILTIN_CATEGORIES: CategoryChoice[] = [
   { name: 'Groceries', icon: '🛒' }, { name: 'Household', icon: '🏠' }, { name: 'Dining', icon: '🍽️' }, { name: 'Utilities', icon: '💡' },
   { name: 'Transport', icon: '🚗' }, { name: 'Rent', icon: '🏡' }, { name: 'Health', icon: '❤️' }, { name: 'Entertainment', icon: '🎬' }, { name: 'Other', icon: '✨' },
@@ -75,6 +94,7 @@ export default function ExpensesPage() {
   const { language } = useLanguage();
   const lang = (language as Lang) || 'en';
   const c = copy[lang] || copy.en;
+  const lc = ledgerCopy[lang] || ledgerCopy.en;
   const locale = LOCALE[lang] || LOCALE.en;
 
   const [house, setHouse] = useState<House | null>(null);
@@ -198,10 +218,21 @@ export default function ExpensesPage() {
     try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements`, { from_user_id: reimburseTarget.from_user_id, to_user_id: reimburseTarget.to_user_id, amount: value, currency: 'CAD' }); setSummary(data); setReimburseTarget(null); setReimburseAmount(''); setError(''); }
     catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
+  async function confirmReimbursement(settlementId: number) {
+    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements/${settlementId}/confirm`); setSummary(data); setError(''); }
+    catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
+  }
+  async function cancelReimbursement(settlementId: number) {
+    if (!confirm('Cancel this reimbursement record? The history will remain visible, but it will no longer affect balances.')) return;
+    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements/${settlementId}/cancel`); setSummary(data); setError(''); }
+    catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
+  }
   async function remove(expenseId: number) { if (!confirm('Delete this shared expense?')) return; try { const { data } = await api.delete<ExpenseSummary>(`/houses/${id}/expenses/${expenseId}`); setSummary(data); } catch (err) { setError(errorMessage(err)); } }
 
   const expenses = summary?.expenses || [];
   const settlements = summary?.settlements || [];
+  const balanceBreakdown = summary?.balance_breakdown || [];
+  const pendingSettlements = settlements.filter(x => x.status === 'pending');
   const currentBalance = summary?.balances.find(b => b.user_id === currentUserId)?.balance || 0;
   const mySuggested = (summary?.suggested_payments || []).filter(x => x.from_user_id === currentUserId || x.to_user_id === currentUserId);
   const visibleSuggestions = reimbursementView === 'mine' ? mySuggested : (summary?.suggested_payments || []);
@@ -262,6 +293,9 @@ export default function ExpensesPage() {
   function monthLabel(key: string) { return new Date(`${key}-01T00:00:00`).toLocaleDateString(locale, { month: 'long', year: 'numeric' }); }
   function dayLabel(value: string) { return new Date(value.includes('T') ? value : `${value}T00:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }); }
   function displayMember(uid: number, name: string) { return uid === currentUserId ? c.you : name; }
+  const currentMembership = members.find(m => m.user_id === currentUserId);
+  const canCorrectSettlement = (row: ExpenseSettlement) => row.from_user_id === currentUserId || row.to_user_id === currentUserId || currentMembership?.role === 'owner' || currentMembership?.role === 'admin';
+  const settlementStatusLabel = (row: ExpenseSettlement) => row.status === 'pending' ? lc.pending : row.status === 'cancelled' ? lc.cancelled : lc.confirmed;
   const rangeOptions: { value: RangeKey; label: string }[] = [
     { value: '1', label: c.currentMonth }, { value: '2', label: c.last2 }, { value: '4', label: c.last4 }, { value: '6', label: c.last6 }, { value: '12', label: c.last12 }, { value: '24', label: c.last24 }, { value: 'all', label: c.allTime },
   ];
@@ -295,13 +329,31 @@ export default function ExpensesPage() {
       </div>
     </section>
 
+    <section className="expense-balance-audit panel">
+      <div className="panel-title-row"><div><p className="eyebrow">BALANCE CHECK</p><h2>🧮 {lc.audit}</h2><p>{lc.auditSub}</p></div><span className={`expense-ledger-integrity ${summary?.balance_is_valid === false ? 'bad' : 'ok'}`}>{summary?.balance_is_valid === false ? `⚠ ${lc.balanceBad}` : `✓ ${lc.balanceOk}`}</span></div>
+      <p className="expense-ledger-formula">{lc.formula} <small>· {lc.affectsBalance}</small></p>
+      <div className="expense-ledger-grid">{balanceBreakdown.map(row => <article key={row.user_id} className={`expense-ledger-card ${row.balance > .009 ? 'credit' : row.balance < -.009 ? 'debt' : 'settled'}`}>
+        <header><span className="member-avatar">{initials(row.user_name)}</span><div><strong>{displayMember(row.user_id, row.user_name)}</strong><small>{row.balance > .009 ? c.gets : row.balance < -.009 ? c.owes : c.settled}</small></div><b>{row.balance > .009 ? '+' : row.balance < -.009 ? '−' : ''}{money(Math.abs(row.balance))}</b></header>
+        <div className="expense-ledger-math"><span><small>{lc.paidTotal}</small><strong>{money(row.paid)}</strong></span><i>−</i><span><small>{lc.shareTotal}</small><strong>{money(row.share)}</strong></span><i>＋</i><span><small>{lc.sentTotal}</small><strong>{money(row.reimbursements_sent)}</strong></span><i>−</i><span><small>{lc.receivedTotal}</small><strong>{money(row.reimbursements_received)}</strong></span></div>
+        {(row.pending_sent > .009 || row.pending_received > .009) && <div className="expense-ledger-pending">⏳ {row.pending_sent > .009 ? `${lc.pendingSent}: ${money(row.pending_sent)}` : ''}{row.pending_sent > .009 && row.pending_received > .009 ? ' · ' : ''}{row.pending_received > .009 ? `${lc.pendingReceived}: ${money(row.pending_received)}` : ''}</div>}
+      </article>)}</div>
+    </section>
+
+    {pendingSettlements.length > 0 && <section className="pending-reimbursements panel">
+      <div className="panel-title-row"><div><p className="eyebrow">PAYMENT CONFIRMATION</p><h2>⏳ {lc.pendingTransfers}</h2><p>{lc.pendingSub}</p></div></div>
+      <div className="pending-reimbursement-grid">{pendingSettlements.map(row => <article key={row.id} className="pending-reimbursement-card">
+        <div className="reimbursement-route"><div className="reimburse-person"><span className="member-avatar debt">{initials(row.from_user_name)}</span><strong>{displayMember(row.from_user_id, row.from_user_name)}</strong><small>{c.owes}</small></div><div className="reimburse-flow"><span></span><b>{money(row.amount)}</b><i>→</i></div><div className="reimburse-person"><span className="member-avatar credit">{initials(row.to_user_name)}</span><strong>{displayMember(row.to_user_id, row.to_user_name)}</strong><small>{c.gets}</small></div></div>
+        <footer>{row.to_user_id === currentUserId ? <button className="reimburse-button" disabled={busy} onClick={() => confirmReimbursement(row.id)}>{lc.confirmReceived}</button> : <span className="badge">{row.from_user_id === currentUserId ? lc.waitingReceiver : lc.pending}</span>}{canCorrectSettlement(row) && <button className="ghost tiny" disabled={busy} onClick={() => cancelReimbursement(row.id)}>{lc.cancelTransfer}</button>}</footer>
+      </article>)}</div>
+    </section>}
+
     <section className="expense-reimbursements panel premium-panel">
-      <div className="panel-title-row reimbursement-heading"><div><p className="eyebrow">SMART REIMBURSEMENTS</p><h2>{c.suggest}</h2><p>One clear payment can settle multiple shared expenses.</p></div><div className="segmented reimbursement-tabs"><button className={reimbursementView === 'mine' ? 'active' : ''} onClick={() => setReimbursementView('mine')}>{c.mine}</button><button className={reimbursementView === 'house' ? 'active' : ''} onClick={() => setReimbursementView('house')}>{c.all}</button></div></div>
+      <div className="panel-title-row reimbursement-heading"><div><p className="eyebrow">SMART REIMBURSEMENTS</p><h2>{c.suggest}</h2><p>Balances are netted across every expense first, then settled in exact cents.</p></div><div className="segmented reimbursement-tabs"><button className={reimbursementView === 'mine' ? 'active' : ''} onClick={() => setReimbursementView('mine')}>{c.mine}</button><button className={reimbursementView === 'house' ? 'active' : ''} onClick={() => setReimbursementView('house')}>{c.all}</button></div></div>
       {visibleSuggestions.length ? <div className="reimbursement-grid">{visibleSuggestions.map((x, i) => {
         const mine = x.from_user_id === currentUserId || x.to_user_id === currentUserId; const debtorIsMe = x.from_user_id === currentUserId; const creditorIsMe = x.to_user_id === currentUserId;
         return <article className={`reimbursement-card ${mine ? 'mine' : ''}`} key={`${x.from_user_id}-${x.to_user_id}-${i}`}>
           <div className="reimbursement-route"><div className="reimburse-person"><span className="member-avatar debt">{initials(x.from_user_name)}</span><strong>{displayMember(x.from_user_id, x.from_user_name)}</strong><small>owes</small></div><div className="reimburse-flow"><span></span><b>{money(x.amount)}</b><i>→</i></div><div className="reimburse-person"><span className="member-avatar credit">{initials(x.to_user_name)}</span><strong>{displayMember(x.to_user_id, x.to_user_name)}</strong><small>receives</small></div></div>
-          <div className="reimbursement-card-footer"><span>✨ {c.settles}</span>{mine ? <button className="reimburse-button" onClick={() => openReimburse(x)}>{debtorIsMe ? c.reimburse : creditorIsMe ? c.received : c.reimburse}</button> : <span className="badge">{c.everyone}</span>}</div>
+          <div className="reimbursement-card-footer"><span>✨ {c.settles}</span>{debtorIsMe ? <button className="reimburse-button" onClick={() => openReimburse(x)}>{lc.markSent}</button> : creditorIsMe ? <span className="badge">{lc.waitingPayer}</span> : <span className="badge">{c.everyone}</span>}</div>
         </article>;
       })}</div> : <div className="expense-empty-state"><span>🎉</span><strong>{c.noReimbursements}</strong><small>{c.settled}</small></div>}
     </section>
@@ -318,7 +370,7 @@ export default function ExpensesPage() {
 
     <section className="panel reimbursement-history-panel">
       <div className="panel-title-row"><div><p className="eyebrow">SETTLEMENT TIMELINE</p><h2>{c.reimbursementHistory}</h2><p>{c.reimbursementHistorySub}</p></div><div className="segmented"><button className={reimbursementHistoryView === 'mine' ? 'active' : ''} onClick={() => setReimbursementHistoryView('mine')}>{c.myHistory}</button><button className={reimbursementHistoryView === 'house' ? 'active' : ''} onClick={() => setReimbursementHistoryView('house')}>{c.houseHistory}</button></div></div>
-      {settlementGroups.length ? <div className="reimbursement-history-groups">{settlementGroups.map(([month, rows]) => <section key={month} className="reimbursement-history-month"><header><span>📆</span><strong>{monthLabel(month)}</strong><small>{rows.length}</small></header><div>{rows.map(row => <article key={row.id} className="reimbursement-history-row"><span className="reimbursement-history-icon">↗</span><div><strong>{displayMember(row.from_user_id, row.from_user_name)} {c.reimbursed} {displayMember(row.to_user_id, row.to_user_name)}</strong><small>{dayLabel(row.created_at)}{row.notes ? ` · ${row.notes}` : ''}</small></div><b>{money(row.amount)}</b></article>)}</div></section>)}</div> : <div className="expense-empty-state"><span>🧾</span><strong>{c.noSettlementHistory}</strong></div>}
+      {settlementGroups.length ? <div className="reimbursement-history-groups">{settlementGroups.map(([month, rows]) => <section key={month} className="reimbursement-history-month"><header><span>📆</span><strong>{monthLabel(month)}</strong><small>{rows.length}</small></header><div>{rows.map(row => <article key={row.id} className={`reimbursement-history-row status-${row.status || 'confirmed'}`}><span className="reimbursement-history-icon">{row.status === 'cancelled' ? '↩' : row.status === 'pending' ? '⏳' : '✓'}</span><div><strong>{displayMember(row.from_user_id, row.from_user_name)} {c.reimbursed} {displayMember(row.to_user_id, row.to_user_name)}</strong><small>{dayLabel(row.created_at)} · {settlementStatusLabel(row)}{row.notes ? ` · ${row.notes}` : ''}</small></div><b>{money(row.amount)}</b>{row.status !== 'cancelled' && canCorrectSettlement(row) && <button className="ghost tiny reimbursement-correct" disabled={busy} onClick={() => cancelReimbursement(row.id)}>{lc.correctRecord}</button>}</article>)}</div></section>)}</div> : <div className="expense-empty-state"><span>🧾</span><strong>{c.noSettlementHistory}</strong></div>}
     </section>
 
     <section className="panel expense-history-panel">
@@ -346,6 +398,6 @@ export default function ExpensesPage() {
       <footer className="focus-dialog-actions expense-form-actions"><button className="secondary" onClick={() => setOpen(false)}>{c.cancel}</button><div className="expense-save-summary"><small>{participants.length} participant{participants.length === 1 ? '' : 's'}</small><strong>{amount ? money(Number(amount)) : money(0)}</strong></div><button className="expense-save-button" disabled={busy || !participants.length || (splitMode === 'custom' && Math.abs(splitDifference) > .02)} onClick={save}>{busy ? 'Saving…' : c.save}</button></footer>
     </section></div></OverlayPortal>}
 
-    {reimburseTarget && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setReimburseTarget(null); }}><section className="modal focus-dialog reimbursement-modal" role="dialog" aria-modal="true" aria-label={c.confirm}><header className="focus-dialog-titlebar"><div><p className="eyebrow">SETTLE SIMPLY</p><h2>{c.confirm}</h2></div><button data-dialog-close="true" className="icon-btn" onClick={() => setReimburseTarget(null)}>×</button></header><div className="focus-dialog-scroll"><div className="reimbursement-confirm-route"><div className="reimburse-person"><span className="member-avatar debt">{initials(reimburseTarget.from_user_name)}</span><strong>{displayMember(reimburseTarget.from_user_id, reimburseTarget.from_user_name)}</strong></div><div className="reimburse-flow large"><span></span><i>→</i></div><div className="reimburse-person"><span className="member-avatar credit">{initials(reimburseTarget.to_user_name)}</span><strong>{displayMember(reimburseTarget.to_user_id, reimburseTarget.to_user_name)}</strong></div></div><div className="reimburse-amount-card"><small>Suggested</small><strong>{money(reimburseTarget.amount)}</strong><p>{c.partial}</p><label>Amount to reimburse<div className="money-input"><span>$</span><input type="number" min="0.01" max={reimburseTarget.amount} step="0.01" value={reimburseAmount} onChange={e => setReimburseAmount(e.target.value)} /></div></label></div></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setReimburseTarget(null)}>{c.cancel}</button><button className="reimburse-button" disabled={busy || Number(reimburseAmount) <= 0} onClick={saveReimbursement}>{busy ? 'Saving…' : c.confirm}</button></footer></section></div></OverlayPortal>}
+    {reimburseTarget && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setReimburseTarget(null); }}><section className="modal focus-dialog reimbursement-modal" role="dialog" aria-modal="true" aria-label={c.confirm}><header className="focus-dialog-titlebar"><div><p className="eyebrow">MARK PAYMENT SENT</p><h2>{lc.markSent}</h2></div><button data-dialog-close="true" className="icon-btn" onClick={() => setReimburseTarget(null)}>×</button></header><div className="focus-dialog-scroll"><div className="reimbursement-confirm-route"><div className="reimburse-person"><span className="member-avatar debt">{initials(reimburseTarget.from_user_name)}</span><strong>{displayMember(reimburseTarget.from_user_id, reimburseTarget.from_user_name)}</strong></div><div className="reimburse-flow large"><span></span><i>→</i></div><div className="reimburse-person"><span className="member-avatar credit">{initials(reimburseTarget.to_user_name)}</span><strong>{displayMember(reimburseTarget.to_user_id, reimburseTarget.to_user_name)}</strong></div></div><div className="reimburse-amount-card"><small>Suggested</small><strong>{money(reimburseTarget.amount)}</strong><p>{c.partial}</p><label>Amount to reimburse<div className="money-input"><span>$</span><input type="number" min="0.01" max={reimburseTarget.amount} step="0.01" value={reimburseAmount} onChange={e => setReimburseAmount(e.target.value)} /></div></label></div></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setReimburseTarget(null)}>{c.cancel}</button><button className="reimburse-button" disabled={busy || Number(reimburseAmount) <= 0} onClick={saveReimbursement}>{busy ? 'Saving…' : lc.markSent}</button></footer></section></div></OverlayPortal>}
   </main>;
 }
