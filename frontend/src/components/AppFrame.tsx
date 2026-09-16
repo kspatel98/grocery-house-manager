@@ -8,6 +8,7 @@ import SetupCoach from './SetupCoach';
 import type { AccountBootstrap, PremiumCrownStats, UserProfile } from '../types';
 import { LanguagePicker, useLanguage } from '../i18n';
 import OverlayPortal from './OverlayPortal';
+import SmartReviewPrompt from './SmartReviewPrompt';
 
 function EmailIcon() {
   return (
@@ -77,6 +78,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
   const [premiumArrival, setPremiumArrival] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('ghm_sidebar_collapsed_v87') === '1');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('ghm_theme_v87') === 'dark' ? 'dark' : 'light');
   const premiumBadgeRef = useRef<HTMLDivElement>(null);
   const premiumCrownRef = useRef<HTMLSpanElement>(null);
   const desktopMoreRef = useRef<HTMLDivElement>(null);
@@ -86,6 +89,16 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
+
+  useEffect(() => {
+    document.documentElement.dataset.ghmTheme = theme;
+    localStorage.setItem('ghm_theme_v87', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('ghm_sidebar_collapsed_v87', sidebarCollapsed ? '1' : '0');
+  }, [sidebarCollapsed]);
+
 
   useEffect(() => {
     const header = siteHeaderRef.current;
@@ -346,8 +359,9 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         aria-hidden="true"
       />
 
-      <div className="desktop-shell-v86">
+      <div className={`desktop-shell-v86 ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
         <aside className="desktop-sidebar-v86" aria-label="Desktop navigation">
+          <button type="button" className="desktop-sidebar-collapse-v87" aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setSidebarCollapsed((value) => !value)}><span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span></button>
           <div className="desktop-sidebar-brand-v86">
             <Link to="/houses" className="desktop-sidebar-logo-v86">
               <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
@@ -403,6 +417,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             <div className="desktop-sidebar-language-v86">
               <LanguagePicker compact />
             </div>
+            <button type="button" className="desktop-theme-toggle-v87" onClick={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}><span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span><strong>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</strong></button>
             <Link to="/profile" className="desktop-sidebar-account-v86">
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" />
@@ -494,6 +509,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               <div className="mobile-more-handle" aria-hidden="true" />
               <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" data-dialog-close="true" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
               <div className="mobile-more-grid">
+                <button type="button" className="mobile-more-theme-v87" onClick={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}><span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span><strong>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</strong></button>
                 {extraNavItems.map((item) => (
                   <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
                 ))}
@@ -503,6 +519,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           </div>
         </OverlayPortal>
       )}
+
+      <SmartReviewPrompt />
 
       <PremiumAwardCelebration
         open={celebrationOpen && showPremiumCrown}

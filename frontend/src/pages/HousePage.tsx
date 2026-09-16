@@ -44,6 +44,7 @@ export default function HousePage() {
   const [error, setError] = useState('');
   const [membersOpen, setMembersOpen] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [shareMessage, setShareMessage] = useState('');
   const inviteMessageRef = useRef<HTMLDivElement | null>(null);
 
   function openMembersPanel() { setMembersOpen(true); }
@@ -55,7 +56,7 @@ export default function HousePage() {
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: 'name', direction: 'asc', limit: PRODUCT_PAGE_LIMIT } }),
         api.get<ShoppingList | null>(`/houses/${id}/shopping-lists/active`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
-        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 10 } }),
+        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 100 } }),
         api.get<Receipt[]>(`/houses/${id}/receipts`),
       ]);
       setHouse(houseRes.data);
@@ -148,6 +149,133 @@ export default function HousePage() {
     return realPhotoRecipes.map((recipe) => ({ recipe, score: scoreRecipe(recipe) })).sort((a, b) => b.score - a.score).slice(0, 4);
   }, [products]);
 
+  const householdMomentum = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const map = new Map<number, { userId: number; name: string; count: number; receipts: number; shopping: number; inventory: number }>();
+    activities.forEach((activity) => {
+      const created = new Date(activity.created_at).getTime();
+      const userId = Number(activity.user?.id || 0);
+      if (!userId || Number.isNaN(created) || created < cutoff) return;
+      const current = map.get(userId) || {
+        userId,
+        name: activity.user?.full_name || activity.user?.email?.split('@')[0] || 'House member',
+        count: 0,
+        receipts: 0,
+        shopping: 0,
+        inventory: 0,
+      };
+      current.count += 1;
+      const action = activity.action.toLowerCase();
+      if (action.includes('receipt')) current.receipts += 1;
+      if (action.includes('shopping')) current.shopping += 1;
+      if (action.includes('product') || action.includes('inventory')) current.inventory += 1;
+      map.set(userId, current);
+    });
+    return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 4);
+  }, [activities]);
+
+  async function buildHouseWinImage() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const gradient = ctx.createLinearGradient(0, 0, 1080, 1350);
+    gradient.addColorStop(0, '#f8fff9');
+    gradient.addColorStop(.5, '#e9f8ef');
+    gradient.addColorStop(1, '#fff8e9');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1080, 1350);
+    ctx.fillStyle = '#0b553a';
+    ctx.font = '800 68px system-ui, sans-serif';
+    ctx.fillText('Grocery House Manager', 90, 150);
+    ctx.fillStyle = '#5d7268';
+    ctx.font = '600 34px system-ui, sans-serif';
+    ctx.fillText('A household win worth sharing', 90, 205);
+    ctx.fillStyle = '#123d2e';
+    ctx.font = '800 58px system-ui, sans-serif';
+    const houseTitle = (house?.name || 'Our household').slice(0, 28);
+    ctx.fillText(houseTitle, 90, 340);
+    const cards = [
+      ['Inventory items', String(stats.totalProducts)],
+      ['Receipts logged', String(stats.receiptCount)],
+      ['Still to buy', String(stats.activeListItems)],
+    ];
+    cards.forEach(([label, value], index) => {
+      const x = 90 + index * 305;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(x, 430, 270, 240, 28);
+      ctx.fill();
+      ctx.fillStyle = '#118052';
+      ctx.font = '900 72px system-ui, sans-serif';
+      ctx.fillText(value, x + 28, 540);
+      ctx.fillStyle = '#50665c';
+      ctx.font = '700 28px system-ui, sans-serif';
+      ctx.fillText(label, x + 28, 605);
+    });
+    if (latestReceipt?.total_amount != null) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(90, 730, 880, 210, 32);
+      ctx.fill();
+      ctx.fillStyle = '#ef7a2d';
+      ctx.font = '800 30px system-ui, sans-serif';
+      ctx.fillText('LATEST RECEIPT', 125, 795);
+      ctx.fillStyle = '#173f31';
+      ctx.font = '900 58px system-ui, sans-serif';
+      ctx.fillText(money(Number(latestReceipt.total_amount)), 125, 875);
+      ctx.fillStyle = '#687b72';
+      ctx.font = '600 27px system-ui, sans-serif';
+      ctx.fillText((latestReceipt.store_name || 'Grocery trip').slice(0, 38), 360, 872);
+    }
+    ctx.fillStyle = '#0f6f49';
+    ctx.font = '800 42px system-ui, sans-serif';
+    ctx.fillText('Plan smarter. Shop smarter. Live better.', 90, 1080);
+    ctx.fillStyle = '#60766b';
+    ctx.font = '600 28px system-ui, sans-serif';
+    ctx.fillText('grocery-house-manager.com', 90, 1140);
+    ctx.fillStyle = '#dff5e7';
+    ctx.beginPath();
+    ctx.arc(925, 1125, 72, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0f6f49';
+    ctx.font = '900 64px system-ui, sans-serif';
+    ctx.fillText('✓', 900, 1148);
+    return new Promise<File | null>((resolve) => canvas.toBlob((blob) => resolve(blob ? new File([blob], 'grocery-house-manager-win.png', { type: 'image/png' }) : null), 'image/png'));
+  }
+
+  async function shareHouseWin() {
+    const latestTotal = latestReceipt?.total_amount != null ? ` Our latest receipt was ${money(Number(latestReceipt.total_amount))}.` : '';
+    const text = `${house?.name || 'Our household'} is getting organized with Grocery House Manager: ${stats.totalProducts} inventory items tracked, ${stats.receiptCount} receipts logged, and ${stats.activeListItems} grocery-list items waiting.${latestTotal}`;
+    try {
+      const file = await buildHouseWinImage();
+      if (file && navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ title: 'Our Grocery House Manager win', text, files: [file] });
+        setShareMessage('Shared your household win.');
+        return;
+      }
+      if (file) {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.name;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+        await navigator.clipboard?.writeText(`${text} ${window.location.origin}`);
+        setShareMessage('Share card downloaded and caption copied.');
+        return;
+      }
+      if (navigator.share) await navigator.share({ title: 'Our Grocery House Manager win', text, url: window.location.origin });
+      else {
+        await navigator.clipboard?.writeText(`${text} ${window.location.origin}`);
+        setShareMessage('Household win copied — ready to share.');
+      }
+    } catch {
+      // Native share can be cancelled without showing an error.
+    }
+  }
+
   const latestReceipt = receipts[0];
   const latestReceiptDate = latestReceipt?.receipt_date || (latestReceipt?.created_at ? new Date(latestReceipt.created_at).toLocaleDateString() : 'No saved receipts yet');
   const isOwner = house?.role === 'owner';
@@ -175,6 +303,32 @@ export default function HousePage() {
       {initialLoading && <section className="panel skeleton-panel">Loading your connected home…</section>}
 
       <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={openMembersPanel} />
+
+      <section className="house-momentum-grid-v87" aria-label="Household contribution and sharing">
+        <article className="panel household-leaderboard-v87">
+          <div className="panel-title-row">
+            <div><p className="eyebrow">HOUSEHOLD MOMENTUM</p><h2>This week’s contributions</h2><p>A lighthearted view of who has been helping keep the house organized.</p></div>
+            <span className="momentum-badge-v87">7 days</span>
+          </div>
+          <div className="momentum-list-v87">
+            {householdMomentum.length ? householdMomentum.map((row, index) => (
+              <div className="momentum-row-v87" key={row.userId}>
+                <span className={`momentum-rank-v87 rank-${index + 1}`}>{index === 0 ? '★' : index + 1}</span>
+                <div><strong>{row.name}{row.userId === currentUser?.id ? ' · You' : ''}</strong><small>{row.count} helpful update{row.count === 1 ? '' : 's'} · {row.receipts} receipts · {row.shopping} shopping · {row.inventory} inventory</small></div>
+                <b>{row.count}</b>
+              </div>
+            )) : <p className="small-muted">Household contributions will appear here as members use shopping, inventory and receipts.</p>}
+          </div>
+        </article>
+
+        <article className="panel receipt-win-share-v87">
+          <span className="receipt-win-icon-v87" aria-hidden="true">✨</span>
+          <div><p className="eyebrow">SHARE A HOUSEHOLD WIN</p><h2>Your home is getting more organized</h2><p>Create a branded share card after a useful grocery trip — no private member balances or emails are included.</p></div>
+          <div className="receipt-win-stats-v87"><span><strong>{stats.totalProducts}</strong><small>items tracked</small></span><span><strong>{stats.receiptCount}</strong><small>receipts logged</small></span><span><strong>{stats.activeListItems}</strong><small>to buy</small></span></div>
+          <button className="primary full" onClick={shareHouseWin}>Share this win</button>
+          {shareMessage && <small className="success compact-message">{shareMessage}</small>}
+        </article>
+      </section>
 
       <section className="v85-dashboard-grid" aria-label="Household overview">
         <div className="v85-dashboard-column v85-expense-column">

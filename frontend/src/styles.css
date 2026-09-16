@@ -11001,3 +11001,178 @@ html { scroll-padding-top: calc(var(--site-header-height, 82px) + 18px); }
   }
 }
 
+
+/* ==========================================================================
+   V87 — collapsible desktop shell, dark mode, review moments & household fun
+   ========================================================================== */
+
+@media (min-width:1100px) {
+  .desktop-sidebar-v86 { position:sticky; overflow:visible; transition:width .22s ease,padding .22s ease; }
+  .desktop-sidebar-collapse-v87 {
+    position:absolute; top:22px; right:-15px; z-index:8; width:32px; height:32px; border:0; border-radius:999px;
+    display:grid; place-items:center; background:#fff; color:#176444; font-size:1.45rem; font-weight:900;
+    box-shadow:0 8px 22px rgba(20,73,51,.18); cursor:pointer;
+  }
+  .desktop-sidebar-collapse-v87:hover { background:#e9f8ee; transform:scale(1.04); }
+  .desktop-shell-v86 { transition:grid-template-columns .22s ease; max-width:100vw; overflow-x:hidden; }
+  .desktop-shell-v86.is-collapsed { grid-template-columns:92px minmax(0,1fr); }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-v86 { padding-inline:10px; }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-logo-v86 { grid-template-columns:1fr; padding:9px; justify-items:center; }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-logo-v86 img { width:52px; height:52px; }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-logo-v86 span,
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-premium-v86 div,
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-label-v86,
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-nav-v86 a > span:not(.desktop-sidebar-icon-v86),
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-language-v86,
+  .desktop-shell-v86.is-collapsed .desktop-theme-toggle-v87 strong,
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-account-v86 > span,
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-account-v86 > b { display:none !important; }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-premium-v86 { padding:8px; justify-content:center; }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-nav-v86 a { grid-template-columns:1fr; justify-items:center; padding:8px; }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-account-v86 { grid-template-columns:1fr; justify-items:center; padding:8px; }
+  .desktop-shell-v86.is-collapsed .desktop-theme-toggle-v87 { justify-content:center; padding:10px; }
+
+  .desktop-theme-toggle-v87 {
+    width:100%; display:flex; align-items:center; gap:10px; padding:11px 13px; border:1px solid rgba(20,86,61,.1);
+    border-radius:17px; background:rgba(255,255,255,.84); color:#214a39; font:inherit; font-weight:800; cursor:pointer;
+    box-shadow:0 8px 22px rgba(20,73,51,.06);
+  }
+  .desktop-theme-toggle-v87:hover { background:#eef9f2; }
+
+  /* Never let the desktop dashboard exceed the available content pane. */
+  .desktop-main-v86,
+  .desktop-main-v86 .app-main-content,
+  .desktop-main-v86 main,
+  .desktop-main-v86 .shell,
+  .desktop-main-v86 .shell.wide,
+  .desktop-main-v86 .v85-dashboard-grid,
+  .desktop-main-v86 .v85-dashboard-column,
+  .desktop-main-v86 .v85-workspace-card,
+  .desktop-main-v86 .panel { min-width:0 !important; max-width:100% !important; }
+  .desktop-main-v86 { overflow-x:hidden; }
+  .desktop-main-v86 .v85-house-dashboard { width:100%; margin-inline:0; }
+  .desktop-main-v86 .v85-dashboard-grid { grid-template-columns:repeat(12,minmax(0,1fr)); }
+  .desktop-main-v86 .v85-expense-column { grid-column:span 4; }
+  .desktop-main-v86 .v85-meals-column { grid-column:span 5; }
+  .desktop-main-v86 .v85-receipt-column { grid-column:span 3; }
+  .desktop-shell-v86:not(.is-collapsed) .desktop-main-v86 .v85-meal-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .desktop-shell-v86:not(.is-collapsed) .desktop-main-v86 .v85-cuisine-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+@media (min-width:1100px) and (max-width:1380px) {
+  .desktop-main-v86 .v85-expense-column { grid-column:span 5; }
+  .desktop-main-v86 .v85-meals-column { grid-column:span 7; }
+  .desktop-main-v86 .v85-receipt-column { grid-column:1 / -1; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr); }
+}
+
+.mobile-more-theme-v87 {
+  border:0; background:#eef8f1; color:#174d37; min-height:78px; border-radius:18px; display:grid; place-items:center; gap:6px; font:inherit;
+}
+.mobile-more-theme-v87 span { font-size:1.35rem; }
+.mobile-more-theme-v87 strong { font-size:.78rem; }
+
+.smart-review-prompt-v87 {
+  position:fixed; right:22px; bottom:22px; z-index:2100; width:min(390px,calc(100vw - 28px)); padding:20px;
+  border-radius:24px; background:linear-gradient(145deg,#ffffff,#effaf3); border:1px solid #d6eadf;
+  box-shadow:0 24px 65px rgba(17,63,43,.24); color:#173d2f;
+}
+.smart-review-prompt-v87 strong { display:block; margin:.35rem 0; font-size:1.08rem; }
+.smart-review-prompt-v87 p { margin:.35rem 0 1rem; color:#52685e; line-height:1.45; font-size:.9rem; }
+.smart-review-prompt-v87 > div { display:flex; gap:9px; }
+.smart-review-prompt-v87 > div > * { flex:1; }
+.smart-review-stars-v87 { color:#f3a61e; letter-spacing:.08em; }
+.smart-review-close-v87 { position:absolute; top:10px; right:12px; border:0; background:transparent; font-size:1.45rem; color:#698077; cursor:pointer; }
+.smart-review-never-v87 { margin-top:10px; border:0; background:transparent; color:#788a82; font-size:.75rem; text-decoration:underline; cursor:pointer; }
+
+.invite-share-card-v87 { display:grid; gap:10px; padding:14px; border-radius:18px; background:linear-gradient(135deg,#f1fff5,#f8fbff); border:1px solid #d9eae0; }
+.invite-share-card-v87 > div:first-child { display:flex; gap:10px; align-items:center; }
+.invite-share-card-v87 > div:first-child > span { display:grid; place-items:center; width:38px; height:38px; border-radius:13px; background:#dff5e7; }
+.invite-share-card-v87 strong,.invite-share-card-v87 small { display:block; }.invite-share-card-v87 small{color:#667b71;margin-top:2px}
+.invite-share-actions-v87 { display:grid; grid-template-columns:1fr 1fr auto; gap:7px; }
+.invite-share-card-v87 code { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:9px; border-radius:10px; background:#fff; color:#52645c; font-size:.72rem; }
+
+.house-momentum-grid-v87 { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr); gap:16px; margin-top:16px; min-width:0; }
+.household-leaderboard-v87,.receipt-win-share-v87 { min-width:0; overflow:hidden; }
+.momentum-badge-v87 { padding:7px 10px; border-radius:999px; background:#e9f7ee; color:#19704a; font-size:.72rem; font-weight:900; }
+.momentum-list-v87 { display:grid; gap:8px; }
+.momentum-row-v87 { display:grid; grid-template-columns:38px minmax(0,1fr) auto; gap:10px; align-items:center; padding:10px 12px; border-radius:15px; background:#f8fbf9; border:1px solid #e5eee8; }
+.momentum-rank-v87 { width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:#e5f5eb; color:#167349; font-weight:950; }
+.momentum-rank-v87.rank-1 { background:linear-gradient(135deg,#fff3bf,#ffd766); color:#805a00; }
+.momentum-row-v87 strong,.momentum-row-v87 small { display:block; }.momentum-row-v87 small{margin-top:2px;color:#718079;font-size:.7rem}.momentum-row-v87>b{color:#167349;font-size:1.05rem}
+.receipt-win-share-v87 { background:linear-gradient(145deg,#f6fff9,#fffaf1); display:grid; align-content:start; gap:12px; }
+.receipt-win-icon-v87 { width:54px; height:54px; display:grid; place-items:center; border-radius:18px; background:linear-gradient(135deg,#dff7e7,#fff1bc); font-size:1.5rem; }
+.receipt-win-share-v87 h2 { margin:.15rem 0; }.receipt-win-share-v87 p{color:#65776e}
+.receipt-win-stats-v87 { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.receipt-win-stats-v87 span { padding:10px 7px; border-radius:14px; text-align:center; background:#fff; border:1px solid #e6ede8; }
+.receipt-win-stats-v87 strong,.receipt-win-stats-v87 small { display:block; }.receipt-win-stats-v87 strong{color:#126944;font-size:1.1rem}.receipt-win-stats-v87 small{font-size:.62rem;color:#74827b}
+
+/* Dark mode for the authenticated product. Public marketing pages remain bright. */
+html[data-ghm-theme="dark"] { color-scheme:dark; background:#0c1713; }
+html[data-ghm-theme="dark"] body { background:#0c1713 !important; color:#e8f2ec; }
+html[data-ghm-theme="dark"] .desktop-sidebar-layout.app-frame,
+html[data-ghm-theme="dark"] .app-frame { background:linear-gradient(180deg,#0e1d17,#101a16) !important; }
+html[data-ghm-theme="dark"] .desktop-sidebar-v86 { background:linear-gradient(180deg,#10251d,#0b1713); border-color:#254238; box-shadow:8px 0 30px rgba(0,0,0,.3); }
+html[data-ghm-theme="dark"] .desktop-sidebar-logo-v86,
+html[data-ghm-theme="dark"] .desktop-sidebar-account-v86,
+html[data-ghm-theme="dark"] .desktop-sidebar-language-v86,
+html[data-ghm-theme="dark"] .desktop-theme-toggle-v87,
+html[data-ghm-theme="dark"] .desktop-topbar-v86 { background:rgba(19,37,30,.96); border-color:#29483d; color:#e8f2ec; }
+html[data-ghm-theme="dark"] .desktop-sidebar-logo-v86 strong,
+html[data-ghm-theme="dark"] .desktop-sidebar-account-v86,
+html[data-ghm-theme="dark"] .desktop-theme-toggle-v87,
+html[data-ghm-theme="dark"] .desktop-topbar-v86 h1 { color:#edf7f1; }
+html[data-ghm-theme="dark"] .desktop-sidebar-logo-v86 small,
+html[data-ghm-theme="dark"] .desktop-sidebar-label-v86,
+html[data-ghm-theme="dark"] .desktop-topbar-v86 small { color:#93aa9f; }
+html[data-ghm-theme="dark"] .desktop-sidebar-nav-v86 a { color:#c9ddd2; }
+html[data-ghm-theme="dark"] .desktop-sidebar-nav-v86 a:hover { background:#17392c; }
+html[data-ghm-theme="dark"] .desktop-sidebar-icon-v86 { background:#183429; box-shadow:inset 0 0 0 1px #29483d; }
+html[data-ghm-theme="dark"] .page,
+html[data-ghm-theme="dark"] .panel,
+html[data-ghm-theme="dark"] .v85-workspace-card,
+html[data-ghm-theme="dark"] .receipt-studio-v85 .receipt-review-studio,
+html[data-ghm-theme="dark"] .receipt-studio-v85 .receipt-manual-block,
+html[data-ghm-theme="dark"] .receipt-studio-v85 .receipt-history-shortcut,
+html[data-ghm-theme="dark"] .household-leaderboard-v87,
+html[data-ghm-theme="dark"] .receipt-win-share-v87 { background:#14251e !important; border-color:#29453a !important; color:#e8f2ec !important; }
+html[data-ghm-theme="dark"] .v85-dashboard-hero { background:linear-gradient(135deg,#13271e,#18251f,#11231d); border-color:#29483d; }
+html[data-ghm-theme="dark"] .v85-dashboard-hero h1,
+html[data-ghm-theme="dark"] .v85-workspace-card h2,
+html[data-ghm-theme="dark"] .v85-workspace-card h3,
+html[data-ghm-theme="dark"] .panel h1,
+html[data-ghm-theme="dark"] .panel h2,
+html[data-ghm-theme="dark"] .panel h3 { color:#edf7f1 !important; }
+html[data-ghm-theme="dark"] .v85-dashboard-hero p,
+html[data-ghm-theme="dark"] .panel p,
+html[data-ghm-theme="dark"] .small-muted { color:#a4b8ae !important; }
+html[data-ghm-theme="dark"] .v85-metric-grid > div,
+html[data-ghm-theme="dark"] .v85-expense-chart,
+html[data-ghm-theme="dark"] .v85-reimbursement-list > div:not(.v85-empty-mini),
+html[data-ghm-theme="dark"] .v85-meal-card,
+html[data-ghm-theme="dark"] .v85-cuisine-grid a,
+html[data-ghm-theme="dark"] .momentum-row-v87,
+html[data-ghm-theme="dark"] .receipt-win-stats-v87 span { background:#192e25 !important; border-color:#2d493e !important; color:#e7f1eb !important; }
+html[data-ghm-theme="dark"] input,
+html[data-ghm-theme="dark"] select,
+html[data-ghm-theme="dark"] textarea { background:#102019 !important; border-color:#355347 !important; color:#edf7f1 !important; }
+html[data-ghm-theme="dark"] .site-footer,
+html[data-ghm-theme="dark"] .parent-company-royal { background:#0e1d17 !important; color:#dcebe3 !important; }
+html[data-ghm-theme="dark"] .smart-review-prompt-v87 { background:linear-gradient(145deg,#162820,#102019); border-color:#345247; color:#ecf6f0; }
+html[data-ghm-theme="dark"] .smart-review-prompt-v87 p { color:#afc2b8; }
+
+@media (max-width:900px) {
+  .smart-review-prompt-v87 { right:12px; bottom:calc(96px + env(safe-area-inset-bottom)); width:calc(100vw - 24px); }
+  .house-momentum-grid-v87 { grid-template-columns:1fr; }
+  .invite-share-actions-v87 { grid-template-columns:1fr 1fr; }
+  .invite-share-actions-v87 .ghost-button { grid-column:1/-1; }
+}
+
+@media (max-width:560px) {
+  .receipt-win-stats-v87 { grid-template-columns:1fr; }
+  .momentum-row-v87 { grid-template-columns:34px minmax(0,1fr); }
+  .momentum-row-v87 > b { grid-column:2; }
+}
+@media (min-width:1100px) {
+  .smart-review-prompt-v87 { left:310px; right:auto; }
+  .desktop-shell-v86.is-collapsed ~ .smart-review-prompt-v87 { left:112px; }
+}

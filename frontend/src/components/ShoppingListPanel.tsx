@@ -261,6 +261,7 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
       await api.post(`/houses/${houseId}/shopping-lists/${activeList.id}/done`, { confirm: true });
       setError('');
       setCompletedListTitle(finishedTitle);
+      window.dispatchEvent(new CustomEvent('ghm:success-moment', { detail: { type: 'shopping', message: 'Your shopping trip is complete and the inventory is updated.' } }));
       window.dispatchEvent(new Event('account:refresh'));
       await onChange();
     } catch (err) {

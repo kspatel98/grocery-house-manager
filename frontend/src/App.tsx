@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import HousesPage from './pages/HousesPage';
 import HousePage from './pages/HousePage';
@@ -27,7 +27,10 @@ import PublicFrame from './components/PublicFrame';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const token = localStorage.getItem('token');
-  return token ? <AppFrame>{children}</AppFrame> : <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (token) return <AppFrame>{children}</AppFrame>;
+  const next = `${location.pathname}${location.search}${location.hash}`;
+  return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
 }
 
 function PublicRoute({ children }: { children: ReactElement }) {

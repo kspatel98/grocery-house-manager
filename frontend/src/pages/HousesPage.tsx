@@ -125,6 +125,12 @@ export default function HousesPage() {
   const [firstName, setFirstName] = useState('');
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (!onboarding?.complete || window.location.hash !== '#reviews') return;
+    const timer = window.setTimeout(() => document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 180);
+    return () => window.clearTimeout(timer);
+  }, [onboarding?.complete]);
+
   async function loadReviews() {
     try {
       const [summaryRes, reviewsRes, myReviewRes] = await Promise.all([
@@ -512,7 +518,7 @@ export default function HousesPage() {
         ))}
       </div>
 
-      {onboarding?.complete ? <section className="panel review-hub-panel">
+      {onboarding?.complete ? <section id="reviews" className="panel review-hub-panel">
         <div className="panel-title-row review-hub-title">
           <div>
             <p className="eyebrow">User reviews</p>

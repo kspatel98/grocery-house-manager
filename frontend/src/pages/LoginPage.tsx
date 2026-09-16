@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "../api";
 import type { AuthResponse } from "../types";
 
@@ -25,6 +25,9 @@ type RegisterRequestResponse = {
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedNext = searchParams.get("next");
+  const nextPath = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/houses";
   const [isRegister, setIsRegister] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetStep, setResetStep] = useState<ResetStep>("request");
@@ -61,7 +64,7 @@ export default function LoginPage() {
     localStorage.setItem("token", data.access_token);
     localStorage.setItem("user", JSON.stringify(data.user));
     localStorage.removeItem("account_is_admin");
-    navigate("/houses");
+    navigate(nextPath);
   }
 
   function openForgotPassword() {

@@ -100,6 +100,26 @@ export function HouseMembersBar({ members, currentUserId, onOpen }: { members: H
 
 export function MembersDrawer({ open, onClose, members, currentUserId, houseRole, onRemoveMember, onCreateInvite, inviteUrl }: MembersDrawerProps) {
   const [query, setQuery] = useState('');
+  const [inviteMessage, setInviteMessage] = useState('');
+
+  async function shareInvite() {
+    if (!inviteUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Join my Grocery House Manager house',
+          text: 'Join our shared Grocery House Manager household. Open the link to review the house and join.',
+          url: inviteUrl,
+        });
+        setInviteMessage('Invite shared.');
+      } else {
+        await navigator.clipboard?.writeText(inviteUrl);
+        setInviteMessage('Invite link copied.');
+      }
+    } catch {
+      // Native share can be cancelled without showing an error.
+    }
+  }
   const drawerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -131,8 +151,19 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
         </div>
 
         <div className="drawer-actions">
-          {onCreateInvite && <button className="primary full" onClick={onCreateInvite}>Copy invite link</button>}
-          {inviteUrl && <div className="success compact-message">Invite copied: {inviteUrl}</div>}
+          {!inviteUrl && onCreateInvite && <button className="primary full" onClick={onCreateInvite}>Create invite link</button>}
+          {inviteUrl && (
+            <div className="invite-share-card-v87">
+              <div><span aria-hidden="true">🔗</span><div><strong>House invite ready</strong><small>Valid for 14 days. The recipient can review the house before joining.</small></div></div>
+              <div className="invite-share-actions-v87">
+                <button className="primary" onClick={shareInvite}>Share invite</button>
+                <button className="secondary" onClick={async () => { await navigator.clipboard?.writeText(inviteUrl); setInviteMessage('Invite link copied.'); }}>Copy link</button>
+                {onCreateInvite && <button className="ghost-button" onClick={onCreateInvite}>New link</button>}
+              </div>
+              <code>{inviteUrl}</code>
+              {inviteMessage && <small className="success compact-message">{inviteMessage}</small>}
+            </div>
+          )}
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search members..." />
         </div>
 
