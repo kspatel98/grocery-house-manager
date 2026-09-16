@@ -20,6 +20,10 @@ services:
     restart: always
     env_file:
       - ./frontend/.env
+    environment:
+      # Force same-origin API routing in production even if an old frontend/.env
+      # still contains localhost from local development.
+      VITE_API_URL: /api
     depends_on:
       - backend
     expose:

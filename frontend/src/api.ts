@@ -1,6 +1,21 @@
 import axios from "axios";
 
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const configuredApiUrl = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+const localHostnames = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+const runningLocally = typeof window !== "undefined" && localHostnames.has(window.location.hostname);
+
+// Production should use the same-origin /api route through Caddy. This avoids a
+// broken browser request to the visitor's own localhost when VITE_API_URL is not
+// present during a production build.
+export const API_URL = configuredApiUrl || (runningLocally ? "http://localhost:8000" : "/api");
+
+export function websocketApiBase(): string {
+  if (/^https?:\/\//i.test(API_URL)) return API_URL.replace(/^http/i, "ws");
+  if (typeof window === "undefined") return API_URL;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const path = API_URL.startsWith("/") ? API_URL : `/${API_URL}`;
+  return `${protocol}//${window.location.host}${path}`;
+}
 
 export function logoutToLogin() {
   localStorage.removeItem("token");

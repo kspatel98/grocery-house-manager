@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { API_URL } from './api';
+import { websocketApiBase } from './api';
 
 export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Promise<void>) {
   const refreshRef = useRef(onRefresh);
@@ -25,7 +25,7 @@ export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Pro
 
     function connect() {
       if (stopped) return;
-      const wsBase = API_URL.replace(/^http/i, 'ws');
+      const wsBase = websocketApiBase();
       socket = new WebSocket(`${wsBase}/houses/${houseId}/updates/ws?token=${encodeURIComponent(authToken)}`);
 
       socket.onmessage = async (event) => {
