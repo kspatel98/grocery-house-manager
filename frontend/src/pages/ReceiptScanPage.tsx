@@ -30,49 +30,30 @@ export default function ReceiptScanPage() {
         api.get<Receipt[]>(`/houses/${id}/receipts`),
         api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`, { params: { include_done: true } }),
       ]);
-      setHouse(houseRes.data);
-      setSections(sectionsRes.data);
-      setProducts(productsRes.data);
-      setReceipts(receiptsRes.data);
-      setShoppingLists(listsRes.data);
-      setError('');
+      setHouse(houseRes.data); setSections(sectionsRes.data); setProducts(productsRes.data); setReceipts(receiptsRes.data); setShoppingLists(listsRes.data); setError('');
     } catch (err) {
-      const message = errorMessage(err);
-      setError(message);
-      if (message.includes('not a member')) navigate('/houses');
-    } finally {
-      setLoading(false);
-    }
+      const message = errorMessage(err); setError(message); if (message.includes('not a member')) navigate('/houses');
+    } finally { setLoading(false); }
   }
 
   useEffect(() => { load(); }, [id]);
 
   return (
-    <main className="page shell wide receipt-scan-page cinematic-page">
-      <header className="page-hero creative-hero scan-hero">
+    <main className="page shell wide receipt-scan-page v85-receipt-page">
+      <header className="v85-page-titlebar">
         <div>
           <Link to={`/houses/${id}`} className="breadcrumb">← {house?.name || 'House'} dashboard</Link>
-          <p className="eyebrow">Smart Receipt Studio</p>
-          <h1>Scan, review, and save receipt prices</h1>
-          <p>
-            Keep the scanning task focused on one clean page. Upload a JPG or PNG receipt, review the extracted rows, then save trusted prices into this house.
-          </p>
+          <p className="eyebrow">SMART RECEIPT WORKSPACE</p>
+          <h1>Scan receipt</h1>
+          <p>Turn one grocery receipt into organized inventory, shopping verification, saved prices and an optional shared expense.</p>
         </div>
-        <div className="hero-orb-card" aria-hidden="true">
-          <span>🧾</span>
-          <strong>JPG / PNG</strong>
-          <small>Review required</small>
-        </div>
+        <nav aria-label="Receipt shortcuts">
+          <Link to={`/houses/${id}/shopping`}>🛒 Shopping</Link>
+          <Link to={`/houses/${id}/receipts`}>🗂️ History</Link>
+          <Link to={`/houses/${id}/expenses`}>💸 Expenses</Link>
+        </nav>
       </header>
-
-      <nav className="house-mini-nav" aria-label="House sections">
-        <Link to={`/houses/${id}/inventory`}>📦 Inventory</Link>
-        <Link to={`/houses/${id}/shopping`}>🛒 Grocery lists</Link>
-        <Link to={`/houses/${id}/receipts`} >🗂️ Receipt history</Link>
-        <Link to="/reports">📈 Reports</Link>
-      </nav>
-
-      {loading && <section className="panel skeleton-panel">Loading receipt scanner...</section>}
+      {loading && <section className="panel skeleton-panel">Loading receipt scanner…</section>}
       {error && <div className="error">{error}</div>}
       {!loading && !error && <ReceiptStudio houseId={id} products={products} sections={sections} receipts={receipts} shoppingLists={shoppingLists} initialShoppingListId={initialShoppingListId} onChange={load} />}
     </main>

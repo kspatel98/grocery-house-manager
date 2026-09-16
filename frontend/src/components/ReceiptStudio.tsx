@@ -94,6 +94,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
   const [price, setPrice] = useState('');
   const [lines, setLines] = useState<{ product_id: number; product_name: string; price: number; store_name?: string }[]>([]);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState('');
   const [uploadResult, setUploadResult] = useState<ReceiptUploadResult | null>(null);
   const [scanUsage, setScanUsage] = useState<ReceiptScanUsage | null>(null);
   const [reviewLines, setReviewLines] = useState<ReviewLine[]>([]);
@@ -128,6 +129,13 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
   useEffect(() => {
     if (initialShoppingListId && shoppingLists.some((list) => list.id === initialShoppingListId)) setLinkedShoppingListId(initialShoppingListId);
   }, [initialShoppingListId, shoppingLists]);
+
+  useEffect(() => {
+    if (!receiptFile) { setReceiptPreviewUrl(''); return; }
+    const nextUrl = URL.createObjectURL(receiptFile);
+    setReceiptPreviewUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [receiptFile]);
 
   function addLine() {
     const product = products.find((p) => p.id === Number(selectedProductId));
@@ -340,76 +348,68 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
   const scanButtonDisabled = uploadBusy || !receiptFile || !scanUsage || !scanUsage.allowed;
 
   return (
-    <section className="panel receipt-panel premium-receipt-panel receipt-studio">
-      <div className="panel-title-row">
+    <section className="receipt-panel premium-receipt-panel receipt-studio receipt-studio-v85">
+      <div className="receipt-v85-topbar">
         <div>
-          <p className="eyebrow">Smart receipt studio</p>
-          <h2>Scan receipts and save trusted prices</h2>
+          <p className="eyebrow">RECEIPTS THAT DO MORE</p>
+          <h2>Scan once. Organize everything.</h2>
+          <p>Upload a grocery receipt, review what was detected, then connect it to inventory, shopping and shared expenses without re-entering the same information.</p>
         </div>
-        <span className="badge premium-badge">Professional scan</span>
-      </div>
-      <p>
-        Upload a JPG or PNG receipt photo. Grocery House Manager extracts the store, item rows, prices, discounts, taxes, and total, then lets you review everything before it updates inventory and remembers the prices you paid.
-      </p>
-      <div className="receipt-studio-hero">
-        <div className="receipt-hero-icon">🧾</div>
-        <div>
-          <strong>Smart scan with your final approval</strong>
-          <span>Quantity defaults to 1 when missing, duplicate product rows are combined, and weighted prices are saved correctly, like $1.50/kg for bananas.</span>
-        </div>
-      </div>
-      <div className="receipt-flow-cards">
-        <span><strong>1</strong> Upload receipt</span>
-        <span><strong>2</strong> Review extracted rows</span>
-        <span><strong>3</strong> Save trusted prices</span>
-      </div>
-      <div className={`receipt-usage-card ${scanUsage?.is_last_available ? 'last-scan' : ''} ${scanUsage && !scanUsage.allowed ? 'locked' : ''}`}>
-        <div>
-          <strong>{scanLimitText}</strong>
-          <span>{scanUsage?.message || 'Each house uses the owner plan. Manual receipt entry does not use scan quota.'} Extra scans can be purchased anytime and stay until used.</span>
-        </div>
-        <div className="receipt-usage-actions">
-          {scanUsage?.plan_name && <span className="badge">{scanUsage.plan_name}</span>}
-          <Link to="/pricing#extra-scans" className="secondary center-link tiny">Buy extra scans</Link>
+        <div className="receipt-v85-top-actions">
+          <span className="badge">BETA</span>
+          <Link to={`/houses/${houseId}/receipts`} className="secondary center-link">Past uploads</Link>
         </div>
       </div>
 
-      <div className={`extra-scan-balance-card ${Number(scanUsage?.extra_credits || 0) > 0 ? 'available' : 'empty'}`}>
-        <div className="extra-scan-balance-copy">
-          <p className="eyebrow">Available extra scans</p>
-          <h3>{Number(scanUsage?.extra_credits || 0)} extra scan{Number(scanUsage?.extra_credits || 0) === 1 ? '' : 's'}</h3>
-          <p>
-            {Number(scanUsage?.extra_credits || 0) > 0
-              ? 'These extra scans stay on your account until used. Your included monthly scans are always used first.'
-              : 'You do not have extra scans yet. Buy a small one-time scan pack anytime without changing your plan.'}
-          </p>
-        </div>
-        <div className="extra-scan-balance-actions">
-          <span className="extra-scan-pill">Permanent one-time packs</span>
-          <Link to="/pricing#extra-scans" className="primary center-link">View extra scan packs</Link>
-        </div>
+      <div className="receipt-v85-tabs" aria-label="Receipt workflow">
+        <span className="active">1 · Upload & scan</span><span className={uploadResult ? 'active' : ''}>2 · Review</span><span>3 · Update inventory</span><span>4 · Add to expenses</span>
       </div>
+
       {error && <div className="error">{error}</div>}
       {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}
 
-      <div className="receipt-upload-card">
-        <div>
-          <h3>Upload receipt</h3>
-          <p className="small-muted">Best results: upload a clear JPG or PNG photo with the receipt flat, well-lit, fully visible, and no cropped totals.</p>
-          <p className="small-muted"><strong>{scanLimitText}</strong>. Manual receipt price entry stays available without using a scan.</p>
-        </div>
-        <label>Shopping list, optional
-          <select value={linkedShoppingListId} onChange={(e) => { setLinkedShoppingListId(e.target.value ? Number(e.target.value) : ''); setMissingDecisions({}); setExtraDecisions({}); }}>
-            <option value="">Standalone receipt — no shopping list</option>
-            {shoppingLists.map((list) => <option key={list.id} value={list.id}>{list.title}{list.is_done ? ' · completed' : ' · active'}</option>)}
-          </select>
-          <small className="small-muted">Link a trip to verify what was actually bought. Standalone receipt scanning still works exactly as before.</small>
-        </label>
-        <label>Store name, optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills" /></label>
-        <label>Attach receipt photo (JPG or PNG only)<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] || null; if (file && !['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) { setError('Please upload a JPG or PNG receipt image only.'); e.target.value = ''; setReceiptFile(null); return; } setError(''); setReceiptFile(file); }} /></label>
-        <label>Notes<textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything you want to remember about this receipt" /></label>
-        <button className="primary full" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt...' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt'}</button>
+      <div className="receipt-v85-quota">
+        <div><strong>{scanLimitText}</strong><small>{scanUsage?.message || 'Manual receipt entry stays available without using a scan.'}</small></div>
+        <div><span>{Number(scanUsage?.extra_credits || 0)} extra</span><Link to="/pricing#extra-scans">Get more scans →</Link></div>
       </div>
+
+      {!uploadResult && (
+        <div className="receipt-v85-workbench">
+          <div className="receipt-v85-upload-zone">
+            <div className="receipt-v85-upload-head"><div><span className="receipt-v85-icon">▣</span><div><h3>Upload receipt</h3><p>PNG or JPG · clear, flat and fully visible works best.</p></div></div></div>
+            <label className={`receipt-v85-dropzone ${receiptPreviewUrl ? 'has-preview' : ''}`}>
+              {receiptPreviewUrl ? <img src={receiptPreviewUrl} alt="Selected receipt preview"/> : <><span>📷</span><strong>Choose receipt photo</strong><small>Click here to browse your device</small></>}
+              <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] || null; if (file && !['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) { setError('Please upload a JPG or PNG receipt image only.'); e.target.value = ''; setReceiptFile(null); return; } setError(''); setReceiptFile(file); }} />
+            </label>
+            {receiptPreviewUrl && <button type="button" className="ghost receipt-v85-change-file" onClick={() => setReceiptFile(null)}>Choose a different image</button>}
+          </div>
+
+          <div className="receipt-v85-scan-settings">
+            <div className="receipt-v85-settings-title"><span>⚙</span><div><h3>Trip details</h3><p>Optional details improve matching and history.</p></div></div>
+            <label>Shopping list
+              <select value={linkedShoppingListId} onChange={(e) => { setLinkedShoppingListId(e.target.value ? Number(e.target.value) : ''); setMissingDecisions({}); setExtraDecisions({}); }}>
+                <option value="">Standalone receipt — no shopping list</option>
+                {shoppingLists.map((list) => <option key={list.id} value={list.id}>{list.title}{list.is_done ? ' · completed' : ' · active'}</option>)}
+              </select>
+            </label>
+            <label>Store name<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills…" /></label>
+            <label>Notes<textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional note for this trip" /></label>
+            <button className="primary full receipt-v85-scan-button" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt…' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt'}</button>
+            <div className="receipt-v85-mini-benefits"><span>✓ Detect store & total</span><span>✓ Extract product rows</span><span>✓ Compare with shopping</span><span>✓ You approve before saving</span></div>
+          </div>
+
+          <aside className="receipt-v85-result-preview">
+            <div className="receipt-v85-paper">
+              <div className="receipt-v85-paper-logo">🧾</div>
+              <strong>{storeName || 'Your store'}</strong><small>Receipt preview</small>
+              <i>────────────────</i>
+              <span>Bananas <b>$2.25</b></span><span>Milk <b>$4.49</b></span><span>Eggs <b>$3.18</b></span><span>Bread <b>$2.98</b></span>
+              <i>────────────────</i><strong>TOTAL <b>$12.90</b></strong>
+            </div>
+            <div className="receipt-v85-preview-copy"><strong>One receipt, multiple benefits</strong><p>After scanning, you can compare the trip with your list, update inventory and turn the receipt total into a shared expense.</p></div>
+          </aside>
+        </div>
+      )}
 
       {uploadResult ? (
         <div className="receipt-review-studio">

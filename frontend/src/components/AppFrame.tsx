@@ -194,23 +194,23 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const contextHouseId = routeHouseId || activeHouseId;
   const navItems = contextHouseId
     ? [
-        { to: '/houses', label: t('home') },
-        { to: `/houses/${contextHouseId}/inventory`, label: t('inventory') },
-        { to: `/houses/${contextHouseId}/shopping`, label: t('shopping') },
-        { to: `/houses/${contextHouseId}/meals`, label: t('meals') },
-        { to: '/market', label: t('prices') },
+        { to: '/houses', label: t('home'), icon: '⌂' },
+        { to: `/houses/${contextHouseId}/inventory`, label: t('inventory'), icon: '▣' },
+        { to: `/houses/${contextHouseId}/shopping`, label: t('shopping'), icon: '🛒' },
+        { to: `/houses/${contextHouseId}/meals`, label: t('meals'), icon: '♨' },
+        { to: '/market', label: t('prices'), icon: '◉' },
+        { to: `/houses/${contextHouseId}/expenses`, label: t('expenses'), icon: '$' },
       ]
     : [
-        { to: '/houses', label: t('home') },
-        { to: '/pricing', label: t('plans') },
-        { to: '/support', label: t('support') },
+        { to: '/houses', label: t('home'), icon: '⌂' },
+        { to: '/pricing', label: t('plans'), icon: '✦' },
+        { to: '/support', label: t('support'), icon: '?' },
       ];
   const extraNavItems = [
     ...(contextHouseId ? [
       { to: `/assistant?house=${contextHouseId}`, label: t('assistant'), icon: '✦' },
       { to: `/houses/${contextHouseId}/scan`, label: t('scanReceipt'), icon: '🧾' },
       { to: `/houses/${contextHouseId}/receipts`, label: t('receiptHistory'), icon: '🗂️' },
-      { to: `/houses/${contextHouseId}/expenses`, label: t('expenses'), icon: '💸' },
     ] : []),
     { to: '/reports', label: t('reports'), icon: '📈' },
     { to: '/pricing', label: t('plans'), icon: '✨' },
@@ -285,7 +285,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                     to={item.to}
                     className={location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath)) ? 'active' : ''}
                   >
-                    {item.label}
+                    <span className="desktop-nav-icon" aria-hidden="true">{item.icon}</span><small>{item.label}</small>
                   </Link>
                 );
               })}
