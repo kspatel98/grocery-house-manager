@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "../api";
 import type { AuthResponse } from "../types";
+import { ThemeToggle } from "../theme";
 
 declare global {
   interface Window {
@@ -258,12 +259,31 @@ export default function LoginPage() {
   }, [googleClientId, forgotOpen]);
 
   return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <img className="auth-logo" src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
-        <p className="brand-kicker">A SupremDas Group product</p>
-        <h1>Grocery House Manager</h1>
-        <p>Shared grocery inventory, shopping lists, members, and activity updates for your household.</p>
+    <main className="auth-page auth-page-v88">
+      <div className="auth-theme-corner-v88"><ThemeToggle compact /></div>
+      <section className="auth-shell-v88">
+        <aside className="auth-story-v88">
+          <Link to="/" className="auth-story-brand-v88" aria-label="Back to Grocery House Manager website">
+            <span className="auth-story-logo-v88"><img src="/brand/grocery-house-manager-logo.png" alt="" /></span>
+            <span><strong>Grocery House Manager</strong><small>A SupremDas Group product</small></span>
+          </Link>
+          <div className="auth-story-copy-v88">
+            <p className="eyebrow">ONE HOME • ONE SMART SYSTEM</p>
+            <h1>Plan groceries together without the household chaos.</h1>
+            <p>Inventory, shopping, meals, receipts, prices and shared expenses stay connected in one simple place.</p>
+          </div>
+          <div className="auth-story-features-v88">
+            <span><b>✓</b><strong>Shared household</strong><small>Everyone sees the same up-to-date plan.</small></span>
+            <span><b>🧾</b><strong>Smart receipts</strong><small>Review, update inventory and connect expenses.</small></span>
+            <span><b>🍲</b><strong>Cook from home</strong><small>Turn what you own into practical meal ideas.</small></span>
+          </div>
+          <p className="auth-story-quote-v88">Plan smarter • Shop smarter • Live better</p>
+        </aside>
+        <section className="auth-card auth-card-v88">
+          <Link to="/" className="auth-card-logo-v88"><img className="auth-logo" src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" /></Link>
+          <p className="brand-kicker">{isRegister ? 'CREATE YOUR HOUSEHOLD ACCOUNT' : 'WELCOME BACK'}</p>
+          <h1>{isRegister ? 'Create your account' : 'Login to your home'}</h1>
+          <p>{isRegister ? 'Start with a free household and invite the people you live with.' : 'Your groceries, meals, receipts and household activity are ready when you are.'}</p>
 
         {!forgotOpen && (
           <>
@@ -398,7 +418,8 @@ export default function LoginPage() {
           </section>
         )}
 
-        <Link to="/" className="home-link">← Back to website</Link>
+          <Link to="/" className="home-link">← Back to website</Link>
+        </section>
       </section>
       <footer className="auth-footer">© {new Date().getFullYear()} SupremDas Group. All rights reserved.</footer>
     </main>

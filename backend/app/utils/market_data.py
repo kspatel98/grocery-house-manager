@@ -1419,10 +1419,19 @@ def compare_canadian_grocery_prices(
     if not clean_items:
         return False, []
 
-    if not force_refresh:
-        cached, rows = get_cached_price_rows(db, clean_items, location_key, clean_retailers)
-        if cached:
+    cached, rows = get_cached_price_rows(db, clean_items, location_key, clean_retailers)
+    if cached:
+        if not force_refresh:
             return True, rows
+        # A user can ask for a refresh, but do not spend on another provider run repeatedly
+        # within a short freshness window. This protects the household and provider budget
+        # from double-clicks, reloads, and repeated automatic checks.
+        key = _make_cache_key(clean_items, location_key, clean_retailers)
+        cache_row = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == key).first()
+        if cache_row and cache_row.fetched_at:
+            fetched = cache_row.fetched_at if cache_row.fetched_at.tzinfo else cache_row.fetched_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - fetched < timedelta(minutes=max(1, settings.apify_price_force_refresh_min_minutes)):
+                return True, rows
 
     if not settings.apify_api_token:
         return False, []

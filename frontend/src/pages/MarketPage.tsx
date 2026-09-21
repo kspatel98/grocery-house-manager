@@ -495,7 +495,7 @@ export default function MarketPage() {
             <div ref={lookupResultsRef} className={lookup.premium_required ? 'hint' : 'market-results lookup-results-grid'}>
               <div className="lookup-status-panel-v50">
                 {lookup.lookup_status && <span className={lookup.results.length ? 'market-status-pill connected' : 'market-status-pill offline'}><span className="status-dot" /> {lookup.lookup_status}</span>}
-                <p>{lookup.message}</p>
+                <div className="lookup-cache-line-v88">{lookup.cached && <span className="source-badge cache-source-v88">♻ Cached result</span>}{lookup.cache_valid_until && <small>Reusable until {new Date(lookup.cache_valid_until).toLocaleString()}</small>}</div><p>{lookup.message}</p>
               </div>
               {lookup.results.map((item) => {
                 const key = `${item.source}-${item.barcode || item.name}`;
@@ -551,7 +551,7 @@ export default function MarketPage() {
           </div>
           <div className="market-button-row">
             <button className="primary" disabled={compareBusy || !selectedHouseId} onClick={() => runCompare(false)}>{compareBusy ? 'Comparing...' : 'Compare prices'}</button>
-            <button className="secondary" disabled={compareBusy || !selectedHouseId} onClick={() => runCompare(true)}>Refresh live</button>
+            <button className="secondary" disabled={compareBusy || !selectedHouseId} onClick={() => runCompare(false)}>Check again</button>
           </div>
           {compare && (
             <div ref={compareResultsRef} className={compare.premium_required || (!compare.configured && !compare.results.length) ? 'hint' : 'market-results'}>
@@ -560,7 +560,7 @@ export default function MarketPage() {
                   <span className="status-dot" /> {compare.connection_status === 'connected' ? 'Connected' : 'Not connected'}
                 </span>
                 {compare.location_label && <span className="source-badge location-source">📍 {compare.location_label}</span>}
-                {compare.used_fallback && <span className="source-badge fallback-source">Saved prices shown</span>}
+                {compare.used_fallback && <span className="source-badge fallback-source">Saved prices shown</span>}{compare.cached && <span className="source-badge cache-source-v88">♻ Cached prices</span>}
               </div>
               <p>{compare.message}</p>
               {compare.failure_reason && <div className="hint compact-message"><strong>What happened:</strong> {compare.failure_reason}</div>}

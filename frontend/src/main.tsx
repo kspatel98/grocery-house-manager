@@ -5,6 +5,9 @@ import App from './App';
 import './styles.css';
 import { LanguageProvider } from './i18n';
 import DialogFocusManager from './components/DialogFocusManager';
+import { applyTheme, getSavedTheme } from './theme';
+
+applyTheme(getSavedTheme());
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

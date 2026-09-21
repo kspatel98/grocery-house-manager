@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { LanguagePicker, useLanguage } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { ThemeToggle } from '../theme';
 
 function EmailIcon() {
   return (
@@ -83,21 +84,35 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
               <small>A SupremDas Group product</small>
             </span>
           </Link>
-          <nav className="site-nav" aria-label="Public navigation">
-            {publicNavItems.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={location.pathname === item.to ? 'active' : ''}
-              >
-                {item.label}
+          <div className="public-desktop-actions-v88">
+            <nav className="site-nav" aria-label="Public navigation">
+              {publicNavItems.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={location.pathname === item.to ? 'active' : ''}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              <Link to={loggedIn ? '/houses' : '/login'} className="nav-cta">
+                {loggedIn ? 'Open app' : 'Login'}
               </Link>
-            ))}
-            <Link to={loggedIn ? '/houses' : '/login'} className="nav-cta">
-              {loggedIn ? 'Open app' : 'Login'}
-            </Link>
-          </nav>
-          <LanguagePicker compact />
+            </nav>
+            <LanguagePicker compact />
+            <ThemeToggle compact />
+          </div>
+          <div className="public-mobile-actions-v88">
+            <ThemeToggle compact />
+            <details className="public-mobile-menu-v88">
+              <summary aria-label="Open website menu">•••</summary>
+              <div className="public-mobile-menu-panel-v88">
+                {publicNavItems.map((item) => <Link key={item.to} to={item.to}>{item.label}</Link>)}
+                <Link to={loggedIn ? '/houses' : '/login'} className="nav-cta">{loggedIn ? 'Open app' : 'Login'}</Link>
+                <div className="public-mobile-language-v88"><LanguagePicker compact /></div>
+              </div>
+            </details>
+          </div>
         </div>
       </header>
       <div

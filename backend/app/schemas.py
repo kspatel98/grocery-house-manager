@@ -968,6 +968,8 @@ class ProductLookupResultOut(BaseModel):
 class ProductLookupOut(BaseModel):
     premium_required: bool = False
     configured: bool = True
+    cached: bool = False
+    cache_valid_until: datetime | None = None
     store_filter: str | None = None
     message: str
     lookup_status: str | None = None

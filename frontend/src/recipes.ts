@@ -89,8 +89,16 @@ const realImageOverrides:Partial<Record<string,string>>={
   poha:'/recipe-images-real/poha.jpg',
   'vaghareli-khichdi':'/recipe-images-real/vaghareli-khichdi.jpg',
 };
-const illustratedRecipeIds=new Set(baseRecipes.map(recipe=>recipe.id));
-export const recipes:Recipe[]=[...baseRecipes,...moreIndianRecipes].map(recipe=>({ ...recipe, cuisine:cuisineOverrides[recipe.id]||recipe.cuisine, image:realImageOverrides[recipe.id]||(illustratedRecipeIds.has(recipe.id)?`/recipe-images/${recipe.id}.svg`:undefined), steps:detailedRecipeSteps[recipe.id]||recipe.steps }));
+function cuisinePhotoFallback(recipe:Recipe):string {
+ const cuisine=(cuisineOverrides[recipe.id]||recipe.cuisine) as Cuisine;
+ if(recipe.kind==='dessert')return '/recipe-images-real/cuisine/dessert.webp';
+ if(cuisine==='Gujarati')return '/recipe-images-real/cuisine/gujarati.webp';
+ if(cuisine==='South Indian')return '/recipe-images-real/cuisine/south-indian.webp';
+ if(cuisine==='Maharashtrian')return '/recipe-images-real/cuisine/maharashtrian.webp';
+ if(cuisine==='International')return '/recipe-images-real/cuisine/international.webp';
+ return '/recipe-images-real/cuisine/north-indian.webp';
+}
+export const recipes:Recipe[]=[...baseRecipes,...moreIndianRecipes].map(recipe=>({ ...recipe, cuisine:cuisineOverrides[recipe.id]||recipe.cuisine, image:realImageOverrides[recipe.id]||cuisinePhotoFallback(recipe), steps:detailedRecipeSteps[recipe.id]||recipe.steps }));
 
 export const ingredientNames:Record<AppLanguage,Record<string,string>>={
  en:{},

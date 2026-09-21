@@ -319,7 +319,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
             <p className="eyebrow">Family Plus • automatic trip check</p>
             <h2>Where should I buy “{selectedList.title}”?</h2>
           </div>
-          <span className={busy ? 'auto-status checking' : 'auto-status'}>{busy ? '● Checking prices…' : comparison ? '✓ Checked automatically' : 'Ready'}</span>
+          <span className={`auto-status ${busy ? 'checking' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparison ? 'Prices checked' : 'Ready to check'}</span>
         </div>
         <p>Prices are checked automatically: current Canadian prices first, then active weekly flyer deals, then your recent receipts and older saved prices. If a price cannot be found, we say so instead of guessing.</p>
 
@@ -336,18 +336,18 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
         ) : null}
 
         {comparison?.live_configured && !comparison.premium_required ? (
-          <form className="basket-location-inline" onSubmit={(event) => { event.preventDefault(); void compare(true, postalCode); }}>
+          <form className="basket-location-inline" onSubmit={(event) => { event.preventDefault(); void compare(false, postalCode); }}>
             <label>
               <span>Postal code (optional) for nearby prices</span>
               <input value={postalCode} onChange={(event) => setPostalCode(event.target.value.toUpperCase())} placeholder="L8P 1A1" maxLength={7} />
             </label>
             <button className="secondary" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Use & refresh'}</button>
-            {postalCode ? <button type="button" className="text-button" onClick={() => { setPostalCode(''); localStorage.removeItem('ghm_price_postal'); void compare(true, ''); }}>Clear</button> : null}
+            {postalCode ? <button type="button" className="text-button" onClick={() => { setPostalCode(''); localStorage.removeItem('ghm_price_postal'); void compare(false, ''); }}>Clear</button> : null}
           </form>
         ) : null}
 
         <div className="whole-list-actions">
-          <button className="primary" type="button" onClick={() => compare(true)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : 'Refresh prices'}</button>
+          <button className="primary" type="button" onClick={() => compare(false)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : 'Refresh prices'}</button>
           {comparison?.store_options.length ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : 'View store details'}</button> : null}
         </div>
         {error && <div className="error compact-message">{error}</div>}

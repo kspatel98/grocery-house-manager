@@ -9,6 +9,7 @@ import type { AccountBootstrap, PremiumCrownStats, UserProfile } from '../types'
 import { LanguagePicker, useLanguage } from '../i18n';
 import OverlayPortal from './OverlayPortal';
 import SmartReviewPrompt from './SmartReviewPrompt';
+import { ThemeToggle } from '../theme';
 
 function EmailIcon() {
   return (
@@ -79,7 +80,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
   const [premiumArrival, setPremiumArrival] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('ghm_sidebar_collapsed_v87') === '1');
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('ghm_theme_v87') === 'dark' ? 'dark' : 'light');
   const premiumBadgeRef = useRef<HTMLDivElement>(null);
   const premiumCrownRef = useRef<HTMLSpanElement>(null);
   const desktopMoreRef = useRef<HTMLDivElement>(null);
@@ -89,11 +89,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
-
-  useEffect(() => {
-    document.documentElement.dataset.ghmTheme = theme;
-    localStorage.setItem('ghm_theme_v87', theme);
-  }, [theme]);
 
   useEffect(() => {
     localStorage.setItem('ghm_sidebar_collapsed_v87', sidebarCollapsed ? '1' : '0');
@@ -264,14 +259,14 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [premiumArrival]);
 
-  const pageTitle = [
+  const pageTitle = homeActive ? t('home') : ([
     ...navItems,
     ...extraNavItems,
     { to: '/profile', label: t('profile'), icon: '👤' },
   ].find((item) => {
     const itemPath = item.to.split('?')[0];
     return location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath));
-  })?.label || 'Grocery House Manager';
+  })?.label || 'Grocery House Manager');
 
   return (
     <div className="app-frame desktop-sidebar-layout">
@@ -296,6 +291,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
+          <div className="mobile-header-title-v88" aria-label={`Current section: ${pageTitle}`}><strong>{pageTitle}</strong><small>{showPremiumCrown ? 'Premium household' : 'Your household'}</small></div>
           <div className="site-nav-wrap">
             <nav className="site-nav" aria-label="Primary navigation">
               {navItems.map((item) => {
@@ -363,7 +359,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         <aside className="desktop-sidebar-v86" aria-label="Desktop navigation">
           <button type="button" className="desktop-sidebar-collapse-v87" aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setSidebarCollapsed((value) => !value)}><span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span></button>
           <div className="desktop-sidebar-brand-v86">
-            <Link to="/houses" className="desktop-sidebar-logo-v86">
+            <Link to="/" className="desktop-sidebar-logo-v86">
               <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
               <span>
                 <strong>Grocery House Manager</strong>
@@ -417,7 +413,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             <div className="desktop-sidebar-language-v86">
               <LanguagePicker compact />
             </div>
-            <button type="button" className="desktop-theme-toggle-v87" onClick={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}><span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span><strong>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</strong></button>
+            <ThemeToggle className="desktop-theme-toggle-v87" />
             <Link to="/profile" className="desktop-sidebar-account-v86">
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" />
@@ -509,7 +505,9 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               <div className="mobile-more-handle" aria-hidden="true" />
               <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" data-dialog-close="true" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
               <div className="mobile-more-grid">
-                <button type="button" className="mobile-more-theme-v87" onClick={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}><span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span><strong>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</strong></button>
+                <ThemeToggle className="mobile-more-theme-v87" />
+                <div className="mobile-more-language-card-v88"><span aria-hidden="true">🌐</span><div><strong>Language</strong><LanguagePicker compact /></div></div>
+                {showPremiumCrown && <div className="mobile-more-premium-card-v88"><span aria-hidden="true">👑</span><div><strong>Premium</strong><small>{premiumSubtext}</small></div></div>}
                 {extraNavItems.map((item) => (
                   <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
                 ))}

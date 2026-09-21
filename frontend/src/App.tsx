@@ -41,7 +41,7 @@ function PublicRoute({ children }: { children: ReactElement }) {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<PublicRoute><HomePage /></PublicRoute>} />
+      <Route path="/" element={<PublicFrame><HomePage /></PublicFrame>} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/pricing" element={<PublicRoute><PricingPage /></PublicRoute>} />
       <Route path="/about" element={<PublicRoute><AboutPage /></PublicRoute>} />

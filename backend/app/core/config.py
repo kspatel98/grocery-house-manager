@@ -63,7 +63,10 @@ class Settings(BaseSettings):
     apify_api_token: str | None = None
     apify_canada_price_actor_id: str = "sunny_eternity/canada-grocery-price-comparison"
     apify_price_output_mode: str = "comparison"
-    apify_price_cache_hours: int = 12
+    apify_price_cache_hours: int = 24
+    apify_price_force_refresh_min_minutes: int = 30
+    product_lookup_store_cache_hours: int = 24
+    product_lookup_universal_cache_hours: int = 720
     apify_price_timeout_seconds: int = 90
     market_max_compare_items: int = 12
 

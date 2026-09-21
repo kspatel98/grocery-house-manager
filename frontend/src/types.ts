@@ -508,6 +508,8 @@ export type ProductLookupResult = {
 export type ProductLookupResponse = {
   premium_required: boolean;
   configured: boolean;
+  cached?: boolean;
+  cache_valid_until?: string | null;
   store_filter?: string | null;
   message: string;
   lookup_status?: string | null;

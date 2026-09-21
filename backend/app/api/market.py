@@ -188,6 +188,75 @@ def get_nearby_store_results(user: User, city: str | None, country: str | None, 
     return label, stores
 
 
+def _product_lookup_cache_key(store_name: str | None, barcode: str | None, query: str | None) -> str:
+    store = " ".join((store_name or "universal").casefold().split())
+    term = " ".join((barcode or query or "").casefold().split())
+    raw = f"{store}|{term}"
+    return "product_lookup:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:40]
+
+
+def _read_product_lookup_cache(db: Session, store_name: str | None, barcode: str | None, query: str | None) -> ProductLookupOut | None:
+    key = _product_lookup_cache_key(store_name, barcode, query)
+    row = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == key).first()
+    if not row:
+        return None
+    now = datetime.now(timezone.utc)
+    expires = row.expires_at if row.expires_at.tzinfo else row.expires_at.replace(tzinfo=timezone.utc)
+    if expires <= now:
+        return None
+    try:
+        payload = json.loads(row.payload_json)
+        payload["cached"] = True
+        payload["cache_valid_until"] = expires.isoformat()
+        result = ProductLookupOut(**payload)
+        if result.message and "cached" not in result.message.casefold():
+            result.message = f"{result.message} Reused from cache to avoid another paid/external lookup."
+        return result
+    except Exception:
+        return None
+
+
+def _write_product_lookup_cache(
+    db: Session,
+    *,
+    store_name: str | None,
+    barcode: str | None,
+    query: str | None,
+    result: ProductLookupOut,
+) -> ProductLookupOut:
+    key = _product_lookup_cache_key(store_name, barcode, query)
+    now = datetime.now(timezone.utc)
+    ttl_hours = settings.product_lookup_store_cache_hours if store_name else settings.product_lookup_universal_cache_hours
+    expires = now + timedelta(hours=max(1, ttl_hours))
+    payload = result.model_dump(mode="json")
+    payload["cached"] = False
+    payload["cache_valid_until"] = expires.isoformat()
+    existing = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == key).first()
+    if existing:
+        existing.source = "product_lookup_store" if store_name else "product_lookup_universal"
+        existing.query = barcode or query or ""
+        existing.location = None
+        existing.retailers = store_name or None
+        existing.payload_json = json.dumps(payload, default=str)
+        existing.fetched_at = now
+        existing.expires_at = expires
+    else:
+        db.add(ExternalPriceCache(
+            cache_key=key,
+            source="product_lookup_store" if store_name else "product_lookup_universal",
+            query=barcode or query or "",
+            location=None,
+            retailers=store_name or None,
+            payload_json=json.dumps(payload, default=str),
+            fetched_at=now,
+            expires_at=expires,
+        ))
+    db.commit()
+    result.cached = False
+    result.cache_valid_until = expires
+    return result
+
+
 @router.get("/capabilities", response_model=MarketCapabilitiesOut)
 def market_capabilities(user: User = Depends(get_current_user)):
     connected = bool(settings.apify_api_token)
@@ -326,6 +395,7 @@ def product_lookup(
     barcode: str | None = Query(default=None, max_length=120),
     query: str | None = Query(default=None, max_length=120),
     store_name: str | None = Query(default=None, max_length=80),
+    force_refresh: bool = False,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -343,6 +413,11 @@ def product_lookup(
     if not barcode and not query:
         return ProductLookupOut(store_filter=store_filter or None, message="Enter a barcode, store item number, or product name to search.", results=[])
 
+    if not force_refresh:
+        cached_result = _read_product_lookup_cache(db, store_filter or None, barcode, query)
+        if cached_result is not None:
+            return cached_result
+
     if store_filter:
         store_key, display_store, results, details = lookup_store_product(store_name=store_filter, product_id=barcode, query=query, limit=8)
         if store_key is None:
@@ -356,7 +431,7 @@ def product_lookup(
                 results=[],
             )
         if not results:
-            return ProductLookupOut(
+            return _write_product_lookup_cache(db, store_name=store_filter, barcode=barcode, query=query, result=ProductLookupOut(
                 premium_required=False,
                 configured=True,
                 store_filter=display_store,
@@ -364,10 +439,10 @@ def product_lookup(
                 lookup_details=details,
                 message=f"No official {display_store} product page was found for that number/name. Check the Lookup check details below, or remove the store name to search the universal product database.",
                 results=[],
-            )
+            ))
         has_confirmed_product = any(getattr(item, "found", True) for item in results)
         if not has_confirmed_product:
-            return ProductLookupOut(
+            return _write_product_lookup_cache(db, store_name=store_filter, barcode=barcode, query=query, result=ProductLookupOut(
                 premium_required=False,
                 configured=True,
                 store_filter=display_store,
@@ -375,8 +450,8 @@ def product_lookup(
                 lookup_details=details,
                 message=f"I could not read product details automatically from {display_store}. Open the official store search link below, then add the product manually after confirming the details.",
                 results=results,
-            )
-        return ProductLookupOut(
+            ))
+        return _write_product_lookup_cache(db, store_name=store_filter, barcode=barcode, query=query, result=ProductLookupOut(
             premium_required=False,
             configured=True,
             store_filter=display_store,
@@ -384,24 +459,24 @@ def product_lookup(
             lookup_details=details,
             message=f"Official {display_store} product result found. Open the product page to confirm size, price, and availability before adding it to inventory.",
             results=results,
-        )
+        ))
 
     results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)
     if not results:
-        return ProductLookupOut(
+        return _write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
             premium_required=False,
             configured=True,
             store_filter=None,
             message="No matching product details were found. You can still add the product manually.",
             results=[],
-        )
-    return ProductLookupOut(
+        ))
+    return _write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
         premium_required=False,
         configured=True,
         store_filter=None,
         message="Product details found from the universal database. Please review before saving to inventory.",
         results=results,
-    )
+    ))
 
 
 def _reverse_geocode_postal_code(lat: float | None, lng: float | None) -> tuple[str | None, str | None, str | None]:
