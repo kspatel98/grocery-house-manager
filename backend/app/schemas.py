@@ -1183,6 +1183,57 @@ class AdminOfferActionOut(BaseModel):
     checkout_url: str | None = None
     offer: AdminOfferOut | None = None
 
+class CommunityRecipeIngredientIn(BaseModel):
+    name: str = Field(min_length=1, max_length=180)
+    quantity: float = Field(gt=0, le=100000)
+    unit: str = Field(default="g", min_length=1, max_length=32)
+    optional: bool = False
+
+
+class CommunityRecipeCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=180)
+    base_servings: int = Field(default=4, ge=1, le=100)
+    meal_kind: Literal["proper", "light", "breakfast", "dessert", "drink"] = "proper"
+    cuisine: str = Field(default="International", min_length=1, max_length=80)
+    categories: list[str] = Field(default_factory=list, max_length=16)
+    diets: list[Literal["jain", "swaminarayan", "veg", "vegan", "nonveg"]] = Field(default_factory=list, max_length=5)
+    ingredients: list[CommunityRecipeIngredientIn] = Field(min_length=1, max_length=60)
+    steps: list[str] = Field(min_length=1, max_length=80)
+    is_shared: bool = False
+
+
+class CommunityRecipeUpdateIn(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=180)
+    base_servings: int | None = Field(default=None, ge=1, le=100)
+    meal_kind: Literal["proper", "light", "breakfast", "dessert", "drink"] | None = None
+    cuisine: str | None = Field(default=None, min_length=1, max_length=80)
+    categories: list[str] | None = Field(default=None, max_length=16)
+    diets: list[Literal["jain", "swaminarayan", "veg", "vegan", "nonveg"]] | None = Field(default=None, max_length=5)
+    ingredients: list[CommunityRecipeIngredientIn] | None = Field(default=None, min_length=1, max_length=60)
+    steps: list[str] | None = Field(default=None, min_length=1, max_length=80)
+    is_shared: bool | None = None
+
+
+class CommunityRecipeOut(BaseModel):
+    id: int
+    user_id: int
+    uploader_name: str
+    uploader_avatar_url: str | None = None
+    name: str
+    base_servings: int
+    meal_kind: str
+    cuisine: str
+    categories: list[str] = Field(default_factory=list)
+    diets: list[str] = Field(default_factory=list)
+    ingredients: list[CommunityRecipeIngredientIn] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+    image_url: str | None = None
+    is_shared: bool = False
+    can_edit: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
 class RecipeShoppingIngredientIn(BaseModel):
     name: str = Field(min_length=1, max_length=180)
     quantity: float = Field(gt=0)

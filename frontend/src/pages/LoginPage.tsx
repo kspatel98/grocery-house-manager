@@ -264,7 +264,7 @@ export default function LoginPage() {
       <section className="auth-shell-v88">
         <aside className="auth-story-v88">
           <Link to="/" className="auth-story-brand-v88" aria-label="Back to Grocery House Manager website">
-            <span className="auth-story-logo-v88"><img src="/brand/grocery-house-manager-logo.png" alt="" /></span>
+            <span className="auth-story-logo-v88"><img src="/brand/grocery-house-manager-icon.png" alt="" /></span>
             <span><strong>Grocery House Manager</strong><small>A SupremDas Group product</small></span>
           </Link>
           <div className="auth-story-copy-v88">
@@ -280,7 +280,7 @@ export default function LoginPage() {
           <p className="auth-story-quote-v88">Plan smarter • Shop smarter • Live better</p>
         </aside>
         <section className="auth-card auth-card-v88">
-          <Link to="/" className="auth-card-logo-v88"><img className="auth-logo" src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" /></Link>
+          <Link to="/" className="auth-card-logo-v88"><img className="auth-logo" src="/brand/grocery-house-manager-icon.png" alt="Grocery House Manager" /></Link>
           <p className="brand-kicker">{isRegister ? 'CREATE YOUR HOUSEHOLD ACCOUNT' : 'WELCOME BACK'}</p>
           <h1>{isRegister ? 'Create your account' : 'Login to your home'}</h1>
           <p>{isRegister ? 'Start with a free household and invite the people you live with.' : 'Your groceries, meals, receipts and household activity are ready when you are.'}</p>

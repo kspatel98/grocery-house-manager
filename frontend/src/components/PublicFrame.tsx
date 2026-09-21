@@ -78,7 +78,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
       <header ref={siteHeaderRef} className="site-header public-site-header">
         <div className="site-header-inner shell wide">
           <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
-            <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
+            <img src="/brand/grocery-house-manager-icon.png" alt="Grocery House Manager" />
             <span>
               <strong>Grocery House Manager</strong>
               <small>A SupremDas Group product</small>

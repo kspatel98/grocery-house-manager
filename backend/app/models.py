@@ -73,6 +73,7 @@ class User(Base):
     password_reset_codes: Mapped[list["PasswordResetCode"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     registration_verification_codes: Mapped[list["RegistrationVerificationCode"]] = relationship(back_populates="existing_user", cascade="all, delete-orphan")
     password_history: Mapped[list["PasswordHistory"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    community_recipes: Mapped[list["CommunityRecipe"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
 
 
 class PasswordHistory(Base):
@@ -417,6 +418,27 @@ class ExternalPriceCache(Base):
     payload_json: Mapped[str] = mapped_column(Text)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class CommunityRecipe(Base):
+    __tablename__ = "community_recipes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(180), index=True)
+    base_servings: Mapped[int] = mapped_column(Integer, default=4)
+    meal_kind: Mapped[str] = mapped_column(String(32), default="proper", index=True)
+    cuisine: Mapped[str] = mapped_column(String(80), default="International", index=True)
+    categories_json: Mapped[str] = mapped_column(Text, default="[]")
+    diets_json: Mapped[str] = mapped_column(Text, default="[]")
+    ingredients_json: Mapped[str] = mapped_column(Text, default="[]")
+    steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_shared: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, index=True)
+
+    owner: Mapped[User] = relationship(back_populates="community_recipes")
 
 
 class SiteReview(Base):

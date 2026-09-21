@@ -274,7 +274,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         <div className="site-header-inner shell wide">
           <div className="site-brand-premium-wrap">
             <Link to="/" className="site-brand" aria-label="Go to Grocery House Manager homepage">
-              <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
+              <img src="/brand/grocery-house-manager-icon.png" alt="Grocery House Manager" />
               <span>
                 <strong>Grocery House Manager</strong>
                 <small>A SupremDas Group product</small>
@@ -360,7 +360,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           <button type="button" className="desktop-sidebar-collapse-v87" aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setSidebarCollapsed((value) => !value)}><span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span></button>
           <div className="desktop-sidebar-brand-v86">
             <Link to="/" className="desktop-sidebar-logo-v86">
-              <img src="/brand/grocery-house-manager-logo.png" alt="Grocery House Manager" />
+              <img src="/brand/grocery-house-manager-icon.png" alt="Grocery House Manager" />
               <span>
                 <strong>Grocery House Manager</strong>
                 <small>Plan together. Live better.</small>
