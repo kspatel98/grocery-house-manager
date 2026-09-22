@@ -12159,3 +12159,414 @@ html[data-ghm-theme="dark"] .recipe-editor-steps-v89 > div > span { background:#
   .recipe-editor-preview-v89,.recipe-editor-image-v89>small{grid-column:auto}
   .recipe-editor-ingredient-row-v89{grid-template-columns:minmax(0,1fr) 75px 70px 36px}
 }
+
+/* ========================================================================== */
+/* V90 — targeted Automatic Trip Check + dark-mode contrast correction         */
+/* ========================================================================== */
+
+/* LIGHT MODE: keep V89 untouched everywhere except Automatic Trip Check.
+   This block owns every internal surface so legacy white-on-dark styles no
+   longer disappear against the newer pale hero treatment. */
+html:not([data-ghm-theme="dark"]) .whole-list-compare-hero.auto-basket-comparison {
+  background:
+    radial-gradient(circle at 94% 4%, rgba(24, 137, 82, .12), transparent 28%),
+    linear-gradient(135deg, #e1f1e6 0%, #edf7f0 58%, #e7f2ec 100%) !important;
+  color: #123b2c !important;
+  border-color: #abcbbb !important;
+  box-shadow: 0 16px 36px rgba(22, 78, 54, .12) !important;
+}
+html:not([data-ghm-theme="dark"]) .whole-list-compare-hero.auto-basket-comparison .whole-list-copy :where(h2,h3,strong) {
+  color: #123b2c !important;
+}
+html:not([data-ghm-theme="dark"]) .whole-list-compare-hero.auto-basket-comparison .whole-list-copy :where(p,small,label) {
+  color: #49665a !important;
+}
+html:not([data-ghm-theme="dark"]) .whole-list-compare-hero.auto-basket-comparison .eyebrow {
+  color: #087044 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .auto-status {
+  background: #d4ecdd !important;
+  border: 1px solid #8ebaa1 !important;
+  color: #075f38 !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), 0 4px 12px rgba(22, 89, 58, .08);
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .auto-status.checking {
+  background: #fff1c9 !important;
+  border-color: #dfc36e !important;
+  color: #765309 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .auto-status.done {
+  background: #cfebd9 !important;
+  border-color: #76ae8a !important;
+  color: #075f38 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-source-strip span {
+  background: #ffffff !important;
+  border: 1px solid #b6d0c1 !important;
+  color: #174d36 !important;
+  box-shadow: 0 4px 10px rgba(24, 80, 57, .06);
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-location-inline {
+  background: #d8eae0 !important;
+  border-color: #a9c9b8 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-location-inline label,
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-location-inline label span {
+  color: #254f3d !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-location-inline input {
+  background: #ffffff !important;
+  color: #123b2c !important;
+  border-color: #9fbeae !important;
+  box-shadow: inset 0 1px 2px rgba(12, 60, 39, .05) !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-location-inline input::placeholder {
+  color: #789084 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-location-inline .text-button {
+  color: #0b6941 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-actions .primary {
+  background: linear-gradient(135deg, #09663d, #148653) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-actions .secondary,
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-upgrade-line .secondary {
+  background: #ffffff !important;
+  color: #0d5e3a !important;
+  border: 1px solid #95bba7 !important;
+  box-shadow: 0 5px 12px rgba(20, 76, 52, .07) !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-result-preview {
+  background: linear-gradient(145deg, #123f2e, #19533c) !important;
+  border: 1px solid #2d6950 !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(15, 69, 45, .20) !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-result-preview > span {
+  color: #d7f7bb !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-result-preview > :where(strong,em) {
+  color: #ffffff !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-result-preview > small {
+  color: #d1e2d9 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-guidance-line {
+  background: #f9fcfa !important;
+  border-color: #b8d2c4 !important;
+  color: #315746 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-guidance-line strong {
+  color: #123b2c !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-guidance-line :where(span,small) {
+  color: #557166 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-results > div {
+  background: #ffffff !important;
+  border: 1px solid #b6d0c1 !important;
+  color: #173e2f !important;
+  box-shadow: 0 5px 12px rgba(18, 72, 49, .06);
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-results > div.best {
+  background: #dff2e5 !important;
+  border-color: #7fb394 !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-results :where(span,strong) {
+  color: #173e2f !important;
+}
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .whole-list-results :where(small,.small-muted,.basket-missing-line),
+html:not([data-ghm-theme="dark"]) .auto-basket-comparison .basket-no-guess-note {
+  color: #5c7368 !important;
+}
+
+/* DARK MODE: create visibly different depth levels instead of green-on-green.
+   Page -> main card -> nested surface -> interactive control each has a clear
+   luminance step and stronger borders. */
+html[data-ghm-theme="dark"] {
+  --v90-page-0: #06100c;
+  --v90-page-1: #091711;
+  --v90-surface-1: #11271d;
+  --v90-surface-2: #173226;
+  --v90-surface-3: #1d3b2e;
+  --v90-border: #385f4d;
+  --v90-border-strong: #4b765f;
+  --v90-text: #f3fbf6;
+  --v90-text-2: #cfdfd6;
+  --v90-muted: #b4c8bd;
+  --v90-green-text: #b9f3cf;
+}
+html[data-ghm-theme="dark"] body,
+html[data-ghm-theme="dark"] .app-frame,
+html[data-ghm-theme="dark"] .desktop-sidebar-layout.app-frame {
+  background: linear-gradient(180deg, var(--v90-page-0), var(--v90-page-1)) !important;
+  color: var(--v90-text) !important;
+}
+html[data-ghm-theme="dark"] .app-main-content,
+html[data-ghm-theme="dark"] .page,
+html[data-ghm-theme="dark"] .marketing-page,
+html[data-ghm-theme="dark"] .modal,
+html[data-ghm-theme="dark"] .focus-dialog {
+  color: var(--v90-text) !important;
+}
+html[data-ghm-theme="dark"] :where(.page,.marketing-page,.modal,.focus-dialog) :where(h1,h2,h3,h4,h5,strong,b) {
+  color: var(--v90-text) !important;
+}
+html[data-ghm-theme="dark"] :where(.page,.marketing-page,.modal,.focus-dialog) :where(p,small,label,li,dd,dt) {
+  color: var(--v90-text-2) !important;
+}
+html[data-ghm-theme="dark"] :where(.page,.marketing-page,.modal,.focus-dialog) .small-muted,
+html[data-ghm-theme="dark"] :where(.page,.marketing-page,.modal,.focus-dialog) .muted,
+html[data-ghm-theme="dark"] :where(.page,.marketing-page,.modal,.focus-dialog) .helper-text {
+  color: var(--v90-muted) !important;
+}
+
+/* Primary surfaces. Use background-color so intentional gradients/images stay. */
+html[data-ghm-theme="dark"] :where(
+  .panel,.stat-card,.profile-panel,.market-tool-card,.support-card,.legal-card,.house-card,
+  .receipt-library-panel,.receipt-detail-panel,.v85-workspace-card,.pricing-card,.faq-card,
+  .feature-card,.auth-card,.forgot-password-box,.google-box,.account-confirm-card
+) {
+  background-color: var(--v90-surface-1) !important;
+  border-color: var(--v90-border) !important;
+  color: var(--v90-text) !important;
+  box-shadow: 0 14px 34px rgba(0,0,0,.28) !important;
+}
+
+/* Nested content blocks: visibly lighter than the parent card. */
+html[data-ghm-theme="dark"] :where(
+  .product-card,.flyer-deal-card,.shopping-flyer-match-card,.store-result-card,.external-recipe-card,
+  .recipe-image-tile,.community-recipe-card-v89,.my-recipe-card-v89,.compare-summary-card,
+  .whole-list-result-preview,.list-switcher-panel,.smart-suggestions-panel,.receipt-item-card,
+  .receipt-total-card,.receipt-note-card,.daily-moment-card,.today-action-card,.quick-create-product-card,
+  .product-preview-card,.preset-panel,.pending-reimbursement-card,.reimbursement-route,
+  .expense-balance-audit,.report-highlight-card,.review-form-card,.coupon-panel,.plan-access-panel,
+  .expense-member-card,.payer-card,.reimburse-amount-card,.billing-date-card,.plan-summary-card,
+  .store-report-card,.v85-meal-card,.meal-idea-card,.install-app-card,.invite-share-card-v87,
+  .receipt-preview-panel,.phone-list-card,.phone-receipt-card,.visual-insight-card
+) {
+  background-color: var(--v90-surface-2) !important;
+  border-color: var(--v90-border) !important;
+  color: var(--v90-text) !important;
+}
+
+/* Small nested rows/pills should not disappear into their parent surface. */
+html[data-ghm-theme="dark"] :where(
+  .member-row,.ingredient-row,.receipt-preview-row,.receipt-preview-meta span,.phone-stat-grid span,
+  .expense-snapshot-grid article,.expense-insight-kpis article,.expense-month-book-total,
+  .expense-month-book-metrics>span,.assistant-store-ranking>div,.assistant-recipe-list>div,
+  .inventory-pulse-grid span,.community-card-copy-v89,.recipe-community-meta-v89,
+  .recipe-editor-section-v89,.recipe-share-panel-v89,.basket-location-inline,.basket-guidance-line
+) {
+  background-color: var(--v90-surface-3) !important;
+  border-color: var(--v90-border-strong) !important;
+  color: var(--v90-text) !important;
+}
+
+/* Forms get a distinct near-black field surface and brighter labels. */
+html[data-ghm-theme="dark"] input,
+html[data-ghm-theme="dark"] select,
+html[data-ghm-theme="dark"] textarea {
+  background: #091a13 !important;
+  border-color: #4b715f !important;
+  color: #f5fcf8 !important;
+  caret-color: #8de6b2 !important;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.35) !important;
+}
+html[data-ghm-theme="dark"] input::placeholder,
+html[data-ghm-theme="dark"] textarea::placeholder {
+  color: #8ea398 !important;
+  opacity: 1 !important;
+}
+html[data-ghm-theme="dark"] input:focus,
+html[data-ghm-theme="dark"] select:focus,
+html[data-ghm-theme="dark"] textarea:focus {
+  border-color: #69a886 !important;
+  outline: 3px solid rgba(94, 198, 139, .15) !important;
+}
+
+/* Secondary/utility buttons now have enough separation from cards. */
+html[data-ghm-theme="dark"] :where(
+  .secondary,button.secondary,a.secondary,.ghost-button,button.ghost,.small-button,
+  .reimburse-button,.expense-save-button,.barcode-scan-button
+) {
+  background: #214536 !important;
+  color: #f0faf5 !important;
+  border-color: #568069 !important;
+  box-shadow: 0 6px 15px rgba(0,0,0,.18) !important;
+}
+html[data-ghm-theme="dark"] :where(
+  .secondary,button.secondary,a.secondary,.ghost-button,button.ghost,.small-button,
+  .reimburse-button,.expense-save-button,.barcode-scan-button
+):hover {
+  background: #295642 !important;
+  border-color: #6b977f !important;
+}
+html[data-ghm-theme="dark"] :where(.text-button,.link-button,.center-link) {
+  color: #91e5b4 !important;
+  text-decoration-color: rgba(145,229,180,.55) !important;
+}
+html[data-ghm-theme="dark"] .icon-button {
+  background: #1b3b2e !important;
+  color: #edf8f2 !important;
+  border-color: #4a715e !important;
+}
+html[data-ghm-theme="dark"] :where(button.primary,.primary,a.primary) {
+  background: linear-gradient(135deg,#168657,#25a66c) !important;
+  color: #ffffff !important;
+  border-color: #3ab47c !important;
+  box-shadow: 0 9px 22px rgba(0,0,0,.24) !important;
+}
+html[data-ghm-theme="dark"] :where(button.primary,.primary,a.primary):hover {
+  background: linear-gradient(135deg,#1b9460,#2db577) !important;
+}
+
+/* Badges, chips and filters: brighter foreground + darker/lighter separation. */
+html[data-ghm-theme="dark"] :where(
+  .badge,.source-badge,.chip,.plan-pill,.confidence-pill,.recommended-badge,.discount-badge,
+  .coupon-badge,.shopping-tag,.plan-status-badge,.role-badge,.graphical-source-badge,
+  .store-suggestion-badge,.market-access-chip,.expense-auto-badge,.momentum-badge-v87,
+  .review-rating-pill,.receipt-status-chip,.desktop-topbar-pill-v86,.contact-pill,
+  .manual-only-badge,.assistant-chip,.offer-crown-badge
+) {
+  background: #25513d !important;
+  color: #e5f8ed !important;
+  border-color: #5d8a70 !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025) !important;
+}
+html[data-ghm-theme="dark"] :where(.badge.warning,.mini-status.low,.split-total-status.warn) {
+  background: #513f19 !important;
+  color: #ffe4a0 !important;
+  border-color: #8b7034 !important;
+}
+html[data-ghm-theme="dark"] :where(.badge.danger,.mini-status.out,.mini-status.expired) {
+  background: #512a28 !important;
+  color: #ffd0cb !important;
+  border-color: #87504b !important;
+}
+html[data-ghm-theme="dark"] :where(.success,.split-total-status.ok) {
+  background: #1d4932 !important;
+  color: #d1f7de !important;
+  border-color: #4e7e60 !important;
+}
+html[data-ghm-theme="dark"] .error {
+  background: #512725 !important;
+  color: #ffd7d2 !important;
+  border-color: #85504b !important;
+}
+
+/* Dark tables and list headers need stronger row distinction. */
+html[data-ghm-theme="dark"] :where(.table-wrap,.data-table,.expense-table,.receipt-table) {
+  background: #0e2118 !important;
+  border-color: var(--v90-border) !important;
+}
+html[data-ghm-theme="dark"] :where(.data-table,.expense-table,.receipt-table) thead,
+html[data-ghm-theme="dark"] :where(.table-wrap) thead {
+  background: #1d3a2d !important;
+  color: #f2faf6 !important;
+}
+html[data-ghm-theme="dark"] :where(.data-table,.expense-table,.receipt-table) tbody tr {
+  border-color: #315343 !important;
+}
+html[data-ghm-theme="dark"] :where(.data-table,.expense-table,.receipt-table) tbody tr:hover {
+  background: #173126 !important;
+}
+
+/* Automatic Trip Check has an explicit dark palette too, independent of the
+   generic page rules. */
+html[data-ghm-theme="dark"] .whole-list-compare-hero.auto-basket-comparison {
+  background:
+    radial-gradient(circle at 94% 4%, rgba(79, 205, 135, .10), transparent 30%),
+    linear-gradient(135deg, #0d251a 0%, #123326 58%, #10291f 100%) !important;
+  border-color: #3f6d56 !important;
+  color: #f2fbf6 !important;
+  box-shadow: 0 18px 44px rgba(0,0,0,.34) !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-copy :where(h2,h3,strong) {
+  color: #f4fcf7 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-copy :where(p,small,label) {
+  color: #c9dbd1 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .eyebrow {
+  color: #9ce3b8 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .auto-status {
+  background: #214e39 !important;
+  color: #d9f8e5 !important;
+  border-color: #5b8c70 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .auto-status.checking {
+  background: #4e421e !important;
+  color: #ffe8a8 !important;
+  border-color: #8a7540 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .basket-source-strip span {
+  background: #1d4433 !important;
+  border-color: #4a765d !important;
+  color: #e0f4e8 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .basket-location-inline,
+html[data-ghm-theme="dark"] .auto-basket-comparison .basket-guidance-line {
+  background: #17382a !important;
+  border-color: #416d56 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .basket-location-inline label,
+html[data-ghm-theme="dark"] .auto-basket-comparison .basket-location-inline label span,
+html[data-ghm-theme="dark"] .auto-basket-comparison .basket-guidance-line :where(span,small) {
+  color: #c9dbd1 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-result-preview {
+  background: #071811 !important;
+  border-color: #426b57 !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.015), 0 12px 28px rgba(0,0,0,.24) !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-result-preview > span {
+  color: #b9eca0 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-result-preview > :where(strong,em) {
+  color: #ffffff !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-result-preview > small {
+  color: #bdcfc5 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-results > div {
+  background: #17382a !important;
+  border: 1px solid #406b55 !important;
+  color: #edf9f2 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-results > div.best {
+  background: #205039 !important;
+  border-color: #5f9273 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-results :where(span,strong) {
+  color: #f3fbf6 !important;
+}
+html[data-ghm-theme="dark"] .auto-basket-comparison .whole-list-results :where(small,.small-muted,.basket-missing-line),
+html[data-ghm-theme="dark"] .auto-basket-comparison .basket-no-guess-note {
+  color: #c0d2c8 !important;
+}
+
+/* Auth/public areas follow the same depth system in dark mode. */
+html[data-ghm-theme="dark"] :where(.auth-page-v88,.auth-shell-v88,.public-page,.marketing-page) {
+  color: var(--v90-text) !important;
+}
+html[data-ghm-theme="dark"] :where(.auth-story-v88,.public-mobile-menu-panel-v88,.mobile-more-sheet) {
+  background-color: #10261c !important;
+  border-color: var(--v90-border) !important;
+  color: var(--v90-text) !important;
+}
+html[data-ghm-theme="dark"] .auth-story-features-v88 > * {
+  background-color: #19362a !important;
+  border-color: #456f59 !important;
+  color: #edf8f2 !important;
+}
+
+/* Accessibility: visible focus rings on dark surfaces. */
+html[data-ghm-theme="dark"] :where(button,a,input,select,textarea):focus-visible {
+  outline: 3px solid rgba(126, 230, 168, .45) !important;
+  outline-offset: 2px;
+}
+
