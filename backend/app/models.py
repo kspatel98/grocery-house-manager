@@ -126,6 +126,7 @@ class House(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    contribute_community_prices: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     members: Mapped[list["HouseMember"]] = relationship(back_populates="house", cascade="all, delete-orphan")
@@ -389,6 +390,25 @@ class ProductStorePrice(Base):
     product: Mapped[Product] = relationship(back_populates="store_prices")
     receipt: Mapped[Receipt | None] = relationship(back_populates="price_entries")
     recorded_by: Mapped[User | None] = relationship(back_populates="price_entries")
+
+
+class CommunityPriceObservation(Base):
+    __tablename__ = "community_price_observations"
+    __table_args__ = (UniqueConstraint("source_house_id", "product_key", "store_name", "observed_on", name="uq_community_price_house_product_store_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    product_key: Mapped[str] = mapped_column(String(220), index=True)
+    product_name: Mapped[str] = mapped_column(String(180))
+    brand: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    barcode: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    store_name: Mapped[str] = mapped_column(String(150), index=True)
+    price: Mapped[float] = mapped_column(Float)
+    city: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    country: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    observed_on: Mapped[date] = mapped_column(Date, index=True)
+    source: Mapped[str] = mapped_column(String(60), default="reviewed_receipt")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
 
 class ReceiptScanPurchase(Base):

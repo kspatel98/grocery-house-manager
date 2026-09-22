@@ -21,8 +21,8 @@ const featureCards = [
   },
   {
     icon: '🏷️',
-    title: 'Smart weekly assistant',
-    text: 'Turn inventory into needed-item suggestions, meal ideas, automatic trip price checks, and one simple weekly action plan.',
+    title: 'GHM Autopilot',
+    text: 'Connect inventory, meals, receipts, expiry, price history and shopping into one household action plan.',
   },
 ];
 
@@ -30,7 +30,7 @@ const dailyMoments = [
   { icon: '🥛', title: 'Prevent duplicate buying', text: 'Check what is already in stock before buying milk, eggs, bread, snacks, or household essentials.' },
   { icon: '👨‍👩‍👧‍👦', title: 'Everyone stays updated', text: 'House members can see shopping progress, inventory changes, members, and activity in one place.' },
   { icon: '🧾', title: 'Turn receipts into history', text: 'Save reviewed receipt items, discounts, tax, and totals to build useful store-price and spending records.' },
-  { icon: '📉', title: 'Know if the app pays for itself', text: 'Savings reports use recorded receipt discounts and supported lower-price choices instead of invented numbers.' },
+  { icon: '📉', title: 'Know if the app pays for itself', text: 'The Savings Ledger separates evidence-backed savings from opportunities so you can see exactly what the app has proven.' },
 ];
 
 const workflow = [
@@ -48,8 +48,8 @@ const planHighlights = [
     price: '$0 CAD',
     annual: 'No card required',
     tag: 'Start a real house for free',
-    features: ['Create 1 house', '40 products', '1 active shared list', 'Up to 4 members'],
-    locked: ['Receipt scanning', 'Whole-list price comparison', 'Live price intelligence'],
+    features: ['Create 1 house', '40 products', 'Food Recall Guardian', 'Savings Ledger'],
+    locked: ['Receipt Guardian', 'Autopilot weekly planning', 'Automatic Trip Check'],
   },
   {
     key: 'basic',
@@ -57,8 +57,8 @@ const planHighlights = [
     price: '$1.99/mo CAD',
     annual: '$17.99/year CAD',
     tag: 'For couples and small homes',
-    features: ['Larger houses', 'Product + barcode lookup', '2 receipt scans/month'],
-    locked: ['Canadian price comparison', 'Nearby store suggestions'],
+    features: ['2 receipt scans/month', 'Receipt Guardian', 'Private price memory'],
+    locked: ['Weekly Planner + Budget Rescue', 'Automatic Trip Check', 'Kitchen Check'],
   },
   {
     key: 'family',
@@ -66,8 +66,8 @@ const planHighlights = [
     price: '$4.99/mo CAD',
     annual: '$39.99/year CAD',
     tag: 'MOST POPULAR • best value',
-    features: ['Automatic whole-list store comparison', '5 receipt scans/month', 'Canadian prices + weekly flyers'],
-    locked: ['Advanced nearby-store tools'],
+    features: ['Autopilot Weekly Planner + Budget Rescue', 'Automatic Trip Check', 'Smart stock-up intelligence', '5 receipt scans/month'],
+    locked: ['Kitchen Check Beta'],
   },
   {
     key: 'pro',
@@ -75,7 +75,7 @@ const planHighlights = [
     price: '$6.99/mo CAD',
     annual: '$59.99/year CAD',
     tag: 'For large or serious tracking',
-    features: ['15 receipt scans/month', 'Nearby store suggestions', 'Advanced price + household intelligence'],
+    features: ['Everything in Family Plus', 'Kitchen Check Beta', '15 receipt scans/month', 'Nearby store + deep household intelligence'],
     locked: [],
   },
 ];
@@ -101,13 +101,12 @@ export default function HomePage() {
       <section className="landing-hero shell wide premium-home-hero">
         <div className="landing-copy premium-hero-copy">
           <div className="hero-topline-row">
-            <p className="eyebrow warm-eyebrow">Inventory • shopping • smart receipts • savings</p>
+            <p className="eyebrow warm-eyebrow">Inventory • Autopilot • money protection • meals</p>
             <span className="hero-parent-pill">A SupremDas Group product</span>
           </div>
-          <h1>Stop buying groceries you already have.</h1>
+          <h1>What if your home already knew what it needed?</h1>
           <p className="hero-lede">
-            Grocery House Manager gives your household one clean system for inventory, shopping lists,
-            receipt tracking, price awareness, and a weekly grocery assistant — so families, couples, and roommates spend less time guessing and less money rebuying what is already home.
+            Grocery House Manager connects what you own, what is expiring, what your household usually buys, what stores charge, and what your receipts prove. GHM Autopilot turns that data into the next useful decision — before you spend money.
           </p>
           <div className="hero-actions big-hero-actions premium-hero-actions">
             <Link to={loggedIn ? '/houses' : '/login'} className="primary orange-cta center-link premium-cta-main">
@@ -118,16 +117,16 @@ export default function HomePage() {
           {!loggedIn && <p className="hero-free-proof">No card required • 1 starter house • 40 products • 1 shared list</p>}
           <div className="premium-proof-grid" aria-label="Product highlights">
             <article className="premium-proof-card">
-              <strong>Shared grocery house</strong>
-              <span>Inventory, receipts, and lists in one place</span>
+              <strong>GHM Autopilot</strong>
+              <span>One intelligence across inventory, meals, trips and receipts</span>
             </article>
             <article className="premium-proof-card">
-              <strong>Smart Receipt Scan</strong>
-              <span>Review details before saving trusted prices</span>
+              <strong>Money protection</strong>
+              <span>Trip decisions, Receipt Guardian and evidence-backed savings</span>
             </article>
             <article className="premium-proof-card">
-              <strong>Made for real households</strong>
-              <span>Families, couples, roommates, and busy homes</span>
+              <strong>Safety stays useful</strong>
+              <span>Food Recall Guardian remains available on Free Starter</span>
             </article>
           </div>
           <div className="hero-mini-stats">
@@ -329,32 +328,32 @@ export default function HomePage() {
 
       <section className="shell wide marketing-section smart-assistant-marketing">
         <div className="smart-assistant-marketing-copy">
-          <p className="eyebrow warm-eyebrow">The reason to come back every week</p>
-          <h2>From “what do we need?” to one clear grocery plan.</h2>
-          <p>The Smart Weekly Grocery Assistant checks low stock, expiry dates, your active list, meal possibilities, price sources, and recorded savings. It can add genuinely needed items, suggest meals you can make now or are one ingredient away from, and hand your list to an automatic whole-trip price check.</p>
+          <p className="eyebrow warm-eyebrow">GHM AUTOPILOT · HOUSEHOLD GROCERY CFO</p>
+          <h2>Don't manage groceries. Review the decisions that matter.</h2>
+          <p>Autopilot connects low stock, expiry dates, meal possibilities, days at home, your active list, receipt review signals, saved prices and verified savings. It prepares the week, protects the checkout, and shows the evidence instead of burying users in dashboards.</p>
           <div className="assistant-marketing-flow">
-            <span><strong>1</strong> Know what is home</span>
-            <span><strong>2</strong> Add what is actually needed</span>
-            <span><strong>3</strong> Auto-check the whole trip</span>
-            <span><strong>4</strong> Track what you saved</span>
+            <span><strong>1</strong> Use what should be used soon</span>
+            <span><strong>2</strong> Plan only the days you eat at home</span>
+            <span><strong>3</strong> Optimize the trip before spending</span>
+            <span><strong>4</strong> Verify the value after checkout</span>
           </div>
-          <Link to={loggedIn ? '/assistant' : '/login'} className="primary center-link">{loggedIn ? 'Open your weekly assistant' : 'Start building your assistant'}</Link>
+          <Link to={loggedIn ? '/assistant' : '/login'} className="primary center-link">{loggedIn ? 'Open GHM Autopilot' : 'Start building your household'}</Link>
         </div>
         <div className="smart-assistant-demo">
-          <span className="assistant-demo-kicker">SATURDAY BRIEF</span>
-          <h3>Your household is likely running low on</h3>
-          <div className="assistant-demo-items"><span>🥛 Milk</span><span>🥚 Eggs</span><span>🍌 Bananas</span><span>🥣 Yogurt</span></div>
-          <div className="assistant-demo-store"><div><small>Best known store</small><strong>No Frills</strong></div><strong>$57.82</strong></div>
-          <div className="assistant-demo-saving"><span>Potential difference vs next option</span><strong>$4.32</strong></div>
-          <small>Illustrative preview. Your account automatically checks the strongest available price source and clearly labels missing prices instead of inventing a total.</small>
+          <span className="assistant-demo-kicker">YOUR WEEK IS READY</span>
+          <h3>5 dinners · 3 use-soon ingredients · 8 groceries needed</h3>
+          <div className="assistant-demo-items"><span>⏳ Use spinach tonight</span><span>🍛 4 meals from home</span><span>🛒 8 missing items</span><span>🧾 1 receipt to review</span></div>
+          <div className="assistant-demo-store"><div><small>Known grocery cost</small><strong>Current plan</strong></div><strong>$42.60</strong></div>
+          <div className="assistant-demo-saving"><span>Open savings opportunity</span><strong>$9.20</strong></div>
+          <small>Illustrative preview. Real Autopilot totals use your saved data; unknown prices stay visibly unpriced rather than being guessed.</small>
         </div>
       </section>
 
       <section className="shell wide marketing-section home-plan-section">
         <div className="section-heading centered">
           <p className="eyebrow warm-eyebrow">Clear plan access</p>
-          <h2>Users can see what is unlocked and what needs an upgrade.</h2>
-          <p>Free Starter includes one real starter house. Paid plans raise household limits and unlock Smart Receipt Scan, whole-list comparison, product lookup, Canadian price comparison, and deeper savings tools.</p>
+          <h2>Pay for work the app removes — not a longer feature list.</h2>
+          <p>Free Starter stays genuinely useful. Basic adds receipt intelligence. Family Plus unlocks the core Autopilot planning, trip and stock-up automation. Household Pro adds the most advanced camera and nearby-store tools.</p>
         </div>
         <div className="home-plan-grid">
           {planHighlights.map((plan) => (
@@ -401,8 +400,8 @@ export default function HomePage() {
 
       <section className="shell wide marketing-cta panel warm-marketing-cta">
         <div>
-          <h2>Start free. Upgrade when your household is ready.</h2>
-          <p>Free Starter includes one real household with no card required. Upgrade when receipt intelligence, whole-list price comparison, higher limits, and advanced savings become valuable to you.</p>
+          <h2>Start free. Pay when Autopilot is doing real work for your household.</h2>
+          <p>Free Starter keeps the core household useful. Upgrade when Receipt Guardian, weekly planning, Budget Rescue, Automatic Trip Check, smart stock-up or Kitchen Check begin saving enough time and money to justify it.</p>
         </div>
         <div className="hero-actions">
           <Link to="/pricing" className="primary orange-cta center-link">Compare plans</Link>

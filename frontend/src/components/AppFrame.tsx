@@ -215,7 +215,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       ];
   const extraNavItems = [
     ...(contextHouseId ? [
-      { to: `/assistant?house=${contextHouseId}`, label: t('assistant'), icon: '✦' },
+      { to: `/assistant?house=${contextHouseId}`, label: 'Autopilot', icon: '✦' },
       { to: `/houses/${contextHouseId}/scan`, label: t('scanReceipt'), icon: '🧾' },
       { to: `/houses/${contextHouseId}/receipts`, label: t('receiptHistory'), icon: '🗂️' },
     ] : []),

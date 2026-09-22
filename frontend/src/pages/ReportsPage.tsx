@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { AccountBootstrap, House, Product, Receipt, SavingsSummary } from '../types';
+import type { AccountBootstrap, House, Product, Receipt, SavingsLedger, SavingsSummary } from '../types';
 
 function csvEscape(value: unknown) {
   const text = String(value ?? '');
@@ -29,6 +29,7 @@ export default function ReportsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [savings, setSavings] = useState<SavingsSummary | null>(null);
+  const [ledger, setLedger] = useState<SavingsLedger | null>(null);
 
   async function loadHouses() {
     try {
@@ -43,14 +44,16 @@ export default function ReportsPage() {
   async function loadHouseReport(houseId: number) {
     try {
       setBusy(true);
-      const [productsRes, receiptsRes, savingsRes] = await Promise.all([
+      const [productsRes, receiptsRes, savingsRes, ledgerRes] = await Promise.all([
         api.get<Product[]>(`/houses/${houseId}/products`, { params: { sort_by: 'name' } }),
         api.get<Receipt[]>(`/houses/${houseId}/receipts`),
         api.get<SavingsSummary>(`/insights/houses/${houseId}/savings`, { params: { t: Date.now() } }),
+        api.get<SavingsLedger>(`/insights/houses/${houseId}/savings-ledger`, { params: { t: Date.now() } }),
       ]);
       setProducts(productsRes.data);
       setReceipts(receiptsRes.data);
       setSavings(savingsRes.data);
+      setLedger(ledgerRes.data);
       setError('');
     } catch (err) {
       setError(errorMessage(err));
@@ -128,8 +131,8 @@ export default function ReportsPage() {
       <header className="topbar">
         <div>
           <Link to="/houses" className="breadcrumb">← Houses</Link>
-          <h1>Reports & store comparison</h1>
-          <p>See what you spent, where you usually shop, and how much value Grocery House Manager can prove from your real activity.</p>
+          <h1>Savings Ledger & reports</h1>
+          <p>See what Grocery House Manager can actually prove, what savings opportunities are still open, and the store/receipt evidence behind the numbers.</p>
         </div>
         <div className="topbar-actions report-actions">
           <select value={selectedHouseId} onChange={(e) => setSelectedHouseId(e.target.value ? Number(e.target.value) : '')}>
@@ -178,6 +181,18 @@ export default function ReportsPage() {
           <span className={(savings?.savings_after_plan_cost || 0) >= 0 ? 'positive' : ''}><strong>{money(savings?.savings_after_plan_cost || 0, savings?.currency_code)}</strong><small>savings after plan price</small></span>
         </div>
         {savings?.roi_multiple ? <div className="savings-roi-banner">Tracked savings are {savings.roi_multiple}× the monthly subscription price.</div> : null}
+      </section>
+
+      <section className="v91-report-ledger">
+        <div className="v91-report-ledger-head">
+          <div><p className="eyebrow">GHM SAVINGS LEDGER</p><h2>Verified value and opportunities are kept separate.</h2><p>{ledger?.message || 'The ledger builds from reviewed receipts, completed shopping prices and current household opportunities.'}</p></div>
+          <div className="v91-report-ledger-kpis"><span><small>Verified</small><strong>{money(ledger?.verified_total || 0, ledger?.currency_code)}</strong></span><span><small>Open opportunities</small><strong>{money(ledger?.potential_total || 0, ledger?.currency_code)}</strong></span><span className={(ledger?.verified_after_plan_cost || 0) >= 0 ? 'positive' : 'negative'}><small>After plan cost</small><strong>{money(ledger?.verified_after_plan_cost || 0, ledger?.currency_code)}</strong></span></div>
+        </div>
+        <div className="v91-report-ledger-list">
+          {ledger?.entries.slice(0, 12).map((entry) => <div key={entry.key} className={entry.verified ? 'verified' : 'potential'}><span>{entry.verified ? '✓' : '◇'}</span><div><strong>{entry.title}</strong><small>{entry.evidence}</small><em>{entry.source_label}{entry.occurred_on ? ` · ${entry.occurred_on}` : ''}</em></div><b>{entry.verified ? '+' : '~'}{money(entry.amount, ledger.currency_code)}</b></div>)}
+          {!ledger?.entries.length ? <p className="small-muted">No ledger entries yet. Normal receipt scanning and completed shopping trips will create evidence automatically.</p> : null}
+        </div>
+        <Link to={`/assistant?house=${selectedHouseId}#money`} className="secondary center-link">Open Autopilot money decisions →</Link>
       </section>
 
       <section className="report-highlight-card">

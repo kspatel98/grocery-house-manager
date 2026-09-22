@@ -109,6 +109,7 @@ class HouseOut(BaseModel):
     role: HouseRole | None = None
     owner_name: str | None = None
     owner_plan_name: PlanName | None = None
+    contribute_community_prices: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -819,6 +820,175 @@ class WeeklyAssistantOut(BaseModel):
     monthly_savings: float = 0
     recipes: list[WeeklyAssistantRecipeOut] = Field(default_factory=list)
     message: str
+
+
+class SavingsLedgerEntryOut(BaseModel):
+    key: str
+    occurred_on: date | None = None
+    kind: str
+    title: str
+    amount: float = 0
+    verified: bool = True
+    evidence: str
+    source_label: str
+    href: str | None = None
+
+
+class SavingsLedgerOut(BaseModel):
+    currency_code: str = "CAD"
+    month_label: str
+    verified_total: float = 0
+    potential_total: float = 0
+    plan_monthly_cost: float = 0
+    verified_after_plan_cost: float = 0
+    entries: list[SavingsLedgerEntryOut] = Field(default_factory=list)
+    message: str
+
+
+class ReceiptGuardianIssueOut(BaseModel):
+    key: str
+    receipt_id: int
+    receipt_label: str
+    store_name: str | None = None
+    receipt_date: date | None = None
+    severity: str = "check"
+    issue_type: str
+    title: str
+    detail: str
+    amount_to_review: float | None = None
+    product_name: str | None = None
+
+
+class ReceiptGuardianOut(BaseModel):
+    receipts_checked: int = 0
+    issues: list[ReceiptGuardianIssueOut] = Field(default_factory=list)
+    amount_to_review: float = 0
+    message: str
+
+
+class StockUpSuggestionOut(BaseModel):
+    product_id: int
+    product_name: str
+    store_name: str | None = None
+    current_price: float
+    typical_price: float
+    discount_percent: int
+    history_points: int
+    average_days_between_purchases: float | None = None
+    recommended_quantity: int = 1
+    potential_savings: float = 0
+    reason: str
+    caution: str
+
+
+class RecallMatchOut(BaseModel):
+    product_id: int
+    product_name: str
+    alert_title: str
+    published_at: str | None = None
+    alert_url: str
+    match_reason: str
+
+
+class RecallGuardianOut(BaseModel):
+    source_name: str = "Government of Canada recalls and safety alerts"
+    source_url: str = "https://recalls-rappels.canada.ca/en"
+    available: bool = True
+    checked_products: int = 0
+    matches: list[RecallMatchOut] = Field(default_factory=list)
+    fetched_at: datetime | None = None
+    message: str
+
+
+class HouseholdPlanIn(BaseModel):
+    days: int = Field(default=5, ge=1, le=7)
+    default_servings: int = Field(default=4, ge=1, le=20)
+    skip_days: list[str] = Field(default_factory=list, max_length=7)
+    guest_servings: dict[str, int] = Field(default_factory=dict)
+    budget: float | None = Field(default=None, ge=0)
+
+
+class HouseholdPlanDayOut(BaseModel):
+    day_name: str
+    status: str = "meal"
+    recipe_name: str | None = None
+    servings: int = 0
+    reason: str
+    use_soon_items: list[str] = Field(default_factory=list)
+    missing_items: list[str] = Field(default_factory=list)
+
+
+class HouseholdPlanOut(BaseModel):
+    currency_code: str = "CAD"
+    days_requested: int = 5
+    planned_days: int = 0
+    days: list[HouseholdPlanDayOut] = Field(default_factory=list)
+    grocery_items: list[str] = Field(default_factory=list)
+    known_grocery_cost: float = 0
+    unpriced_items: list[str] = Field(default_factory=list)
+    budget: float | None = None
+    known_budget_buffer: float | None = None
+    message: str
+
+
+class KitchenCheckOut(BaseModel):
+    images_checked: int = 0
+    inventory_count: int = 0
+    label_confirmed: list[str] = Field(default_factory=list)
+    needs_review: list[str] = Field(default_factory=list)
+    extracted_clues: list[str] = Field(default_factory=list)
+    message: str
+
+
+class CommunityPriceSharingIn(BaseModel):
+    enabled: bool
+
+
+class CommunityPriceSignalOut(BaseModel):
+    product_name: str
+    store_name: str
+    price: float
+    city: str | None = None
+    observed_on: date
+    observation_count: int = 1
+    age_days: int = 0
+
+
+class CommunityPricePulseOut(BaseModel):
+    sharing_enabled: bool = False
+    recent_observations: int = 0
+    matched_list_items: int = 0
+    signals: list[CommunityPriceSignalOut] = Field(default_factory=list)
+    message: str
+
+
+class AutopilotOverviewOut(BaseModel):
+    generated_at: datetime
+    currency_code: str = "CAD"
+    house_id: int
+    house_name: str
+    plan_key: PlanName = PlanName.free
+    receipt_guardian_unlocked: bool = False
+    planner_unlocked: bool = False
+    stock_up_unlocked: bool = False
+    kitchen_check_unlocked: bool = False
+    attention_score: int = 0
+    headline: str
+    subheadline: str
+    verified_savings: float = 0
+    potential_savings: float = 0
+    active_list_items: int = 0
+    expiring_items: int = 0
+    restock_items: int = 0
+    receipt_issues: int = 0
+    recall_matches: int = 0
+    best_next_action: str
+    best_next_action_href: str
+    stock_up: list[StockUpSuggestionOut] = Field(default_factory=list)
+    receipt_guardian: ReceiptGuardianOut
+    savings_ledger: SavingsLedgerOut
+    recall_guardian: RecallGuardianOut
+    community_price_pulse: CommunityPricePulseOut
 
 
 class CouponValidateIn(BaseModel):

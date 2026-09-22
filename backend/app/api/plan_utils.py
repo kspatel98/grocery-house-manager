@@ -36,15 +36,16 @@ PLANS: dict[PlanName, PlanDefinition] = {
         key=PlanName.free,
         name="Free Starter",
         price_monthly_cad=0,
-        tagline="Start with one real grocery house for free, then upgrade when your household needs more intelligence.",
+        tagline="Run one real household for free and see the value before paying for automation.",
         limits=PlanLimits(houses=1, products_per_house=40, active_lists_per_house=1, members_per_house=4, receipt_scans_per_month=0),
         features=[
             "Create 1 starter house with up to 40 products",
             "Keep 1 active shared shopping list",
             "Invite up to 3 other household members",
             "Join other houses by invitation",
-            "Low-stock and expiry awareness",
-            "Upgrade for receipt scanning, price comparison, and advanced savings tools",
+            "Low-stock, expiry awareness, community recipes, and Food Recall Guardian",
+            "Savings Ledger separates verified value from open opportunities",
+            "Upgrade when you want receipt, planning, price, and camera automation",
         ],
         price_annual_cad=0,
     ),
@@ -52,7 +53,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         key=PlanName.basic,
         name="Basic Home",
         price_monthly_cad=1.99,
-        tagline="Affordable plan for couples and small households.",
+        tagline="Receipt intelligence and price memory for couples and small households.",
         limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6, receipt_scans_per_month=2),
         features=[
             "Create additional and larger grocery houses",
@@ -60,8 +61,9 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "Professional receipt scanning with item, discount, tax, and total extraction",
             "Store-specific price history for each product",
             "Product lookup by barcode or product name",
-            "Personal receipt tracker and spending summary",
-            "Low-stock and expiry highlights",
+            "Receipt Guardian review signals for duplicates, line math, and unusual price jumps",
+            "Personal receipt tracker, private price memory, and spending summary",
+            "Low-stock, expiry, recall screening, and Savings Ledger",
             "65% off Basic for the first 2 billing months when eligible",
         ],
         price_annual_cad=17.99,
@@ -70,13 +72,16 @@ PLANS: dict[PlanName, PlanDefinition] = {
         key=PlanName.family,
         name="Family Plus",
         price_monthly_cad=4.99,
-        tagline="Best value for most families and roommates.",
+        tagline="Household Autopilot for families who want less planning and smarter trips.",
         limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15, receipt_scans_per_month=5),
         features=[
             "Everything in Basic Home",
             "Whole-list basket comparison and best-store estimates",
             "Canadian grocery price comparison for supported retailers",
-            "Monthly household expense and defensible savings view",
+            "GHM Autopilot weekly planner + Budget Rescue",
+            "History-aware smart stock-up recommendations",
+            "Automatic Trip Check + defensible Savings Ledger",
+            "Monthly household expense and reimbursement intelligence",
             "5 Smart Receipt Scans per month across houses you own",
             "Shared receipt archive with scan review and spending history",
             "Better for families, roommates, and weekly shopping routines",
@@ -88,15 +93,16 @@ PLANS: dict[PlanName, PlanDefinition] = {
         key=PlanName.pro,
         name="Household Pro",
         price_monthly_cad=6.99,
-        tagline="For large families, multiple homes, and heavy users.",
+        tagline="Maximum household intelligence for large families, multiple homes, and heavy users.",
         limits=PlanLimits(houses=15, products_per_house=3000, active_lists_per_house=50, members_per_house=35, receipt_scans_per_month=15),
         features=[
             "Everything in Family Plus",
             "Advanced price tracking for multiple stores",
             "15 Smart Receipt Scans per month across houses you own",
             "Large receipt and inventory history",
-            "Export-ready personal insights for serious tracking",
-            "Smart Weekly Grocery Assistant with store-aware planning",
+            "Export-ready Savings Ledger and long-term household insights",
+            "Full GHM Autopilot planning, stock-up, trip and receipt intelligence",
+            "Kitchen Check Beta for camera-assisted pantry/fridge reconciliation",
             "Canadian grocery price comparison for supported retailers",
             "Built for extended families, shared rentals, and multiple homes",
         ],
@@ -333,3 +339,23 @@ def house_plan_has_product_lookup(db: Session, house_id: int) -> bool:
 def house_plan_has_external_price_comparison(db: Session, house_id: int) -> bool:
     """Family Plus and Household Pro unlock live Canadian grocery price comparison."""
     return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
+
+
+def house_plan_has_receipt_guardian(db: Session, house_id: int) -> bool:
+    """Basic Home and higher unlock automated receipt review signals."""
+    return get_house_plan(db, house_id).key in {PlanName.basic, PlanName.family, PlanName.pro}
+
+
+def house_plan_has_autopilot_planner(db: Session, house_id: int) -> bool:
+    """Family Plus and Household Pro unlock Budget Rescue and weekly household planning."""
+    return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
+
+
+def house_plan_has_stock_up_intelligence(db: Session, house_id: int) -> bool:
+    """Family Plus and Household Pro unlock history-aware stock-up recommendations."""
+    return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
+
+
+def house_plan_has_kitchen_check(db: Session, house_id: int) -> bool:
+    """Household Pro unlocks camera-assisted pantry/fridge reconciliation."""
+    return get_house_plan(db, house_id).key == PlanName.pro

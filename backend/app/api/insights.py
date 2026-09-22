@@ -1,20 +1,38 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
+from statistics import median
+import json
+import xml.etree.ElementTree as ET
 from itertools import combinations
 from math import ceil
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import requests
+from PIL import Image
+import pytesseract
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_active_shopping_list_limit, ensure_product_limit, get_house_plan
+from app.api.plan_utils import (
+    ensure_active_shopping_list_limit,
+    ensure_product_limit,
+    get_house_plan,
+    house_plan_has_autopilot_planner,
+    house_plan_has_kitchen_check,
+    house_plan_has_receipt_guardian,
+    house_plan_has_stock_up_intelligence,
+)
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import (
+    CommunityPriceObservation,
+    CommunityRecipe,
     House,
     HouseMember,
     Invite,
@@ -22,6 +40,7 @@ from app.models import (
     Product,
     ProductStorePrice,
     Receipt,
+    ReceiptLineItem,
     Section,
     ShoppingItemStatus,
     ShoppingList,
@@ -29,15 +48,30 @@ from app.models import (
     User,
 )
 from app.schemas import (
+    AutopilotOverviewOut,
+    CommunityPricePulseOut,
+    CommunityPriceSharingIn,
+    CommunityPriceSignalOut,
     BasketComparisonOut,
     BasketStoreOptionOut,
+    HouseholdPlanDayOut,
+    HouseholdPlanIn,
+    HouseholdPlanOut,
+    KitchenCheckOut,
     OnboardingStatusOut,
+    RecallGuardianOut,
+    RecallMatchOut,
+    ReceiptGuardianIssueOut,
+    ReceiptGuardianOut,
     OnboardingStepOut,
     RecipeMissingAddIn,
     RecipeMissingAddOut,
     RecipeShoppingAddIn,
     RecipeShoppingAddOut,
+    SavingsLedgerEntryOut,
+    SavingsLedgerOut,
     SavingsSummaryOut,
+    StockUpSuggestionOut,
     WeeklyAssistantOut,
     WeeklyAssistantRecipeOut,
     WeeklyAssistantSuggestedItemOut,
@@ -927,6 +961,105 @@ def _find_product_for_ingredient(products: list[Product], ingredient: str) -> Pr
     return None
 
 
+def _community_recipe_suggestions(
+    db: Session,
+    user: User,
+    products: list[Product],
+    active_list: ShoppingList | None = None,
+) -> list[WeeklyAssistantRecipeOut]:
+    today = date.today()
+    available = [
+        product for product in products
+        if float(product.quantity or 0) > 0 and (not product.expiry_date or product.expiry_date >= today)
+    ]
+    active_products = [item.product for item in (active_list.items if active_list else []) if item.status != ShoppingItemStatus.skipped and item.product]
+    rows = (
+        db.query(CommunityRecipe)
+        .filter(or_(CommunityRecipe.user_id == user.id, CommunityRecipe.is_shared.is_(True)))
+        .order_by(CommunityRecipe.user_id.desc(), CommunityRecipe.updated_at.desc())
+        .limit(100)
+        .all()
+    )
+    output: list[WeeklyAssistantRecipeOut] = []
+    for recipe in rows:
+        try:
+            ingredients = json.loads(recipe.ingredients_json or "[]")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            ingredients = []
+        required = [row for row in ingredients if isinstance(row, dict) and row.get("name") and not bool(row.get("optional"))]
+        optional = [row for row in ingredients if isinstance(row, dict) and row.get("name") and bool(row.get("optional"))]
+        if not required:
+            continue
+        matched_products: list[Product] = []
+        missing_names: list[str] = []
+        for ingredient in required:
+            ingredient_name = str(ingredient.get("name") or "").strip()
+            product = _find_product_for_ingredient(available, ingredient_name)
+            if product:
+                matched_products.append(product)
+            else:
+                missing_names.append(ingredient_name)
+        if len(missing_names) > 1 or not matched_products:
+            continue
+        optional_products = []
+        for ingredient in optional:
+            product = _find_product_for_ingredient(available, str(ingredient.get("name") or ""))
+            if product:
+                optional_products.append(product)
+        used = list(dict.fromkeys([row.name for row in matched_products + optional_products]))
+        use_soon = [
+            row.name for row in matched_products + optional_products
+            if row.expiry_date and 0 <= (row.expiry_date - today).days <= 5
+        ]
+        missing_on_list: list[str] = []
+        if missing_names and _find_product_for_ingredient(active_products, missing_names[0]):
+            missing_on_list = [missing_names[0]]
+        status = "ready" if not missing_names else "almost_ready"
+        source = "Your recipe" if recipe.user_id == user.id else "Community recipe"
+        if status == "ready":
+            reason = f"{source}: required ingredients are already in stock."
+            if use_soon:
+                reason += f" It also helps use {', '.join(list(dict.fromkeys(use_soon))[:2])} soon."
+        else:
+            reason = f"{source}: you're one ingredient away — {missing_names[0]}."
+            if missing_on_list:
+                reason += " It is already on the active grocery list."
+            if use_soon:
+                reason += f" It can also help use {', '.join(list(dict.fromkeys(use_soon))[:2])} soon."
+        output.append(WeeklyAssistantRecipeOut(
+            name=recipe.name,
+            status=status,
+            reason=reason,
+            matched_items=used[:10],
+            missing_items=missing_names[:1],
+            missing_on_list=missing_on_list,
+            optional_items=[str(row.get("name") or "") for row in optional[:8] if row.get("name")],
+            use_soon_items=list(dict.fromkeys(use_soon))[:4],
+            matched_required=len(matched_products),
+            total_required=len(required),
+        ))
+    output.sort(key=lambda row: (0 if row.status == "ready" else 1, 0 if row.use_soon_items else 1, -row.matched_required, row.name.casefold()))
+    return output[:10]
+
+
+def _combined_recipe_suggestions(
+    db: Session,
+    user: User,
+    products: list[Product],
+    active_list: ShoppingList | None = None,
+) -> list[WeeklyAssistantRecipeOut]:
+    candidates = _recipe_suggestions(products, active_list) + _community_recipe_suggestions(db, user, products, active_list)
+    unique: dict[str, WeeklyAssistantRecipeOut] = {}
+    for row in candidates:
+        key = _clean_key(row.name)
+        current = unique.get(key)
+        if current is None or (row.status == "ready" and current.status != "ready") or (row.use_soon_items and not current.use_soon_items):
+            unique[key] = row
+    ranked = list(unique.values())
+    ranked.sort(key=lambda row: (0 if row.status == "ready" else 1, 0 if row.use_soon_items else 1, -row.matched_required, row.name.casefold()))
+    return ranked[:12]
+
+
 def _is_household_water_ingredient(name: str | None) -> bool:
     key = _clean_key(name)
     return key in {
@@ -1185,7 +1318,7 @@ def weekly_assistant(house_id: int, db: Session = Depends(get_db), user: User = 
             potential_savings = round(max(second.known_total - first.known_total, 0), 2)
 
     savings = _savings_summary(db, house, user)
-    recipes = _recipe_suggestions(products, active_list)
+    recipes = _combined_recipe_suggestions(db, user, products, active_list)
     use_soon_names = [product.name for product in expiring_products if product not in expired_products]
     stale_cutoff = datetime.now(timezone.utc) - timedelta(days=60)
     long_held = []
@@ -1230,4 +1363,847 @@ def weekly_assistant(house_id: int, db: Session = Depends(get_db), user: User = 
         monthly_savings=savings.estimated_savings,
         recipes=recipes,
         message=message,
+    )
+
+# ---------------------------------------------------------------------------
+# V91 · GHM Autopilot / Household Grocery CFO
+# ---------------------------------------------------------------------------
+# These helpers deliberately prefer explainable household data over invented
+# estimates. Every money-saving number is either verified from a receipt/list
+# or clearly marked as a potential opportunity.
+
+_RECALL_FEED_URL = "https://recalls-rappels.canada.ca/en/feed/cfia-alerts-recalls"
+_RECALL_SOURCE_URL = "https://recalls-rappels.canada.ca/en"
+_RECALL_CACHE: dict[str, object] = {"fetched_at": None, "items": []}
+
+
+def _receipt_label(receipt: Receipt) -> str:
+    when = receipt.receipt_date.isoformat() if receipt.receipt_date else receipt.created_at.date().isoformat()
+    return f"{receipt.store_name or 'Receipt'} · {when}"
+
+
+def _money_value(line: ReceiptLineItem) -> float | None:
+    if line.line_total is not None:
+        return round(float(line.line_total), 2)
+    if line.unit_price is not None:
+        return round(float(line.unit_price) * max(float(line.quantity or 1), 1), 2)
+    return None
+
+
+def _receipt_guardian(db: Session, house_id: int) -> ReceiptGuardianOut:
+    receipts = (
+        db.query(Receipt)
+        .options(joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product))
+        .filter(Receipt.house_id == house_id)
+        .order_by(Receipt.receipt_date.desc().nullslast(), Receipt.created_at.desc())
+        .limit(6)
+        .all()
+    )
+    issues: list[ReceiptGuardianIssueOut] = []
+
+    for receipt in receipts:
+        product_lines = [row for row in receipt.line_items if row.line_type == "product" and row.is_selected]
+        grouped: dict[str, list[ReceiptLineItem]] = {}
+        for line in product_lines:
+            key = _clean_key(line.normalized_name or line.description)
+            if key:
+                grouped.setdefault(key, []).append(line)
+
+        for key, group in grouped.items():
+            if len(group) < 2:
+                continue
+            priced = [row for row in group if _money_value(row) is not None]
+            if len(priced) < 2:
+                continue
+            values = [_money_value(row) or 0 for row in priced]
+            # Only flag very similar repeated lines. Different totals usually mean legitimate
+            # variants/weights rather than an accidental duplicate charge.
+            if max(values) - min(values) <= 0.05:
+                amount = round(min(values), 2)
+                issues.append(ReceiptGuardianIssueOut(
+                    key=f"duplicate:{receipt.id}:{key}",
+                    receipt_id=receipt.id,
+                    receipt_label=_receipt_label(receipt),
+                    store_name=receipt.store_name,
+                    receipt_date=receipt.receipt_date,
+                    severity="check",
+                    issue_type="possible_duplicate",
+                    title="Possible duplicate line to review",
+                    detail=f"{priced[0].description} appears {len(priced)} times with nearly identical amounts. This can be valid when multiple units were scanned separately, so verify the receipt before contacting the store.",
+                    amount_to_review=amount,
+                    product_name=priced[0].description,
+                ))
+
+        for line in product_lines:
+            qty = float(line.quantity or 1)
+            if line.unit_price is not None and line.line_total is not None and qty > 0:
+                expected = float(line.unit_price) * qty
+                expected -= max(float(line.discount_amount or 0), 0)
+                expected += max(float(line.tax_amount or 0), 0)
+                diff = abs(float(line.line_total) - expected)
+                if diff >= max(0.25, abs(expected) * 0.05):
+                    issues.append(ReceiptGuardianIssueOut(
+                        key=f"math:{receipt.id}:{line.id}",
+                        receipt_id=receipt.id,
+                        receipt_label=_receipt_label(receipt),
+                        store_name=receipt.store_name,
+                        receipt_date=receipt.receipt_date,
+                        severity="check",
+                        issue_type="line_math",
+                        title="Line total does not match the detected quantity × unit price",
+                        detail=f"The scan read {qty:g} × ${float(line.unit_price):.2f}, while the line total is ${float(line.line_total):.2f}. OCR or a discount/tax detail may explain this, so compare it with the original receipt.",
+                        amount_to_review=round(diff, 2),
+                        product_name=line.description,
+                    ))
+
+            current_price = float(line.unit_price or 0)
+            if current_price <= 0:
+                continue
+            history_query = (
+                db.query(ReceiptLineItem)
+                .join(Receipt, Receipt.id == ReceiptLineItem.receipt_id)
+                .filter(
+                    ReceiptLineItem.house_id == house_id,
+                    ReceiptLineItem.id != line.id,
+                    ReceiptLineItem.line_type == "product",
+                    ReceiptLineItem.unit_price.is_not(None),
+                )
+            )
+            if line.matched_product_id:
+                history_query = history_query.filter(ReceiptLineItem.matched_product_id == line.matched_product_id)
+            else:
+                normalized = line.normalized_name or _clean_key(line.description)
+                history_query = history_query.filter(ReceiptLineItem.normalized_name == normalized)
+            if receipt.store_name:
+                same_store = history_query.filter(Receipt.store_name.ilike(receipt.store_name)).limit(10).all()
+            else:
+                same_store = []
+            history = same_store if len(same_store) >= 2 else history_query.limit(12).all()
+            historical_prices = [float(row.unit_price) for row in history if row.unit_price and float(row.unit_price) > 0]
+            if len(historical_prices) >= 2:
+                typical = float(median(historical_prices))
+                delta = current_price - typical
+                if typical > 0 and delta >= max(1.0, typical * 0.25):
+                    issues.append(ReceiptGuardianIssueOut(
+                        key=f"jump:{receipt.id}:{line.id}",
+                        receipt_id=receipt.id,
+                        receipt_label=_receipt_label(receipt),
+                        store_name=receipt.store_name,
+                        receipt_date=receipt.receipt_date,
+                        severity="info",
+                        issue_type="price_jump",
+                        title="Price is much higher than your recent history",
+                        detail=f"You paid ${current_price:.2f} per unit. Your recent recorded median for this item is ${typical:.2f}. Prices and package sizes can change; treat this as a prompt to verify the item, size and promotion conditions.",
+                        amount_to_review=round(delta * max(qty, 1), 2),
+                        product_name=line.description,
+                    ))
+
+    # Keep the dashboard useful instead of overwhelming users with every OCR curiosity.
+    severity_rank = {"check": 0, "info": 1}
+    issues = sorted(issues, key=lambda row: (severity_rank.get(row.severity, 2), -(row.amount_to_review or 0)))[:10]
+    amount = round(sum(float(row.amount_to_review or 0) for row in issues if row.severity == "check"), 2)
+    if issues:
+        message = "These are review prompts, not confirmed retailer errors. Compare each item with the original receipt, package size, flyer terms and discounts before taking action."
+    else:
+        message = "No obvious duplicate, arithmetic or unusual-price signals were found in the most recent reviewed receipts."
+    return ReceiptGuardianOut(receipts_checked=len(receipts), issues=issues, amount_to_review=amount, message=message)
+
+
+def _purchase_history_by_product(db: Session, house_id: int) -> dict[int, list[tuple[date, float]]]:
+    rows = (
+        db.query(ReceiptLineItem, Receipt)
+        .join(Receipt, Receipt.id == ReceiptLineItem.receipt_id)
+        .filter(
+            ReceiptLineItem.house_id == house_id,
+            ReceiptLineItem.matched_product_id.is_not(None),
+            ReceiptLineItem.line_type == "product",
+            ReceiptLineItem.unit_price.is_not(None),
+        )
+        .order_by(Receipt.created_at.desc())
+        .all()
+    )
+    result: dict[int, list[tuple[date, float]]] = {}
+    for line, receipt in rows:
+        if not line.matched_product_id or not line.unit_price or float(line.unit_price) <= 0:
+            continue
+        purchase_date = receipt.receipt_date or receipt.created_at.date()
+        result.setdefault(int(line.matched_product_id), []).append((purchase_date, float(line.unit_price)))
+    return result
+
+
+def _stock_up_suggestions(db: Session, house_id: int) -> list[StockUpSuggestionOut]:
+    products = (
+        db.query(Product)
+        .options(joinedload(Product.store_prices), joinedload(Product.section))
+        .filter(Product.house_id == house_id)
+        .all()
+    )
+    histories = _purchase_history_by_product(db, house_id)
+    suggestions: list[StockUpSuggestionOut] = []
+    for product in products:
+        history = histories.get(product.id, [])
+        historical_prices = [price for _, price in history if price > 0]
+        if len(historical_prices) < 3:
+            continue
+        current_entries = [entry for entry in (product.store_prices or []) if entry.price is not None and float(entry.price) > 0]
+        if current_entries:
+            current_entry = min(current_entries, key=lambda row: float(row.price))
+            current_price = float(current_entry.price)
+            store_name = current_entry.store_name
+        elif product.price and float(product.price) > 0:
+            current_entry = None
+            current_price = float(product.price)
+            store_name = product.store_name
+        else:
+            continue
+        typical = float(median(historical_prices))
+        if typical <= 0 or current_price >= typical * 0.88:
+            continue
+        price_delta = typical - current_price
+        if price_delta < 0.25:
+            continue
+
+        purchase_dates = sorted({when for when, _ in history})
+        avg_days = None
+        if len(purchase_dates) >= 2:
+            intervals = [(purchase_dates[idx] - purchase_dates[idx - 1]).days for idx in range(1, len(purchase_dates))]
+            positive = [value for value in intervals if value > 0]
+            if positive:
+                avg_days = round(sum(positive) / len(positive), 1)
+
+        section_name = (product.section.name if product.section else "").casefold()
+        fresh = any(token in section_name for token in ("produce", "fruit", "vegetable", "dairy", "meat", "seafood", "fresh"))
+        if avg_days is not None and avg_days <= 8:
+            recommended = 3
+        elif avg_days is not None and avg_days <= 18:
+            recommended = 2
+        else:
+            recommended = 1
+        if fresh:
+            recommended = min(recommended, 2)
+        if float(product.quantity or 0) >= max(recommended, 2):
+            recommended = 1
+
+        discount = int(round((price_delta / typical) * 100))
+        potential = round(price_delta * recommended, 2)
+        cadence = f" Your household has bought it about every {avg_days:g} days." if avg_days is not None else ""
+        suggestions.append(StockUpSuggestionOut(
+            product_id=product.id,
+            product_name=product.name,
+            store_name=store_name,
+            current_price=round(current_price, 2),
+            typical_price=round(typical, 2),
+            discount_percent=max(discount, 1),
+            history_points=len(historical_prices),
+            average_days_between_purchases=avg_days,
+            recommended_quantity=recommended,
+            potential_savings=potential,
+            reason=f"Current saved price is about {discount}% below your household's recorded median.{cadence}",
+            caution="Only stock up if the package size, shelf life and storage space make sense for your household.",
+        ))
+    return sorted(suggestions, key=lambda row: (-row.potential_savings, -row.discount_percent, row.product_name))[:8]
+
+
+def _savings_ledger(db: Session, house: House, user: User) -> SavingsLedgerOut:
+    summary = _savings_summary(db, house, user)
+    month_start, month_end, month_label = _month_window()
+    entries: list[SavingsLedgerEntryOut] = []
+
+    receipts = (
+        db.query(Receipt)
+        .filter(
+            Receipt.house_id == house.id,
+            or_(
+                and_(Receipt.receipt_date.is_not(None), Receipt.receipt_date >= month_start.date(), Receipt.receipt_date < month_end.date()),
+                and_(Receipt.receipt_date.is_(None), Receipt.created_at >= month_start, Receipt.created_at < month_end),
+            ),
+        )
+        .order_by(Receipt.receipt_date.desc().nullslast(), Receipt.created_at.desc())
+        .all()
+    )
+    for receipt in receipts:
+        discount = max(float(receipt.discount_amount or 0), 0)
+        if discount <= 0:
+            continue
+        entries.append(SavingsLedgerEntryOut(
+            key=f"receipt-discount:{receipt.id}",
+            occurred_on=receipt.receipt_date or receipt.created_at.date(),
+            kind="receipt_discount",
+            title=f"Discount recorded at {receipt.store_name or 'grocery store'}",
+            amount=round(discount, 2),
+            verified=True,
+            evidence=f"Receipt #{receipt.id} records ${discount:.2f} in discounts.",
+            source_label="Reviewed receipt",
+            href=f"/houses/{house.id}/receipts",
+        ))
+
+    completed_lists = (
+        db.query(ShoppingList)
+        .options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product).joinedload(Product.store_prices))
+        .filter(
+            ShoppingList.house_id == house.id,
+            ShoppingList.is_done.is_(True),
+            ShoppingList.completed_at >= month_start,
+            ShoppingList.completed_at < month_end,
+        )
+        .all()
+    )
+    for shopping_list in completed_lists:
+        for item in shopping_list.items:
+            if item.status != ShoppingItemStatus.in_cart or item.bought_price is None:
+                continue
+            bought = float(item.bought_price)
+            alternatives = [
+                float(entry.price) for entry in (item.product.store_prices or [])
+                if entry.price is not None
+                and float(entry.price) > bought
+                and (not item.bought_store_name or entry.store_name.casefold() != item.bought_store_name.casefold())
+            ]
+            if not alternatives:
+                continue
+            comparison = min(alternatives)
+            qty = max(float(item.bought_quantity or item.requested_quantity or 1), 1)
+            saved = round((comparison - bought) * qty, 2)
+            if saved <= 0:
+                continue
+            entries.append(SavingsLedgerEntryOut(
+                key=f"price-choice:{shopping_list.id}:{item.id}",
+                occurred_on=shopping_list.completed_at.date() if shopping_list.completed_at else None,
+                kind="lower_price_choice",
+                title=f"Lower recorded price for {item.product.name}",
+                amount=saved,
+                verified=True,
+                evidence=f"Bought at ${bought:.2f}; another saved store price was ${comparison:.2f}. Quantity: {qty:g}.",
+                source_label="Completed shopping list",
+                href=f"/houses/{house.id}/shopping",
+            ))
+
+    active_list = (
+        db.query(ShoppingList)
+        .filter(ShoppingList.house_id == house.id, ShoppingList.is_done.is_(False))
+        .order_by(ShoppingList.created_at.desc())
+        .first()
+    )
+    potential_total = 0.0
+    if active_list:
+        comparison = _basket_comparison(db, house.id, active_list.id, user=user, include_live=False)
+        complete_options = sorted([row for row in comparison.store_options if row.complete], key=lambda row: row.known_total)
+        # A single shopping trip can only realize one competing basket strategy. Keep only
+        # the strongest supported opportunity so the ledger never double-counts a one-store
+        # saving and a two-store saving for the same active list.
+        trip_opportunities: list[SavingsLedgerEntryOut] = []
+        if len(complete_options) >= 2:
+            best, next_best = complete_options[0], complete_options[1]
+            opportunity = round(max(next_best.known_total - best.known_total, 0), 2)
+            if opportunity > 0:
+                trip_opportunities.append(SavingsLedgerEntryOut(
+                    key=f"trip-opportunity:{active_list.id}",
+                    occurred_on=date.today(),
+                    kind="trip_opportunity",
+                    title=f"Potential lower-cost trip at {best.store_name}",
+                    amount=opportunity,
+                    verified=False,
+                    evidence=f"Based on currently known prices for the complete list: {best.store_name} ${best.known_total:.2f} vs {next_best.store_name} ${next_best.known_total:.2f}.",
+                    source_label="Current trip comparison",
+                    href=f"/houses/{house.id}/shopping",
+                ))
+        if comparison.split_store_worth_it and comparison.split_store_savings and comparison.split_store_savings > 0:
+            split_amount = round(float(comparison.split_store_savings), 2)
+            trip_opportunities.append(SavingsLedgerEntryOut(
+                key=f"split-trip:{active_list.id}",
+                occurred_on=date.today(),
+                kind="trip_opportunity",
+                title="Potential two-store trip saving",
+                amount=split_amount,
+                verified=False,
+                evidence=comparison.split_store_recommendation or "Current list prices support a lower-cost two-store combination.",
+                source_label="Current trip comparison",
+                href=f"/houses/{house.id}/shopping",
+            ))
+        if trip_opportunities:
+            best_trip_opportunity = max(trip_opportunities, key=lambda row: row.amount)
+            potential_total += best_trip_opportunity.amount
+            entries.append(best_trip_opportunity)
+
+    # A stock-up suggestion for an item already on the active trip can overlap with the
+    # trip-comparison opportunity above. Exclude those products from the ledger total so
+    # "potential savings" remains conservative rather than additive on the same purchase.
+    active_product_ids = {item.product_id for item in active_list.items} if active_list else set()
+    for suggestion in _stock_up_suggestions(db, house.id)[:4]:
+        if suggestion.product_id in active_product_ids:
+            continue
+        potential_total += suggestion.potential_savings
+        entries.append(SavingsLedgerEntryOut(
+            key=f"stock-up:{suggestion.product_id}",
+            occurred_on=date.today(),
+            kind="stock_up_opportunity",
+            title=f"Potential stock-up value on {suggestion.product_name}",
+            amount=suggestion.potential_savings,
+            verified=False,
+            evidence=f"Current saved price ${suggestion.current_price:.2f} vs recorded median ${suggestion.typical_price:.2f}; suggested quantity {suggestion.recommended_quantity}.",
+            source_label="Price history",
+            href=f"/houses/{house.id}/inventory",
+        ))
+
+    entries.sort(key=lambda row: (0 if row.verified else 1, -(row.occurred_on or date.min).toordinal()))
+    verified_total = round(summary.estimated_savings, 2)
+    potential_total = round(potential_total, 2)
+    net = round(verified_total - summary.plan_monthly_cost, 2)
+    return SavingsLedgerOut(
+        currency_code=summary.currency_code,
+        month_label=month_label,
+        verified_total=verified_total,
+        potential_total=potential_total,
+        plan_monthly_cost=summary.plan_monthly_cost,
+        verified_after_plan_cost=net,
+        entries=entries[:24],
+        message="Verified savings use recorded receipt/list evidence. Potential savings are opportunities only and are never counted as money saved until the household completes the action.",
+    )
+
+
+def _fetch_food_recalls() -> tuple[list[dict[str, str]], datetime]:
+    now = datetime.now(timezone.utc)
+    cached_at = _RECALL_CACHE.get("fetched_at")
+    cached_items = _RECALL_CACHE.get("items")
+    if isinstance(cached_at, datetime) and isinstance(cached_items, list) and now - cached_at < timedelta(hours=6):
+        return cached_items, cached_at
+    response = requests.get(
+        _RECALL_FEED_URL,
+        timeout=6,
+        headers={"User-Agent": "GroceryHouseManager/1.0 recall-screening"},
+    )
+    response.raise_for_status()
+    root = ET.fromstring(response.content)
+    items: list[dict[str, str]] = []
+    for item in root.findall(".//item")[:80]:
+        title = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        description = re.sub(r"<[^>]+>", " ", item.findtext("description") or "")
+        published = (item.findtext("pubDate") or "").strip()
+        if title and link:
+            items.append({"title": title, "link": link, "description": " ".join(description.split()), "published": published})
+    _RECALL_CACHE["fetched_at"] = now
+    _RECALL_CACHE["items"] = items
+    return items, now
+
+
+def _recall_guardian(db: Session, house_id: int) -> RecallGuardianOut:
+    products = db.query(Product).filter(Product.house_id == house_id, Product.quantity > 0).order_by(Product.name.asc()).all()
+    try:
+        alerts, fetched_at = _fetch_food_recalls()
+    except Exception:
+        return RecallGuardianOut(
+            source_url=_RECALL_SOURCE_URL,
+            available=False,
+            checked_products=len(products),
+            matches=[],
+            fetched_at=None,
+            message="The Government of Canada food-recall feed could not be reached right now. Inventory and shopping continue to work normally; try the safety check again later.",
+        )
+
+    matches: list[RecallMatchOut] = []
+    for product in products:
+        name_key = _clean_key(product.name)
+        brand_key = _clean_key(product.brand)
+        barcode = re.sub(r"\D", "", product.barcode or "")
+        name_tokens = [token for token in name_key.split() if len(token) >= 3]
+        for alert in alerts:
+            haystack = _clean_key(f"{alert['title']} {alert['description']}")
+            digits = re.sub(r"\D", "", f"{alert['title']} {alert['description']}")
+            reason = None
+            if barcode and len(barcode) >= 8 and barcode in digits:
+                reason = "UPC/barcode appears in the alert text"
+            elif brand_key and len(brand_key) >= 4 and brand_key in haystack and any(token in haystack for token in name_tokens[:3]):
+                reason = "brand and product wording overlap the alert"
+            elif len(name_tokens) >= 2 and len(name_key) >= 8 and name_key in haystack:
+                reason = "product name closely matches the alert wording"
+            elif len(name_tokens) == 1 and len(name_tokens[0]) >= 7 and name_tokens[0] in haystack:
+                reason = "distinctive product name appears in the alert wording"
+            if reason:
+                matches.append(RecallMatchOut(
+                    product_id=product.id,
+                    product_name=product.name,
+                    alert_title=alert["title"],
+                    published_at=alert.get("published") or None,
+                    alert_url=alert["link"],
+                    match_reason=reason,
+                ))
+                break
+
+    message = (
+        "Possible matches need package-level verification. Compare brand, product name, size, UPC and lot code with the official recall notice before deciding a product is affected."
+        if matches else
+        "No likely wording or barcode matches were found between in-stock products and the current Government of Canada food-alert feed. This is a screening aid, not a guarantee that every recall can be matched automatically."
+    )
+    return RecallGuardianOut(
+        source_url=_RECALL_SOURCE_URL,
+        available=True,
+        checked_products=len(products),
+        matches=matches[:12],
+        fetched_at=fetched_at,
+        message=message,
+    )
+
+
+def _known_price_for_ingredient(products: list[Product], ingredient: str) -> tuple[float | None, str | None]:
+    product = _find_product_for_ingredient(products, ingredient)
+    if not product:
+        return None, None
+    prices = [float(entry.price) for entry in (product.store_prices or []) if entry.price is not None and float(entry.price) > 0]
+    if prices:
+        return min(prices), product.name
+    if product.price is not None and float(product.price) > 0:
+        return float(product.price), product.name
+    return None, product.name
+
+
+def _community_price_pulse(db: Session, house_id: int, user: User) -> CommunityPricePulseOut:
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    cutoff = date.today() - timedelta(days=21)
+    geo_filters = [CommunityPriceObservation.observed_on >= cutoff, CommunityPriceObservation.source_house_id != house_id]
+    if user.city:
+        geo_filters.append(CommunityPriceObservation.city.ilike(user.city.strip()))
+    elif user.country:
+        geo_filters.append(CommunityPriceObservation.country.ilike(user.country.strip()))
+    network_rows = db.query(CommunityPriceObservation).filter(*geo_filters).order_by(CommunityPriceObservation.observed_on.desc()).limit(500).all()
+
+    active_list = (
+        db.query(ShoppingList)
+        .options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product))
+        .filter(ShoppingList.house_id == house_id, ShoppingList.is_done.is_(False))
+        .order_by(ShoppingList.created_at.desc())
+        .first()
+    )
+    products = [item.product for item in (active_list.items if active_list else []) if item.status != ShoppingItemStatus.skipped and item.product]
+    signals: list[CommunityPriceSignalOut] = []
+    matched_products: set[int] = set()
+    for product in products:
+        product_key = _clean_key(product.name)
+        barcode = re.sub(r"\D", "", product.barcode or "")
+        matches = [row for row in network_rows if (barcode and row.barcode and re.sub(r"\D", "", row.barcode) == barcode) or row.product_key == product_key]
+        if not matches:
+            continue
+        matched_products.add(product.id)
+        by_store: dict[str, list[CommunityPriceObservation]] = {}
+        for row in matches:
+            by_store.setdefault(row.store_name, []).append(row)
+        for store_name, rows in by_store.items():
+            rows.sort(key=lambda row: (row.observed_on, row.created_at), reverse=True)
+            latest = rows[0]
+            recent_prices = [float(row.price) for row in rows[:8] if float(row.price) > 0]
+            if not recent_prices:
+                continue
+            signals.append(CommunityPriceSignalOut(
+                product_name=product.name,
+                store_name=store_name,
+                price=round(float(median(recent_prices)), 2),
+                city=latest.city,
+                observed_on=latest.observed_on,
+                observation_count=len(rows),
+                age_days=max((date.today() - latest.observed_on).days, 0),
+            ))
+    signals.sort(key=lambda row: (row.age_days, row.price, row.product_name))
+    where = user.city or user.country or "your area"
+    if signals:
+        message = f"Community Price Pulse found {len(signals)} recent store signal{'s' if len(signals) != 1 else ''} for {len(matched_products)} item{'s' if len(matched_products) != 1 else ''} on your active list near {where}. Community observations are supporting evidence, not guaranteed shelf prices."
+    elif active_list:
+        message = "No matching community price signal is mature enough for the active list yet. The network improves only from households that explicitly opt in."
+    else:
+        message = "Create a grocery list to see whether opted-in community receipt prices can strengthen your trip decisions."
+    return CommunityPricePulseOut(
+        sharing_enabled=bool(house.contribute_community_prices),
+        recent_observations=len(network_rows),
+        matched_list_items=len(matched_products),
+        signals=signals[:12],
+        message=message,
+    )
+
+
+@router.get("/houses/{house_id}/community-price-pulse", response_model=CommunityPricePulseOut)
+def community_price_pulse(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    return _community_price_pulse(db, house_id, user)
+
+
+@router.post("/houses/{house_id}/community-price-sharing", response_model=CommunityPricePulseOut)
+def community_price_sharing(
+    house_id: int,
+    payload: CommunityPriceSharingIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    if house.created_by_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the house owner can change Community Price Pulse sharing.")
+    house.contribute_community_prices = bool(payload.enabled)
+    if not payload.enabled:
+        db.query(CommunityPriceObservation).filter(CommunityPriceObservation.source_house_id == house_id).delete(synchronize_session=False)
+    db.commit()
+    return _community_price_pulse(db, house_id, user)
+
+
+@router.post("/houses/{house_id}/household-plan", response_model=HouseholdPlanOut)
+def household_plan(
+    house_id: int,
+    payload: HouseholdPlanIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    if not house_plan_has_autopilot_planner(db, house_id):
+        raise HTTPException(status_code=402, detail="Budget Rescue and life-aware weekly planning require Family Plus or Household Pro.")
+    products = (
+        db.query(Product)
+        .options(joinedload(Product.store_prices))
+        .filter(Product.house_id == house_id)
+        .order_by(Product.name.asc())
+        .all()
+    )
+    active_list = (
+        db.query(ShoppingList)
+        .options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product))
+        .filter(ShoppingList.house_id == house_id, ShoppingList.is_done.is_(False))
+        .order_by(ShoppingList.created_at.desc())
+        .first()
+    )
+    recipe_rows = _combined_recipe_suggestions(db, user, products, active_list)
+    # Ready meals and meals that use expiring groceries are intentionally first.
+    ranked = sorted(recipe_rows, key=lambda row: (0 if row.use_soon_items else 1, 0 if row.status == "ready" else 1, -row.matched_required, row.name))
+    start = date.today()
+    skipped = {_clean_key(name) for name in payload.skip_days}
+    guest_map = {_clean_key(key): int(value) for key, value in payload.guest_servings.items() if int(value) > 0}
+    days: list[HouseholdPlanDayOut] = []
+    missing_all: list[str] = []
+    recipe_index = 0
+    for offset in range(payload.days):
+        day_name = (start + timedelta(days=offset)).strftime("%A")
+        day_key = _clean_key(day_name)
+        if day_key in skipped:
+            days.append(HouseholdPlanDayOut(day_name=day_name, status="away", servings=0, reason="Marked as dining out / away. No grocery requirements were added for this day."))
+            continue
+        if not ranked:
+            days.append(HouseholdPlanDayOut(day_name=day_name, status="open", servings=payload.default_servings, reason="No strong inventory-based recipe match is available yet. Add or scan groceries and the plan will become more specific."))
+            continue
+        recipe = ranked[recipe_index % len(ranked)]
+        recipe_index += 1
+        servings = guest_map.get(day_key, payload.default_servings)
+        missing_all.extend(recipe.missing_items)
+        days.append(HouseholdPlanDayOut(
+            day_name=day_name,
+            status="meal",
+            recipe_name=recipe.name,
+            servings=servings,
+            reason=recipe.reason,
+            use_soon_items=recipe.use_soon_items,
+            missing_items=recipe.missing_items,
+        ))
+
+    grocery_items = list(dict.fromkeys(missing_all))
+    known_cost = 0.0
+    unpriced: list[str] = []
+    for ingredient in grocery_items:
+        price, _ = _known_price_for_ingredient(products, ingredient)
+        if price is None:
+            unpriced.append(ingredient)
+        else:
+            known_cost += price
+    known_cost = round(known_cost, 2)
+    buffer = round(float(payload.budget) - known_cost, 2) if payload.budget is not None else None
+    if payload.budget is not None and known_cost > float(payload.budget):
+        message = "The known prices alone exceed this budget. Reduce planned days, use more ready-from-inventory meals, or review cheaper store options before creating the trip."
+    elif payload.budget is not None and unpriced:
+        message = "The known-priced groceries fit within the budget so far, but some missing ingredients do not yet have a reliable saved price. They are listed separately instead of being guessed."
+    elif payload.budget is not None:
+        message = "Every currently missing ingredient in this plan has a known saved price, so the budget check is fully supported by your household data."
+    else:
+        message = "This plan prioritizes meals that are ready from inventory and groceries that should be used soon. Missing items are never assigned made-up prices."
+    return HouseholdPlanOut(
+        currency_code=currency_for_country(user.country),
+        days_requested=payload.days,
+        planned_days=sum(1 for row in days if row.status == "meal"),
+        days=days,
+        grocery_items=grocery_items,
+        known_grocery_cost=known_cost,
+        unpriced_items=unpriced,
+        budget=payload.budget,
+        known_budget_buffer=buffer,
+        message=message,
+    )
+
+
+@router.post("/houses/{house_id}/kitchen-check", response_model=KitchenCheckOut)
+async def kitchen_check(
+    house_id: int,
+    images: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    if not house_plan_has_kitchen_check(db, house_id):
+        raise HTTPException(status_code=402, detail="Kitchen Check Beta requires Household Pro.")
+    if not images:
+        raise HTTPException(status_code=400, detail="Add at least one fridge, freezer or pantry photo.")
+    if len(images) > 4:
+        raise HTTPException(status_code=400, detail="Kitchen Check accepts up to 4 photos at a time.")
+    products = db.query(Product).filter(Product.house_id == house_id, Product.quantity > 0).order_by(Product.name.asc()).all()
+    combined_text = ""
+    clues: list[str] = []
+    checked = 0
+    for upload in images:
+        content = await upload.read()
+        if len(content) > 6 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"{upload.filename or 'Image'} is larger than 6 MB.")
+        try:
+            image = Image.open(BytesIO(content)).convert("RGB")
+            text = pytesseract.image_to_string(image, config="--psm 6")
+        except Exception:
+            continue
+        checked += 1
+        if text.strip():
+            combined_text += "\n" + text
+            clues.extend([line.strip() for line in text.splitlines() if len(line.strip()) >= 3][:8])
+    if not checked:
+        raise HTTPException(status_code=400, detail="The uploaded images could not be read.")
+    normalized_text = _clean_key(combined_text)
+    digit_text = re.sub(r"\D", "", combined_text)
+    confirmed: list[str] = []
+    for product in products:
+        name_key = _clean_key(product.name)
+        brand_key = _clean_key(product.brand)
+        barcode = re.sub(r"\D", "", product.barcode or "")
+        name_match = len(name_key) >= 5 and name_key in normalized_text
+        brand_match = brand_key and len(brand_key) >= 4 and brand_key in normalized_text
+        barcode_match = barcode and len(barcode) >= 8 and barcode in digit_text
+        if name_match or barcode_match or (brand_match and any(token in normalized_text for token in name_key.split() if len(token) >= 4)):
+            confirmed.append(product.name)
+    confirmed_keys = {_clean_key(name) for name in confirmed}
+    needs_review = [product.name for product in products if _clean_key(product.name) not in confirmed_keys][:30]
+    return KitchenCheckOut(
+        images_checked=checked,
+        inventory_count=len(products),
+        label_confirmed=confirmed,
+        needs_review=needs_review,
+        extracted_clues=list(dict.fromkeys(clues))[:20],
+        message="Kitchen Check Beta confirms products only when readable package text, a distinctive brand/name combination or a stored barcode is visible. An item not detected may still be present; use the review list to confirm changes instead of deleting inventory automatically.",
+    )
+
+
+@router.get("/houses/{house_id}/savings-ledger", response_model=SavingsLedgerOut)
+def savings_ledger(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    return _savings_ledger(db, house, user)
+
+
+@router.get("/houses/{house_id}/receipt-guardian", response_model=ReceiptGuardianOut)
+def receipt_guardian(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    if not house_plan_has_receipt_guardian(db, house_id):
+        raise HTTPException(status_code=402, detail="Receipt Guardian requires Basic Home or higher.")
+    return _receipt_guardian(db, house_id)
+
+
+@router.get("/houses/{house_id}/stock-up", response_model=list[StockUpSuggestionOut])
+def stock_up(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    if not house_plan_has_stock_up_intelligence(db, house_id):
+        raise HTTPException(status_code=402, detail="Smart stock-up intelligence requires Family Plus or Household Pro.")
+    return _stock_up_suggestions(db, house_id)
+
+
+@router.get("/houses/{house_id}/recall-guardian", response_model=RecallGuardianOut)
+def recall_guardian(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    return _recall_guardian(db, house_id)
+
+
+@router.get("/houses/{house_id}/autopilot", response_model=AutopilotOverviewOut)
+def autopilot_overview(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    house_plan = get_house_plan(db, house_id)
+    receipt_guardian_unlocked = house_plan_has_receipt_guardian(db, house_id)
+    planner_unlocked = house_plan_has_autopilot_planner(db, house_id)
+    stock_up_unlocked = house_plan_has_stock_up_intelligence(db, house_id)
+    kitchen_check_unlocked = house_plan_has_kitchen_check(db, house_id)
+    assistant = weekly_assistant(house_id, db=db, user=user)
+    receipt_guard = _receipt_guardian(db, house_id) if receipt_guardian_unlocked else ReceiptGuardianOut(
+        receipts_checked=0, issues=[], amount_to_review=0,
+        message="Receipt Guardian unlocks with Basic Home. Your original receipt history remains available."
+    )
+    ledger = _savings_ledger(db, house, user)
+    stockups = _stock_up_suggestions(db, house_id) if stock_up_unlocked else []
+    recalls = _recall_guardian(db, house_id)
+    community_prices = _community_price_pulse(db, house_id, user)
+    urgent = len(assistant.expired) + len(recalls.matches)
+    restock_count = len(assistant.suggested_items)
+    attention = min(100, urgent * 25 + len(assistant.expiring_soon) * 8 + restock_count * 4 + len(receipt_guard.issues) * 5)
+
+    if recalls.matches:
+        headline = "A possible food-safety match needs verification"
+        subheadline = "Autopilot found inventory wording that overlaps an official Government of Canada food alert. Verify the package details before using the product."
+        action = "Review safety match"
+        href = f"/assistant?house={house_id}#recall-guardian"
+    elif assistant.expired:
+        headline = "Start by reviewing expired inventory"
+        subheadline = "Autopilot is prioritizing food safety and waste prevention before it recommends another shopping trip."
+        action = "Review inventory"
+        href = f"/houses/{house_id}/inventory"
+    elif receipt_guard.issues:
+        headline = "Your latest receipts have a few charges worth checking"
+        subheadline = "These are review prompts—not confirmed errors—and each one is tied to a specific receipt line or price history signal."
+        action = "Open Receipt Guardian"
+        href = f"/assistant?house={house_id}#receipt-guardian"
+    elif assistant.expiring_soon:
+        headline = "Use what you own before buying more"
+        subheadline = "Autopilot found groceries that should be used soon and can prioritize them before the next shopping trip."
+        action = "Build this week's plan" if planner_unlocked else "Review meal ideas"
+        href = f"/assistant?house={house_id}#weekly-plan" if planner_unlocked else f"/houses/{house_id}/meals"
+    elif assistant.suggested_items:
+        headline = "Your next trip can be prepared automatically"
+        subheadline = "Low/out-of-stock essentials can be added to the list, then checked against your known store prices."
+        action = "Prepare the trip"
+        href = f"/houses/{house_id}/shopping"
+    else:
+        headline = "Your household looks under control"
+        subheadline = "No urgent inventory signal stands out. Autopilot will keep watching prices, receipts, expiry dates and the next shopping list."
+        action = "Review weekly plan" if planner_unlocked else "Review household"
+        href = f"/assistant?house={house_id}#weekly-plan" if planner_unlocked else f"/houses/{house_id}"
+
+    return AutopilotOverviewOut(
+        generated_at=datetime.now(timezone.utc),
+        currency_code=currency_for_country(user.country),
+        house_id=house.id,
+        house_name=house.name,
+        plan_key=house_plan.key,
+        receipt_guardian_unlocked=receipt_guardian_unlocked,
+        planner_unlocked=planner_unlocked,
+        stock_up_unlocked=stock_up_unlocked,
+        kitchen_check_unlocked=kitchen_check_unlocked,
+        attention_score=attention,
+        headline=headline,
+        subheadline=subheadline,
+        verified_savings=ledger.verified_total,
+        potential_savings=ledger.potential_total,
+        active_list_items=assistant.active_list_items,
+        expiring_items=len(assistant.expiring_soon) + len(assistant.expired),
+        restock_items=restock_count,
+        receipt_issues=len(receipt_guard.issues),
+        recall_matches=len(recalls.matches),
+        best_next_action=action,
+        best_next_action_href=href,
+        stock_up=stockups,
+        receipt_guardian=receipt_guard,
+        savings_ledger=ledger,
+        recall_guardian=recalls,
+        community_price_pulse=community_prices,
     )

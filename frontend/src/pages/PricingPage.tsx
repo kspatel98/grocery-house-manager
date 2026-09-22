@@ -51,16 +51,18 @@ const PLAN_BADGE_LABELS: Record<PlanName, string> = {
 };
 
 const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanName }[] = [
-  { title: 'Create 1 starter house', description: 'Free Starter includes one real house with up to 40 products, one active list, and four total members.', minPlan: 'free' },
-  { title: 'Join invited houses', description: 'Join another household and use features unlocked by that house owner.', minPlan: 'free' },
-  { title: 'Create multiple / larger houses', description: 'Basic and higher raise house, product, list, and member limits.', minPlan: 'basic' },
-  { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5 scans/month, and Pro includes 15 scans/month across houses you own.', minPlan: 'basic' },
-  { title: 'Product lookup', description: 'Search product details by barcode or name while building inventory.', minPlan: 'basic' },
-  { title: 'Best-store comparison', description: 'Compare saved household prices across your stores.', minPlan: 'family' },
-  { title: 'Canadian price + weekly flyer comparison', description: 'Compare supported current retailer prices plus postal-code-aware weekly flyer deals with validity dates and source labels.', minPlan: 'family' },
-  { title: 'Monthly household expense view', description: 'Understand shared grocery spending over time.', minPlan: 'family' },
-  { title: 'Nearby store suggestions', description: 'Use your list and location to find nearby grocery store options.', minPlan: 'pro' },
-  { title: 'Large household history and insights', description: 'Higher limits for large families, multiple houses, and serious tracking.', minPlan: 'pro' },
+  { title: 'Shared household essentials', description: 'One starter house, shared inventory/list access, low-stock and expiry awareness, community recipes, and Food Recall Guardian screening.', minPlan: 'free' },
+  { title: 'Receipt Guardian', description: 'Review recent scanned receipts for possible duplicate lines, line-math inconsistencies and unusual price jumps. Every signal stays a review prompt.', minPlan: 'basic' },
+  { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5, and Pro includes 15 across houses you own. Extra scan packs remain available.', minPlan: 'basic' },
+  { title: 'Product lookup + private price memory', description: 'Barcode/name lookup plus household-specific store price history from the groceries you review and save.', minPlan: 'basic' },
+  { title: 'GHM Autopilot Weekly Planner + Budget Rescue', description: 'Plan days at home, servings and an optional budget. Autopilot prioritizes inventory and use-soon food, then creates only the missing grocery list.', minPlan: 'family' },
+  { title: 'Automatic Trip Check', description: 'Compare whole-list saved prices plus supported Canadian current-price/flyer signals before you spend.', minPlan: 'family' },
+  { title: 'Smart stock-up intelligence', description: 'Uses your household price and purchase history to identify unusually strong prices and recommend a conservative quantity instead of treating every sale as a deal.', minPlan: 'family' },
+  { title: 'Savings Ledger', description: 'Separates evidence-backed savings from open opportunities so the value of your household routine remains auditable.', minPlan: 'free' },
+  { title: 'Household expenses + reimbursements', description: 'Track shared grocery spending, personal share, balances and suggested reimbursements.', minPlan: 'family' },
+  { title: 'Nearby store suggestions', description: 'Use your shopping needs and location to find supported nearby grocery options.', minPlan: 'pro' },
+  { title: 'Kitchen Check Beta', description: 'Camera-assisted pantry/fridge reconciliation using visible package labels and stored barcodes. Uncertain items always require confirmation.', minPlan: 'pro' },
+  { title: 'Large household history and exports', description: 'Higher limits and deeper tracking for multiple houses, extended families and heavy users.', minPlan: 'pro' },
 ];
 
 function featureUnlocked(planKey: PlanName, minPlan: PlanName) {

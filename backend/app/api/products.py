@@ -13,7 +13,7 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage, choose_receipt_scan_credit_source, consume_extra_receipt_scan_credit
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus
+from app.models import CommunityPriceObservation, House, HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus
 from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
 from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut, ReceiptDeleteOut
 
@@ -294,6 +294,58 @@ def normalize_name_key(value: str | None) -> str:
     cleaned = re.sub(r"[^a-z0-9]+", " ", (value or "").lower())
     tokens = [token for token in cleaned.split() if token not in {"op", "te", "st", "tr", "rf", "no", "item", "items"}]
     return " ".join(tokens).strip()
+
+
+def record_community_price_observation(
+    db: Session,
+    *,
+    house_id: int,
+    product: Product,
+    store_name: str,
+    price: float,
+    observed_on: date,
+    user: User,
+) -> None:
+    """Contribute a privacy-protected price only when the house owner explicitly opted in.
+
+    Community responses never expose the internal source house or user identity. The internal
+    house link exists only so the owner can revoke consent and delete prior contributions.
+    """
+    house = db.get(House, house_id)
+    if not house or not bool(house.contribute_community_prices):
+        return
+    key = normalize_name_key(product.name)[:220]
+    store = (store_name or "").strip()[:150]
+    if not key or not store or price <= 0:
+        return
+    existing = db.query(CommunityPriceObservation).filter(
+        CommunityPriceObservation.source_house_id == house_id,
+        CommunityPriceObservation.product_key == key,
+        CommunityPriceObservation.store_name == store,
+        CommunityPriceObservation.observed_on == observed_on,
+    ).first()
+    if existing:
+        existing.price = round(float(price), 2)
+        existing.product_name = product.name[:180]
+        existing.brand = product.brand or None
+        existing.barcode = product.barcode or None
+        existing.city = user.city or None
+        existing.country = user.country or None
+        existing.created_at = datetime.now(timezone.utc)
+        return
+    db.add(CommunityPriceObservation(
+        source_house_id=house_id,
+        product_key=key,
+        product_name=product.name[:180],
+        brand=product.brand or None,
+        barcode=product.barcode or None,
+        store_name=store,
+        price=round(float(price), 2),
+        city=user.city or None,
+        country=user.country or None,
+        observed_on=observed_on,
+        source="reviewed_receipt",
+    ))
 
 
 def find_existing_product(db: Session, house_id: int, name: str | None) -> Product | None:
@@ -902,6 +954,11 @@ def confirm_receipt_review(house_id: int, receipt_id: int, payload: ReceiptRevie
         price = price_for_history(qty, unit_price, line.line_total, line.discount_amount)
         if price is not None:
             upsert_store_price(db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store", price=price, source="receipt_scan_reviewed", receipt_id=receipt.id, user_id=user.id, recorded_at=receipt_price_datetime(receipt))
+            if not was_already_reviewed:
+                record_community_price_observation(
+                    db, house_id=house_id, product=product, store_name=receipt.store_name or "Receipt store",
+                    price=price, observed_on=receipt.receipt_date or date.today(), user=user,
+                )
             updated_count += 1
         should_update_inventory = bool(line.update_inventory and not was_already_reviewed)
         if linked_item and linked_list and linked_list.is_done and original_status.get(linked_item.id) == ShoppingItemStatus.in_cart:

@@ -304,30 +304,23 @@ export default function HousePage() {
 
       <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={openMembersPanel} />
 
-      <section className="house-momentum-grid-v87" aria-label="Household contribution and sharing">
-        <article className="panel household-leaderboard-v87">
-          <div className="panel-title-row">
-            <div><p className="eyebrow">HOUSEHOLD MOMENTUM</p><h2>This week’s contributions</h2><p>A lighthearted view of who has been helping keep the house organized.</p></div>
-            <span className="momentum-badge-v87">7 days</span>
+      <section className="v91-autopilot-home-card" aria-label="GHM Autopilot">
+        <div className="v91-autopilot-home-icon" aria-hidden="true">✦</div>
+        <div className="v91-autopilot-home-copy">
+          <p className="eyebrow">GHM AUTOPILOT · HOUSEHOLD GROCERY CFO</p>
+          <h2>Stop managing every grocery decision yourself.</h2>
+          <p>Autopilot connects inventory, meals, shopping, receipts, price history and safety checks to tell your household what needs attention next.</p>
+          <div className="v91-autopilot-home-signals">
+            <span className={stats.expiringSoon + stats.expired ? 'attention' : ''}><strong>{stats.expiringSoon + stats.expired}</strong><small>use/review soon</small></span>
+            <span className={stats.lowStock + stats.outOfStock ? 'attention' : ''}><strong>{stats.lowStock + stats.outOfStock}</strong><small>restock signals</small></span>
+            <span><strong>{stats.activeListItems}</strong><small>next-trip items</small></span>
+            <span><strong>{stats.receiptCount}</strong><small>receipts learning prices</small></span>
           </div>
-          <div className="momentum-list-v87">
-            {householdMomentum.length ? householdMomentum.map((row, index) => (
-              <div className="momentum-row-v87" key={row.userId}>
-                <span className={`momentum-rank-v87 rank-${index + 1}`}>{index === 0 ? '★' : index + 1}</span>
-                <div><strong>{row.name}{row.userId === currentUser?.id ? ' · You' : ''}</strong><small>{row.count} helpful update{row.count === 1 ? '' : 's'} · {row.receipts} receipts · {row.shopping} shopping · {row.inventory} inventory</small></div>
-                <b>{row.count}</b>
-              </div>
-            )) : <p className="small-muted">Household contributions will appear here as members use shopping, inventory and receipts.</p>}
-          </div>
-        </article>
-
-        <article className="panel receipt-win-share-v87">
-          <span className="receipt-win-icon-v87" aria-hidden="true">✨</span>
-          <div><p className="eyebrow">SHARE A HOUSEHOLD WIN</p><h2>Your home is getting more organized</h2><p>Create a branded share card after a useful grocery trip — no private member balances or emails are included.</p></div>
-          <div className="receipt-win-stats-v87"><span><strong>{stats.totalProducts}</strong><small>items tracked</small></span><span><strong>{stats.receiptCount}</strong><small>receipts logged</small></span><span><strong>{stats.activeListItems}</strong><small>to buy</small></span></div>
-          <button className="primary full" onClick={shareHouseWin}>Share this win</button>
-          {shareMessage && <small className="success compact-message">{shareMessage}</small>}
-        </article>
+        </div>
+        <div className="v91-autopilot-home-actions">
+          <Link className="primary center-link" to={`/assistant?house=${id}`}>Open Autopilot →</Link>
+          <small>Weekly plan · Budget Rescue · Receipt Guardian · Smart stock-up · Savings Ledger · Recall screening</small>
+        </div>
       </section>
 
       <section className="v85-dashboard-grid" aria-label="Household overview">

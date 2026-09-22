@@ -27,6 +27,7 @@ def ensure_dev_schema(engine: Engine) -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end TIMESTAMP WITH TIME ZONE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
 
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS contribute_community_prices BOOLEAN DEFAULT FALSE",
         "ALTER TABLE houses ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
         "ALTER TABLE house_members ADD COLUMN IF NOT EXISTS role houserole DEFAULT 'member'",
         "ALTER TABLE house_members ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",

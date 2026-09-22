@@ -28,6 +28,7 @@ export type House = {
   role?: 'owner' | 'admin' | 'member';
   owner_name?: string;
   owner_plan_name?: PlanName;
+  contribute_community_prices?: boolean;
   created_at: string;
 };
 
@@ -754,6 +755,163 @@ export type WeeklyAssistant = {
   monthly_savings: number;
   recipes: WeeklyAssistantRecipe[];
   message: string;
+};
+
+export type SavingsLedgerEntry = {
+  key: string;
+  occurred_on?: string | null;
+  kind: string;
+  title: string;
+  amount: number;
+  verified: boolean;
+  evidence: string;
+  source_label: string;
+  href?: string | null;
+};
+
+export type SavingsLedger = {
+  currency_code: string;
+  month_label: string;
+  verified_total: number;
+  potential_total: number;
+  plan_monthly_cost: number;
+  verified_after_plan_cost: number;
+  entries: SavingsLedgerEntry[];
+  message: string;
+};
+
+export type ReceiptGuardianIssue = {
+  key: string;
+  receipt_id: number;
+  receipt_label: string;
+  store_name?: string | null;
+  receipt_date?: string | null;
+  severity: 'check' | 'info' | string;
+  issue_type: string;
+  title: string;
+  detail: string;
+  amount_to_review?: number | null;
+  product_name?: string | null;
+};
+
+export type ReceiptGuardian = {
+  receipts_checked: number;
+  issues: ReceiptGuardianIssue[];
+  amount_to_review: number;
+  message: string;
+};
+
+export type StockUpSuggestion = {
+  product_id: number;
+  product_name: string;
+  store_name?: string | null;
+  current_price: number;
+  typical_price: number;
+  discount_percent: number;
+  history_points: number;
+  average_days_between_purchases?: number | null;
+  recommended_quantity: number;
+  potential_savings: number;
+  reason: string;
+  caution: string;
+};
+
+export type RecallMatch = {
+  product_id: number;
+  product_name: string;
+  alert_title: string;
+  published_at?: string | null;
+  alert_url: string;
+  match_reason: string;
+};
+
+export type RecallGuardian = {
+  source_name: string;
+  source_url: string;
+  available: boolean;
+  checked_products: number;
+  matches: RecallMatch[];
+  fetched_at?: string | null;
+  message: string;
+};
+
+export type HouseholdPlanDay = {
+  day_name: string;
+  status: string;
+  recipe_name?: string | null;
+  servings: number;
+  reason: string;
+  use_soon_items: string[];
+  missing_items: string[];
+};
+
+export type HouseholdPlan = {
+  currency_code: string;
+  days_requested: number;
+  planned_days: number;
+  days: HouseholdPlanDay[];
+  grocery_items: string[];
+  known_grocery_cost: number;
+  unpriced_items: string[];
+  budget?: number | null;
+  known_budget_buffer?: number | null;
+  message: string;
+};
+
+export type KitchenCheck = {
+  images_checked: number;
+  inventory_count: number;
+  label_confirmed: string[];
+  needs_review: string[];
+  extracted_clues: string[];
+  message: string;
+};
+
+export type CommunityPriceSignal = {
+  product_name: string;
+  store_name: string;
+  price: number;
+  city?: string | null;
+  observed_on: string;
+  observation_count: number;
+  age_days: number;
+};
+
+export type CommunityPricePulse = {
+  sharing_enabled: boolean;
+  recent_observations: number;
+  matched_list_items: number;
+  signals: CommunityPriceSignal[];
+  message: string;
+};
+
+export type AutopilotOverview = {
+  generated_at: string;
+  currency_code: string;
+  house_id: number;
+  house_name: string;
+  plan_key: PlanName;
+  receipt_guardian_unlocked: boolean;
+  planner_unlocked: boolean;
+  stock_up_unlocked: boolean;
+  kitchen_check_unlocked: boolean;
+  attention_score: number;
+  headline: string;
+  subheadline: string;
+  verified_savings: number;
+  potential_savings: number;
+  active_list_items: number;
+  expiring_items: number;
+  restock_items: number;
+  receipt_issues: number;
+  recall_matches: number;
+  best_next_action: string;
+  best_next_action_href: string;
+  stock_up: StockUpSuggestion[];
+  receipt_guardian: ReceiptGuardian;
+  savings_ledger: SavingsLedger;
+  recall_guardian: RecallGuardian;
+  community_price_pulse: CommunityPricePulse;
 };
 
 export type ExpenseCategory = { id:number; name:string; icon:string; created_at:string };
