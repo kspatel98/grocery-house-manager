@@ -153,16 +153,12 @@ def ask_household_agent(*, prompt: str, context: dict[str, Any]) -> dict[str, An
     if not agent_configured():
         raise DigitalOceanAIError("DigitalOcean Household Agent is not configured.")
     endpoint = settings.digitalocean_agent_url.rstrip("/") + "/api/v1/chat/completions"
-    system = """
-You are the Grocery House Manager Household Agent. Give concise, practical household grocery guidance.
-Use the supplied household context as the source of truth. Never invent prices, quantities, safety facts,
-or actions. If the user asks to change data, describe the recommended action unless a verified application
-tool/function route is available. Respect household preferences even when they are not the cheapest option.
-""".strip()
+    # DigitalOcean managed Agent instructions are configured on the Agent itself.
+    # Sending system/developer messages to the Agent endpoint can be rejected with HTTP 400,
+    # so GHM sends only the live household context and user request as a normal user message.
     user_content = f"Household context:\n{json.dumps(context, ensure_ascii=False)}\n\nUser request:\n{prompt}"
     payload = {
         "messages": [
-            {"role": "system", "content": system},
             {"role": "user", "content": user_content},
         ],
         "stream": False,

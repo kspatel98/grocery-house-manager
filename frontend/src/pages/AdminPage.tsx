@@ -275,7 +275,12 @@ export default function AdminPage() {
 
       <section className="panel v93-ai-admin-panel">
         <div className="panel-title-row"><div><p className="eyebrow">DIGITALOCEAN AI INFRASTRUCTURE</p><h2>Kitchen Vision + Household Agent</h2><p>Secrets stay in backend/.env. This panel shows whether inference, the agent endpoint, video processing and media privacy are ready.</p></div><button type="button" className="primary" onClick={testAIInfrastructure} disabled={aiBusy}>{aiBusy ? 'Testing…' : 'Run AI system test'}</button></div>
-        <div className="v93-ai-status-grid">{aiStatus?.components.map((component) => <article key={component.key} className={`${component.configured ? 'configured' : 'missing'} ${component.healthy === true ? 'healthy' : component.healthy === false ? 'unhealthy' : 'unknown'}`}><span>{component.healthy === true ? '✓' : component.configured ? '◇' : '!'}</span><div><strong>{component.label}</strong><small>{component.detail}</small></div></article>)}</div>
+        <div className="v93-ai-status-grid">{aiStatus?.components.map((component) => {
+          const optional = component.key === 'spaces';
+          const statusClass = optional ? 'optional unknown' : `${component.configured ? 'configured' : 'missing'} ${component.healthy === true ? 'healthy' : component.healthy === false ? 'unhealthy' : 'unknown'}`;
+          const icon = optional ? '○' : component.healthy === true ? '✓' : component.configured ? '◇' : '!';
+          return <article key={component.key} className={statusClass}><span>{icon}</span><div><strong>{component.label}</strong><small>{component.detail}</small></div></article>;
+        })}</div>
         <div className="v93-ai-status-footer"><span><strong>Vision model</strong><small>{aiStatus?.vision_model || 'Not enabled'}</small></span><span><strong>Video</strong><small>{aiStatus?.video_enabled ? 'Enabled' : 'Disabled'}</small></span><span><strong>Approval</strong><small>{aiStatus?.approval_required ? 'Required' : 'Optional'}</small></span><span><strong>Media retention</strong><small>{aiStatus?.media_delete_after_analysis ? 'Ephemeral / delete after analysis' : 'Deployment setting allows retention'}</small></span></div>
       </section>
 

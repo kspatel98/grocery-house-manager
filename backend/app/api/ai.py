@@ -589,7 +589,7 @@ def _status(run_health: bool = False) -> AISystemStatusOut:
             AISystemComponentOut(key="agent", label="GHM Household Agent", configured=ag_configured, healthy=ag_health, detail=ag_detail),
             AISystemComponentOut(key="video", label="Kitchen video frame pipeline", configured=settings.kitchen_vision_allow_video, healthy=True, detail=f"FFmpeg frame sampling supports videos up to {settings.kitchen_vision_max_video_seconds}s."),
             AISystemComponentOut(key="privacy", label="Kitchen media privacy", configured=True, healthy=True, detail="Kitchen media is processed ephemerally by default and is not written to the GHM database."),
-            AISystemComponentOut(key="spaces", label="Private DigitalOcean Spaces", configured=spaces_configured, healthy=None if spaces_configured else False, detail="Optional private media storage; Kitchen Vision works without it using ephemeral processing."),
+            AISystemComponentOut(key="spaces", label="Private DigitalOcean Spaces", configured=spaces_configured, healthy=None, detail=("Optional private media storage is configured. V93 still processes Kitchen Vision media ephemerally unless a storage workflow is enabled." if spaces_configured else "Optional — not required. Leave Spaces disabled unless you intentionally want to retain private scan media; Kitchen Vision works normally with ephemeral processing.")),
         ],
     )
 
