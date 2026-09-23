@@ -111,6 +111,40 @@ class Settings(BaseSettings):
     veryfi_api_url: str = "https://api.veryfi.com/api/v8/partner/documents"
     veryfi_timeout_seconds: int = 60
 
+
+    # DigitalOcean Inference / Agent Platform (V93 Kitchen Vision + Household Agent).
+    # Secrets stay backend-only. Model access keys use serverless inference; agent access
+    # keys are separate and scoped to a single provisioned DigitalOcean agent endpoint.
+    digitalocean_ai_enabled: bool = False
+    digitalocean_inference_base_url: str = "https://inference.do-ai.run/v1"
+    digitalocean_inference_key: str | None = None
+    digitalocean_vision_model: str = "nemotron-nano-12b-v2-vl"
+    digitalocean_vision_timeout_seconds: int = 75
+    digitalocean_agent_enabled: bool = False
+    digitalocean_agent_url: str | None = None
+    digitalocean_agent_access_key: str | None = None
+    digitalocean_agent_timeout_seconds: int = 60
+
+    # Kitchen Vision keeps media ephemeral by default. Video is sampled into still frames
+    # before inference so the app works with image-capable VLMs as well as video-capable ones.
+    kitchen_vision_enabled: bool = True
+    kitchen_vision_allow_video: bool = True
+    kitchen_vision_max_video_seconds: int = 30
+    kitchen_vision_max_files: int = 6
+    kitchen_vision_max_frames: int = 10
+    kitchen_vision_upload_max_mb: int = 40
+    kitchen_vision_require_approval: bool = True
+    kitchen_media_delete_after_analysis: bool = True
+
+    # Optional private DigitalOcean Spaces storage. V93 can run without Spaces; when enabled
+    # it is used for private AI media workflows and presigned URLs rather than public assets.
+    do_spaces_enabled: bool = False
+    do_spaces_key: str | None = None
+    do_spaces_secret: str | None = None
+    do_spaces_bucket: str | None = None
+    do_spaces_region: str = "tor1"
+    do_spaces_endpoint: str | None = None
+
     # Password reset email provider.
     # Recommended production value when SMTP 587/465 is blocked by hosting: resend.
     # Supported values: auto, resend, smtp. auto uses Resend when RESEND_API_KEY exists, otherwise SMTP.

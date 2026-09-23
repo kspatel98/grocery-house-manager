@@ -863,8 +863,39 @@ export type KitchenCheck = {
   inventory_count: number;
   label_confirmed: string[];
   needs_review: string[];
+  possible_new_items: string[];
   extracted_clues: string[];
+  review_actions: string[];
   message: string;
+};
+
+export type AutopilotTripOption = {
+  key: string;
+  title: string;
+  summary: string;
+  badge: string;
+  store_names: string[];
+  estimated_total?: number | null;
+  extra_cost_vs_cheapest: number;
+  recommended: boolean;
+};
+
+export type AutopilotPattern = {
+  preferred_mode: string;
+  confidence_label: string;
+  notes: string[];
+};
+
+export type AutopilotControls = {
+  strategy: string;
+  max_stores: number;
+  allow_premium: boolean;
+  allow_split_trip: boolean;
+  preferred_stores: string[];
+  learning_enabled: boolean;
+  use_community_recipes: boolean;
+  trip_options: AutopilotTripOption[];
+  learned_pattern: AutopilotPattern;
 };
 
 export type CommunityPriceSignal = {
@@ -922,3 +953,105 @@ export type ExpenseBalance = { user_id:number; user_name:string; balance:number 
 export type ExpenseBalanceBreakdown = { user_id:number; user_name:string; paid:number; share:number; reimbursements_sent:number; reimbursements_received:number; pending_sent:number; pending_received:number; balance:number };
 export type ExpenseSuggestedPayment = { from_user_id:number; from_user_name:string; to_user_id:number; to_user_name:string; amount:number };
 export type ExpenseSummary = { expenses:HouseExpense[]; settlements:ExpenseSettlement[]; balances:ExpenseBalance[]; balance_breakdown:ExpenseBalanceBreakdown[]; suggested_payments:ExpenseSuggestedPayment[]; balance_is_valid:boolean };
+
+// V93 DigitalOcean AI / Kitchen Vision / Household Digital Twin
+export type AISystemComponent = {
+  key: string;
+  label: string;
+  configured: boolean;
+  healthy?: boolean | null;
+  detail: string;
+};
+
+export type AISystemStatus = {
+  ai_enabled: boolean;
+  vision_model?: string | null;
+  kitchen_vision_enabled: boolean;
+  video_enabled: boolean;
+  approval_required: boolean;
+  media_delete_after_analysis: boolean;
+  components: AISystemComponent[];
+};
+
+export type KitchenVisionDetection = {
+  detection_id: string;
+  detected_name: string;
+  category: string;
+  matched_product_id?: number | null;
+  matched_product_name?: string | null;
+  current_quantity?: number | null;
+  current_unit?: string | null;
+  estimated_quantity?: number | null;
+  unit?: string | null;
+  remaining_percent?: number | null;
+  confidence: number;
+  confidence_label: 'high' | 'medium' | 'low' | string;
+  evidence: string;
+  exact_identity: boolean;
+  suggested_action: 'update' | 'add' | 'review' | string;
+  notes: string;
+};
+
+export type KitchenVisionResult = {
+  mode: 'digitalocean_vision' | 'ocr_fallback' | string;
+  media_checked: number;
+  frames_analyzed: number;
+  scene_summary: string;
+  detections: KitchenVisionDetection[];
+  warnings: string[];
+  high_confidence_count: number;
+  review_count: number;
+  possible_new_count: number;
+  message: string;
+};
+
+export type KitchenVisionReviewItem = {
+  detection_id: string;
+  action: 'update' | 'add' | 'ignore';
+  product_id?: number | null;
+  name?: string | null;
+  quantity?: number | null;
+  unit?: string | null;
+};
+
+export type KitchenVisionApplyResponse = {
+  updated_products: string[];
+  added_products: string[];
+  added_to_list: string[];
+  ignored: number;
+  message: string;
+};
+
+export type DigitalTwinProduct = {
+  product_id: number;
+  product_name: string;
+  current_quantity: number;
+  unit: string;
+  average_days_between_purchases?: number | null;
+  average_purchase_quantity?: number | null;
+  estimated_daily_use?: number | null;
+  predicted_days_remaining?: number | null;
+  likely_needed_within_7_days: boolean;
+  confidence: 'high' | 'medium' | 'low' | string;
+  reason: string;
+};
+
+export type HouseholdDigitalTwin = {
+  house_id: number;
+  house_name: string;
+  generated_at: string;
+  history_days: number;
+  products_modeled: number;
+  products_likely_needed_7d: number;
+  decision_pattern: string;
+  decision_notes: string[];
+  products: DigitalTwinProduct[];
+  message: string;
+};
+
+export type HouseholdAgentResponse = {
+  configured: boolean;
+  answer: string;
+  used_live_agent: boolean;
+  message: string;
+};

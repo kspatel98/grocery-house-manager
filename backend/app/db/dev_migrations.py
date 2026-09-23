@@ -29,6 +29,13 @@ def ensure_dev_schema(engine: Engine) -> None:
 
         "ALTER TABLE houses ADD COLUMN IF NOT EXISTS contribute_community_prices BOOLEAN DEFAULT FALSE",
         "ALTER TABLE houses ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_strategy VARCHAR(24) DEFAULT 'balanced'",
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_max_stores INTEGER DEFAULT 1",
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_allow_premium BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_allow_split_trip BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_preferred_stores TEXT",
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_learning_enabled BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_use_community_recipes BOOLEAN DEFAULT TRUE",
         "ALTER TABLE house_members ADD COLUMN IF NOT EXISTS role houserole DEFAULT 'member'",
         "ALTER TABLE house_members ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
 
@@ -165,6 +172,11 @@ def ensure_dev_schema(engine: Engine) -> None:
         "ALTER TABLE admin_user_offers ALTER COLUMN user_id DROP NOT NULL",
         "ALTER TABLE admin_user_offers ADD COLUMN IF NOT EXISTS is_general BOOLEAN DEFAULT FALSE",
         "ALTER TABLE admin_user_offers ADD COLUMN IF NOT EXISTS occasion VARCHAR(180)",
+        "CREATE TABLE IF NOT EXISTS autopilot_decisions (id SERIAL PRIMARY KEY, house_id INTEGER NOT NULL REFERENCES houses(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, decision_kind VARCHAR(40) DEFAULT 'trip', recommendation VARCHAR(80), selected_option VARCHAR(80) NOT NULL, delta_cost DOUBLE PRECISION, context_json TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE INDEX IF NOT EXISTS ix_autopilot_decisions_house_id ON autopilot_decisions(house_id)",
+        "CREATE INDEX IF NOT EXISTS ix_autopilot_decisions_user_id ON autopilot_decisions(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_autopilot_decisions_kind ON autopilot_decisions(decision_kind)",
+        "CREATE INDEX IF NOT EXISTS ix_autopilot_decisions_created_at ON autopilot_decisions(created_at)",
         "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_is_general ON admin_user_offers(is_general)",
     ]
     with engine.begin() as connection:

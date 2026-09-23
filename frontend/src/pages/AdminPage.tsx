@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, PlanName, SiteReview } from '../types';
+import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, SiteReview } from '../types';
 
 function starText(value?: number | null) {
   const rating = Math.max(0, Math.min(5, Math.round(value || 0)));
@@ -19,6 +19,8 @@ export default function AdminPage() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [emailStatus, setEmailStatus] = useState<AdminEmailStatus | null>(null);
+  const [aiStatus, setAIStatus] = useState<AISystemStatus | null>(null);
+  const [aiBusy, setAIBusy] = useState(false);
   const [reviews, setReviews] = useState<SiteReview[]>([]);
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
   const [offerScope, setOfferScope] = useState<'personal' | 'general'>('personal');
@@ -57,23 +59,39 @@ export default function AdminPage() {
   async function loadAll() {
     try {
       setBusy(true);
-      const [summaryRes, usersRes, emailStatusRes, reviewsRes, offersRes] = await Promise.all([
+      const [summaryRes, usersRes, emailStatusRes, reviewsRes, offersRes, aiStatusRes] = await Promise.all([
         api.get<AdminSummary>('/admin/summary'),
         api.get<AdminUser[]>('/admin/users', { params: { search: search || undefined, limit: 100 } }),
         api.get<AdminEmailStatus>('/admin/email/status'),
         api.get<SiteReview[]>('/reviews/admin/all'),
         api.get<AdminUserOffer[]>('/offers/admin'),
+        api.get<AISystemStatus>('/ai/admin/status'),
       ]);
       setSummary(summaryRes.data);
       setUsers(usersRes.data);
       setEmailStatus(emailStatusRes.data);
       setReviews(reviewsRes.data);
       setOffers(offersRes.data);
+      setAIStatus(aiStatusRes.data);
       setError('');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function testAIInfrastructure() {
+    try {
+      setAIBusy(true);
+      setError('');
+      const { data } = await api.post<AISystemStatus>('/ai/admin/test');
+      setAIStatus(data);
+      setSuccess('AI infrastructure test completed. Review each component below.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setAIBusy(false);
     }
   }
 
@@ -254,6 +272,12 @@ export default function AdminPage() {
           <div className="stat-card"><strong>{summary.total_receipts}</strong><span>Receipts</span></div>
         </section>
       )}
+
+      <section className="panel v93-ai-admin-panel">
+        <div className="panel-title-row"><div><p className="eyebrow">DIGITALOCEAN AI INFRASTRUCTURE</p><h2>Kitchen Vision + Household Agent</h2><p>Secrets stay in backend/.env. This panel shows whether inference, the agent endpoint, video processing and media privacy are ready.</p></div><button type="button" className="primary" onClick={testAIInfrastructure} disabled={aiBusy}>{aiBusy ? 'Testing…' : 'Run AI system test'}</button></div>
+        <div className="v93-ai-status-grid">{aiStatus?.components.map((component) => <article key={component.key} className={`${component.configured ? 'configured' : 'missing'} ${component.healthy === true ? 'healthy' : component.healthy === false ? 'unhealthy' : 'unknown'}`}><span>{component.healthy === true ? '✓' : component.configured ? '◇' : '!'}</span><div><strong>{component.label}</strong><small>{component.detail}</small></div></article>)}</div>
+        <div className="v93-ai-status-footer"><span><strong>Vision model</strong><small>{aiStatus?.vision_model || 'Not enabled'}</small></span><span><strong>Video</strong><small>{aiStatus?.video_enabled ? 'Enabled' : 'Disabled'}</small></span><span><strong>Approval</strong><small>{aiStatus?.approval_required ? 'Required' : 'Optional'}</small></span><span><strong>Media retention</strong><small>{aiStatus?.media_delete_after_analysis ? 'Ephemeral / delete after analysis' : 'Deployment setting allows retention'}</small></span></div>
+      </section>
 
       <section className="panel admin-email-panel">
         <div className="panel-title-row">

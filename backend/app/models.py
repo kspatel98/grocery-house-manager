@@ -127,6 +127,13 @@ class House(Base):
     name: Mapped[str] = mapped_column(String(255))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     contribute_community_prices: Mapped[bool] = mapped_column(Boolean, default=False)
+    autopilot_strategy: Mapped[str] = mapped_column(String(24), default="balanced")
+    autopilot_max_stores: Mapped[int] = mapped_column(Integer, default=1)
+    autopilot_allow_premium: Mapped[bool] = mapped_column(Boolean, default=True)
+    autopilot_allow_split_trip: Mapped[bool] = mapped_column(Boolean, default=False)
+    autopilot_preferred_stores: Mapped[str | None] = mapped_column(Text, nullable=True)
+    autopilot_learning_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    autopilot_use_community_recipes: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     members: Mapped[list["HouseMember"]] = relationship(back_populates="house", cascade="all, delete-orphan")
@@ -438,6 +445,21 @@ class ExternalPriceCache(Base):
     payload_json: Mapped[str] = mapped_column(Text)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+
+class AutopilotDecision(Base):
+    __tablename__ = "autopilot_decisions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    decision_kind: Mapped[str] = mapped_column(String(40), default="trip")
+    recommendation: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    selected_option: Mapped[str] = mapped_column(String(80))
+    delta_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    context_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
 
 class CommunityRecipe(Base):

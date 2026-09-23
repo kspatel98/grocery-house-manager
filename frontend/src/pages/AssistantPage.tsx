@@ -5,10 +5,17 @@ import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type {
   AccountBootstrap,
+  AutopilotControls,
   AutopilotOverview,
+  AutopilotTripOption,
   House,
+  HouseholdAgentResponse,
+  HouseholdDigitalTwin,
   HouseholdPlan,
   KitchenCheck,
+  KitchenVisionApplyResponse,
+  KitchenVisionResult,
+  KitchenVisionReviewItem,
   RecipeMissingAddResponse,
   ReceiptGuardianIssue,
   ShoppingList,
@@ -29,6 +36,8 @@ export default function AssistantPage() {
   const [houseId, setHouseId] = useState<number | null>(null);
   const [assistant, setAssistant] = useState<WeeklyAssistant | null>(null);
   const [autopilot, setAutopilot] = useState<AutopilotOverview | null>(null);
+  const [controls, setControls] = useState<AutopilotControls | null>(null);
+  const [preferredStoresText, setPreferredStoresText] = useState('');
   const [busy, setBusy] = useState(false);
   const [recipeBusy, setRecipeBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -42,7 +51,17 @@ export default function AssistantPage() {
   const [planBusy, setPlanBusy] = useState(false);
   const [kitchenBusy, setKitchenBusy] = useState(false);
   const [kitchenCheck, setKitchenCheck] = useState<KitchenCheck | null>(null);
+  const [kitchenVision, setKitchenVision] = useState<KitchenVisionResult | null>(null);
+  const [kitchenReview, setKitchenReview] = useState<Record<string, KitchenVisionReviewItem>>({});
+  const [kitchenApplyBusy, setKitchenApplyBusy] = useState(false);
+  const [kitchenAutoRestock, setKitchenAutoRestock] = useState(false);
+  const [digitalTwin, setDigitalTwin] = useState<HouseholdDigitalTwin | null>(null);
+  const [agentPrompt, setAgentPrompt] = useState('');
+  const [agentAnswer, setAgentAnswer] = useState<HouseholdAgentResponse | null>(null);
+  const [agentBusy, setAgentBusy] = useState(false);
   const [communityPriceBusy, setCommunityPriceBusy] = useState(false);
+  const [controlsBusy, setControlsBusy] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState('');
   const kitchenInputRef = useRef<HTMLInputElement | null>(null);
   const [reminderPermission, setReminderPermission] = useState<'unsupported' | NotificationPermission>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
 
@@ -113,12 +132,17 @@ export default function AssistantPage() {
     try {
       setBusy(true);
       setError('');
-      const [assistantRes, autopilotRes] = await Promise.all([
+      const [assistantRes, autopilotRes, controlsRes, twinRes] = await Promise.all([
         api.get<WeeklyAssistant>(`/insights/houses/${selected}/weekly-assistant`, { params: { t: Date.now() } }),
         api.get<AutopilotOverview>(`/insights/houses/${selected}/autopilot`, { params: { t: Date.now() } }),
+        api.get<AutopilotControls>(`/insights/houses/${selected}/autopilot-controls`, { params: { t: Date.now() } }),
+        api.get<HouseholdDigitalTwin>(`/ai/houses/${selected}/digital-twin`, { params: { t: Date.now() } }),
       ]);
       setAssistant(assistantRes.data);
       setAutopilot(autopilotRes.data);
+      setControls(controlsRes.data);
+      setPreferredStoresText((controlsRes.data.preferred_stores || []).join(', '));
+      setDigitalTwin(twinRes.data);
       void maybeShowHouseholdReminder(selected, assistantRes.data);
     } catch (err) {
       setError(errorMessage(err));
@@ -133,8 +157,60 @@ export default function AssistantPage() {
     setParams({ house: String(houseId) }, { replace: true });
     setPlan(null);
     setKitchenCheck(null);
+    setKitchenVision(null);
+    setKitchenReview({});
+    setAgentAnswer(null);
     loadAutopilot(houseId);
   }, [houseId]);
+
+  async function saveControls() {
+    if (!houseId || !controls) return;
+    try {
+      setControlsBusy(true);
+      setError('');
+      const payload = {
+        ...controls,
+        preferred_stores: preferredStoresText.split(',').map((row) => row.trim()).filter(Boolean),
+      };
+      const { data } = await api.post<AutopilotControls>(`/insights/houses/${houseId}/autopilot-controls`, payload);
+      setControls(data);
+      setPreferredStoresText((data.preferred_stores || []).join(', '));
+      setMessage('Autopilot household controls saved. The decision engine will use them on future suggestions.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setControlsBusy(false);
+    }
+  }
+
+  async function chooseTripOption(option: AutopilotTripOption) {
+    if (!houseId || !controls) return;
+    try {
+      setDecisionBusy(option.key);
+      setError('');
+      const recommendation = controls.trip_options.find((row) => row.recommended)?.key || null;
+      const { data } = await api.post(`/insights/houses/${houseId}/autopilot-decisions`, {
+        decision_kind: 'trip',
+        recommendation,
+        selected_option: option.key,
+        delta_cost: option.extra_cost_vs_cheapest,
+        context: {
+          stores: option.store_names,
+          estimated_total: option.estimated_total,
+        },
+      });
+      setControls((current) => current ? {
+        ...current,
+        learned_pattern: data.learned_pattern,
+        trip_options: current.trip_options.map((row) => ({ ...row, recommended: row.key === option.key })),
+      } : current);
+      setMessage(data.message || 'Trip choice saved.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDecisionBusy('');
+    }
+  }
 
   const selectedHouse = houses.find((row) => row.id === houseId) || null;
   const visiblePlanDays = useMemo(() => nextDayNames(planDays), [planDays]);
@@ -263,6 +339,82 @@ export default function AssistantPage() {
     }
   }
 
+  async function runKitchenVision() {
+    if (!houseId) return;
+    const files = Array.from(kitchenInputRef.current?.files || []);
+    if (!files.length) {
+      setError('Choose kitchen photos or a short video first.');
+      return;
+    }
+    try {
+      setKitchenBusy(true);
+      setError('');
+      setMessage('');
+      const form = new FormData();
+      files.slice(0, 6).forEach((file) => form.append('media', file));
+      const { data } = await api.post<KitchenVisionResult>(`/ai/houses/${houseId}/kitchen-vision`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setKitchenVision(data);
+      const review: Record<string, KitchenVisionReviewItem> = {};
+      data.detections.forEach((detection) => {
+        const suggested = detection.suggested_action === 'update' || detection.suggested_action === 'add' ? detection.suggested_action : 'ignore';
+        review[detection.detection_id] = {
+          detection_id: detection.detection_id,
+          action: suggested,
+          product_id: detection.matched_product_id || null,
+          name: detection.matched_product_name || detection.detected_name,
+          quantity: detection.estimated_quantity ?? detection.current_quantity ?? 1,
+          unit: detection.unit || detection.current_unit || 'pcs',
+        };
+      });
+      setKitchenReview(review);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setKitchenBusy(false);
+    }
+  }
+
+  function updateKitchenReview(id: string, patch: Partial<KitchenVisionReviewItem>) {
+    setKitchenReview((current) => ({ ...current, [id]: { ...current[id], ...patch } }));
+  }
+
+  async function applyKitchenVision() {
+    if (!houseId || !kitchenVision) return;
+    try {
+      setKitchenApplyBusy(true);
+      setError('');
+      const items = kitchenVision.detections.map((detection) => kitchenReview[detection.detection_id]).filter(Boolean);
+      const { data } = await api.post<KitchenVisionApplyResponse>(`/ai/houses/${houseId}/kitchen-vision/apply`, {
+        items,
+        add_depleted_staples_to_list: kitchenAutoRestock,
+      });
+      setMessage(data.message + (data.added_to_list.length ? ` Added to shopping: ${data.added_to_list.join(', ')}.` : ''));
+      setKitchenVision(null);
+      setKitchenReview({});
+      if (kitchenInputRef.current) kitchenInputRef.current.value = '';
+      await loadAutopilot(houseId);
+      window.dispatchEvent(new Event('account:refresh'));
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setKitchenApplyBusy(false);
+    }
+  }
+
+  async function askHouseholdAgent() {
+    if (!houseId || !agentPrompt.trim()) return;
+    try {
+      setAgentBusy(true);
+      setError('');
+      const { data } = await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt: agentPrompt.trim() });
+      setAgentAnswer(data);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setAgentBusy(false);
+    }
+  }
+
   async function copyReceiptInquiry(issue: ReceiptGuardianIssue) {
     const store = issue.store_name || 'the store';
     const purchaseDate = issue.receipt_date ? ` on ${issue.receipt_date}` : '';
@@ -364,6 +516,25 @@ export default function AssistantPage() {
         </article>
       </section>
 
+      <section className="autopilot-section v93-intelligence-section">
+        <header className="autopilot-section-heading"><div><p className="eyebrow">HOUSEHOLD DIGITAL TWIN</p><h2>Learn how this home actually consumes and decides.</h2><p>Predictions come from real purchase cadence, current inventory and the choices your household actually makes—not from made-up AI numbers.</p></div><span className="autopilot-feature-number">AI</span></header>
+        <div className="v93-twin-grid">
+          <article className="v93-twin-overview">
+            <div className="v93-twin-orb"><strong>{digitalTwin?.products_likely_needed_7d || 0}</strong><small>likely needed<br/>within 7 days</small></div>
+            <div><p className="eyebrow">CURRENT PATTERN</p><h3>{(digitalTwin?.decision_pattern || 'Learning').replace(/_/g, ' ')}</h3><p>{digitalTwin?.message}</p>{digitalTwin?.decision_notes.map((note) => <small key={note}>• {note}</small>)}</div>
+          </article>
+          <article className="v93-twin-forecast">
+            <div className="panel-title-row"><div><p className="eyebrow">DEPLETION FORECAST</p><h3>Products Autopilot is watching</h3></div><span className="badge">{digitalTwin?.products_modeled || 0} modeled</span></div>
+            <div className="v93-twin-product-list">{digitalTwin?.products.slice(0, 8).map((product) => <div key={product.product_id} className={product.likely_needed_within_7_days ? 'soon' : ''}><span><strong>{product.product_name}</strong><small>{product.current_quantity} {product.unit} in inventory · {product.confidence} confidence</small></span><b>{product.predicted_days_remaining != null ? `~${product.predicted_days_remaining}d` : 'Learning'}</b><p>{product.reason}</p></div>)}</div>
+          </article>
+        </div>
+        <article className="v93-agent-card">
+          <div className="v93-agent-icon">✦</div><div><p className="eyebrow">DIGITALOCEAN HOUSEHOLD AGENT</p><h3>Ask using your live household context</h3><p>Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Should I choose the cheaper trip or our usual store?”</p></div>
+          <div className="v93-agent-input"><textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Ask Autopilot about this household…" /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : 'Ask Household Agent'}</button></div>
+          {agentAnswer ? <div className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'Live DigitalOcean Agent' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
+        </article>
+      </section>
+
       <section id="weekly-plan" className="autopilot-section autopilot-week-section">
         <header className="autopilot-section-heading"><div><p className="eyebrow">LIFE-AWARE WEEKLY PLANNER + BUDGET RESCUE</p><h2>Tell us only what changed. Autopilot handles the groceries.</h2><p>Choose how many days you are planning, servings, days you are away, and an optional budget. The planner prioritizes food already at home and items that should be used soon.</p></div><span className="autopilot-feature-number">01</span></header>
         {autopilot?.planner_unlocked ? <div className="autopilot-plan-layout">
@@ -405,6 +576,30 @@ export default function AssistantPage() {
 
       <section id="money" className="autopilot-section autopilot-money-section">
         <header className="autopilot-section-heading"><div><p className="eyebrow">HOUSEHOLD GROCERY CFO</p><h2>Don't just track spending. Decide before you spend.</h2><p>Automatic Trip Check remains inside Shopping where it belongs; Autopilot turns its price knowledge into decisions, stock-up opportunities and a defensible savings ledger.</p></div><span className="autopilot-feature-number">02</span></header>
+        {controls ? <div className="autopilot-decision-stack">
+          <article className="autopilot-preference-panel">
+            <header className="panel-title-row"><div><p className="eyebrow">USER CHOICE CONTROLS</p><h3>Tell Autopilot how this household likes to decide</h3></div><span className="badge active">Learns patterns</span></header>
+            <div className="autopilot-control-grid v92-user-controls-grid">
+              <label><span>Decision style</span><select value={controls.strategy} onChange={(event) => setControls((current) => current ? { ...current, strategy: event.target.value } : current)}><option value="balanced">Balanced</option><option value="lowest_cost">Lowest cost first</option><option value="premium">Premium / familiar first</option><option value="convenience">Convenience first</option></select></label>
+              <label><span>Max stores per trip</span><select value={controls.max_stores} onChange={(event) => setControls((current) => current ? { ...current, max_stores: Number(event.target.value) } : current)}><option value={1}>1 store</option><option value={2}>2 stores</option><option value={3}>Up to 3 stores</option></select></label>
+              <label><span>Preferred stores <small>comma separated</small></span><input value={preferredStoresText} onChange={(event) => setPreferredStoresText(event.target.value)} placeholder="e.g. Costco, Walmart" /></label>
+              <div className="autopilot-toggle-stack">
+                <button type="button" className={`autopilot-toggle ${controls.allow_premium ? 'on' : ''}`} onClick={() => setControls((current) => current ? { ...current, allow_premium: !current.allow_premium } : current)}><strong>Allow a higher-cost preferred option</strong><small>When the family wants comfort, brand loyalty or a familiar store.</small></button>
+                <button type="button" className={`autopilot-toggle ${controls.allow_split_trip ? 'on' : ''}`} onClick={() => setControls((current) => current ? { ...current, allow_split_trip: !current.allow_split_trip } : current)}><strong>Allow split trips</strong><small>Let Autopilot use more than one store when savings justify it.</small></button>
+                <button type="button" className={`autopilot-toggle ${controls.learning_enabled ? 'on' : ''}`} onClick={() => setControls((current) => current ? { ...current, learning_enabled: !current.learning_enabled } : current)}><strong>Learn from our choices</strong><small>Autopilot remembers the options you actually pick and adapts future suggestions.</small></button>
+                <button type="button" className={`autopilot-toggle ${controls.use_community_recipes ? 'on' : ''}`} onClick={() => setControls((current) => current ? { ...current, use_community_recipes: !current.use_community_recipes } : current)}><strong>Use broader recipe inspiration</strong><small>Allow meal ideas to pull harder from community recipes when useful.</small></button>
+              </div>
+            </div>
+            <div className="autopilot-pattern-strip"><span><strong>{controls.learned_pattern.confidence_label}</strong><small>Preferred mode: {controls.learned_pattern.preferred_mode.replace(/_/g, ' ')}</small></span><div>{controls.learned_pattern.notes.map((note) => <small key={note}>{note}</small>)}</div></div>
+            <button type="button" className="primary" onClick={saveControls} disabled={controlsBusy}>{controlsBusy ? 'Saving controls…' : 'Save household controls'}</button>
+          </article>
+
+          <article className="autopilot-trip-choice-panel">
+            <header className="panel-title-row"><div><p className="eyebrow">FLEXIBLE TRIP OPTIONS</p><h3>Choose the cheapest, balanced or your preferred option</h3></div><span className="badge">Choice-aware</span></header>
+            {controls.trip_options.length ? <div className="autopilot-trip-choice-grid">{controls.trip_options.map((option) => <article key={`${option.key}-${option.store_names.join('-')}`} className={`autopilot-trip-choice-card ${option.recommended ? 'recommended' : ''}`}><div className="autopilot-trip-choice-head"><span>{option.badge}</span>{option.recommended ? <b>Recommended</b> : null}</div><strong>{option.title}</strong><p>{option.summary}</p><div className="autopilot-trip-choice-stores">{option.store_names.map((store) => <small key={store}>{store}</small>)}</div><div className="autopilot-trip-choice-total"><strong>{option.estimated_total != null ? money(option.estimated_total, autopilot?.currency_code) : '—'}</strong><small>{option.extra_cost_vs_cheapest > 0 ? `${money(option.extra_cost_vs_cheapest, autopilot?.currency_code)} above cheapest` : 'Lowest supported cost'}</small></div><button type="button" className={option.recommended ? 'secondary full' : 'primary full'} onClick={() => chooseTripOption(option)} disabled={decisionBusy === option.key}>{decisionBusy === option.key ? 'Saving choice…' : option.recommended ? 'Use this household preference' : 'Choose this instead'}</button></article>)}</div> : <div className="autopilot-empty-insight"><span>🧺</span><strong>No trip options yet</strong><p>Create an active grocery list first and the app will offer cost-saver, balanced and premium-style paths here.</p></div>}
+          </article>
+        </div> : null}
+
         <div className="autopilot-money-grid">
           <article className="autopilot-trip-intel">
             <div className="autopilot-card-icon">🛒</div><p className="eyebrow">NEXT TRIP</p><h3>{assistant?.active_list_title || 'No active grocery list yet'}</h3>
@@ -450,12 +645,31 @@ export default function AssistantPage() {
             <a className="secondary center-link full" href={autopilot?.recall_guardian.source_url || 'https://recalls-rappels.canada.ca/en'} target="_blank" rel="noreferrer">Government of Canada recalls ↗</a>
           </article>
 
-          <article className="autopilot-protection-card kitchen-check-card">
-            <header><div className="autopilot-card-icon">📷</div><div><p className="eyebrow">KITCHEN CHECK · BETA</p><h3>Reconcile the fridge or pantry in a few photos</h3></div><span className="badge">Label recognition</span></header>
-            {autopilot?.kitchen_check_unlocked ? <><p>Take 1–4 clear photos where package labels are visible. The current beta uses server-side OCR to confirm readable product names, brands and stored barcodes against your inventory; it never deletes an item automatically.</p>
-            <input ref={kitchenInputRef} className="autopilot-camera-input" type="file" accept="image/png,image/jpeg,image/webp" capture="environment" multiple />
-            <button className="primary full" type="button" onClick={runKitchenCheck} disabled={kitchenBusy}>{kitchenBusy ? 'Reading visible package labels…' : '📷 Run Kitchen Check'}</button>
-            {kitchenCheck ? <div className="kitchen-check-result"><div className="kitchen-check-summary"><span><strong>{kitchenCheck.label_confirmed.length}</strong><small>label-confirmed</small></span><span><strong>{kitchenCheck.needs_review.length}</strong><small>not confirmed</small></span><span><strong>{kitchenCheck.images_checked}</strong><small>photos read</small></span></div>{kitchenCheck.label_confirmed.length ? <div><strong>Visible label matches</strong><p>{kitchenCheck.label_confirmed.join(' · ')}</p></div> : null}{kitchenCheck.needs_review.length ? <div><strong>Quick review list</strong><p>{kitchenCheck.needs_review.slice(0, 14).join(' · ')}</p></div> : null}<small>{kitchenCheck.message}</small></div> : null}</> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Kitchen Check Beta is a Household Pro tool</strong><small>Use fridge, freezer or pantry photos to reconcile readable package labels against expected inventory. It intentionally asks you to review uncertain items.</small></div><Link to="/pricing">See Household Pro →</Link></div>}
+          <article className="autopilot-protection-card kitchen-check-card v93-kitchen-vision-card">
+            <header><div className="autopilot-card-icon">👁️</div><div><p className="eyebrow">KITCHEN VISION · DIGITALOCEAN AI</p><h3>See physical products, not just readable labels</h3></div><span className="badge">Photos + video</span></header>
+            {autopilot?.kitchen_check_unlocked ? <>
+              <p>Upload fridge, freezer or pantry photos—or a short walkthrough video. When DigitalOcean multimodal inference is configured, Kitchen Vision can recognize generic physical foods such as bananas, tomatoes, eggs or milk containers even when no label is readable. Exact brands and sizes still require stronger visual evidence.</p>
+              <div className="v93-kitchen-privacy"><span>🔐</span><div><strong>Private by design</strong><small>Media is processed ephemerally by default. Nothing changes inventory until you review and approve it.</small></div></div>
+              <input ref={kitchenInputRef} className="autopilot-camera-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" capture="environment" multiple />
+              <button className="primary full" type="button" onClick={runKitchenVision} disabled={kitchenBusy}>{kitchenBusy ? 'Analyzing objects, labels and kitchen frames…' : '👁️ Scan with Kitchen Vision'}</button>
+              {kitchenVision ? <div className="v93-kitchen-result">
+                <div className="kitchen-check-summary"><span><strong>{kitchenVision.high_confidence_count}</strong><small>high confidence</small></span><span><strong>{kitchenVision.possible_new_count}</strong><small>possible new</small></span><span><strong>{kitchenVision.frames_analyzed}</strong><small>frames analyzed</small></span></div>
+                <div className={`v93-kitchen-mode ${kitchenVision.mode === 'digitalocean_vision' ? 'live' : 'fallback'}`}><strong>{kitchenVision.mode === 'digitalocean_vision' ? 'DigitalOcean Vision active' : 'OCR fallback active'}</strong><small>{kitchenVision.scene_summary}</small></div>
+                {kitchenVision.warnings.length ? <div className="v93-kitchen-warnings">{kitchenVision.warnings.map((warning) => <small key={warning}>⚠ {warning}</small>)}</div> : null}
+                <div className="v93-detection-list">{kitchenVision.detections.map((detection) => {
+                  const review = kitchenReview[detection.detection_id];
+                  return <article key={detection.detection_id} className={`v93-detection confidence-${detection.confidence_label}`}>
+                    <header><div><strong>{detection.detected_name}</strong><small>{detection.matched_product_name ? `Matched: ${detection.matched_product_name}` : 'Not in inventory yet'} · {Math.round(detection.confidence * 100)}% · {detection.evidence}</small></div><span>{detection.confidence_label}</span></header>
+                    <p>{detection.notes || 'Review this detection before changing inventory.'}</p>
+                    <div className="v93-detection-values"><span><small>Current</small><strong>{detection.current_quantity != null ? `${detection.current_quantity} ${detection.current_unit || ''}` : '—'}</strong></span><span><small>Vision estimate</small><strong>{detection.estimated_quantity != null ? `~${detection.estimated_quantity} ${detection.unit || ''}` : 'Needs review'}</strong></span>{detection.remaining_percent != null ? <span><small>Visible remaining</small><strong>~{Math.round(detection.remaining_percent)}%</strong></span> : null}</div>
+                    {review ? <div className="v93-detection-review"><select value={review.action} onChange={(event) => updateKitchenReview(detection.detection_id, { action: event.target.value as KitchenVisionReviewItem['action'] })}><option value="ignore">Keep inventory unchanged</option>{detection.matched_product_id ? <option value="update">Update existing inventory</option> : null}<option value="add">Add as new product</option></select>{review.action !== 'ignore' ? <><input value={review.name || ''} onChange={(event) => updateKitchenReview(detection.detection_id, { name: event.target.value })} placeholder="Product name" /><input type="number" min={0} step="0.1" value={review.quantity ?? ''} onChange={(event) => updateKitchenReview(detection.detection_id, { quantity: event.target.value === '' ? null : Number(event.target.value) })} placeholder="Quantity" /><input value={review.unit || ''} onChange={(event) => updateKitchenReview(detection.detection_id, { unit: event.target.value })} placeholder="Unit" /></> : null}</div> : null}
+                  </article>;
+                })}</div>
+                <label className="v93-smart-action-toggle"><input type="checkbox" checked={kitchenAutoRestock} onChange={(event) => setKitchenAutoRestock(event.target.checked)} /><span><strong>Act on confirmed depletion</strong><small>After I approve the scan, add newly low/depleted staples to the active grocery list. Nothing is added unless this is checked.</small></span></label>
+                <div className="v93-kitchen-actions"><button type="button" className="secondary" onClick={() => { setKitchenVision(null); setKitchenReview({}); }}>Discard scan</button><button type="button" className="primary" onClick={applyKitchenVision} disabled={kitchenApplyBusy}>{kitchenApplyBusy ? 'Applying approved changes…' : 'Apply approved changes'}</button></div>
+                <small>{kitchenVision.message}</small>
+              </div> : null}
+            </> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Kitchen Vision is a Household Pro tool</strong><small>Household Pro can use DigitalOcean multimodal vision for physical-object recognition, short video frame analysis and review-before-apply inventory reconciliation.</small></div><Link to="/pricing">See Household Pro →</Link></div>}
           </article>
         </div>
       </section>

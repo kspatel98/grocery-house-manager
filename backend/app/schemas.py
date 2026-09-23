@@ -936,7 +936,9 @@ class KitchenCheckOut(BaseModel):
     inventory_count: int = 0
     label_confirmed: list[str] = Field(default_factory=list)
     needs_review: list[str] = Field(default_factory=list)
+    possible_new_items: list[str] = Field(default_factory=list)
     extracted_clues: list[str] = Field(default_factory=list)
+    review_actions: list[str] = Field(default_factory=list)
     message: str
 
 
@@ -960,6 +962,51 @@ class CommunityPricePulseOut(BaseModel):
     matched_list_items: int = 0
     signals: list[CommunityPriceSignalOut] = Field(default_factory=list)
     message: str
+
+
+class AutopilotTripOptionOut(BaseModel):
+    key: str
+    title: str
+    summary: str
+    badge: str
+    store_names: list[str] = Field(default_factory=list)
+    estimated_total: float | None = None
+    extra_cost_vs_cheapest: float = 0
+    recommended: bool = False
+
+
+class AutopilotPatternOut(BaseModel):
+    preferred_mode: str = "balanced"
+    confidence_label: str = "Learning from your choices"
+    notes: list[str] = Field(default_factory=list)
+
+
+class AutopilotControlsIn(BaseModel):
+    strategy: str = Field(default="balanced", max_length=24)
+    max_stores: int = Field(default=1, ge=1, le=3)
+    allow_premium: bool = True
+    allow_split_trip: bool = False
+    preferred_stores: list[str] = Field(default_factory=list, max_length=6)
+    learning_enabled: bool = True
+    use_community_recipes: bool = True
+
+
+class AutopilotControlsOut(AutopilotControlsIn):
+    trip_options: list[AutopilotTripOptionOut] = Field(default_factory=list)
+    learned_pattern: AutopilotPatternOut = Field(default_factory=AutopilotPatternOut)
+
+
+class AutopilotDecisionIn(BaseModel):
+    decision_kind: str = Field(default="trip", max_length=40)
+    recommendation: str | None = Field(default=None, max_length=80)
+    selected_option: str = Field(max_length=80)
+    delta_cost: float | None = None
+    context: dict[str, object] = Field(default_factory=dict)
+
+
+class AutopilotDecisionOut(BaseModel):
+    message: str
+    learned_pattern: AutopilotPatternOut = Field(default_factory=AutopilotPatternOut)
 
 
 class AutopilotOverviewOut(BaseModel):
@@ -1424,4 +1471,114 @@ class RecipeShoppingAddOut(BaseModel):
     added_items: list[str] = Field(default_factory=list)
     updated_items: list[str] = Field(default_factory=list)
     created_products: list[str] = Field(default_factory=list)
+    message: str
+
+# --- V93 DigitalOcean AI / Kitchen Vision / Digital Twin ---
+class AISystemComponentOut(BaseModel):
+    key: str
+    label: str
+    configured: bool = False
+    healthy: bool | None = None
+    detail: str
+
+
+class AISystemStatusOut(BaseModel):
+    ai_enabled: bool = False
+    vision_model: str | None = None
+    kitchen_vision_enabled: bool = False
+    video_enabled: bool = False
+    approval_required: bool = True
+    media_delete_after_analysis: bool = True
+    components: list[AISystemComponentOut] = Field(default_factory=list)
+
+
+class KitchenVisionDetectionOut(BaseModel):
+    detection_id: str
+    detected_name: str
+    category: str = "other"
+    matched_product_id: int | None = None
+    matched_product_name: str | None = None
+    current_quantity: float | None = None
+    current_unit: str | None = None
+    estimated_quantity: float | None = None
+    unit: str | None = None
+    remaining_percent: float | None = None
+    confidence: float = 0
+    confidence_label: str = "low"
+    evidence: str = "visual"
+    exact_identity: bool = False
+    suggested_action: str = "review"
+    notes: str = ""
+
+
+class KitchenVisionOut(BaseModel):
+    mode: str = "digitalocean_vision"
+    media_checked: int = 0
+    frames_analyzed: int = 0
+    scene_summary: str = ""
+    detections: list[KitchenVisionDetectionOut] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    high_confidence_count: int = 0
+    review_count: int = 0
+    possible_new_count: int = 0
+    message: str
+
+
+class KitchenVisionApplyItemIn(BaseModel):
+    detection_id: str
+    action: str = Field(pattern="^(update|add|ignore)$")
+    product_id: int | None = None
+    name: str | None = Field(default=None, max_length=180)
+    quantity: float | None = Field(default=None, ge=0)
+    unit: str | None = Field(default=None, max_length=32)
+
+
+class KitchenVisionApplyIn(BaseModel):
+    items: list[KitchenVisionApplyItemIn] = Field(default_factory=list, max_length=80)
+    add_depleted_staples_to_list: bool = False
+
+
+class KitchenVisionApplyOut(BaseModel):
+    updated_products: list[str] = Field(default_factory=list)
+    added_products: list[str] = Field(default_factory=list)
+    added_to_list: list[str] = Field(default_factory=list)
+    ignored: int = 0
+    message: str
+
+
+class DigitalTwinProductOut(BaseModel):
+    product_id: int
+    product_name: str
+    current_quantity: float = 0
+    unit: str = "pcs"
+    average_days_between_purchases: float | None = None
+    average_purchase_quantity: float | None = None
+    estimated_daily_use: float | None = None
+    predicted_days_remaining: float | None = None
+    likely_needed_within_7_days: bool = False
+    confidence: str = "low"
+    reason: str
+
+
+class HouseholdDigitalTwinOut(BaseModel):
+    house_id: int
+    house_name: str
+    generated_at: datetime
+    history_days: int = 120
+    products_modeled: int = 0
+    products_likely_needed_7d: int = 0
+    decision_pattern: str = "learning"
+    decision_notes: list[str] = Field(default_factory=list)
+    products: list[DigitalTwinProductOut] = Field(default_factory=list)
+    message: str
+
+
+class HouseholdAgentIn(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+
+
+class HouseholdAgentOut(BaseModel):
+    configured: bool = False
+    answer: str
+    used_live_agent: bool = False
     message: str

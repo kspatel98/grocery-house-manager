@@ -33,6 +33,7 @@ from app.db.session import get_db
 from app.models import (
     CommunityPriceObservation,
     CommunityRecipe,
+    AutopilotDecision,
     House,
     HouseMember,
     Invite,
@@ -48,7 +49,13 @@ from app.models import (
     User,
 )
 from app.schemas import (
+    AutopilotDecisionIn,
+    AutopilotDecisionOut,
+    AutopilotControlsIn,
+    AutopilotControlsOut,
     AutopilotOverviewOut,
+    AutopilotPatternOut,
+    AutopilotTripOptionOut,
     CommunityPricePulseOut,
     CommunityPriceSharingIn,
     CommunityPriceSignalOut,
@@ -2036,6 +2043,219 @@ def household_plan(
     )
 
 
+def _split_pref_stores(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return list(dict.fromkeys([part.strip() for part in raw.split(",") if part.strip()]))[:6]
+
+
+def _trip_options_for_house(db: Session, house: House, user: User) -> list[AutopilotTripOptionOut]:
+    active_list = (
+        db.query(ShoppingList)
+        .filter(ShoppingList.house_id == house.id, ShoppingList.is_done.is_(False))
+        .order_by(ShoppingList.created_at.desc())
+        .first()
+    )
+    if not active_list:
+        return []
+    comparison = _basket_comparison(db, house.id, active_list.id, user=user, include_live=False)
+    complete_options = [row for row in comparison.store_options if row.complete]
+    if not complete_options and comparison.best_single_store:
+        complete_options = [comparison.best_single_store]
+    if not complete_options:
+        return []
+
+    cheapest_single = min(complete_options, key=lambda row: row.known_total or 0)
+    preferred_stores = _split_pref_stores(house.autopilot_preferred_stores)
+    preferred_match = next((row for row in complete_options if row.store_name in preferred_stores), None)
+    alternative_match = next((row for row in complete_options if row.store_name != cheapest_single.store_name), None)
+    balanced = comparison.best_single_store or cheapest_single
+
+    if house.autopilot_allow_split_trip and house.autopilot_max_stores > 1 and comparison.split_store_worth_it and comparison.split_store_total is not None:
+        cheapest_key = "split"
+        cheapest_total = float(comparison.split_store_total)
+        cheapest_names = comparison.split_store_names or [balanced.store_name]
+        cheapest_summary = comparison.split_store_recommendation or "Lowest supported cost using more than one store."
+        cheapest_badge = "Lowest cost"
+    else:
+        cheapest_key = "cheapest"
+        cheapest_total = float(cheapest_single.known_total or 0)
+        cheapest_names = [cheapest_single.store_name]
+        cheapest_summary = f"Single-store lowest supported total with {cheapest_single.coverage_percent}% coverage."
+        cheapest_badge = "Lowest cost"
+
+    premium_target = preferred_match or alternative_match or balanced
+
+    raw_options = [
+        {
+            "key": cheapest_key,
+            "title": "Cost Saver",
+            "summary": cheapest_summary,
+            "badge": cheapest_badge,
+            "store_names": cheapest_names,
+            "estimated_total": round(cheapest_total, 2),
+        },
+        {
+            "key": "balanced",
+            "title": "Balanced",
+            "summary": f"Best one-store option for convenience and savings at {balanced.store_name}.",
+            "badge": "Recommended default",
+            "store_names": [balanced.store_name],
+            "estimated_total": round(float(balanced.known_total or 0), 2),
+        },
+        {
+            "key": "premium",
+            "title": "My Usual / Premium",
+            "summary": f"Keeps a familiar store or allows a higher-cost choice when that is what the household prefers.",
+            "badge": "Your choice",
+            "store_names": [premium_target.store_name],
+            "estimated_total": round(float(premium_target.known_total or 0), 2),
+        },
+    ]
+    strategy = (house.autopilot_strategy or "balanced").strip().lower()
+    preferred_key = "balanced"
+    if strategy in {"lowest_cost", "cheapest"}:
+        preferred_key = cheapest_key
+    elif strategy in {"premium", "convenience"}:
+        preferred_key = "premium"
+    seen = set()
+    options: list[AutopilotTripOptionOut] = []
+    for row in raw_options:
+        ident = (tuple(row["store_names"]), row["estimated_total"])
+        if ident in seen:
+            continue
+        seen.add(ident)
+        options.append(AutopilotTripOptionOut(
+            key=row["key"],
+            title=row["title"],
+            summary=row["summary"],
+            badge=row["badge"],
+            store_names=row["store_names"],
+            estimated_total=row["estimated_total"],
+            extra_cost_vs_cheapest=round(max((row["estimated_total"] or 0) - cheapest_total, 0), 2),
+            recommended=row["key"] == preferred_key,
+        ))
+    return options
+
+
+def _pattern_for_house(db: Session, house: House) -> AutopilotPatternOut:
+    recent = (
+        db.query(AutopilotDecision)
+        .filter(AutopilotDecision.house_id == house.id)
+        .order_by(AutopilotDecision.created_at.desc())
+        .limit(24)
+        .all()
+    )
+    notes: list[str] = []
+    if not recent:
+        strategy = house.autopilot_strategy or "balanced"
+        label = "Learning from your choices"
+        if strategy == "lowest_cost":
+            notes.append("Autopilot is currently tuned to favor the lowest supported cost.")
+        elif strategy in {"premium", "convenience"}:
+            notes.append("Autopilot is currently tuned to respect familiar or premium choices.")
+        else:
+            notes.append("Autopilot starts in a balanced mode until it learns how this household decides.")
+        return AutopilotPatternOut(preferred_mode=strategy, confidence_label=label, notes=notes)
+
+    counts: dict[str, int] = {}
+    deltas: list[float] = []
+    for row in recent:
+        counts[row.selected_option] = counts.get(row.selected_option, 0) + 1
+        if row.delta_cost is not None and row.delta_cost > 0:
+            deltas.append(float(row.delta_cost))
+    preferred_mode = max(counts.items(), key=lambda item: item[1])[0]
+    total = len(recent)
+    share = counts.get(preferred_mode, 0) / total if total else 0
+    if share >= 0.7:
+        label = "High-confidence pattern"
+    elif share >= 0.5:
+        label = "Emerging pattern"
+    else:
+        label = "Still learning"
+    if preferred_mode in {"premium", "convenience", "usual_store"}:
+        notes.append("This household often chooses convenience or a familiar store over the absolute cheapest option.")
+    elif preferred_mode in {"split", "cheapest", "lowest_cost"}:
+        notes.append("This household usually follows the lowest supported cost recommendation.")
+    else:
+        notes.append("This household usually keeps a balanced one-store plan.")
+    if deltas:
+        notes.append(f"Recent manual choices accepted about ${sum(deltas)/len(deltas):.2f} of extra cost on average when convenience or preference mattered.")
+    if _split_pref_stores(house.autopilot_preferred_stores):
+        notes.append("Preferred stores are used as a positive bias whenever they stay reasonably close to the cheaper option.")
+    return AutopilotPatternOut(preferred_mode=preferred_mode, confidence_label=label, notes=notes[:3])
+
+
+def _controls_out(db: Session, house: House, user: User) -> AutopilotControlsOut:
+    return AutopilotControlsOut(
+        strategy=house.autopilot_strategy or "balanced",
+        max_stores=max(int(house.autopilot_max_stores or 1), 1),
+        allow_premium=bool(house.autopilot_allow_premium),
+        allow_split_trip=bool(house.autopilot_allow_split_trip),
+        preferred_stores=_split_pref_stores(house.autopilot_preferred_stores),
+        learning_enabled=bool(house.autopilot_learning_enabled),
+        use_community_recipes=bool(house.autopilot_use_community_recipes),
+        trip_options=_trip_options_for_house(db, house, user),
+        learned_pattern=_pattern_for_house(db, house),
+    )
+
+
+@router.get("/houses/{house_id}/autopilot-controls", response_model=AutopilotControlsOut)
+def get_autopilot_controls(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    return _controls_out(db, house, user)
+
+
+@router.post("/houses/{house_id}/autopilot-controls", response_model=AutopilotControlsOut)
+def save_autopilot_controls(house_id: int, payload: AutopilotControlsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    strategy = (payload.strategy or "balanced").strip().lower()
+    if strategy not in {"balanced", "lowest_cost", "premium", "convenience"}:
+        strategy = "balanced"
+    house.autopilot_strategy = strategy
+    house.autopilot_max_stores = max(1, min(int(payload.max_stores or 1), 3))
+    house.autopilot_allow_premium = bool(payload.allow_premium)
+    house.autopilot_allow_split_trip = bool(payload.allow_split_trip)
+    house.autopilot_preferred_stores = ", ".join(list(dict.fromkeys([row.strip() for row in payload.preferred_stores if row.strip()]))[:6]) or None
+    house.autopilot_learning_enabled = bool(payload.learning_enabled)
+    house.autopilot_use_community_recipes = bool(payload.use_community_recipes)
+    db.add(house)
+    db.commit()
+    db.refresh(house)
+    return _controls_out(db, house, user)
+
+
+@router.post("/houses/{house_id}/autopilot-decisions", response_model=AutopilotDecisionOut)
+def save_autopilot_decision(house_id: int, payload: AutopilotDecisionIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    if bool(house.autopilot_learning_enabled):
+        entry = AutopilotDecision(
+            house_id=house.id,
+            user_id=user.id,
+            decision_kind=(payload.decision_kind or "trip")[:40],
+            recommendation=(payload.recommendation or None)[:80] if payload.recommendation else None,
+            selected_option=payload.selected_option[:80],
+            delta_cost=payload.delta_cost,
+            context_json=json.dumps(payload.context or {}),
+        )
+        db.add(entry)
+        db.commit()
+    pattern = _pattern_for_house(db, house)
+    return AutopilotDecisionOut(
+        message="Choice saved. Autopilot will use this decision to better respect this household's habits.",
+        learned_pattern=pattern,
+    )
+
+
 @router.post("/houses/{house_id}/kitchen-check", response_model=KitchenCheckOut)
 async def kitchen_check(
     house_id: int,
@@ -2083,13 +2303,36 @@ async def kitchen_check(
             confirmed.append(product.name)
     confirmed_keys = {_clean_key(name) for name in confirmed}
     needs_review = [product.name for product in products if _clean_key(product.name) not in confirmed_keys][:30]
+    generic_words = {"nutrition", "ingredients", "fresh", "organic", "family", "original", "canada", "best", "value", "large", "small", "use", "before", "expiry", "frozen"}
+    matched_names = {_clean_key(name) for name in confirmed}
+    possible_new: list[str] = []
+    for clue in clues:
+        cleaned = " ".join(part for part in re.sub(r"[^A-Za-z0-9 ]+", " ", clue).split() if len(part) >= 3)
+        key = _clean_key(cleaned)
+        if not cleaned or key in matched_names or key in generic_words:
+            continue
+        if any(word in generic_words for word in key.split() if len(word) >= 5 and len(key.split()) == 1):
+            continue
+        possible_new.append(cleaned[:80])
+    possible_new = list(dict.fromkeys(possible_new))[:10]
+    review_actions = []
+    if confirmed:
+        review_actions.append("Confirm quantity or freshness for the visible matches before changing inventory.")
+    if needs_review:
+        review_actions.append("Review items not confirmed in the photos before removing or reducing anything.")
+    if possible_new:
+        review_actions.append("Check whether any new visible package labels should be added to inventory.")
+    if not review_actions:
+        review_actions.append("Try clearer close-up photos with labels facing the camera for a stronger result.")
     return KitchenCheckOut(
         images_checked=checked,
         inventory_count=len(products),
         label_confirmed=confirmed,
         needs_review=needs_review,
+        possible_new_items=possible_new,
         extracted_clues=list(dict.fromkeys(clues))[:20],
-        message="Kitchen Check Beta confirms products only when readable package text, a distinctive brand/name combination or a stored barcode is visible. An item not detected may still be present; use the review list to confirm changes instead of deleting inventory automatically.",
+        review_actions=review_actions,
+        message="Kitchen Check Beta confirms products only when readable package text, a distinctive brand/name combination or a stored barcode is visible. It highlights visible matches, likely review items and possible new package clues, but it never deletes inventory automatically.",
     )
 
 
