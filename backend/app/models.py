@@ -448,6 +448,17 @@ class ExternalPriceCache(Base):
 
 
 
+class ProductEvent(Base):
+    __tablename__ = "product_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    house_id: Mapped[int | None] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), nullable=True, index=True)
+    event_name: Mapped[str] = mapped_column(String(64), index=True)
+    event_context: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+
 class AutopilotDecision(Base):
     __tablename__ = "autopilot_decisions"
 

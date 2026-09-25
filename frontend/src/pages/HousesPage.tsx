@@ -1,8 +1,8 @@
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AccountBootstrap, AdminOfferAction, AdminUserOffer, House, OnboardingStatus, PlanName, SiteReview, SiteReviewSummary, Subscription, WeeklyAssistant } from '../types';
+import type { AccountBootstrap, AdminUserOffer, House, OnboardingStatus, Subscription, WeeklyAssistant } from '../types';
 import FirstRunSetup from '../components/FirstRunSetup';
 import InstallAppPrompt from '../components/InstallAppPrompt';
 
@@ -10,96 +10,9 @@ function isPaidStatus(status?: string) {
   return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes((status || '').toLowerCase());
 }
 
-function timeLeftParts(dateValue?: string | null) {
-  if (!dateValue) return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
-  const diff = new Date(dateValue).getTime() - Date.now();
-  if (diff <= 0) return { expired: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
-  const totalSeconds = Math.floor(diff / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return { expired: false, days, hours, minutes, seconds };
-}
-
-function starText(value?: number | null) {
-  const rating = Math.max(0, Math.min(5, Math.round(value || 0)));
-  return '★'.repeat(rating) + '☆'.repeat(5 - rating);
-}
-
-type NotificationSlide = {
-  key: string;
-  content: ReactNode;
-};
-
-function CountdownBadge({ until }: { until?: string | null }) {
-  const [tick, setTick] = useState(() => timeLeftParts(until));
-
-  useEffect(() => {
-    setTick(timeLeftParts(until));
-    if (!until) return;
-    const timer = window.setInterval(() => setTick(timeLeftParts(until)), 1000);
-    return () => window.clearInterval(timer);
-  }, [until]);
-
-  if (tick.expired) return <div className="countdown-alert">Offer ended</div>;
-  return (
-    <div className="countdown-alert" aria-live="polite">
-      <strong>{tick.days}D</strong>
-      <span>{String(tick.hours).padStart(2, '0')}h</span>
-      <span>{String(tick.minutes).padStart(2, '0')}m</span>
-      <span>{String(tick.seconds).padStart(2, '0')}s</span>
-      <em>left</em>
-    </div>
-  );
-}
-
-function NotificationSlider({ slides }: { slides: NotificationSlide[] }) {
-  const [active, setActive] = useState(0);
-
-  useEffect(() => {
-    if (slides.length <= 1) return;
-    const timer = window.setInterval(() => {
-      setActive((current) => (current + 1) % slides.length);
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [slides.length]);
-
-  useEffect(() => {
-    if (active >= slides.length) setActive(0);
-  }, [active, slides.length]);
-
-  if (!slides.length) return null;
-
-  return (
-    <section className="notification-showcase" aria-label="Important updates">
-      <div className="notification-window">
-        {slides.length > 1 && (
-          <>
-            <button type="button" className="notification-arrow prev" aria-label="Previous notification" onClick={() => setActive((current) => (current - 1 + slides.length) % slides.length)}>‹</button>
-            <button type="button" className="notification-arrow next" aria-label="Next notification" onClick={() => setActive((current) => (current + 1) % slides.length)}>›</button>
-          </>
-        )}
-        <div className="notification-track" style={{ transform: `translateX(-${active * 100}%)` }}>
-          {slides.map((slide) => (
-            <div className="notification-slide" key={slide.key}>{slide.content}</div>
-          ))}
-        </div>
-      </div>
-      {slides.length > 1 && (
-        <div className="notification-dots" aria-label="Notification controls">
-          {slides.map((slide, index) => (
-            <button
-              key={slide.key}
-              className={index === active ? 'active' : ''}
-              aria-label={`Show notification ${index + 1}`}
-              onClick={() => setActive(index)}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  );
+function offerStillActive(until?: string | null) {
+  if (!until) return false;
+  return new Date(until).getTime() > Date.now();
 }
 
 export default function HousesPage() {
@@ -108,61 +21,12 @@ export default function HousesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [stats, setStats] = useState<SiteReviewSummary | null>(null);
-  const [reviews, setReviews] = useState<SiteReview[]>([]);
-  const [myReview, setMyReview] = useState<SiteReview | null>(null);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
-  const [reviewBusy, setReviewBusy] = useState(false);
-  const [reviewMessage, setReviewMessage] = useState('');
-  const [reviewError, setReviewError] = useState('');
-  const [adminOffers, setAdminOffers] = useState<AdminUserOffer[]>([]);
-  const [offerBusy, setOfferBusy] = useState<number | null>(null);
-  const [offerMessage, setOfferMessage] = useState('');
-  const [selectedOfferPlans, setSelectedOfferPlans] = useState<Record<number, PlanName>>({});
   const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
   const [todayBrief, setTodayBrief] = useState<WeeklyAssistant | null>(null);
   const [firstName, setFirstName] = useState('');
+  const [offers, setOffers] = useState<AdminUserOffer[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!onboarding?.complete || window.location.hash !== '#reviews') return;
-    const timer = window.setTimeout(() => document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 180);
-    return () => window.clearTimeout(timer);
-  }, [onboarding?.complete]);
-
-  async function loadReviews() {
-    try {
-      const [summaryRes, reviewsRes, myReviewRes] = await Promise.all([
-        api.get<SiteReviewSummary>('/reviews/summary'),
-        api.get<SiteReview[]>('/reviews'),
-        api.get<SiteReview | null>('/reviews/mine'),
-      ]);
-      setStats(summaryRes.data);
-      setReviews(Array.isArray(reviewsRes.data) ? reviewsRes.data : []);
-      setMyReview(myReviewRes.data || null);
-      if (myReviewRes.data) {
-        setReviewRating(myReviewRes.data.rating || 5);
-        setReviewComment(myReviewRes.data.comment || '');
-      } else {
-        setReviewRating(5);
-        setReviewComment('');
-      }
-    } catch {
-      setStats(null);
-      setReviews([]);
-      setMyReview(null);
-    }
-  }
-
-  async function loadOffers() {
-    try {
-      const { data } = await api.get<AdminUserOffer[]>('/offers/general', { params: { t: Date.now() } });
-      setAdminOffers(Array.isArray(data) ? data : []);
-    } catch {
-      setAdminOffers([]);
-    }
-  }
 
   async function load() {
     try {
@@ -173,16 +37,22 @@ export default function HousesPage() {
       setHouses(nextHouses);
       setSubscription(data.subscription);
       setFirstName((data.user.full_name || data.user.email || '').split(/[ @]/).filter(Boolean)[0] || '');
-      if (nextHouses[0]) {
-        api.get<WeeklyAssistant>(`/insights/houses/${nextHouses[0].id}/weekly-assistant`, { params: { t: Date.now() } })
+      localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
+      localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
+      const savedHouse = Number(localStorage.getItem('ghm_active_house_id'));
+      const primaryHouse = nextHouses.find((house) => house.id === savedHouse) || nextHouses[0];
+      if (primaryHouse) {
+        localStorage.setItem('ghm_active_house_id', String(primaryHouse.id));
+        void api.get<WeeklyAssistant>(`/insights/houses/${primaryHouse.id}/weekly-assistant`, { params: { t: Date.now() } })
           .then(({ data: brief }) => setTodayBrief(brief))
           .catch(() => setTodayBrief(null));
       } else {
         setTodayBrief(null);
+        setShowCreate(true);
       }
-      localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
-      localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
-      await Promise.all([loadReviews(), loadOffers()]);
+      void api.get<AdminUserOffer[]>('/offers/general', { params: { t: Date.now() } })
+        .then(({ data: rows }) => setOffers(Array.isArray(rows) ? rows : []))
+        .catch(() => setOffers([]));
     } catch (err) {
       setError(errorMessage(err));
       setHouses([]);
@@ -197,6 +67,7 @@ export default function HousesPage() {
     try {
       setError('');
       const { data } = await api.post<House>('/houses', { name: name.trim() });
+      localStorage.setItem('ghm_active_house_id', String(data.id));
       setName('');
       navigate(`/houses/${data.id}`);
     } catch (err) {
@@ -204,137 +75,23 @@ export default function HousesPage() {
     }
   }
 
-  async function submitReview(event: FormEvent) {
-    event.preventDefault();
-    setReviewError('');
-    setReviewMessage('');
-    if (reviewComment.trim().length < 8) {
-      setReviewError('Please write a short review before submitting.');
-      return;
-    }
-    try {
-      setReviewBusy(true);
-      if (myReview) {
-        await api.put(`/reviews/${myReview.id}`, {
-          rating: reviewRating,
-          comment: reviewComment.trim(),
-          is_public: true,
-        });
-        setReviewMessage('Your review was updated.');
-      } else {
-        await api.post('/reviews', {
-          rating: reviewRating,
-          comment: reviewComment.trim(),
-          is_public: true,
-        });
-        setReviewMessage('Thank you. Your review is saved.');
-      }
-      await loadReviews();
-    } catch (err) {
-      setReviewError(errorMessage(err));
-    } finally {
-      setReviewBusy(false);
-    }
-  }
-
-  async function deleteMyReview() {
-    if (!myReview) return;
-    if (!window.confirm('Delete your review?')) return;
-    try {
-      setReviewBusy(true);
-      await api.delete(`/reviews/${myReview.id}`);
-      setReviewMessage('Your review was deleted.');
-      setReviewComment('');
-      setReviewRating(5);
-      await loadReviews();
-    } catch (err) {
-      setReviewError(errorMessage(err));
-    } finally {
-      setReviewBusy(false);
-    }
-  }
-
-  async function acceptAdminOffer(offer: AdminUserOffer) {
-    try {
-      setOfferBusy(offer.id);
-      setOfferMessage('');
-      const payload = offer.universal ? { plan_name: selectedOfferPlans[offer.id] || 'basic' } : {};
-      const { data } = await api.post<AdminOfferAction>(`/offers/${offer.id}/accept`, payload);
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
-        return;
-      }
-      setOfferMessage(data.message || 'Offer accepted.');
-      window.dispatchEvent(new Event('account:refresh'));
-      await load();
-    } catch (err) {
-      setOfferMessage(errorMessage(err));
-    } finally {
-      setOfferBusy(null);
-    }
-  }
-
-  async function declineAdminOffer(offer: AdminUserOffer) {
-    try {
-      setOfferBusy(offer.id);
-      setOfferMessage('');
-      await api.post(`/offers/${offer.id}/decline`);
-      setAdminOffers((prev) => prev.filter((item) => item.id !== offer.id));
-      setOfferMessage('Offer dismissed.');
-    } catch (err) {
-      setOfferMessage(errorMessage(err));
-    } finally {
-      setOfferBusy(null);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    const offerPoll = window.setInterval(() => {
-      loadOffers();
-    }, 5000);
-    const refreshOnFocus = () => {
-      if (document.visibilityState === 'visible') loadOffers();
-    };
-    document.addEventListener('visibilitychange', refreshOnFocus);
-    window.addEventListener('focus', loadOffers);
-    return () => {
-      window.clearInterval(offerPoll);
-      document.removeEventListener('visibilitychange', refreshOnFocus);
-      window.removeEventListener('focus', loadOffers);
-    };
-  }, []);
+  useEffect(() => { void load(); }, []);
 
   const ownedHouseCount = Number(subscription?.usage?.houses || 0);
   const canCreateHouse = !!subscription && subscription.limits.houses > ownedHouseCount;
-  const isFreePlan = subscription?.plan_name === 'free';
-  const offer = subscription?.new_user_offer;
-  const shouldShowOffer = Boolean(offer?.active && !isPaidStatus(subscription?.subscription_status) && !timeLeftParts(offer?.eligible_until).expired);
+  const newUserOffer = subscription?.new_user_offer;
+  const showOffer = Boolean(newUserOffer?.active && offerStillActive(newUserOffer?.eligible_until) && !isPaidStatus(subscription?.subscription_status));
+  const activeHouse = houses.find((house) => house.id === Number(localStorage.getItem('ghm_active_house_id'))) || houses[0] || null;
 
   const todayAction = useMemo(() => {
-    const house = houses[0];
-    if (!house) return null;
-    if (!todayBrief) {
-      return { icon: '🏡', eyebrow: 'Your Grocery Home', title: `Open ${house.name}`, copy: 'Your shared inventory, shopping lists, receipts, and household members are all together here.', to: `/houses/${house.id}`, cta: 'Open Home' };
-    }
-    if (todayBrief.expired.length) {
-      return { icon: '⚠️', eyebrow: 'Needs attention', title: `${todayBrief.expired.length} expired item${todayBrief.expired.length === 1 ? '' : 's'} to review`, copy: `Check ${todayBrief.expired.slice(0, 3).join(', ')}${todayBrief.expired.length > 3 ? ' and more' : ''} before your next meal or shopping trip.`, to: `/houses/${house.id}/inventory`, cta: 'Review inventory' };
-    }
-    if (todayBrief.expiring_soon.length) {
-      return { icon: '⏳', eyebrow: 'Use before expiry', title: `${todayBrief.expiring_soon.length} item${todayBrief.expiring_soon.length === 1 ? '' : 's'} should be used before expiry`, copy: `${todayBrief.expiring_soon.slice(0, 3).join(', ')}${todayBrief.expiring_soon.length > 3 ? ' and more' : ''}. The Assistant can suggest meals from what you already own.`, to: `/assistant?house=${house.id}`, cta: 'See meal ideas' };
-    }
-    if (todayBrief.suggested_items.length) {
-      return { icon: '🛒', eyebrow: 'Next trip', title: `${todayBrief.suggested_items.length} item${todayBrief.suggested_items.length === 1 ? '' : 's'} likely need restocking`, copy: 'The Assistant can add them to your shopping list automatically and prepare your next trip.', to: `/assistant?house=${house.id}`, cta: 'Prepare my trip' };
-    }
-    if (todayBrief.active_list_items) {
-      return { icon: '✓', eyebrow: 'Ready to shop', title: `${todayBrief.active_list_items} item${todayBrief.active_list_items === 1 ? '' : 's'} on your current list`, copy: 'Open Shopping to check items off one-handed and let Grocery House Manager update your home when you finish.', to: `/houses/${house.id}/shopping`, cta: 'Start shopping' };
-    }
-    const readyMeal = todayBrief.recipes.find((recipe) => recipe.status === 'ready');
-    if (readyMeal) {
-      return { icon: '🍽️', eyebrow: 'You are in good shape', title: `You can make ${readyMeal.name}`, copy: 'Nothing urgent needs attention. Use what you already have before adding more groceries.', to: `/assistant?house=${house.id}`, cta: 'See today’s brief' };
-    }
-    return { icon: '✨', eyebrow: 'All clear', title: 'Your Grocery Home looks organized', copy: 'No urgent stock or expiry issue stands out right now. Add groceries as you use them and the Assistant will keep watching.', to: `/assistant?house=${house.id}`, cta: 'Open Assistant' };
-  }, [houses, todayBrief]);
+    if (!activeHouse) return null;
+    if (!todayBrief) return { icon: '⌂', eyebrow: 'Your household', title: `Open ${activeHouse.name}`, copy: 'Everything your household needs is organized behind one calm home view.', to: `/houses/${activeHouse.id}`, cta: 'Open home' };
+    if (todayBrief.expired.length) return { icon: '⚠️', eyebrow: 'Review, do not consume', title: `${todayBrief.expired.length} expired item${todayBrief.expired.length === 1 ? '' : 's'} need review`, copy: 'Expired products are excluded from meal suggestions. Review and discard them when appropriate.', to: `/houses/${activeHouse.id}/inventory`, cta: 'Review inventory' };
+    if (todayBrief.expiring_soon.length) return { icon: '⏳', eyebrow: 'Use before expiry', title: `${todayBrief.expiring_soon.length} item${todayBrief.expiring_soon.length === 1 ? '' : 's'} should be used soon`, copy: 'Plan around them while they are still within their expiry date.', to: `/assistant?house=${activeHouse.id}&view=plan`, cta: 'Plan meals' };
+    if (todayBrief.suggested_items.length) return { icon: '🛒', eyebrow: 'Next trip', title: `${todayBrief.suggested_items.length} product${todayBrief.suggested_items.length === 1 ? '' : 's'} may need restocking`, copy: 'GHM can prepare the trip and still respect your preferred stores and convenience choices.', to: `/assistant?house=${activeHouse.id}&view=spend`, cta: 'Prepare trip' };
+    if (todayBrief.active_list_items) return { icon: '✓', eyebrow: 'Ready to shop', title: `${todayBrief.active_list_items} item${todayBrief.active_list_items === 1 ? '' : 's'} on the active list`, copy: 'Your shared list is ready whenever someone in the household shops.', to: `/houses/${activeHouse.id}/shopping`, cta: 'Open shopping' };
+    return { icon: '✦', eyebrow: 'All calm', title: 'Nothing urgent needs your attention', copy: 'GHM will keep watching stock, expiry, receipts, prices and household patterns.', to: `/houses/${activeHouse.id}`, cta: 'See today' };
+  }, [activeHouse, todayBrief]);
 
   const greeting = (() => {
     const hour = new Date().getHours();
@@ -343,243 +100,39 @@ export default function HousesPage() {
     return 'Good evening';
   })();
 
-  const slides: NotificationSlide[] = useMemo(() => {
-    const items: NotificationSlide[] = [];
-    if (shouldShowOffer) {
-      items.push({
-        key: 'basic-offer',
-        content: (
-          <div className="notification-picture offer-picture new-user-offer-slide">
-            <div className="notification-glow" aria-hidden="true" />
-            <div className="notification-copy new-user-offer-copy">
-              <span className="notification-label urgent-label">Limited new-user offer</span>
-              <h2>65% off Basic Home</h2>
-              <p>Start Basic for the first 2 billing months. Create additional or larger houses, scan receipts, lookup products, and organize groceries with less stress.</p>
-              <div className="new-user-offer-metrics">
-                <span><strong>$0.70</strong><small>first 2 months</small></span>
-                <span><strong>2</strong><small>receipt scans/month</small></span>
-                <span><strong>No lock-in</strong><small>manage anytime</small></span>
-              </div>
-            </div>
-            <div className="new-user-offer-side">
-              <CountdownBadge until={offer?.eligible_until} />
-              <Link to="/pricing" className="notification-action claim-offer-button">Claim offer</Link>
-            </div>
-          </div>
-        ),
-      });
-    }
-    adminOffers.forEach((generalOffer) => {
-      items.push({
-        key: `general-offer-${generalOffer.id}`,
-        content: (
-          <Link to="/pricing" className="notification-image-link" aria-label="Open plans for general offer">
-            <div className="notification-picture general-offer-slide">
-              <div className="notification-glow" aria-hidden="true" />
-              <div className="notification-copy">
-                <span className="notification-label">{generalOffer.occasion || 'General offer'}</span>
-                <CountdownBadge until={generalOffer.expires_at} />
-                <h2>{generalOffer.title}</h2>
-                <p>{generalOffer.message || generalOffer.summary}</p>
-                <div className="admin-offer-detail-grid general-offer-grid">
-                  <span><strong>Offer</strong>{generalOffer.summary}</span>
-                  <span><strong>Plan</strong>{generalOffer.universal ? 'Any paid plan' : generalOffer.plan_label || 'All users'}</span>
-                  <span><strong>Status</strong>Open Plans to view available deals</span>
-                </div>
-              </div>
-              <div className="notification-side-stack admin-offer-actions">
-                <span className="notification-action">View plans</span>
-              </div>
-            </div>
-          </Link>
-        ),
-      });
-    });
-    items.push({
-      key: 'extra-scans',
-      content: (
-        <Link to="/pricing#extra-scans" className="notification-image-link" aria-label="Open extra receipt scans section">
-          <div className="notification-picture extra-scan-promo-slide">
-            <div className="notification-copy extra-scan-copy">
-              <span className="notification-label">New convenient option</span>
-              <h2>Buy extra receipt scans anytime</h2>
-              <p>Need more scans? Buy a small one-time pack without changing your plan. Use included monthly scans first, and keep extra scans until used.</p>
-              <div className="extra-scan-slide-pills">
-                <span>2 scans • $1</span>
-                <span>4 scans • $2</span>
-                <span>10 scans • $4</span>
-              </div>
-              <span className="notification-action inline-action">Open scan packs</span>
-            </div>
-            <div className="extra-scan-visual-frame">
-              <img src="/brand/extra_receipt_scans_available.png" alt="Extra receipt scans available. Buy extra scans without changing your plan." />
-            </div>
-          </div>
-        </Link>
-      ),
-    });
-    items.push({
-      key: 'community-stats',
-      content: (
-        <div className="notification-picture stats-picture">
-          <div className="notification-glow" aria-hidden="true" />
-          <div className="notification-copy">
-            <span className="notification-label">Community snapshot</span>
-            <h2>{stats?.total_users ?? 0}+ users organizing groceries</h2>
-            <p>Live trust snapshot from your Grocery House Manager community.</p>
-            <div className="stats-picture-grid">
-              <div><strong>{stats?.new_users_this_month ?? 0}</strong><span>new this month</span></div>
-              <div><strong>{stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}</strong><span>{starText(stats?.average_rating)}</span></div>
-              <div><strong>{stats?.review_count ?? 0}</strong><span>reviews saved</span></div>
-            </div>
-            <blockquote>
-              “{stats?.best_positive_comment || 'Be one of the first users to share how Grocery House Manager helps your home.'}”
-              {stats?.best_reviewer_name && <cite>— {stats.best_reviewer_name}</cite>}
-            </blockquote>
-          </div>
-        </div>
-      ),
-    });
-    return items;
-  }, [adminOffers, offer?.eligible_until, shouldShowOffer, stats]);
-
   return (
-    <main className="page shell houses-page-v54 cinematic-page">
-      <header className="topbar houses-hero-v54">
-        <div>
-          <p className="eyebrow">Your Grocery Home</p>
-          <h1>{firstName ? `${greeting}, ${firstName}` : greeting}</h1>
-          <p>A <strong>House</strong> is simply your private shared grocery space. Inventory, shopping lists, receipts, and the people you shop with stay together in one Home.</p>
-        </div>
-        <div className="topbar-actions">
-          <button className="secondary" onClick={load}>Refresh</button>
-        </div>
+    <main className="page shell wide v95-switchboard-page">
+      <header className="v95-switchboard-hero">
+        <div><p className="eyebrow">GROCERY HOUSE MANAGER</p><h1>{firstName ? `${greeting}, ${firstName}` : greeting}</h1><p>One calm place for the household. You only need to deal with what matters now.</p></div>
+        {activeHouse ? <Link className="primary center-link" to={`/houses/${activeHouse.id}`}>Open {activeHouse.name} →</Link> : null}
       </header>
 
       <FirstRunSetup onStatus={setOnboarding} />
       {onboarding?.complete ? <InstallAppPrompt /> : null}
-
-      {onboarding?.complete && todayAction ? (
-        <Link to={todayAction.to} className="today-action-card">
-          <span className="today-action-icon" aria-hidden="true">{todayAction.icon}</span>
-          <div>
-            <p className="eyebrow">What should I do today? • {todayAction.eyebrow}</p>
-            <h2>{todayAction.title}</h2>
-            <p>{todayAction.copy}</p>
-          </div>
-          <strong>{todayAction.cta} →</strong>
-        </Link>
-      ) : null}
-
-      {onboarding?.complete ? <NotificationSlider slides={slides} /> : null}
-
-      {(!houses.length || onboarding?.complete) ? <section className="panel create-house-panel creative-create-house">
-        <div className="panel-title-row">
-          <div>
-            <p className="eyebrow">Start a Grocery Home</p>
-            <h2>Create a House</h2>
-            <p>{isFreePlan ? 'A House is your private shared grocery space. Free Starter includes one real Home with up to 40 products, one active shared list, and four total members.' : 'Create a separate shared Grocery Home for a household you own or manage.'}</p>
-          </div>
-          {subscription && <span className="plan-pill">{subscription.plan_name} • {ownedHouseCount}/{subscription.limits.houses} owned houses</span>}
-        </div>
-        {canCreateHouse ? (
-          <form onSubmit={createHouse} className="inline-form">
-            <input placeholder="Example: Patel Family Home" value={name} onChange={(e) => setName(e.target.value)} />
-            <button className="primary" disabled={!name.trim()}>Create</button>
-          </form>
-        ) : (
-          <div className="upgrade-callout graphical-callout">
-            <strong>{isFreePlan ? 'Your free starter house is active.' : 'You reached your current house limit.'}</strong>
-            <span>{isFreePlan ? 'Keep using it for free, or upgrade when you need more houses, receipt scanning, deeper price intelligence, and higher limits.' : 'Upgrade when you need another owned household.'}</span>
-            <Link to="/pricing" className="primary center-link">Compare plans</Link>
-          </div>
-        )}
-      </section> : null}
-
       {error && <div className="error">{error}</div>}
-      {loading && <div className="panel muted-panel">Loading your houses...</div>}
-      {!loading && !error && houses.length === 0 && (
-        <section className="panel empty-state creative-empty-state">
-          <span className="empty-state-icon">🏡</span>
-          <h2>Create your first Grocery Home</h2>
-          <p>A House is the private space where your inventory, shopping list, receipts, and household members live together. Enter a name above to get started — no card required on Free Starter.</p>
-          <button className="secondary" onClick={load}>Check again</button>
-        </section>
-      )}
+      {loading && <div className="panel muted-panel">Preparing your homes…</div>}
 
-      <div className="grid houses-grid creative-houses-grid">
-        {houses.map((house) => (
-          <Link to={`/houses/${house.id}`} key={house.id} className="house-card creative-house-card">
-            <span className="house-card-aura" aria-hidden="true" />
-            <span className="house-icon">🏠</span>
-            <strong>{house.name}</strong>
-            <small>{house.role} access • open control center</small>
-          </Link>
-        ))}
-      </div>
+      {!loading && todayAction ? <Link to={todayAction.to} className="v95-switchboard-focus"><span>{todayAction.icon}</span><div><p className="eyebrow">{todayAction.eyebrow}</p><h2>{todayAction.title}</h2><p>{todayAction.copy}</p></div><strong>{todayAction.cta} →</strong></Link> : null}
 
-      {onboarding?.complete ? <section id="reviews" className="panel review-hub-panel">
-        <div className="panel-title-row review-hub-title">
-          <div>
-            <p className="eyebrow">User reviews</p>
-            <h2>Share your Grocery House Manager experience</h2>
-            <p>Reviews help new users trust the app and help us improve what matters most.</p>
-          </div>
-          <span className="review-rating-pill">{stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'} ★ average</span>
-        </div>
-
-        <div className="review-hub-grid">
-          <form onSubmit={submitReview} className="review-form-card">
-            <label>
-              Rating
-              <select value={reviewRating} onChange={(event) => setReviewRating(Number(event.target.value))}>
-                <option value={5}>★★★★★ Excellent</option>
-                <option value={4}>★★★★ Good</option>
-                <option value={3}>★★★ Okay</option>
-                <option value={2}>★★ Needs work</option>
-                <option value={1}>★ Poor</option>
-              </select>
-            </label>
-            <label>
-              Your review
-              <textarea
-                value={reviewComment}
-                onChange={(event) => setReviewComment(event.target.value)}
-                placeholder="Example: This helped my family stop buying duplicate groceries."
-              />
-            </label>
-            {reviewError && <div className="error form-message">{reviewError}</div>}
-            {reviewMessage && <div className="success form-message">{reviewMessage}</div>}
-            <div className="review-form-actions">
-              <button className="primary" disabled={reviewBusy}>{reviewBusy ? 'Saving...' : myReview ? 'Update review' : 'Save review'}</button>
-              {myReview && <button type="button" className="secondary danger-button" onClick={deleteMyReview} disabled={reviewBusy}>Delete</button>}
-            </div>
-          </form>
-
-          <div className="review-cards-stack">
-            {reviews.length === 0 ? (
-              <div className="review-card-v54 empty-review-card">
-                <strong>No reviews yet</strong>
-                <p>Be the first person to share your experience.</p>
-              </div>
-            ) : reviews.slice(0, 3).map((review) => (
-              <article className="review-card-v54" key={review.id}>
-                <div className="review-card-top">
-                  <span className="review-avatar-v54">
-                    {review.user_avatar_url ? <img src={review.user_avatar_url} alt="" /> : (review.user_name || 'AI').slice(0, 2).toUpperCase()}
-                  </span>
-                  <div>
-                    <strong>{review.user_name || 'Grocery House Manager user'}</strong>
-                    <small>{starText(review.rating)} • {new Date(review.created_at).toLocaleDateString()}</small>
-                  </div>
-                </div>
-                <p>“{review.comment}”</p>
-                {review.admin_reply ? <div className="review-admin-reply-v94"><strong>Grocery House Manager replied</strong><p>{review.admin_reply}</p>{review.admin_replied_at ? <small>{new Date(review.admin_replied_at).toLocaleDateString()}</small> : null}</div> : null}
-              </article>
-            ))}
-          </div>
-        </div>
+      {!loading && houses.length > 0 ? <section className="v95-house-switcher">
+        <header><div><p className="eyebrow">YOUR HOUSEHOLDS</p><h2>Choose where you want to work.</h2></div>{canCreateHouse ? <button type="button" className="secondary" onClick={() => setShowCreate((value) => !value)}>{showCreate ? 'Close' : '+ Add household'}</button> : null}</header>
+        <div className="v95-house-switcher-grid">{houses.map((house) => <Link key={house.id} to={`/houses/${house.id}`} onClick={() => localStorage.setItem('ghm_active_house_id', String(house.id))} className={activeHouse?.id === house.id ? 'active' : ''}><span>⌂</span><div><strong>{house.name}</strong><small>{house.role} access</small></div><b>→</b></Link>)}</div>
       </section> : null}
+
+      {(showCreate || houses.length === 0) ? <section className="v95-create-home">
+        <div><p className="eyebrow">PRIVATE SHARED SPACE</p><h2>{houses.length ? 'Add another household' : 'Create your first Grocery Home'}</h2><p>Inventory, shopping, receipts, expenses and members stay together. You can keep the name simple.</p></div>
+        {canCreateHouse || houses.length === 0 ? <form onSubmit={createHouse}><input placeholder="Example: Patel Family Home" value={name} onChange={(event) => setName(event.target.value)} /><button className="primary" disabled={!name.trim()}>Create household</button></form> : <div className="upgrade-callout"><strong>Your current plan has reached its household limit.</strong><Link to="/pricing">Compare plans →</Link></div>}
+      </section> : null}
+
+      {onboarding?.complete && (showOffer || offers.length > 0) ? <details className="v95-updates-drawer">
+        <summary><span><strong>{showOffer || offers.length ? 'Offers & account updates' : 'Updates'}</strong><small>Kept out of your way until you want to see them.</small></span><b>{(showOffer ? 1 : 0) + offers.length}</b></summary>
+        <div>
+          {showOffer ? <Link to="/pricing" className="v95-update-row"><span>✦</span><div><strong>65% off Basic Home</strong><small>Eligible new-user offer for the first two billing months.</small></div><b>View →</b></Link> : null}
+          {offers.map((offer) => <Link key={offer.id} to="/pricing" className="v95-update-row"><span>◇</span><div><strong>{offer.title}</strong><small>{offer.message || offer.summary}</small></div><b>View →</b></Link>)}
+        </div>
+      </details> : null}
+
+      {!loading && houses.length === 0 && !error ? <section className="v95-empty-home"><span>⌂</span><h2>Your household starts here.</h2><p>Create one private home above. GHM becomes useful as soon as you add a few groceries, a list or a receipt.</p></section> : null}
     </main>
   );
 }

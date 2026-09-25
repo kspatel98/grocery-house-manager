@@ -1081,3 +1081,16 @@ export type HouseholdTemplateApplyResponse = {
   created_products: string[];
   message: string;
 };
+
+export type ProductAnalytics = {
+  active_users_1d: number;
+  active_users_7d: number;
+  active_users_30d: number;
+  new_users_30d: number;
+  activation_rate_24h?: number | null;
+  retention_d1?: number | null;
+  retention_d7?: number | null;
+  retention_d30?: number | null;
+  success_events_30d: Record<string, number>;
+  message: string;
+};

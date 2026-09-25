@@ -187,6 +187,11 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_household_templates_type ON household_templates(template_type)",
         "CREATE INDEX IF NOT EXISTS ix_household_templates_shared ON household_templates(is_shared)",
         "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_is_general ON admin_user_offers(is_general)",
+        "CREATE TABLE IF NOT EXISTS product_events (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, house_id INTEGER REFERENCES houses(id) ON DELETE CASCADE, event_name VARCHAR(64) NOT NULL, event_context VARCHAR(255), created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE INDEX IF NOT EXISTS ix_product_events_user_id ON product_events(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_product_events_house_id ON product_events(house_id)",
+        "CREATE INDEX IF NOT EXISTS ix_product_events_event_name ON product_events(event_name)",
+        "CREATE INDEX IF NOT EXISTS ix_product_events_created_at ON product_events(created_at)",
     ]
     with engine.begin() as connection:
         for statement in statements:

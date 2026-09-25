@@ -75,6 +75,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   });
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
@@ -201,12 +202,10 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const contextHouseId = routeHouseId || activeHouseId;
   const navItems = contextHouseId
     ? [
-        { to: '/houses', label: t('home'), icon: '⌂' },
-        { to: `/houses/${contextHouseId}/inventory`, label: t('inventory'), icon: '▣' },
-        { to: `/houses/${contextHouseId}/shopping`, label: t('shopping'), icon: '🛒' },
-        { to: `/houses/${contextHouseId}/meals`, label: t('meals'), icon: '♨' },
-        { to: '/market', label: t('prices'), icon: '◉' },
-        { to: `/houses/${contextHouseId}/expenses`, label: t('expenses'), icon: '$' },
+        { to: `/houses/${contextHouseId}`, label: 'Today', icon: '✦' },
+        { to: `/assistant?house=${contextHouseId}&view=plan`, label: 'Plan', icon: '◫' },
+        { to: `/houses/${contextHouseId}/shopping`, label: 'Shop', icon: '🛒' },
+        { to: `/houses/${contextHouseId}?tab=home`, label: 'Home', icon: '⌂' },
       ]
     : [
         { to: '/houses', label: t('home'), icon: '⌂' },
@@ -215,18 +214,68 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       ];
   const extraNavItems = [
     ...(contextHouseId ? [
-      { to: `/assistant?house=${contextHouseId}`, label: 'Autopilot', icon: '✦' },
-      { to: `/houses/${contextHouseId}/scan`, label: t('scanReceipt'), icon: '🧾' },
-      { to: `/houses/${contextHouseId}/receipts`, label: t('receiptHistory'), icon: '🗂️' },
+      { to: `/houses/${contextHouseId}/inventory`, label: 'Inventory', icon: '▣' },
+      { to: `/houses/${contextHouseId}/meals`, label: 'Meals', icon: '🍲' },
+      { to: `/houses/${contextHouseId}/scan`, label: 'Scan receipt', icon: '🧾' },
+      { to: `/houses/${contextHouseId}/receipts`, label: 'Receipts', icon: '🗂️' },
+      { to: `/houses/${contextHouseId}/expenses`, label: 'Money', icon: '$' },
+      { to: '/market', label: 'Prices & flyers', icon: '◉' },
       { to: `/houses/${contextHouseId}/templates`, label: 'Templates', icon: '▤' },
     ] : []),
-    { to: '/reports', label: t('reports'), icon: '📈' },
+    { to: '/reports', label: 'Reports', icon: '📈' },
     { to: '/pricing', label: t('plans'), icon: '✨' },
     { to: '/support', label: t('support'), icon: '💬' },
+    { to: '/privacy', label: 'Privacy', icon: '◌' },
+    { to: '/terms', label: 'Terms', icon: '§' },
     ...(isAdmin ? [{ to: '/admin', label: t('admin'), icon: '🛡️' }] : []),
   ];
-  const extraActive = extraNavItems.some((item) => location.pathname.startsWith(item.to.split('?')[0]));
-  const homeActive = location.pathname === '/houses' || /^\/houses\/\d+$/.test(location.pathname);
+  const navActive = (to: string) => {
+    const [itemPath, query = ''] = to.split('?');
+    const queryParams = new URLSearchParams(query);
+    if (itemPath === '/assistant') return location.pathname === '/assistant';
+    if (contextHouseId && itemPath === `/houses/${contextHouseId}`) {
+      if (location.pathname !== itemPath) return false;
+      const currentTab = new URLSearchParams(location.search).get('tab');
+      if (queryParams.get('tab') === 'home') return Boolean(currentTab && currentTab !== 'today');
+      return !currentTab || currentTab === 'today';
+    }
+    if (itemPath === '/houses') return location.pathname === '/houses';
+    return location.pathname === itemPath || location.pathname.startsWith(`${itemPath}/`);
+  };
+  const extraActive = extraNavItems.some((item) => navActive(item.to));
+  const homeActive = location.pathname === '/houses' || Boolean(contextHouseId && navActive(`/houses/${contextHouseId}`));
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    void api.post('/analytics/event', {
+      event_name: 'page_view',
+      house_id: contextHouseId || null,
+      event_context: location.pathname,
+    }).catch(() => undefined);
+  }, [location.pathname, contextHouseId]);
+
+  useEffect(() => {
+    const onSuccessMoment = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: string }>).detail || {};
+      const mapping: Record<string, string> = {
+        shopping: 'shopping_completed',
+        receipt: 'receipt_saved',
+        meal_plan: 'meal_plan_built',
+        inventory_check: 'kitchen_vision_applied',
+      };
+      const eventName = detail.type ? mapping[detail.type] : undefined;
+      if (!eventName) return;
+      void api.post('/analytics/event', {
+        event_name: eventName,
+        house_id: contextHouseId || null,
+        event_context: location.pathname,
+      }).catch(() => undefined);
+    };
+    window.addEventListener('ghm:success-moment', onSuccessMoment);
+    return () => window.removeEventListener('ghm:success-moment', onSuccessMoment);
+  }, [contextHouseId, location.pathname]);
+
   const profileName = profile?.full_name || profile?.email || 'Profile';
   const status = (profile?.subscription_status || 'free').toLowerCase();
   const planName = profile?.plan_name || 'free';
@@ -260,14 +309,11 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [premiumArrival]);
 
-  const pageTitle = homeActive ? t('home') : ([
+  const pageTitle = ([
     ...navItems,
     ...extraNavItems,
     { to: '/profile', label: t('profile'), icon: '👤' },
-  ].find((item) => {
-    const itemPath = item.to.split('?')[0];
-    return location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath));
-  })?.label || 'Grocery House Manager');
+  ].find((item) => navActive(item.to))?.label || (homeActive ? 'Today' : 'Grocery House Manager'));
 
   return (
     <div className="app-frame desktop-sidebar-layout">
@@ -301,7 +347,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <Link
                     key={item.to}
                     to={item.to}
-                    className={location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath)) ? 'active' : ''}
+                    className={navActive(item.to) ? 'active' : ''}
                   >
                     <span className="desktop-nav-icon" aria-hidden="true">{item.icon}</span><small>{item.label}</small>
                   </Link>
@@ -383,7 +429,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             <nav className="desktop-sidebar-nav-v86">
               {navItems.map((item) => {
                 const itemPath = item.to.split('?')[0];
-                const active = location.pathname === itemPath || (itemPath !== '/houses' && location.pathname.startsWith(itemPath));
+                const active = navActive(item.to);
                 return (
                   <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
                     <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
@@ -394,12 +440,13 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             </nav>
           </div>
 
-          <div className="desktop-sidebar-navblock-v86 secondary">
-            <small className="desktop-sidebar-label-v86">Workspace</small>
-            <nav className="desktop-sidebar-nav-v86 secondary">
+          <div className={`desktop-sidebar-navblock-v86 secondary v95-tools-nav ${toolsOpen || extraActive ? 'open' : ''}`}>
+            <button type="button" className="v95-tools-toggle" onClick={() => setToolsOpen((value) => !value)} aria-expanded={toolsOpen || extraActive}>
+              <span className="desktop-sidebar-icon-v86" aria-hidden="true">◇</span><span>Tools</span><b aria-hidden="true">{toolsOpen || extraActive ? '−' : '+'}</b>
+            </button>
+            {(toolsOpen || extraActive) && <nav className="desktop-sidebar-nav-v86 secondary">
               {extraNavItems.map((item) => {
-                const itemPath = item.to.split('?')[0];
-                const active = location.pathname === itemPath || location.pathname.startsWith(itemPath);
+                const active = navActive(item.to);
                 return (
                   <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
                     <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
@@ -407,7 +454,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   </Link>
                 );
               })}
-            </nav>
+            </nav>}
           </div>
 
           <div className="desktop-sidebar-footer-v86">
@@ -437,8 +484,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               <h1>{pageTitle}</h1>
             </div>
             <div className="desktop-topbar-actions-v86">
-              <Link to="/support" className="desktop-topbar-pill-v86">{t('support')}</Link>
-              <Link to="/reports" className="desktop-topbar-pill-v86 alt">{t('reports')}</Link>
+              {contextHouseId ? <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="desktop-topbar-pill-v86">Ask GHM</Link> : null}
+              {contextHouseId ? <Link to={`/houses/${contextHouseId}/scan`} className="desktop-topbar-pill-v86 alt">Scan receipt</Link> : <Link to="/support" className="desktop-topbar-pill-v86 alt">{t('support')}</Link>}
             </div>
           </div>
 
@@ -491,11 +538,11 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <nav className="mobile-bottom-nav" aria-label="Mobile app navigation">
-        <Link to="/houses" className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>{t('home')}</small></Link>
-        <Link to={contextHouseId ? `/houses/${contextHouseId}/inventory` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/inventory`) ? 'active' : ''}><span aria-hidden="true">▣</span><small>{t('inventory')}</small></Link>
-        <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>{t('shopping')}</small></Link>
-        <Link to={contextHouseId ? `/houses/${contextHouseId}/meals` : '/houses'} className={Boolean(contextHouseId && location.pathname.includes(`/houses/${contextHouseId}/meals`)) ? 'active' : ''}><span aria-hidden="true">🍲</span><small>{t('meals')}</small></Link>
+      <nav className="mobile-bottom-nav v95-mobile-nav" aria-label="Mobile app navigation">
+        <Link to={contextHouseId ? `/houses/${contextHouseId}` : '/houses'} className={homeActive ? 'active' : ''}><span aria-hidden="true">✦</span><small>Today</small></Link>
+        <Link to={contextHouseId ? `/assistant?house=${contextHouseId}&view=plan` : '/houses'} className={location.pathname === '/assistant' ? 'active' : ''}><span aria-hidden="true">◫</span><small>Plan</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>Shop</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}?tab=home` : '/houses'} className={Boolean(contextHouseId && navActive(`/houses/${contextHouseId}?tab=home`)) ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
         <button type="button" className={mobileMoreOpen || extraActive || location.pathname.startsWith('/profile') ? 'active' : ''} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>{t('more')}</small></button>
       </nav>
 

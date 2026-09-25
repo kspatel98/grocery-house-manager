@@ -328,7 +328,7 @@ export default function HomePage() {
 
       <section className="shell wide marketing-section smart-assistant-marketing">
         <div className="smart-assistant-marketing-copy">
-          <p className="eyebrow warm-eyebrow">GHM AUTOPILOT · HOUSEHOLD GROCERY CFO</p>
+          <p className="eyebrow warm-eyebrow">GHM AUTOPILOT · YOUR HOUSEHOLD, ONE STEP AHEAD</p>
           <h2>Don't manage groceries. Review the decisions that matter.</h2>
           <p>Autopilot connects low stock, expiry dates, meal possibilities, days at home, your active list, receipt review signals, saved prices and verified savings. It prepares the week, protects the checkout, and shows the evidence instead of burying users in dashboards.</p>
           <div className="assistant-marketing-flow">

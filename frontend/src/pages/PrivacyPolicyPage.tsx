@@ -8,7 +8,7 @@ export default function PrivacyPolicyPage() {
           <Link to="/" className="breadcrumb">← Home</Link>
           <p className="eyebrow">SupremDas Group</p>
           <h1>Privacy Policy</h1>
-          <p>Last updated: July 2026</p>
+          <p>Last updated: September 2026</p>
         </div>
       </header>
 
@@ -24,6 +24,7 @@ export default function PrivacyPolicyPage() {
           <li>Receipt information uploaded by users, including receipt JPG/PNG images, extracted text, store names, item rows, discounts, taxes, totals, prices, and dates.</li>
           <li>Subscription and billing status from Stripe. Card numbers and full payment details are handled by Stripe and are not stored by Grocery House Manager.</li>
           <li>Basic technical information required to keep the app secure and working, such as authentication tokens, request metadata, and local browser storage.</li>
+          <li>Privacy-light product usage events, such as page views and successful actions (for example, completing a shopping trip or meal plan). These events are used for product activation and retention metrics and do not store message contents, receipt contents, or the contents of a household list.</li>
         </ul>
 
         <h2>How we use information</h2>
@@ -48,6 +49,17 @@ export default function PrivacyPolicyPage() {
         <h2>Smart Receipt Scan</h2>
         <p>
           Receipt uploads may be processed to extract store names, receipt dates, product rows, quantities, prices, discounts, taxes, totals, payment-related labels, and raw extracted text. Scan results can be imperfect, so users should review details before saving them to inventory or price tracking.
+        </p>
+
+
+        <h2>Kitchen Vision and AI-assisted features</h2>
+        <p>
+          When Kitchen Vision is enabled, photos or short videos may be processed to identify visible household products and suggest inventory changes. The default deployment is designed for ephemeral media processing: the original scan media is not intentionally retained by Grocery House Manager after analysis unless a deployment explicitly enables private media retention. Suggested inventory changes require review before they are applied.
+        </p>
+
+        <h2>Product analytics</h2>
+        <p>
+          Grocery House Manager records limited product-usage events to understand whether users successfully activate the service and return over time. Examples include opening a workspace or completing a shopping trip, receipt flow, meal plan, Kitchen Vision review, review submission, or template use. These events are used for aggregate product metrics such as active users and retention. They are not used to record the text of household messages, AI conversations, grocery lists, or receipt line items.
         </p>
 
         <h2>Sharing inside a house</h2>

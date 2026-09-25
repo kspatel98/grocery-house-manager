@@ -24,6 +24,7 @@ import type {
 } from '../types';
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+type AutopilotView = 'today' | 'intelligence' | 'plan' | 'spend' | 'protect';
 
 function nextDayNames(count: number) {
   const start = new Date();
@@ -32,8 +33,16 @@ function nextDayNames(count: number) {
 
 export default function AssistantPage() {
   const [params, setParams] = useSearchParams();
+  const requestedView = params.get('view') as AutopilotView | null;
+  const workspace: AutopilotView = ['today', 'intelligence', 'plan', 'spend', 'protect'].includes(requestedView || '') ? (requestedView as AutopilotView) : 'today';
   const [houses, setHouses] = useState<House[]>([]);
   const [houseId, setHouseId] = useState<number | null>(null);
+  const chooseWorkspace = (next: AutopilotView) => {
+    const nextParams = new URLSearchParams(params);
+    nextParams.set('view', next);
+    if (houseId) nextParams.set('house', String(houseId));
+    setParams(nextParams, { replace: true });
+  };
   const [assistant, setAssistant] = useState<WeeklyAssistant | null>(null);
   const [autopilot, setAutopilot] = useState<AutopilotOverview | null>(null);
   const [controls, setControls] = useState<AutopilotControls | null>(null);
@@ -154,7 +163,7 @@ export default function AssistantPage() {
   useEffect(() => { loadHouses(); }, []);
   useEffect(() => {
     if (!houseId) return;
-    setParams({ house: String(houseId) }, { replace: true });
+    setParams(workspace === 'today' ? { house: String(houseId) } : { house: String(houseId), view: workspace }, { replace: true });
     setPlan(null);
     setKitchenCheck(null);
     setKitchenVision(null);
@@ -463,10 +472,10 @@ export default function AssistantPage() {
   }
 
   return (
-    <main className="page shell wide autopilot-page cinematic-page">
+    <main className="page shell wide autopilot-page cinematic-page" data-workspace={workspace}>
       <header className="autopilot-hero">
         <div className="autopilot-hero-copy">
-          <div className="autopilot-kicker-row"><span className="autopilot-live-dot" /> <p className="eyebrow">GHM AUTOPILOT · HOUSEHOLD GROCERY CFO</p>{autopilot ? <Link to="/pricing" className={`autopilot-plan-chip plan-${autopilot.plan_key}`}>{autopilot.plan_key === 'pro' ? 'Household Pro' : autopilot.plan_key === 'family' ? 'Family Plus' : autopilot.plan_key === 'basic' ? 'Basic Home' : 'Free Starter'}</Link> : null}</div>
+          <div className="autopilot-kicker-row"><span className="autopilot-live-dot" /> <p className="eyebrow">GHM AUTOPILOT · YOUR HOUSEHOLD, ONE STEP AHEAD</p>{autopilot ? <Link to="/pricing" className={`autopilot-plan-chip plan-${autopilot.plan_key}`}>{autopilot.plan_key === 'pro' ? 'Household Pro' : autopilot.plan_key === 'family' ? 'Family Plus' : autopilot.plan_key === 'basic' ? 'Basic Home' : 'Free Starter'}</Link> : null}</div>
           <h1>{autopilot?.headline || 'Your household, one step ahead.'}</h1>
           <p>{autopilot?.subheadline || 'Building a plan from your inventory, receipts, shopping list, saved prices and expiry dates.'}</p>
           <div className="autopilot-hero-actions">
@@ -484,20 +493,26 @@ export default function AssistantPage() {
       <section className="autopilot-toolbar">
         <label><span>Household</span><select value={houseId || ''} onChange={(event) => setHouseId(Number(event.target.value))}>{houses.map((house) => <option key={house.id} value={house.id}>{house.name}</option>)}</select></label>
         <button type="button" className="secondary" onClick={() => houseId && loadAutopilot(houseId)} disabled={!houseId || busy}>{busy ? 'Refreshing…' : '↻ Refresh intelligence'}</button>
-        <nav className="autopilot-anchor-nav" aria-label="Autopilot sections"><a href="#today">Today</a><a href="#weekly-plan">This week</a><a href="#money">Money</a><a href="#protect">Protect</a></nav>
+        <nav className="v95-autopilot-tabs" aria-label="Autopilot workspaces">
+          <button type="button" className={workspace === 'today' ? 'active' : ''} onClick={() => chooseWorkspace('today')}><span>✦</span><strong>Today</strong><small>Next action</small></button>
+          <button type="button" className={workspace === 'intelligence' ? 'active' : ''} onClick={() => chooseWorkspace('intelligence')}><span>◌</span><strong>Intelligence</strong><small>Twin & ask GHM</small></button>
+          <button type="button" className={workspace === 'plan' ? 'active' : ''} onClick={() => chooseWorkspace('plan')}><span>◫</span><strong>Plan</strong><small>Week & meals</small></button>
+          <button type="button" className={workspace === 'spend' ? 'active' : ''} onClick={() => chooseWorkspace('spend')}><span>$</span><strong>Shop smarter</strong><small>Prices & value</small></button>
+          <button type="button" className={workspace === 'protect' ? 'active' : ''} onClick={() => chooseWorkspace('protect')}><span>🛡</span><strong>Protect</strong><small>Receipts & vision</small></button>
+        </nav>
       </section>
 
       {error && <div className="error">{error}</div>}
       {message && <div className="success">{message}</div>}
 
-      <section id="today" className="autopilot-metric-grid">
+      <section id="today" className="autopilot-metric-grid" data-v95-view="today">
         <article className="autopilot-metric money"><span>💰</span><div><small>Verified savings · {autopilot?.savings_ledger.month_label || 'this month'}</small><strong>{money(autopilot?.verified_savings || 0, autopilot?.currency_code)}</strong><em>Evidence-backed only</em></div></article>
         <article className="autopilot-metric opportunity"><span>✨</span><div><small>Current opportunities</small><strong>{money(autopilot?.potential_savings || 0, autopilot?.currency_code)}</strong><em>Not counted as saved yet</em></div></article>
         <article className="autopilot-metric trip"><span>🛒</span><div><small>Next trip</small><strong>{autopilot?.active_list_items || 0} items</strong><em>{autopilot?.restock_items || 0} restock suggestions</em></div></article>
         <article className={`autopilot-metric protect ${(autopilot?.receipt_issues || 0) + (autopilot?.recall_matches || 0) ? 'attention' : ''}`}><span>🛡️</span><div><small>Protection checks</small><strong>{(autopilot?.receipt_issues || 0) + (autopilot?.recall_matches || 0)}</strong><em>receipt + recall signals</em></div></article>
       </section>
 
-      <section className="autopilot-command-deck">
+      <section className="autopilot-command-deck" data-v95-view="today">
         <article className="autopilot-command primary-command">
           <div><p className="eyebrow">WHAT SHOULD I DO TODAY?</p><h2>{autopilot?.headline || 'Autopilot is building your next move'}</h2><p>{autopilot?.subheadline}</p></div>
           <div className="autopilot-command-facts">
@@ -519,8 +534,8 @@ export default function AssistantPage() {
         </article>
       </section>
 
-      <section className="autopilot-section v93-intelligence-section">
-        <header className="autopilot-section-heading"><div><p className="eyebrow">HOUSEHOLD DIGITAL TWIN</p><h2>Learn how this home actually consumes and decides.</h2><p>Predictions come from real purchase cadence, current inventory and the choices your household actually makes—not from made-up AI numbers.</p></div><span className="autopilot-feature-number">AI</span></header>
+      <section className="autopilot-section v93-intelligence-section" data-v95-view="intelligence">
+        <header className="autopilot-section-heading"><div><p className="eyebrow">HOUSEHOLD INTELLIGENCE · DIGITAL TWIN</p><h2>GHM learns how your home actually runs.</h2><p>Predictions come from real purchase cadence, current inventory and the choices your household actually makes—not from made-up AI numbers.</p></div><span className="autopilot-feature-number">AI</span></header>
         <div className="v93-twin-grid">
           <article className="v93-twin-overview">
             <div className="v93-twin-orb"><strong>{digitalTwin?.products_likely_needed_7d || 0}</strong><small>likely needed<br/>within 7 days</small></div>
@@ -533,13 +548,13 @@ export default function AssistantPage() {
         </div>
         <article className="v93-agent-card">
           <div className="v93-agent-icon">✦</div><div><p className="eyebrow">GHM HOUSEHOLD INTELLIGENCE</p><h3>Ask using your live household context</h3><p>Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Should I choose the cheaper trip or our usual store?”</p></div>
-          <div className="v93-agent-input"><textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Ask Autopilot about this household…" /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : 'Ask Household Agent'}</button></div>
+          <div className="v93-agent-input"><textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Ask Autopilot about this household…" /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : 'Ask GHM'}</button></div>
           {agentAnswer ? <div className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
         </article>
       </section>
 
-      <section id="weekly-plan" className="autopilot-section autopilot-week-section">
-        <header className="autopilot-section-heading"><div><p className="eyebrow">LIFE-AWARE WEEKLY PLANNER + BUDGET RESCUE</p><h2>Tell us only what changed. Autopilot handles the groceries.</h2><p>Choose how many days you are planning, servings, days you are away, and an optional budget. The planner prioritizes food already at home and items that should be used soon.</p></div><span className="autopilot-feature-number">01</span></header>
+      <section id="weekly-plan" className="autopilot-section autopilot-week-section" data-v95-view="plan">
+        <header className="autopilot-section-heading"><div><p className="eyebrow">THIS WEEK · MEALS + BUDGET</p><h2>Tell us only what changed. Autopilot handles the groceries.</h2><p>Choose how many days you are planning, servings, days you are away, and an optional budget. The planner prioritizes food already at home and items that should be used soon.</p></div><span className="autopilot-feature-number">01</span></header>
         {autopilot?.planner_unlocked ? <div className="autopilot-plan-layout">
           <div className="autopilot-plan-controls">
             <div className="autopilot-control-grid">
@@ -577,8 +592,8 @@ export default function AssistantPage() {
         </div>
       </section>
 
-      <section id="money" className="autopilot-section autopilot-money-section">
-        <header className="autopilot-section-heading"><div><p className="eyebrow">HOUSEHOLD GROCERY CFO</p><h2>Don't just track spending. Decide before you spend.</h2><p>Automatic Trip Check remains inside Shopping where it belongs; Autopilot turns its price knowledge into decisions, stock-up opportunities and a defensible savings ledger.</p></div><span className="autopilot-feature-number">02</span></header>
+      <section id="money" className="autopilot-section autopilot-money-section" data-v95-view="spend">
+        <header className="autopilot-section-heading"><div><p className="eyebrow">SMART SPENDING</p><h2>Don't just track spending. Decide before you spend.</h2><p>Automatic Trip Check remains inside Shopping where it belongs; Autopilot turns its price knowledge into decisions, stock-up opportunities and a defensible savings ledger.</p></div><span className="autopilot-feature-number">02</span></header>
         {controls ? <div className="autopilot-decision-stack">
           <article className="autopilot-preference-panel">
             <header className="panel-title-row"><div><p className="eyebrow">USER CHOICE CONTROLS</p><h3>Tell Autopilot how this household likes to decide</h3></div><span className="badge active">Learns patterns</span></header>
@@ -631,7 +646,7 @@ export default function AssistantPage() {
         </article>
       </section>
 
-      <section id="protect" className="autopilot-section autopilot-protect-section">
+      <section id="protect" className="autopilot-section autopilot-protect-section" data-v95-view="protect">
         <header className="autopilot-section-heading"><div><p className="eyebrow">PROTECT THE HOUSEHOLD</p><h2>Check the things people normally notice too late.</h2><p>Receipt Guardian, official recall screening and Kitchen Check are deliberately conservative: they surface evidence to review rather than making unsafe or accusatory conclusions automatically.</p></div><span className="autopilot-feature-number">03</span></header>
         <div className="autopilot-protection-grid">
           <article id="receipt-guardian" className="autopilot-protection-card receipt-guardian-card">
@@ -677,7 +692,7 @@ export default function AssistantPage() {
         </div>
       </section>
 
-      <section className="autopilot-connected-flow">
+      <section className="autopilot-connected-flow" data-v95-view="today">
         <div><p className="eyebrow">ONE INTELLIGENCE · EXISTING WORKFLOWS</p><h2>Autopilot doesn't replace the app. It connects it.</h2></div>
         <nav><Link to={`/houses/${houseId}/inventory`}><span>📦</span><strong>Inventory</strong><small>What you own</small></Link><i>→</i><Link to={`/houses/${houseId}/meals`}><span>🍲</span><strong>Meals</strong><small>What to use</small></Link><i>→</i><Link to={`/houses/${houseId}/shopping`}><span>🛒</span><strong>Shopping</strong><small>What & where to buy</small></Link><i>→</i><Link to={`/houses/${houseId}/scan`}><span>🧾</span><strong>Receipts</strong><small>What actually happened</small></Link><i>→</i><Link to="/reports"><span>📈</span><strong>Ledger</strong><small>What value was proven</small></Link></nav>
       </section>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
-import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, SiteReview } from '../types';
+import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, ProductAnalytics, SiteReview } from '../types';
 
 function starText(value?: number | null) {
   const rating = Math.max(0, Math.min(5, Math.round(value || 0)));
@@ -17,6 +17,7 @@ const PLAN_LABELS: Record<PlanName, string> = {
 
 export default function AdminPage() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
+  const [productAnalytics, setProductAnalytics] = useState<ProductAnalytics | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [emailStatus, setEmailStatus] = useState<AdminEmailStatus | null>(null);
   const [aiStatus, setAIStatus] = useState<AISystemStatus | null>(null);
@@ -61,13 +62,14 @@ export default function AdminPage() {
   async function loadAll() {
     try {
       setBusy(true);
-      const [summaryRes, usersRes, emailStatusRes, reviewsRes, offersRes, aiStatusRes] = await Promise.all([
+      const [summaryRes, usersRes, emailStatusRes, reviewsRes, offersRes, aiStatusRes, productAnalyticsRes] = await Promise.all([
         api.get<AdminSummary>('/admin/summary'),
         api.get<AdminUser[]>('/admin/users', { params: { search: search || undefined, limit: 100 } }),
         api.get<AdminEmailStatus>('/admin/email/status'),
         api.get<SiteReview[]>('/reviews/admin/all'),
         api.get<AdminUserOffer[]>('/offers/admin'),
         api.get<AISystemStatus>('/ai/admin/status'),
+        api.get<ProductAnalytics>('/analytics/admin/product'),
       ]);
       setSummary(summaryRes.data);
       setUsers(usersRes.data);
@@ -75,6 +77,7 @@ export default function AdminPage() {
       setReviews(reviewsRes.data);
       setOffers(offersRes.data);
       setAIStatus(aiStatusRes.data);
+      setProductAnalytics(productAnalyticsRes.data);
       setError('');
     } catch (err) {
       setError(errorMessage(err));
@@ -294,6 +297,22 @@ export default function AdminPage() {
           <div className="stat-card"><strong>{summary.total_receipts}</strong><span>Receipts</span></div>
         </section>
       )}
+
+      {productAnalytics ? <section className="panel v95-product-analytics">
+        <div className="panel-title-row"><div><p className="eyebrow">PRODUCT HEALTH</p><h2>Activation & retention</h2><p>Measure whether households actually return and complete useful work—not just whether they registered.</p></div><span className="badge">Privacy-light events</span></div>
+        <div className="v95-product-analytics-grid">
+          <span><small>Active today</small><strong>{productAnalytics.active_users_1d}</strong></span>
+          <span><small>Active 7 days</small><strong>{productAnalytics.active_users_7d}</strong></span>
+          <span><small>Active 30 days</small><strong>{productAnalytics.active_users_30d}</strong></span>
+          <span><small>New users 30 days</small><strong>{productAnalytics.new_users_30d}</strong></span>
+          <span><small>24h activation</small><strong>{productAnalytics.activation_rate_24h != null ? `${productAnalytics.activation_rate_24h}%` : 'Learning'}</strong></span>
+          <span><small>D1 retention</small><strong>{productAnalytics.retention_d1 != null ? `${productAnalytics.retention_d1}%` : 'Learning'}</strong></span>
+          <span><small>D7 retention</small><strong>{productAnalytics.retention_d7 != null ? `${productAnalytics.retention_d7}%` : 'Learning'}</strong></span>
+          <span><small>D30 retention</small><strong>{productAnalytics.retention_d30 != null ? `${productAnalytics.retention_d30}%` : 'Learning'}</strong></span>
+        </div>
+        <div className="v95-success-events">{Object.entries(productAnalytics.success_events_30d).map(([name,count]) => <span key={name}><strong>{count}</strong><small>{name.replace(/_/g,' ')}</small></span>)}{!Object.keys(productAnalytics.success_events_30d).length ? <small>No success events recorded yet. V95 begins collecting them as households use the app.</small> : null}</div>
+        <p className="small-muted">{productAnalytics.message}</p>
+      </section> : null}
 
       <section className="panel v93-ai-admin-panel">
         <div className="panel-title-row"><div><p className="eyebrow">GHM AI INFRASTRUCTURE</p><h2>Kitchen Vision + Household Agent</h2><p>Secrets stay in backend/.env. This panel shows whether inference, the agent endpoint, video processing and media privacy are ready.</p></div><button type="button" className="primary" onClick={testAIInfrastructure} disabled={aiBusy}>{aiBusy ? 'Testing…' : 'Run AI system test'}</button></div>

@@ -44,7 +44,7 @@ export default function TemplatesPage(){
     }catch(err){setError(errorMessage(err));}finally{setBusy(false);}
   }
   async function apply(row:HouseholdTemplate){
-    try{setBusy(true);setError('');const {data}=await api.post<HouseholdTemplateApplyResponse>(`/templates/${row.id}/apply`,null,{params:{house_id:id}});setMessage(data.message);window.dispatchEvent(new Event('account:refresh'));}
+    try{setBusy(true);setError('');const {data}=await api.post<HouseholdTemplateApplyResponse>(`/templates/${row.id}/apply`,null,{params:{house_id:id}});setMessage(data.message);window.dispatchEvent(new Event('account:refresh'));void api.post('/analytics/event',{event_name:'template_applied',house_id:id,event_context:'community_template'}).catch(()=>undefined);}
     catch(err){setError(errorMessage(err));}finally{setBusy(false);}
   }
   async function remove(row:HouseholdTemplate){if(!confirm(`Delete ${row.title}?`))return;try{await api.delete(`/templates/${row.id}`);await load();}catch(err){setError(errorMessage(err));}}

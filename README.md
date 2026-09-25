@@ -804,3 +804,9 @@ Each house now has an **Expenses** page for payer tracking, equal/custom splits,
 ## v83 reimbursement accounting
 
 Shared-expense reimbursements now use exact-cent zero-sum ledger calculations, a transparent balance audit, and a sent/confirmed reimbursement workflow. See `V83_REIMBURSEMENT_LEDGER_FIX.md`.
+
+---
+
+## V95 — Calm Household OS
+
+V95 reorganizes the authenticated product around **Today / Plan / Shop / Home**, moves specialist functionality behind Tools/More, splits Autopilot into focused workspaces, introduces a calm household decision cockpit, lazy-loads route pages, and adds privacy-light activation/retention analytics for Admin. See `V95_CALM_HOUSEHOLD_OS.md` for the full release notes.

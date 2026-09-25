@@ -70,6 +70,7 @@ export default function SmartReviewPrompt() {
       }
       setSubmitted(true);
       window.dispatchEvent(new Event('account:refresh'));
+      void api.post('/analytics/event', { event_name: 'review_submitted', event_context: 'smart_review_prompt' }).catch(() => undefined);
     } catch (err) {
       setError(errorMessage(err));
     } finally {

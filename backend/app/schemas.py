@@ -1620,3 +1620,25 @@ class HouseholdTemplateApplyOut(BaseModel):
     skipped_existing: list[str] = Field(default_factory=list)
     created_products: list[str] = Field(default_factory=list)
     message: str
+
+class ProductEventIn(BaseModel):
+    event_name: str = Field(min_length=1, max_length=64)
+    house_id: int | None = None
+    event_context: str | None = Field(default=None, max_length=255)
+
+
+class ProductEventOut(BaseModel):
+    ok: bool = True
+
+
+class ProductAnalyticsOut(BaseModel):
+    active_users_1d: int = 0
+    active_users_7d: int = 0
+    active_users_30d: int = 0
+    new_users_30d: int = 0
+    activation_rate_24h: float | None = None
+    retention_d1: float | None = None
+    retention_d7: float | None = None
+    retention_d30: float | None = None
+    success_events_30d: dict[str, int] = Field(default_factory=dict)
+    message: str
