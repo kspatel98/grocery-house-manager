@@ -135,6 +135,10 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_rating ON site_reviews(rating)",
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_is_public ON site_reviews(is_public)",
         "CREATE INDEX IF NOT EXISTS ix_site_reviews_created_at ON site_reviews(created_at)",
+        "ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS admin_reply TEXT",
+        "ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS admin_replied_at TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS admin_replied_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+        "CREATE INDEX IF NOT EXISTS ix_site_reviews_admin_replied_by_id ON site_reviews(admin_replied_by_id)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_receipt_scan_credits INTEGER DEFAULT 0",
         "ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shopping_list_id INTEGER REFERENCES shopping_lists(id) ON DELETE SET NULL",
         "CREATE INDEX IF NOT EXISTS ix_receipts_shopping_list_id ON receipts(shopping_list_id)",
@@ -177,6 +181,11 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_autopilot_decisions_user_id ON autopilot_decisions(user_id)",
         "CREATE INDEX IF NOT EXISTS ix_autopilot_decisions_kind ON autopilot_decisions(decision_kind)",
         "CREATE INDEX IF NOT EXISTS ix_autopilot_decisions_created_at ON autopilot_decisions(created_at)",
+        "CREATE TABLE IF NOT EXISTS household_templates (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, title VARCHAR(180) NOT NULL, template_type VARCHAR(40) DEFAULT 'shopping', description TEXT, items_json TEXT DEFAULT '[]', is_shared BOOLEAN DEFAULT FALSE, uses_count INTEGER DEFAULT 0, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+        "CREATE INDEX IF NOT EXISTS ix_household_templates_user_id ON household_templates(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_household_templates_title ON household_templates(title)",
+        "CREATE INDEX IF NOT EXISTS ix_household_templates_type ON household_templates(template_type)",
+        "CREATE INDEX IF NOT EXISTS ix_household_templates_shared ON household_templates(is_shared)",
         "CREATE INDEX IF NOT EXISTS ix_admin_user_offers_is_general ON admin_user_offers(is_general)",
     ]
     with engine.begin() as connection:

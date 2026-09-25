@@ -1315,8 +1315,12 @@ class MarketCapabilitiesOut(BaseModel):
 
 class SiteReviewCreateIn(BaseModel):
     rating: int = Field(default=5, ge=1, le=5)
-    comment: str = Field(min_length=8, max_length=700)
+    comment: str = Field(min_length=3, max_length=700)
     is_public: bool = True
+
+
+class SiteReviewAdminReplyIn(BaseModel):
+    reply: str = Field(min_length=2, max_length=900)
 
 
 class SiteReviewOut(BaseModel):
@@ -1330,6 +1334,8 @@ class SiteReviewOut(BaseModel):
     user_name: str | None = None
     user_avatar_url: str | None = None
     can_edit: bool = False
+    admin_reply: str | None = None
+    admin_replied_at: datetime | None = None
 
 
 class SiteReviewSummaryOut(BaseModel):
@@ -1473,7 +1479,7 @@ class RecipeShoppingAddOut(BaseModel):
     created_products: list[str] = Field(default_factory=list)
     message: str
 
-# --- V93 DigitalOcean AI / Kitchen Vision / Digital Twin ---
+# --- V94 GHM Intelligence / Kitchen Vision / Digital Twin ---
 class AISystemComponentOut(BaseModel):
     key: str
     label: str
@@ -1512,7 +1518,7 @@ class KitchenVisionDetectionOut(BaseModel):
 
 
 class KitchenVisionOut(BaseModel):
-    mode: str = "digitalocean_vision"
+    mode: str = "ghm_vision"
     media_checked: int = 0
     frames_analyzed: int = 0
     scene_summary: str = ""
@@ -1581,4 +1587,36 @@ class HouseholdAgentOut(BaseModel):
     configured: bool = False
     answer: str
     used_live_agent: bool = False
+    message: str
+
+# --- V94 Household Templates Community ---
+class HouseholdTemplateCreateIn(BaseModel):
+    title: str = Field(min_length=2, max_length=180)
+    template_type: str = Field(default="shopping", pattern="^(shopping|meal_prep|holiday|household|other)$")
+    description: str | None = Field(default=None, max_length=800)
+    items: list[str] = Field(default_factory=list, min_length=1, max_length=80)
+    is_shared: bool = False
+
+
+class HouseholdTemplateOut(BaseModel):
+    id: int
+    user_id: int
+    uploader_name: str
+    title: str
+    template_type: str
+    description: str | None = None
+    items: list[str] = Field(default_factory=list)
+    is_shared: bool = False
+    uses_count: int = 0
+    can_edit: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class HouseholdTemplateApplyOut(BaseModel):
+    list_id: int
+    list_title: str
+    added_items: list[str] = Field(default_factory=list)
+    skipped_existing: list[str] = Field(default_factory=list)
+    created_products: list[str] = Field(default_factory=list)
     message: str

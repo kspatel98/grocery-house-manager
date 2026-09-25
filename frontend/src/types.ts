@@ -566,6 +566,8 @@ export type SiteReview = {
   user_name?: string | null;
   user_avatar_url?: string | null;
   can_edit?: boolean;
+  admin_reply?: string | null;
+  admin_replied_at?: string | null;
 };
 
 export type SiteReviewSummary = {
@@ -954,7 +956,7 @@ export type ExpenseBalanceBreakdown = { user_id:number; user_name:string; paid:n
 export type ExpenseSuggestedPayment = { from_user_id:number; from_user_name:string; to_user_id:number; to_user_name:string; amount:number };
 export type ExpenseSummary = { expenses:HouseExpense[]; settlements:ExpenseSettlement[]; balances:ExpenseBalance[]; balance_breakdown:ExpenseBalanceBreakdown[]; suggested_payments:ExpenseSuggestedPayment[]; balance_is_valid:boolean };
 
-// V93 DigitalOcean AI / Kitchen Vision / Household Digital Twin
+// V94 GHM Intelligence / Kitchen Vision / Household Digital Twin
 export type AISystemComponent = {
   key: string;
   label: string;
@@ -993,7 +995,7 @@ export type KitchenVisionDetection = {
 };
 
 export type KitchenVisionResult = {
-  mode: 'digitalocean_vision' | 'ocr_fallback' | string;
+  mode: 'ghm_vision' | 'ocr_fallback' | string;
   media_checked: number;
   frames_analyzed: number;
   scene_summary: string;
@@ -1053,5 +1055,29 @@ export type HouseholdAgentResponse = {
   configured: boolean;
   answer: string;
   used_live_agent: boolean;
+  message: string;
+};
+
+export type HouseholdTemplate = {
+  id: number;
+  user_id: number;
+  uploader_name: string;
+  title: string;
+  template_type: 'shopping' | 'meal_prep' | 'holiday' | 'household' | 'other' | string;
+  description?: string | null;
+  items: string[];
+  is_shared: boolean;
+  uses_count: number;
+  can_edit: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HouseholdTemplateApplyResponse = {
+  list_id: number;
+  list_title: string;
+  added_items: string[];
+  skipped_existing: string[];
+  created_products: string[];
   message: string;
 };

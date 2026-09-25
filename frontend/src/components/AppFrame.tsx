@@ -218,6 +218,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       { to: `/assistant?house=${contextHouseId}`, label: 'Autopilot', icon: '✦' },
       { to: `/houses/${contextHouseId}/scan`, label: t('scanReceipt'), icon: '🧾' },
       { to: `/houses/${contextHouseId}/receipts`, label: t('receiptHistory'), icon: '🗂️' },
+      { to: `/houses/${contextHouseId}/templates`, label: 'Templates', icon: '▤' },
     ] : []),
     { to: '/reports', label: t('reports'), icon: '📈' },
     { to: '/pricing', label: t('plans'), icon: '✨' },

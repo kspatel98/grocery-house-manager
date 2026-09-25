@@ -22,6 +22,8 @@ export default function AdminPage() {
   const [aiStatus, setAIStatus] = useState<AISystemStatus | null>(null);
   const [aiBusy, setAIBusy] = useState(false);
   const [reviews, setReviews] = useState<SiteReview[]>([]);
+  const [reviewReplies, setReviewReplies] = useState<Record<number, string>>({});
+  const [reviewReplyBusy, setReviewReplyBusy] = useState<number | null>(null);
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
   const [offerScope, setOfferScope] = useState<'personal' | 'general'>('personal');
   const [offerUserId, setOfferUserId] = useState('');
@@ -231,6 +233,26 @@ export default function AdminPage() {
     }
   }
 
+  async function saveReviewReply(review: SiteReview) {
+    const reply = (reviewReplies[review.id] ?? review.admin_reply ?? '').trim();
+    if (!reply) {
+      setError('Write a short professional reply first.');
+      return;
+    }
+    try {
+      setReviewReplyBusy(review.id);
+      setError('');
+      const { data } = await api.put<SiteReview>(`/reviews/admin/${review.id}/reply`, { reply });
+      setReviews((current) => current.map((row) => row.id === review.id ? data : row));
+      setReviewReplies((current) => ({ ...current, [review.id]: data.admin_reply || '' }));
+      setSuccess('Review reply published.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setReviewReplyBusy(null);
+    }
+  }
+
   async function deleteReview(review: SiteReview) {
     if (!confirm(`Delete this review from ${review.user_name || 'user'}?`)) return;
     try {
@@ -274,7 +296,7 @@ export default function AdminPage() {
       )}
 
       <section className="panel v93-ai-admin-panel">
-        <div className="panel-title-row"><div><p className="eyebrow">DIGITALOCEAN AI INFRASTRUCTURE</p><h2>Kitchen Vision + Household Agent</h2><p>Secrets stay in backend/.env. This panel shows whether inference, the agent endpoint, video processing and media privacy are ready.</p></div><button type="button" className="primary" onClick={testAIInfrastructure} disabled={aiBusy}>{aiBusy ? 'Testing…' : 'Run AI system test'}</button></div>
+        <div className="panel-title-row"><div><p className="eyebrow">GHM AI INFRASTRUCTURE</p><h2>Kitchen Vision + Household Agent</h2><p>Secrets stay in backend/.env. This panel shows whether inference, the agent endpoint, video processing and media privacy are ready.</p></div><button type="button" className="primary" onClick={testAIInfrastructure} disabled={aiBusy}>{aiBusy ? 'Testing…' : 'Run AI system test'}</button></div>
         <div className="v93-ai-status-grid">{aiStatus?.components.map((component) => {
           const optional = component.key === 'spaces';
           const statusClass = optional ? 'optional unknown' : `${component.configured ? 'configured' : 'missing'} ${component.healthy === true ? 'healthy' : component.healthy === false ? 'unhealthy' : 'unknown'}`;
@@ -420,15 +442,16 @@ export default function AdminPage() {
       <section className="panel admin-plan-counts">
         <div className="panel-title-row">
           <div>
-            <h2>User reviews moderation</h2>
-            <p>Admins can review submitted feedback and remove inappropriate content.</p>
+            <h2>User reviews & responses</h2>
+            <p>Reply professionally to feedback, acknowledge reported issues, and remove only inappropriate content.</p>
           </div>
+          <span className={`badge ${reviews.some((review) => !review.admin_reply) ? 'warning' : ''}`}>{reviews.filter((review) => !review.admin_reply).length} awaiting reply</span>
         </div>
         <div className="review-cards-stack">
           {reviews.length === 0 ? (
             <div className="small-muted">No reviews found.</div>
           ) : reviews.slice(0, 8).map((review) => (
-            <article className="review-card-v54" key={review.id}>
+            <article className={`review-card-v54 ${!review.admin_reply ? 'review-needs-reply-v94' : ''}`} key={review.id}>
               <div className="review-card-top">
                 <div>
                   <strong>{review.user_name || 'Unknown user'}</strong>
@@ -437,6 +460,11 @@ export default function AdminPage() {
                 <button className="secondary small-button danger-button" type="button" onClick={() => deleteReview(review)}>Delete</button>
               </div>
               <p>“{review.comment}”</p>
+              <div className="admin-review-reply-v94">
+                <label>Public reply<textarea value={reviewReplies[review.id] ?? review.admin_reply ?? ''} onChange={(event) => setReviewReplies((current) => ({ ...current, [review.id]: event.target.value }))} placeholder="Thank the user, acknowledge the issue, or explain what was fixed." /></label>
+                <button className="secondary small-button" type="button" onClick={() => saveReviewReply(review)} disabled={reviewReplyBusy === review.id}>{reviewReplyBusy === review.id ? 'Publishing…' : review.admin_reply ? 'Update reply' : 'Reply'}</button>
+                {review.admin_replied_at ? <small>Last replied {new Date(review.admin_replied_at).toLocaleDateString()}</small> : null}
+              </div>
             </article>
           ))}
         </div>

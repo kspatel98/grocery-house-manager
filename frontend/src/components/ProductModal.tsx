@@ -9,7 +9,7 @@ import OverlayPortal from './OverlayPortal';
 type Props = {
   houseId: number;
   sections: Section[];
-  modal: { mode: 'create' | 'edit'; product?: Product; sectionId?: number };
+  modal: { mode: 'create' | 'edit'; product?: Product; sectionId?: number; scanOnOpen?: boolean };
   onClose: () => void;
   onSaved: () => void;
 };
@@ -269,6 +269,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
           <button data-dialog-close="true" onClick={() => { stopBarcodeScanner(); onClose(); }} aria-label="Close product form">×</button>
         </div>
         {error && <div className="error">{error}</div>}
+        {modal.mode === 'create' && modal.scanOnOpen ? <div className="barcode-fast-start-v94"><span>▦</span><div><strong>Scan a pantry barcode</strong><small>Use the rear camera to fill the barcode automatically, then add the product details or look it up from Prices & Flyers.</small></div><button type="button" className="primary" onClick={startBarcodeScanner}>{scannerOpen ? 'Camera open' : 'Start camera'}</button></div> : null}
         <form onSubmit={submit} className="product-form enhanced-product-form focus-dialog-scroll">
           <section className="product-form-section product-form-primary">
             <div className="product-form-section-head">

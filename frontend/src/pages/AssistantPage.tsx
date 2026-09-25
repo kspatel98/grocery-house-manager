@@ -239,6 +239,7 @@ export default function AssistantPage() {
       }
       await loadAutopilot(houseId);
       window.dispatchEvent(new Event('account:refresh'));
+      window.dispatchEvent(new CustomEvent('ghm:success-moment', { detail: { type: 'inventory_check', message: 'Your approved Kitchen Vision changes were applied and the household inventory is now refreshed.' } }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -284,6 +285,7 @@ export default function AssistantPage() {
         budget: budget.trim() ? Number(budget) : null,
       });
       setPlan(data);
+      window.dispatchEvent(new CustomEvent('ghm:success-moment', { detail: { type: 'meal_plan', message: `Your ${data.days_requested}-day household plan is ready with ${data.planned_days} meal day${data.planned_days === 1 ? '' : 's'} planned.` } }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -394,6 +396,7 @@ export default function AssistantPage() {
       if (kitchenInputRef.current) kitchenInputRef.current.value = '';
       await loadAutopilot(houseId);
       window.dispatchEvent(new Event('account:refresh'));
+      window.dispatchEvent(new CustomEvent('ghm:success-moment', { detail: { type: 'inventory_check', message: 'Your approved Kitchen Vision changes were applied and the household inventory is now refreshed.' } }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -529,9 +532,9 @@ export default function AssistantPage() {
           </article>
         </div>
         <article className="v93-agent-card">
-          <div className="v93-agent-icon">✦</div><div><p className="eyebrow">DIGITALOCEAN HOUSEHOLD AGENT</p><h3>Ask using your live household context</h3><p>Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Should I choose the cheaper trip or our usual store?”</p></div>
+          <div className="v93-agent-icon">✦</div><div><p className="eyebrow">GHM HOUSEHOLD INTELLIGENCE</p><h3>Ask using your live household context</h3><p>Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Should I choose the cheaper trip or our usual store?”</p></div>
           <div className="v93-agent-input"><textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Ask Autopilot about this household…" /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : 'Ask Household Agent'}</button></div>
-          {agentAnswer ? <div className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'Live DigitalOcean Agent' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
+          {agentAnswer ? <div className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
         </article>
       </section>
 
@@ -557,7 +560,7 @@ export default function AssistantPage() {
           <div className="autopilot-plan-result">
             {!plan ? <div className="autopilot-plan-placeholder"><span>🍲</span><h3>Your week will appear here</h3><p>Autopilot will use your real inventory, expiry dates and existing shopping list before asking you to buy more.</p></div> : <>
               <div className="autopilot-plan-summary"><div><small>Planned at home</small><strong>{plan.planned_days}/{plan.days_requested} days</strong></div><div><small>Known grocery cost</small><strong>{money(plan.known_grocery_cost, plan.currency_code)}</strong></div>{plan.budget != null ? <div className={(plan.known_budget_buffer || 0) >= 0 ? 'positive' : 'negative'}><small>Known budget buffer</small><strong>{money(plan.known_budget_buffer || 0, plan.currency_code)}</strong></div> : null}</div>
-              <div className="autopilot-plan-days">{plan.days.map((day) => <article key={day.day_name} className={`autopilot-plan-day ${day.status}`}><header><span>{day.day_name.slice(0, 3)}</span><div><strong>{day.status === 'away' ? 'Away / eating out' : day.recipe_name || 'Open meal'}</strong><small>{day.status === 'meal' ? `${day.servings} servings` : day.reason}</small></div></header>{day.use_soon_items.length ? <p className="use-soon">⏳ Uses soon: {day.use_soon_items.join(', ')}</p> : null}{day.missing_items.length ? <p className="missing">🛒 Need: {day.missing_items.join(', ')}</p> : day.status === 'meal' ? <p className="ready">✓ Required ingredients already covered</p> : null}</article>)}</div>
+              <div className="autopilot-plan-days">{plan.days.map((day) => <article key={day.day_name} className={`autopilot-plan-day ${day.status}`}><header><span>{day.day_name.slice(0, 3)}</span><div><strong>{day.status === 'away' ? 'Away / eating out' : day.recipe_name || 'Open meal'}</strong><small>{day.status === 'meal' ? `${day.servings} servings` : day.reason}</small></div></header>{day.use_soon_items.length ? <p className="use-soon">⏳ Use before expiry: {day.use_soon_items.join(', ')}</p> : null}{day.missing_items.length ? <p className="missing">🛒 Need: {day.missing_items.join(', ')}</p> : day.status === 'meal' ? <p className="ready">✓ Required ingredients already covered</p> : null}</article>)}</div>
               <div className="autopilot-plan-grocery"><div><strong>{plan.grocery_items.length ? `${plan.grocery_items.length} grocery item${plan.grocery_items.length === 1 ? '' : 's'} needed` : 'No missing ingredients for these matched meals'}</strong><small>{plan.message}</small></div>{plan.grocery_items.length ? <button type="button" className="primary" onClick={addPlanGroceries} disabled={planBusy}>Add plan to grocery list</button> : null}</div>
               {plan.unpriced_items.length ? <div className="autopilot-unpriced"><strong>Price still unknown</strong><span>{plan.unpriced_items.join(' · ')}</span><small>Autopilot refuses to guess these prices. A receipt, flyer or saved price will fill them later.</small></div> : null}
             </>}
@@ -570,7 +573,7 @@ export default function AssistantPage() {
 
         <div className="autopilot-meal-suggestions">
           <div className="panel-title-row"><div><p className="eyebrow">COOK FROM WHAT YOU OWN</p><h3>Strong inventory matches right now</h3></div><Link to={`/houses/${houseId}/meals`}>All meals & community recipes →</Link></div>
-          <div className="autopilot-meal-grid">{assistant?.recipes.slice(0, 4).map((recipe) => <article key={recipe.name}><span className={recipe.status === 'ready' ? 'ready' : 'almost'}>{recipe.status === 'ready' ? '✓ READY' : '＋ ALMOST'}</span><strong>{recipe.name}</strong><p>{recipe.reason}</p>{recipe.use_soon_items.length ? <small>⏳ Use soon: {recipe.use_soon_items.join(', ')}</small> : null}{recipe.missing_items.length && recipe.missing_on_list.length !== recipe.missing_items.length ? <button type="button" className="secondary" disabled={Boolean(recipeBusy)} onClick={() => addRecipeMissing(recipe)}>{recipeBusy === recipe.name ? 'Adding…' : `Add ${recipe.missing_items.join(', ')}`}</button> : null}</article>)}</div>
+          <div className="autopilot-meal-grid">{assistant?.recipes.slice(0, 4).map((recipe) => <article key={recipe.name}><span className={recipe.status === 'ready' ? 'ready' : 'almost'}>{recipe.status === 'ready' ? '✓ READY' : '＋ ALMOST'}</span><strong>{recipe.name}</strong><p>{recipe.reason}</p>{recipe.use_soon_items.length ? <small>⏳ Use before expiry: {recipe.use_soon_items.join(', ')}</small> : null}{recipe.missing_items.length && recipe.missing_on_list.length !== recipe.missing_items.length ? <button type="button" className="secondary" disabled={Boolean(recipeBusy)} onClick={() => addRecipeMissing(recipe)}>{recipeBusy === recipe.name ? 'Adding…' : `Add ${recipe.missing_items.join(', ')}`}</button> : null}</article>)}</div>
         </div>
       </section>
 
@@ -646,15 +649,15 @@ export default function AssistantPage() {
           </article>
 
           <article className="autopilot-protection-card kitchen-check-card v93-kitchen-vision-card">
-            <header><div className="autopilot-card-icon">👁️</div><div><p className="eyebrow">KITCHEN VISION · DIGITALOCEAN AI</p><h3>See physical products, not just readable labels</h3></div><span className="badge">Photos + video</span></header>
+            <header><div className="autopilot-card-icon">👁️</div><div><p className="eyebrow">GHM KITCHEN VISION</p><h3>See physical products, not just readable labels</h3></div><span className="badge">Photos + video</span></header>
             {autopilot?.kitchen_check_unlocked ? <>
-              <p>Upload fridge, freezer or pantry photos—or a short walkthrough video. When DigitalOcean multimodal inference is configured, Kitchen Vision can recognize generic physical foods such as bananas, tomatoes, eggs or milk containers even when no label is readable. Exact brands and sizes still require stronger visual evidence.</p>
+              <p>Upload fridge, freezer or pantry photos—or a short walkthrough video. When GHM Vision is enabled, Kitchen Vision can recognize generic physical foods such as bananas, tomatoes, eggs or milk containers even when no label is readable. Exact brands and sizes still require stronger visual evidence.</p>
               <div className="v93-kitchen-privacy"><span>🔐</span><div><strong>Private by design</strong><small>Media is processed ephemerally by default. Nothing changes inventory until you review and approve it.</small></div></div>
               <input ref={kitchenInputRef} className="autopilot-camera-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" capture="environment" multiple />
               <button className="primary full" type="button" onClick={runKitchenVision} disabled={kitchenBusy}>{kitchenBusy ? 'Analyzing objects, labels and kitchen frames…' : '👁️ Scan with Kitchen Vision'}</button>
               {kitchenVision ? <div className="v93-kitchen-result">
                 <div className="kitchen-check-summary"><span><strong>{kitchenVision.high_confidence_count}</strong><small>high confidence</small></span><span><strong>{kitchenVision.possible_new_count}</strong><small>possible new</small></span><span><strong>{kitchenVision.frames_analyzed}</strong><small>frames analyzed</small></span></div>
-                <div className={`v93-kitchen-mode ${kitchenVision.mode === 'digitalocean_vision' ? 'live' : 'fallback'}`}><strong>{kitchenVision.mode === 'digitalocean_vision' ? 'DigitalOcean Vision active' : 'OCR fallback active'}</strong><small>{kitchenVision.scene_summary}</small></div>
+                <div className={`v93-kitchen-mode ${kitchenVision.mode === 'ghm_vision' ? 'live' : 'fallback'}`}><strong>{kitchenVision.mode === 'ghm_vision' ? 'GHM Vision active' : 'OCR fallback active'}</strong><small>{kitchenVision.scene_summary}</small></div>
                 {kitchenVision.warnings.length ? <div className="v93-kitchen-warnings">{kitchenVision.warnings.map((warning) => <small key={warning}>⚠ {warning}</small>)}</div> : null}
                 <div className="v93-detection-list">{kitchenVision.detections.map((detection) => {
                   const review = kitchenReview[detection.detection_id];
@@ -669,7 +672,7 @@ export default function AssistantPage() {
                 <div className="v93-kitchen-actions"><button type="button" className="secondary" onClick={() => { setKitchenVision(null); setKitchenReview({}); }}>Discard scan</button><button type="button" className="primary" onClick={applyKitchenVision} disabled={kitchenApplyBusy}>{kitchenApplyBusy ? 'Applying approved changes…' : 'Apply approved changes'}</button></div>
                 <small>{kitchenVision.message}</small>
               </div> : null}
-            </> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Kitchen Vision is a Household Pro tool</strong><small>Household Pro can use DigitalOcean multimodal vision for physical-object recognition, short video frame analysis and review-before-apply inventory reconciliation.</small></div><Link to="/pricing">See Household Pro →</Link></div>}
+            </> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Kitchen Vision is a Household Pro tool</strong><small>Household Pro can use GHM Vision for physical-object recognition, short video frame analysis and review-before-apply inventory reconciliation.</small></div><Link to="/pricing">See Household Pro →</Link></div>}
           </article>
         </div>
       </section>

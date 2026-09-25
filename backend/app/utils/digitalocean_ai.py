@@ -57,7 +57,7 @@ def agent_configured() -> bool:
 
 def analyze_kitchen_frames(*, images: list[tuple[bytes, str, str]], inventory: list[dict[str, Any]]) -> dict[str, Any]:
     if not vision_configured():
-        raise DigitalOceanAIError("DigitalOcean multimodal inference is not configured.")
+        raise DigitalOceanAIError("GHM Vision provider is not configured.")
     if not images:
         raise DigitalOceanAIError("No images were provided to Kitchen Vision.")
 
@@ -134,15 +134,15 @@ Return this exact structure:
             timeout=settings.digitalocean_vision_timeout_seconds,
         )
     except requests.RequestException as exc:
-        raise DigitalOceanAIError(f"DigitalOcean inference request failed: {exc}") from exc
+        raise DigitalOceanAIError(f"GHM Vision request failed: {exc}") from exc
     if response.status_code >= 400:
         detail = response.text[:700]
-        raise DigitalOceanAIError(f"DigitalOcean inference returned HTTP {response.status_code}: {detail}")
+        raise DigitalOceanAIError(f"GHM Vision provider returned HTTP {response.status_code}: {detail}")
     try:
         data = response.json()
         text = data["choices"][0]["message"]["content"]
     except Exception as exc:
-        raise DigitalOceanAIError("DigitalOcean inference returned an unexpected response shape.") from exc
+        raise DigitalOceanAIError("GHM Vision returned an unexpected response shape.") from exc
     parsed = _json_from_text(text)
     if not isinstance(parsed, dict):
         raise DigitalOceanAIError("Kitchen Vision expected a JSON object response.")
@@ -151,9 +151,9 @@ Return this exact structure:
 
 def ask_household_agent(*, prompt: str, context: dict[str, Any]) -> dict[str, Any]:
     if not agent_configured():
-        raise DigitalOceanAIError("DigitalOcean Household Agent is not configured.")
+        raise DigitalOceanAIError("GHM Household Intelligence is not configured.")
     endpoint = settings.digitalocean_agent_url.rstrip("/") + "/api/v1/chat/completions"
-    # DigitalOcean managed Agent instructions are configured on the Agent itself.
+    # Managed agent instructions are configured on the provider agent itself.
     # Sending system/developer messages to the Agent endpoint can be rejected with HTTP 400,
     # so GHM sends only the live household context and user request as a normal user message.
     user_content = f"Household context:\n{json.dumps(context, ensure_ascii=False)}\n\nUser request:\n{prompt}"
@@ -177,14 +177,14 @@ def ask_household_agent(*, prompt: str, context: dict[str, Any]) -> dict[str, An
             timeout=settings.digitalocean_agent_timeout_seconds,
         )
     except requests.RequestException as exc:
-        raise DigitalOceanAIError(f"DigitalOcean agent request failed: {exc}") from exc
+        raise DigitalOceanAIError(f"GHM Household Intelligence request failed: {exc}") from exc
     if response.status_code >= 400:
-        raise DigitalOceanAIError(f"DigitalOcean agent returned HTTP {response.status_code}: {response.text[:700]}")
+        raise DigitalOceanAIError(f"GHM Household Intelligence provider returned HTTP {response.status_code}: {response.text[:700]}")
     try:
         data = response.json()
         answer = data["choices"][0]["message"]["content"]
     except Exception as exc:
-        raise DigitalOceanAIError("DigitalOcean agent returned an unexpected response shape.") from exc
+        raise DigitalOceanAIError("GHM Household Intelligence returned an unexpected response shape.") from exc
     return {
         "answer": answer,
         "retrieval": data.get("retrieval"),
@@ -195,7 +195,7 @@ def ask_household_agent(*, prompt: str, context: dict[str, Any]) -> dict[str, An
 
 def inference_healthcheck() -> tuple[bool, str]:
     if not vision_configured():
-        return False, "DigitalOcean inference is not configured."
+        return False, "GHM Vision provider is not configured."
     url = settings.digitalocean_inference_base_url.rstrip("/") + "/models"
     try:
         response = requests.get(
@@ -205,14 +205,14 @@ def inference_healthcheck() -> tuple[bool, str]:
         )
         if response.status_code >= 400:
             return False, f"Inference key test returned HTTP {response.status_code}."
-        return True, "DigitalOcean serverless inference is reachable with the configured key."
+        return True, "GHM Vision provider is reachable with the configured key."
     except requests.RequestException as exc:
         return False, f"Inference connection failed: {exc}"
 
 
 def agent_healthcheck() -> tuple[bool, str]:
     if not agent_configured():
-        return False, "DigitalOcean Household Agent is not configured."
+        return False, "GHM Household Intelligence is not configured."
     try:
         result = ask_household_agent(prompt="Reply with exactly: GHM agent ready", context={"diagnostic": True})
         answer = str(result.get("answer") or "").strip()

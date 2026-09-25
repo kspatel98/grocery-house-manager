@@ -10,7 +10,7 @@ from app.api.admin import require_admin
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import SiteReview, User
-from app.schemas import SiteReviewCreateIn, SiteReviewOut, SiteReviewSummaryOut
+from app.schemas import SiteReviewAdminReplyIn, SiteReviewCreateIn, SiteReviewOut, SiteReviewSummaryOut
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
@@ -34,6 +34,8 @@ def review_out(review: SiteReview, viewer: User | None = None) -> SiteReviewOut:
         user_name=display_user_name(user),
         user_avatar_url=user.avatar_url if user else None,
         can_edit=bool(viewer and viewer.id and review.user_id == viewer.id),
+        admin_reply=review.admin_reply,
+        admin_replied_at=review.admin_replied_at,
     )
 
 
@@ -98,8 +100,8 @@ def review_summary(db: Session = Depends(get_db)):
 @router.post("", response_model=SiteReviewOut, status_code=status.HTTP_201_CREATED)
 def create_review(payload: SiteReviewCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     comment = payload.comment.strip()
-    if len(comment) < 8:
-        raise HTTPException(status_code=400, detail="Please write a short review before submitting.")
+    if len(comment) < 3:
+        raise HTTPException(status_code=400, detail="Please add a few words so we understand your rating.")
 
     review = current_review_for_user(db, user)
     if review:
@@ -126,8 +128,8 @@ def update_review(review_id: int, payload: SiteReviewCreateIn, db: Session = Dep
     if not review or review.user_id != user.id:
         raise HTTPException(status_code=404, detail="Review not found")
     comment = payload.comment.strip()
-    if len(comment) < 8:
-        raise HTTPException(status_code=400, detail="Please write a short review before saving.")
+    if len(comment) < 3:
+        raise HTTPException(status_code=400, detail="Please add a few words so we understand your rating.")
     review.rating = payload.rating
     review.comment = comment
     review.is_public = payload.is_public
@@ -151,6 +153,19 @@ def delete_review(review_id: int, db: Session = Depends(get_db), user: User = De
 def admin_reviews(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     reviews = db.query(SiteReview).order_by(desc(SiteReview.created_at)).limit(100).all()
     return [review_out(review) for review in reviews]
+
+
+@router.put("/admin/{review_id}/reply", response_model=SiteReviewOut)
+def admin_reply_to_review(review_id: int, payload: SiteReviewAdminReplyIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    review = db.get(SiteReview, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    review.admin_reply = payload.reply.strip()
+    review.admin_replied_at = datetime.now(timezone.utc)
+    review.admin_replied_by_id = admin.id
+    db.commit()
+    db.refresh(review)
+    return review_out(review)
 
 
 @router.delete("/admin/{review_id}")

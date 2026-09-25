@@ -69,7 +69,7 @@ class User(Base):
     activities: Mapped[list["Activity"]] = relationship(back_populates="user")
     receipts: Mapped[list["Receipt"]] = relationship(back_populates="uploaded_by")
     price_entries: Mapped[list["ProductStorePrice"]] = relationship(back_populates="recorded_by")
-    reviews: Mapped[list["SiteReview"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    reviews: Mapped[list["SiteReview"]] = relationship(back_populates="user", cascade="all, delete-orphan", foreign_keys="SiteReview.user_id")
     password_reset_codes: Mapped[list["PasswordResetCode"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     registration_verification_codes: Mapped[list["RegistrationVerificationCode"]] = relationship(back_populates="existing_user", cascade="all, delete-orphan")
     password_history: Mapped[list["PasswordHistory"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -491,10 +491,13 @@ class SiteReview(Base):
     rating: Mapped[int] = mapped_column(Integer, default=5, index=True)
     comment: Mapped[str] = mapped_column(Text)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    admin_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    admin_replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    admin_replied_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
-    user: Mapped[User | None] = relationship(back_populates="reviews")
+    user: Mapped[User | None] = relationship(back_populates="reviews", foreign_keys=[user_id])
 
 
 class Activity(Base):
@@ -544,3 +547,19 @@ class AdminUserOffer(Base):
 
     user: Mapped[User | None] = relationship(foreign_keys=[user_id])
     created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])
+
+class HouseholdTemplate(Base):
+    __tablename__ = "household_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(180), index=True)
+    template_type: Mapped[str] = mapped_column(String(40), default="shopping", index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    items_json: Mapped[str] = mapped_column(Text, default="[]")
+    is_shared: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    uses_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    owner: Mapped[User] = relationship()

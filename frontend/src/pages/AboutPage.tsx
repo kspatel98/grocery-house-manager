@@ -85,7 +85,7 @@ export default function AboutPage() {
             <li>While shopping, check items as they are added to the cart.</li>
             <li>Scan a clear JPG or PNG receipt, review extracted items and totals, then save trusted prices.</li>
             <li>Tap “Shopping done” to update the real inventory automatically.</li>
-            <li>Open Smart Assistant for the next-trip brief, use-soon items, meal ideas, savings, and whole-list store comparison when your plan includes it.</li>
+            <li>Open Smart Assistant for the next-trip brief, items approaching expiry, meal ideas, savings, and whole-list store comparison when your plan includes it.</li>
           </ol>
         </article>
 

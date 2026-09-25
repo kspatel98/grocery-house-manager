@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useHouseLiveRefresh } from '../hooks';
 import type { Product, ShoppingList } from '../types';
 import { ingredientNames, recipes, type Diet, type MealKind, type Cuisine, type Recipe, type RecipeIngredient } from '../recipes';
 import { useLanguage } from '../i18n';
@@ -62,10 +63,12 @@ function phraseInText(text:string,phrase:string){if(!text||!phrase)return false;
 function matchProduct(name:string, products:Product[]){
  const key=norm(name);
  const variants=[key,...(aliases[key]||[]).map(norm)].filter(Boolean);
- const exact=products.find(p=>variants.includes(norm(p.name)));
+ // Expired inventory is never counted as available for meals or "cook from home" readiness.
+ const usableProducts=products.filter(product=>!product.is_expired);
+ const exact=usableProducts.find(p=>variants.includes(norm(p.name)));
  if(exact)return exact;
  let best:Product|undefined; let bestScore=0;
- for(const product of products){
+ for(const product of usableProducts){
    const pk=norm(product.name); if(!pk)continue;
    for(const variant of variants){
      const words=variant.split(' ').filter(Boolean);
@@ -274,6 +277,7 @@ export default function MealsPage(){
  const availability=(r:Recipe)=>{const x=r.ingredients.filter(i=>!i.optional&&!isManualOnlyIngredient(i.name)).map(i=>{const p=matchProduct(i.name,products); return !!p&&compatible(p.unit,i.unit)&&normalizeQty(p.quantity,p.unit,i.unit)>=i.qty;}); return x.length?x.filter(Boolean).length/x.length:0};
 
  async function refreshMealData(){const [p,l]=await Promise.all([api.get<Product[]>(`/houses/${id}/products`,{params:{limit:500}}),api.get<ShoppingList|null>(`/houses/${id}/shopping-lists/active`)]);setProducts(p.data);setActiveList(l.data);}
+ useHouseLiveRefresh(id, refreshMealData);
  async function add(mode:'shortage'|'full'|'manual'){
    const chosen=rows.filter((r,i)=>mode==='manual'?!!manual[String(i)]:mode==='shortage'?(r.autoShop&&!r.optional&&r.shortage>0):(r.autoShop&&!r.optional));
    if(mode==='manual'&&!chosen.length){setNotice(c.selectOne);return;}

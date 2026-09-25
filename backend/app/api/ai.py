@@ -146,9 +146,9 @@ def _ocr_fallback(frames: list[tuple[bytes, str, str]], inventory: list[Product]
                 "notes": "OCR fallback found readable text matching this inventory product; physical quantity was not inferred.",
             })
     return {
-        "scene_summary": "DigitalOcean Vision is not configured, so the legacy OCR fallback checked readable package text only.",
+        "scene_summary": "GHM Vision is not configured, so the label-reading fallback checked readable package text only.",
         "detections": detections,
-        "warnings": ["Object recognition is unavailable until DigitalOcean multimodal inference is configured."],
+        "warnings": ["Advanced physical-object recognition is unavailable until the GHM Vision provider is configured."],
     }
 
 
@@ -229,8 +229,8 @@ def _normalize_vision_result(raw: dict, inventory: list[Product], media_checked:
         message=(
             "Kitchen Vision analyzed physical objects plus visible packaging. Review suggested changes before applying them; "
             "generic foods can be recognized without labels, while exact brand/SKU/size still requires stronger visual evidence."
-            if mode == "digitalocean_vision"
-            else "OCR fallback is active. Configure DigitalOcean multimodal inference to recognize unlabeled physical products."
+            if mode == "ghm_vision"
+            else "Label-reading fallback is active. Configure GHM Vision to recognize unlabeled physical products."
         ),
     )
 
@@ -290,10 +290,10 @@ async def kitchen_vision(
     if vision_configured():
         try:
             raw_result = analyze_kitchen_frames(images=frames, inventory=inventory_payload)
-            mode = "digitalocean_vision"
+            mode = "ghm_vision"
         except DigitalOceanAIError as exc:
             raw_result = _ocr_fallback(frames, inventory)
-            raw_result.setdefault("warnings", []).append(f"DigitalOcean Vision was unavailable for this scan: {exc}")
+            raw_result.setdefault("warnings", []).append(f"GHM Vision was unavailable for this scan: {exc}")
             mode = "ocr_fallback"
     else:
         raw_result = _ocr_fallback(frames, inventory)
@@ -468,6 +468,10 @@ def _digital_twin(db: Session, house: House) -> HouseholdDigitalTwinOut:
     likely = 0
     today = date.today()
     for product in products:
+        # Expired inventory is never treated as usable stock or a depletion forecast input.
+        # It belongs in the review/discard workflow, not meal/restock reasoning.
+        if product.expiry_date and product.expiry_date < today:
+            continue
         history = events.get(product.id, [])
         intervals: list[float] = []
         quantities = [qty for _, qty in history]
@@ -537,9 +541,14 @@ def household_agent(house_id: int, payload: HouseholdAgentIn, db: Session = Depe
     twin = _digital_twin(db, house)
     inventory = _product_inventory(db, house_id)
     active_list = db.query(ShoppingList).options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product)).filter(ShoppingList.house_id == house_id, ShoppingList.is_done.is_(False)).order_by(ShoppingList.created_at.desc()).first()
+    today = date.today()
+    safe_inventory = [p for p in inventory if not p.expiry_date or p.expiry_date >= today]
+    expired_inventory = [p for p in inventory if p.expiry_date and p.expiry_date < today]
     context = {
         "house": {"id": house.id, "name": house.name, "autopilot_strategy": house.autopilot_strategy, "preferred_stores": house.autopilot_preferred_stores},
-        "inventory": [{"name": p.name, "quantity": p.quantity, "unit": p.unit, "expiry_date": str(p.expiry_date) if p.expiry_date else None} for p in inventory[:120]],
+        "food_safety_rule": "Never recommend eating, cooking with, or using an item whose expiry_date is before today. Expired items are review/discard items only. Items expiring today or soon may be prioritized only before they expire.",
+        "inventory": [{"name": p.name, "quantity": p.quantity, "unit": p.unit, "expiry_date": str(p.expiry_date) if p.expiry_date else None} for p in safe_inventory[:120]],
+        "expired_inventory_do_not_consume": [{"name": p.name, "quantity": p.quantity, "unit": p.unit, "expiry_date": str(p.expiry_date)} for p in expired_inventory[:40]],
         "digital_twin": {
             "products_likely_needed_7d": twin.products_likely_needed_7d,
             "decision_pattern": twin.decision_pattern,
@@ -555,14 +564,14 @@ def household_agent(house_id: int, payload: HouseholdAgentIn, db: Session = Depe
         return HouseholdAgentOut(
             configured=False,
             used_live_agent=False,
-            answer="The DigitalOcean Household Agent is not configured yet. Kitchen Vision and the deterministic Digital Twin can still operate, but conversational agent reasoning requires DIGITALOCEAN_AGENT_URL and DIGITALOCEAN_AGENT_ACCESS_KEY.",
-            message="Agent connector ready; add the DigitalOcean agent credentials in backend/.env.",
+            answer="GHM Household Intelligence is not configured yet. Kitchen Vision and the deterministic Digital Twin can still operate, but conversational household reasoning needs the configured AI agent provider credentials.",
+            message="GHM Household Intelligence connector is ready; add the AI agent provider credentials in backend/.env.",
         )
     try:
         result = ask_household_agent(prompt=payload.prompt, context=context)
     except DigitalOceanAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return HouseholdAgentOut(configured=True, used_live_agent=True, answer=str(result.get("answer") or ""), message="Response generated by the configured DigitalOcean Household Agent using current GHM household context.")
+    return HouseholdAgentOut(configured=True, used_live_agent=True, answer=str(result.get("answer") or ""), message="Response generated by GHM Household Intelligence using current household context.")
 
 
 def _status(run_health: bool = False) -> AISystemStatusOut:
@@ -571,7 +580,7 @@ def _status(run_health: bool = False) -> AISystemStatusOut:
     if run_health and inf_configured:
         inf_health, inf_detail = inference_healthcheck()
     else:
-        inf_health, inf_detail = (None, "Configured; run the system test to verify connectivity.") if inf_configured else (False, "Add DIGITALOCEAN_INFERENCE_KEY and enable DigitalOcean AI.")
+        inf_health, inf_detail = (None, "Configured; run the system test to verify connectivity.") if inf_configured else (False, "Add the GHM Vision provider key and enable the AI integration.")
     if run_health and ag_configured:
         ag_health, ag_detail = agent_healthcheck()
     else:
@@ -585,11 +594,11 @@ def _status(run_health: bool = False) -> AISystemStatusOut:
         approval_required=settings.kitchen_vision_require_approval,
         media_delete_after_analysis=settings.kitchen_media_delete_after_analysis,
         components=[
-            AISystemComponentOut(key="vision", label="DigitalOcean multimodal inference", configured=inf_configured, healthy=inf_health, detail=inf_detail),
+            AISystemComponentOut(key="vision", label="GHM Vision Engine", configured=inf_configured, healthy=inf_health, detail=inf_detail),
             AISystemComponentOut(key="agent", label="GHM Household Agent", configured=ag_configured, healthy=ag_health, detail=ag_detail),
             AISystemComponentOut(key="video", label="Kitchen video frame pipeline", configured=settings.kitchen_vision_allow_video, healthy=True, detail=f"FFmpeg frame sampling supports videos up to {settings.kitchen_vision_max_video_seconds}s."),
             AISystemComponentOut(key="privacy", label="Kitchen media privacy", configured=True, healthy=True, detail="Kitchen media is processed ephemerally by default and is not written to the GHM database."),
-            AISystemComponentOut(key="spaces", label="Private DigitalOcean Spaces", configured=spaces_configured, healthy=None, detail=("Optional private media storage is configured. V93 still processes Kitchen Vision media ephemerally unless a storage workflow is enabled." if spaces_configured else "Optional — not required. Leave Spaces disabled unless you intentionally want to retain private scan media; Kitchen Vision works normally with ephemeral processing.")),
+            AISystemComponentOut(key="spaces", label="Private scan storage", configured=spaces_configured, healthy=None, detail=("Optional private scan storage is configured. Kitchen Vision still processes media ephemerally unless a retention workflow is enabled." if spaces_configured else "Optional — not required. Leave private scan storage disabled unless you intentionally want to retain scan media; Kitchen Vision works normally with ephemeral processing.")),
         ],
     )
 

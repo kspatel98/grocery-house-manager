@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { useHouseLiveRefresh } from '../hooks';
 import ReceiptStudio from '../components/ReceiptStudio';
 import type { House, Product, Receipt, Section, ShoppingList } from '../types';
 
@@ -37,6 +38,7 @@ export default function ReceiptScanPage() {
   }
 
   useEffect(() => { load(); }, [id]);
+  useHouseLiveRefresh(id, load);
 
   return (
     <main className="page shell wide receipt-scan-page v85-receipt-page">

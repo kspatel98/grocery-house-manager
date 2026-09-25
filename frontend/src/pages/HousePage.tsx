@@ -311,7 +311,7 @@ export default function HousePage() {
           <h2>Stop managing every grocery decision yourself.</h2>
           <p>Autopilot connects inventory, meals, shopping, receipts, price history and safety checks to tell your household what needs attention next.</p>
           <div className="v91-autopilot-home-signals">
-            <span className={stats.expiringSoon + stats.expired ? 'attention' : ''}><strong>{stats.expiringSoon + stats.expired}</strong><small>use/review soon</small></span>
+            <span className={stats.expiringSoon + stats.expired ? 'attention' : ''}><strong>{stats.expiringSoon + stats.expired}</strong><small>expiry actions</small></span>
             <span className={stats.lowStock + stats.outOfStock ? 'attention' : ''}><strong>{stats.lowStock + stats.outOfStock}</strong><small>restock signals</small></span>
             <span><strong>{stats.activeListItems}</strong><small>next-trip items</small></span>
             <span><strong>{stats.receiptCount}</strong><small>receipts learning prices</small></span>
@@ -399,6 +399,7 @@ export default function HousePage() {
           <Link to={`/houses/${id}/inventory`}><span>📦</span><strong>Inventory</strong><small>Know what you have</small></Link><i>→</i>
           <Link to={`/houses/${id}/shopping`}><span>🛒</span><strong>Shopping</strong><small>Plan & buy smarter</small></Link><i>→</i>
           <Link to={`/houses/${id}/meals`}><span>🍲</span><strong>Meals</strong><small>Cook at home</small></Link><i>→</i>
+          <Link to={`/houses/${id}/templates`}><span>▤</span><strong>Templates</strong><small>Reuse household flows</small></Link><i>→</i>
           <Link to={`/houses/${id}/scan`}><span>🧾</span><strong>Receipts</strong><small>Scan & record</small></Link><i>→</i>
           <Link to={`/houses/${id}/expenses`}><span>💸</span><strong>Expenses</strong><small>Track & split</small></Link><i>→</i>
           <Link to="/reports"><span>📈</span><strong>Savings</strong><small>See progress</small></Link>

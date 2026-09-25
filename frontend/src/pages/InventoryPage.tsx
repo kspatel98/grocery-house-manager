@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { useHouseLiveRefresh } from '../hooks';
 import { money } from '../currency';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
@@ -20,7 +21,7 @@ export default function InventoryPage() {
   const [direction, setDirection] = useState('asc');
   const [search, setSearch] = useState('');
   const [sectionFilter, setSectionFilter] = useState<number | ''>('');
-  const [productModal, setProductModal] = useState<{ mode: 'create' | 'edit'; product?: Product; sectionId?: number } | null>(null);
+  const [productModal, setProductModal] = useState<{ mode: 'create' | 'edit'; product?: Product; sectionId?: number; scanOnOpen?: boolean } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -83,6 +84,7 @@ export default function InventoryPage() {
     const timer = window.setTimeout(() => { loadProducts(); }, 300);
     return () => window.clearTimeout(timer);
   }, [sortBy, direction, sectionFilter, search]);
+  useHouseLiveRefresh(id, loadAll);
 
   const outOfStock = useMemo(() => products.filter((p) => p.is_out_of_stock || p.quantity <= 0).length, [products]);
   const lowStock = useMemo(() => products.filter((p) => p.is_low_stock && !(p.is_out_of_stock || p.quantity <= 0)).length, [products]);
@@ -97,7 +99,7 @@ export default function InventoryPage() {
           <h1>Your grocery inventory</h1>
           <p>Keep a simple picture of what you already have. Add everyday groceries first; low-stock, expiry, meal, and shopping suggestions will build automatically.</p>
         </div>
-        <button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button>
+        <div className="inventory-hero-actions-v94"><button className="secondary" onClick={() => setProductModal({ mode: 'create', scanOnOpen: true })}>▦ Scan barcode</button><button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button></div>
       </header>
 
       <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="inventory" />

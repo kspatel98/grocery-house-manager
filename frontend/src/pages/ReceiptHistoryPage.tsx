@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { useHouseLiveRefresh } from '../hooks';
 import { money } from '../currency';
 import type { House, Receipt, ReceiptLineItem } from '../types';
 
@@ -89,6 +90,7 @@ export default function ReceiptHistoryPage() {
   }
 
   useEffect(() => { loadReceipts(); }, [id]);
+  useHouseLiveRefresh(id, loadReceipts);
 
   const filteredReceipts = useMemo(() => {
     const needle = query.trim().toLowerCase();

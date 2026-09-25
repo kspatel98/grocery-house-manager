@@ -321,7 +321,7 @@ export default function HousesPage() {
       return { icon: '⚠️', eyebrow: 'Needs attention', title: `${todayBrief.expired.length} expired item${todayBrief.expired.length === 1 ? '' : 's'} to review`, copy: `Check ${todayBrief.expired.slice(0, 3).join(', ')}${todayBrief.expired.length > 3 ? ' and more' : ''} before your next meal or shopping trip.`, to: `/houses/${house.id}/inventory`, cta: 'Review inventory' };
     }
     if (todayBrief.expiring_soon.length) {
-      return { icon: '⏳', eyebrow: 'Use soon', title: `${todayBrief.expiring_soon.length} item${todayBrief.expiring_soon.length === 1 ? '' : 's'} should be used soon`, copy: `${todayBrief.expiring_soon.slice(0, 3).join(', ')}${todayBrief.expiring_soon.length > 3 ? ' and more' : ''}. The Assistant can suggest meals from what you already own.`, to: `/assistant?house=${house.id}`, cta: 'See meal ideas' };
+      return { icon: '⏳', eyebrow: 'Use before expiry', title: `${todayBrief.expiring_soon.length} item${todayBrief.expiring_soon.length === 1 ? '' : 's'} should be used before expiry`, copy: `${todayBrief.expiring_soon.slice(0, 3).join(', ')}${todayBrief.expiring_soon.length > 3 ? ' and more' : ''}. The Assistant can suggest meals from what you already own.`, to: `/assistant?house=${house.id}`, cta: 'See meal ideas' };
     }
     if (todayBrief.suggested_items.length) {
       return { icon: '🛒', eyebrow: 'Next trip', title: `${todayBrief.suggested_items.length} item${todayBrief.suggested_items.length === 1 ? '' : 's'} likely need restocking`, copy: 'The Assistant can add them to your shopping list automatically and prepare your next trip.', to: `/assistant?house=${house.id}`, cta: 'Prepare my trip' };
@@ -574,6 +574,7 @@ export default function HousesPage() {
                   </div>
                 </div>
                 <p>“{review.comment}”</p>
+                {review.admin_reply ? <div className="review-admin-reply-v94"><strong>Grocery House Manager replied</strong><p>{review.admin_reply}</p>{review.admin_replied_at ? <small>{new Date(review.admin_replied_at).toLocaleDateString()}</small> : null}</div> : null}
               </article>
             ))}
           </div>

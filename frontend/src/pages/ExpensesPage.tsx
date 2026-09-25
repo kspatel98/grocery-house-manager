@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { useHouseLiveRefresh } from '../hooks';
 import { money } from '../currency';
 import { useLanguage } from '../i18n';
 import OverlayPortal from '../components/OverlayPortal';
@@ -154,6 +155,7 @@ export default function ExpensesPage() {
     } catch (err) { setError(errorMessage(err)); }
   }
   useEffect(() => { void load(); }, [id]);
+  useHouseLiveRefresh(id, load);
 
   useEffect(() => {
     const rid = Number(params.get('receiptId') || 0); if (!rid || !receipts.length || !members.length || prefilledReceiptRef.current === rid) return;
