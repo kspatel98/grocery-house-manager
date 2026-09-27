@@ -1,5 +1,9 @@
 # Grocery House Manager
 
+## V96 — Household Intelligence & Kitchen Map
+
+V96 keeps the calm V95 **Today → Plan → Shop → Home** experience while making the system underneath substantially smarter: outcome-led public pages and SEO, adaptive Family/Roommate/Couple/Solo onboarding, Shared/Personal/Selected-member inventory ownership, a zone-based Kitchen Map with Quick Scan and Full Kitchen Refresh, coverage-aware “not visible ≠ gone” reconciliation, correct counting of multiple identical physical items, targeted rechecks, and review-first meal consumption updates. See `V96_HOUSEHOLD_INTELLIGENCE_KITCHEN_MAP.md`.
+
 ## V82 — Personal Expenses, Monthly Books & Reimbursement History
 
 Shared Expenses now includes automatic monthly books, a current-month house/personal snapshot, personal spending based on the user's actual expense share, selectable 1/2/4/6/12/24-month or all-time insights, category/month views, and month-grouped reimbursement history. Months are created automatically from expense dates; users never need to create a monthly ledger manually. See `V82_PERSONAL_EXPENSES_MONTHLY_BOOKS.md`.

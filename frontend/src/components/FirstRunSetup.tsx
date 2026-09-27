@@ -46,7 +46,7 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
   }, [status?.complete]);
 
   const nextStep = useMemo(() => status?.steps.find((step) => !step.complete) || null, [status]);
-  const nextIndex = nextStep && status ? status.steps.findIndex((step) => step.key === nextStep.key) + 1 : status?.total_steps || 4;
+  const nextIndex = nextStep && status ? status.steps.findIndex((step) => step.key === nextStep.key) + 1 : status?.total_steps || 3;
 
   if (!status) return null;
 
@@ -58,8 +58,8 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
           <h2>{status.complete ? 'Your Grocery Home is ready' : 'Let’s get your Grocery Home ready'}</h2>
           <p>
             {status.complete
-              ? 'You have the essentials in place. From here, Grocery House Manager can organize your inventory, shopping, receipts, and weekly suggestions automatically.'
-              : 'You only need four real actions. We’ll show one next step at a time and advance the guide automatically as you use the app.'}
+              ? 'The essentials are in place. From here, GHM can connect inventory, shopping, receipts, meals and household predictions without making you learn every feature first.'
+              : 'Three quick actions are enough. GHM reveals deeper tools only after your household has something real to work with.'}
           </p>
           {!status.complete && nextStep?.key === 'house' ? (
             <div className="house-definition-callout">

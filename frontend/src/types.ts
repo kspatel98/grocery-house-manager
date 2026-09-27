@@ -29,6 +29,7 @@ export type House = {
   owner_name?: string;
   owner_plan_name?: PlanName;
   contribute_community_prices?: boolean;
+  household_type?: 'family' | 'roommates' | 'couple' | 'solo' | 'other';
   created_at: string;
 };
 
@@ -65,6 +66,8 @@ export type Product = {
   expiry_date?: string;
   low_stock_threshold?: number;
   notes?: string;
+  usage_scope?: 'shared' | 'personal' | 'selected';
+  usage_member_ids?: number[];
   is_low_stock: boolean;
   is_out_of_stock?: boolean;
   is_expiring_soon: boolean;
@@ -975,6 +978,30 @@ export type AISystemStatus = {
   components: AISystemComponent[];
 };
 
+export type KitchenZone = {
+  id: number;
+  house_id: number;
+  name: string;
+  zone_type: 'fridge' | 'freezer' | 'pantry' | 'cupboard' | 'rack' | 'counter' | 'garage' | 'custom' | string;
+  sort_order: number;
+  is_active: boolean;
+  last_scanned_at?: string | null;
+  last_coverage_percent?: number | null;
+  last_confidence_label?: 'high' | 'medium' | 'low' | string | null;
+  expected_product_count: number;
+  recent_seen_count: number;
+};
+
+export type KitchenVisionNotConfirmed = {
+  product_id: number;
+  product_name: string;
+  current_quantity: number;
+  unit: string;
+  prior_missed_scans: number;
+  status: 'not_confirmed' | 'possible_depletion' | string;
+  reason: string;
+};
+
 export type KitchenVisionDetection = {
   detection_id: string;
   detected_name: string;
@@ -984,22 +1011,37 @@ export type KitchenVisionDetection = {
   current_quantity?: number | null;
   current_unit?: string | null;
   estimated_quantity?: number | null;
+  quantity_min?: number | null;
+  quantity_max?: number | null;
   unit?: string | null;
+  visible_instance_count?: number | null;
+  seen_in_frames: number[];
   remaining_percent?: number | null;
   confidence: number;
   confidence_label: 'high' | 'medium' | 'low' | string;
   evidence: string;
   exact_identity: boolean;
+  visibility_state: 'seen' | 'partially_obscured' | string;
   suggested_action: 'update' | 'add' | 'review' | string;
   notes: string;
 };
 
 export type KitchenVisionResult = {
+  scan_id?: number | null;
   mode: 'ghm_vision' | 'ocr_fallback' | string;
+  scan_mode: 'quick' | 'full' | 'targeted' | string;
+  zone_id?: number | null;
+  zone_name?: string | null;
   media_checked: number;
   frames_analyzed: number;
+  coverage_percent: number;
+  coverage_label: 'limited' | 'partial' | 'good' | 'strong' | string;
+  scan_quality: 'low' | 'medium' | 'high' | string;
   scene_summary: string;
   detections: KitchenVisionDetection[];
+  not_confirmed: KitchenVisionNotConfirmed[];
+  targeted_rechecks: string[];
+  unseen_areas: string[];
   warnings: string[];
   high_confidence_count: number;
   review_count: number;
@@ -1023,6 +1065,7 @@ export type KitchenVisionApplyResponse = {
   ignored: number;
   message: string;
 };
+
 
 export type DigitalTwinProduct = {
   product_id: number;

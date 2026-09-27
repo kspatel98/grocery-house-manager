@@ -134,6 +134,8 @@ class House(Base):
     autopilot_preferred_stores: Mapped[str | None] = mapped_column(Text, nullable=True)
     autopilot_learning_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     autopilot_use_community_recipes: Mapped[bool] = mapped_column(Boolean, default=True)
+    household_type: Mapped[str] = mapped_column(String(24), default="family")
+    onboarding_preferences_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     members: Mapped[list["HouseMember"]] = relationship(back_populates="house", cascade="all, delete-orphan")
@@ -204,6 +206,8 @@ class Product(Base):
     expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     low_stock_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text)
+    usage_scope: Mapped[str] = mapped_column(String(24), default="shared")
+    usage_member_ids_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_bought_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
@@ -211,6 +215,59 @@ class Product(Base):
     section: Mapped[Section] = relationship(back_populates="products")
     shopping_items: Mapped[list["ShoppingListItem"]] = relationship(back_populates="product")
     store_prices: Mapped[list["ProductStorePrice"]] = relationship(back_populates="product", cascade="all, delete-orphan")
+
+
+class KitchenStorageZone(Base):
+    __tablename__ = "kitchen_storage_zones"
+    __table_args__ = (UniqueConstraint("house_id", "name", name="uq_house_kitchen_zone_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    zone_type: Mapped[str] = mapped_column(String(32), default="custom")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_coverage_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_confidence_label: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class KitchenVisionScan(Base):
+    __tablename__ = "kitchen_vision_scans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    zone_id: Mapped[int | None] = mapped_column(ForeignKey("kitchen_storage_zones.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    scan_mode: Mapped[str] = mapped_column(String(24), default="quick")
+    coverage_percent: Mapped[int] = mapped_column(Integer, default=0)
+    coverage_label: Mapped[str] = mapped_column(String(24), default="partial")
+    frames_analyzed: Mapped[int] = mapped_column(Integer, default=0)
+    detections_count: Mapped[int] = mapped_column(Integer, default=0)
+    uncertain_count: Mapped[int] = mapped_column(Integer, default=0)
+    scene_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+
+class KitchenVisionObservation(Base):
+    __tablename__ = "kitchen_vision_observations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scan_id: Mapped[int] = mapped_column(ForeignKey("kitchen_vision_scans.id", ondelete="CASCADE"), index=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    zone_id: Mapped[int | None] = mapped_column(ForeignKey("kitchen_storage_zones.id", ondelete="SET NULL"), nullable=True, index=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True)
+    detected_name: Mapped[str] = mapped_column(String(180))
+    visibility_state: Mapped[str] = mapped_column(String(32), default="seen")
+    visible_instance_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    quantity_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quantity_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0)
+    evidence: Mapped[str] = mapped_column(String(40), default="visual")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
 
 class ShoppingList(Base):

@@ -26,6 +26,8 @@ const AssistantPage = lazy(() => import('./pages/AssistantPage'));
 const MealsPage = lazy(() => import('./pages/MealsPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
+const KitchenVisionPage = lazy(() => import('./pages/KitchenVisionPage'));
+const FeatureLandingPage = lazy(() => import('./pages/FeatureLandingPage'));
 
 function RouteFallback() {
   return <div className="route-fallback-v95" role="status" aria-live="polite"><span>✦</span><strong>Preparing your workspace…</strong></div>;
@@ -56,6 +58,21 @@ export default function App() {
         <Route path="/terms" element={<PublicRoute><TermsPage /></PublicRoute>} />
         <Route path="/refund-policy" element={<PublicRoute><RefundPolicyPage /></PublicRoute>} />
         <Route path="/support" element={<PublicRoute><SupportPage /></PublicRoute>} />
+        <Route path="/how-it-works" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/trust" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/autopilot" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/kitchen-vision" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/household-intelligence" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/receipt-scanner" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/meal-planning" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/grocery-price-intelligence" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/shared-households" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/household-expenses" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/flyers" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/savings" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/families" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/roommates" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/couples" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
         <Route path="/join/:token" element={<RequireAuth><JoinPage /></RequireAuth>} />
         <Route path="/houses" element={<RequireAuth><HousesPage /></RequireAuth>} />
         <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
@@ -70,6 +87,7 @@ export default function App() {
         <Route path="/houses/:houseId/meals" element={<RequireAuth><MealsPage /></RequireAuth>} />
         <Route path="/houses/:houseId/expenses" element={<RequireAuth><ExpensesPage /></RequireAuth>} />
         <Route path="/houses/:houseId/templates" element={<RequireAuth><TemplatesPage /></RequireAuth>} />
+        <Route path="/houses/:houseId/kitchen" element={<RequireAuth><KitchenVisionPage /></RequireAuth>} />
         <Route path="/houses/:houseId/receipts" element={<RequireAuth><ReceiptHistoryPage /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

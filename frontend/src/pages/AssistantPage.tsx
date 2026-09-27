@@ -535,7 +535,7 @@ export default function AssistantPage() {
       </section>
 
       <section className="autopilot-section v93-intelligence-section" data-v95-view="intelligence">
-        <header className="autopilot-section-heading"><div><p className="eyebrow">HOUSEHOLD INTELLIGENCE · DIGITAL TWIN</p><h2>GHM learns how your home actually runs.</h2><p>Predictions come from real purchase cadence, current inventory and the choices your household actually makes—not from made-up AI numbers.</p></div><span className="autopilot-feature-number">AI</span></header>
+        <header className="autopilot-section-heading"><div><p className="eyebrow">HOUSEHOLD FORECAST · LEARNING FROM YOUR HOME</p><h2>GHM learns how your home actually runs.</h2><p>Predictions come from real purchase cadence, current inventory and the choices your household actually makes—not from made-up AI numbers.</p></div><span className="autopilot-feature-number">AI</span></header>
         <div className="v93-twin-grid">
           <article className="v93-twin-overview">
             <div className="v93-twin-orb"><strong>{digitalTwin?.products_likely_needed_7d || 0}</strong><small>likely needed<br/>within 7 days</small></div>
@@ -647,7 +647,7 @@ export default function AssistantPage() {
       </section>
 
       <section id="protect" className="autopilot-section autopilot-protect-section" data-v95-view="protect">
-        <header className="autopilot-section-heading"><div><p className="eyebrow">PROTECT THE HOUSEHOLD</p><h2>Check the things people normally notice too late.</h2><p>Receipt Guardian, official recall screening and Kitchen Check are deliberately conservative: they surface evidence to review rather than making unsafe or accusatory conclusions automatically.</p></div><span className="autopilot-feature-number">03</span></header>
+        <header className="autopilot-section-heading"><div><p className="eyebrow">PROTECT THE HOUSEHOLD</p><h2>Check the things people normally notice too late.</h2><p>Receipt Guardian, official recall screening and Kitchen Vision stay deliberately conservative: they surface evidence to review rather than making unsafe or accusatory conclusions automatically.</p></div><span className="autopilot-feature-number">03</span></header>
         <div className="autopilot-protection-grid">
           <article id="receipt-guardian" className="autopilot-protection-card receipt-guardian-card">
             <header><div className="autopilot-card-icon">🧾</div><div><p className="eyebrow">RECEIPT GUARDIAN</p><h3>Did anything deserve a second look?</h3></div><span className={(autopilot?.receipt_guardian.issues.length || 0) ? 'guardian-count attention' : 'guardian-count'}>{autopilot?.receipt_guardian.issues.length || 0}</span></header>
@@ -663,31 +663,13 @@ export default function AssistantPage() {
             <a className="secondary center-link full" href={autopilot?.recall_guardian.source_url || 'https://recalls-rappels.canada.ca/en'} target="_blank" rel="noreferrer">Government of Canada recalls ↗</a>
           </article>
 
-          <article className="autopilot-protection-card kitchen-check-card v93-kitchen-vision-card">
-            <header><div className="autopilot-card-icon">👁️</div><div><p className="eyebrow">GHM KITCHEN VISION</p><h3>See physical products, not just readable labels</h3></div><span className="badge">Photos + video</span></header>
+          <article className="autopilot-protection-card kitchen-map-gateway-v96">
+            <div className="autopilot-card-title"><span>👁️</span><div><strong>Kitchen Map</strong><small>Scan real storage areas without turning Autopilot into another long workflow.</small></div></div>
             {autopilot?.kitchen_check_unlocked ? <>
-              <p>Upload fridge, freezer or pantry photos—or a short walkthrough video. When GHM Vision is enabled, Kitchen Vision can recognize generic physical foods such as bananas, tomatoes, eggs or milk containers even when no label is readable. Exact brands and sizes still require stronger visual evidence.</p>
-              <div className="v93-kitchen-privacy"><span>🔐</span><div><strong>Private by design</strong><small>Media is processed ephemerally by default. Nothing changes inventory until you review and approve it.</small></div></div>
-              <input ref={kitchenInputRef} className="autopilot-camera-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" capture="environment" multiple />
-              <button className="primary full" type="button" onClick={runKitchenVision} disabled={kitchenBusy}>{kitchenBusy ? 'Analyzing objects, labels and kitchen frames…' : '👁️ Scan with Kitchen Vision'}</button>
-              {kitchenVision ? <div className="v93-kitchen-result">
-                <div className="kitchen-check-summary"><span><strong>{kitchenVision.high_confidence_count}</strong><small>high confidence</small></span><span><strong>{kitchenVision.possible_new_count}</strong><small>possible new</small></span><span><strong>{kitchenVision.frames_analyzed}</strong><small>frames analyzed</small></span></div>
-                <div className={`v93-kitchen-mode ${kitchenVision.mode === 'ghm_vision' ? 'live' : 'fallback'}`}><strong>{kitchenVision.mode === 'ghm_vision' ? 'GHM Vision active' : 'OCR fallback active'}</strong><small>{kitchenVision.scene_summary}</small></div>
-                {kitchenVision.warnings.length ? <div className="v93-kitchen-warnings">{kitchenVision.warnings.map((warning) => <small key={warning}>⚠ {warning}</small>)}</div> : null}
-                <div className="v93-detection-list">{kitchenVision.detections.map((detection) => {
-                  const review = kitchenReview[detection.detection_id];
-                  return <article key={detection.detection_id} className={`v93-detection confidence-${detection.confidence_label}`}>
-                    <header><div><strong>{detection.detected_name}</strong><small>{detection.matched_product_name ? `Matched: ${detection.matched_product_name}` : 'Not in inventory yet'} · {Math.round(detection.confidence * 100)}% · {detection.evidence}</small></div><span>{detection.confidence_label}</span></header>
-                    <p>{detection.notes || 'Review this detection before changing inventory.'}</p>
-                    <div className="v93-detection-values"><span><small>Current</small><strong>{detection.current_quantity != null ? `${detection.current_quantity} ${detection.current_unit || ''}` : '—'}</strong></span><span><small>Vision estimate</small><strong>{detection.estimated_quantity != null ? `~${detection.estimated_quantity} ${detection.unit || ''}` : 'Needs review'}</strong></span>{detection.remaining_percent != null ? <span><small>Visible remaining</small><strong>~{Math.round(detection.remaining_percent)}%</strong></span> : null}</div>
-                    {review ? <div className="v93-detection-review"><select value={review.action} onChange={(event) => updateKitchenReview(detection.detection_id, { action: event.target.value as KitchenVisionReviewItem['action'] })}><option value="ignore">Keep inventory unchanged</option>{detection.matched_product_id ? <option value="update">Update existing inventory</option> : null}<option value="add">Add as new product</option></select>{review.action !== 'ignore' ? <><input value={review.name || ''} onChange={(event) => updateKitchenReview(detection.detection_id, { name: event.target.value })} placeholder="Product name" /><input type="number" min={0} step="0.1" value={review.quantity ?? ''} onChange={(event) => updateKitchenReview(detection.detection_id, { quantity: event.target.value === '' ? null : Number(event.target.value) })} placeholder="Quantity" /><input value={review.unit || ''} onChange={(event) => updateKitchenReview(detection.detection_id, { unit: event.target.value })} placeholder="Unit" /></> : null}</div> : null}
-                  </article>;
-                })}</div>
-                <label className="v93-smart-action-toggle"><input type="checkbox" checked={kitchenAutoRestock} onChange={(event) => setKitchenAutoRestock(event.target.checked)} /><span><strong>Act on confirmed depletion</strong><small>After I approve the scan, add newly low/depleted staples to the active grocery list. Nothing is added unless this is checked.</small></span></label>
-                <div className="v93-kitchen-actions"><button type="button" className="secondary" onClick={() => { setKitchenVision(null); setKitchenReview({}); }}>Discard scan</button><button type="button" className="primary" onClick={applyKitchenVision} disabled={kitchenApplyBusy}>{kitchenApplyBusy ? 'Applying approved changes…' : 'Apply approved changes'}</button></div>
-                <small>{kitchenVision.message}</small>
-              </div> : null}
-            </> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Kitchen Vision is a Household Pro tool</strong><small>Household Pro can use GHM Vision for physical-object recognition, short video frame analysis and review-before-apply inventory reconciliation.</small></div><Link to="/pricing">See Household Pro →</Link></div>}
+              <p>Fridge, freezer, cupboards, pantry, racks and custom areas each keep their own scan history. GHM preserves multiple identical physical units, records scan coverage, and never treats “not visible” as “gone.”</p>
+              <div className="kitchen-map-mini-rules-v96"><span><b>Quick scan</b><small>Check the area you are standing beside.</small></span><span><b>Full refresh</b><small>Walk through several areas when you want a stronger household picture.</small></span><span><b>Review only changes</b><small>Confirmed items stay out of your way.</small></span></div>
+              <Link className="primary center-link full" to={`/houses/${houseId}/kitchen`}>Open Kitchen Vision →</Link>
+            </> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Kitchen Vision is a Household Pro tool</strong><small>Scan storage zones, compare physical observations with inventory, and approve only the changes that matter.</small></div><Link to="/pricing">See Household Pro →</Link></div>}
           </article>
         </div>
       </section>

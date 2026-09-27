@@ -83,6 +83,18 @@ export default function HousePage() {
     }
   }
 
+
+  async function updateHouseholdType(nextType: 'family' | 'roommates' | 'couple' | 'solo' | 'other') {
+    if (!house || house.household_type === nextType) return;
+    try {
+      const { data } = await api.patch<House>(`/houses/${id}`, { household_type: nextType });
+      setHouse(data);
+      window.dispatchEvent(new Event('account:refresh'));
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
   async function leaveHouse() {
     if (!confirm('Leave this house? You will lose access until someone sends you a new invite link.')) return;
     try {
@@ -218,7 +230,7 @@ export default function HousePage() {
             <header><div><p className="eyebrow">INVENTORY HEALTH</p><h2>{stats.totalProducts} tracked products</h2></div><Link to={`/houses/${id}/inventory`}>Open →</Link></header>
             <div className="v95-stock-meter"><span className="healthy" style={{ flex: Math.max(stats.healthy, 1) }} /><span className="warn" style={{ flex: Math.max(stats.lowStock + stats.expiringSoon, .001) }} /><span className="danger" style={{ flex: Math.max(stats.outOfStock + stats.expired, .001) }} /></div>
             <div className="v95-stock-legend"><span><i className="healthy" />Healthy <b>{stats.healthy}</b></span><span><i className="warn" />Needs attention <b>{stats.lowStock + stats.expiringSoon}</b></span><span><i className="danger" />Out / expired <b>{stats.outOfStock + stats.expired}</b></span></div>
-            <div className="v95-home-actions"><Link to={`/houses/${id}/inventory`} className="primary center-link">Manage inventory</Link><Link to={`/assistant?house=${id}&view=protect`} className="secondary center-link">Kitchen Vision</Link></div>
+            <div className="v95-home-actions"><Link to={`/houses/${id}/inventory`} className="primary center-link">Manage inventory</Link><Link to={`/houses/${id}/kitchen`} className="secondary center-link">Kitchen Vision</Link></div>
           </article>
 
           <article className="v95-home-card">
@@ -248,7 +260,7 @@ export default function HousePage() {
         </details>
 
         <section className="v95-house-access">
-          <div><p className="eyebrow">HOUSE ACCESS</p><h3>{isOwner ? 'You own this household' : 'You are a household member'}</h3><p>{isOwner ? 'Delete remains protected until you are the only member.' : 'You can leave at any time. Only the owner can delete the household.'}</p></div>
+          <div><p className="eyebrow">HOUSE ACCESS</p><h3>{isOwner ? 'You own this household' : 'You are a household member'}</h3><p>{isOwner ? 'Choose the household style so GHM can emphasize the right first actions. It changes guidance—not your underlying features.' : 'You can leave at any time. Only the owner can delete the household.'}</p>{isOwner ? <label className="v96-house-type-setting"><span>Household style</span><select value={house?.household_type || 'family'} onChange={(event) => void updateHouseholdType(event.target.value as 'family' | 'roommates' | 'couple' | 'solo' | 'other')}><option value="family">Family</option><option value="roommates">Roommates</option><option value="couple">Couple</option><option value="solo">Just me</option><option value="other">Other</option></select><small>Used only to simplify onboarding and which workflows GHM introduces first.</small></label> : null}</div>
           {isOwner ? <button className="danger-button" onClick={deleteHouse} disabled={!canDelete}>Delete house</button> : <button className="danger-button" onClick={leaveHouse}>Leave house</button>}
         </section>
       </>}

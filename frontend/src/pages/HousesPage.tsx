@@ -18,6 +18,7 @@ function offerStillActive(until?: string | null) {
 export default function HousesPage() {
   const [houses, setHouses] = useState<House[]>([]);
   const [name, setName] = useState('');
+  const [householdType, setHouseholdType] = useState<'family' | 'roommates' | 'couple' | 'solo' | 'other'>('family');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -66,9 +67,10 @@ export default function HousesPage() {
     if (!name.trim()) return;
     try {
       setError('');
-      const { data } = await api.post<House>('/houses', { name: name.trim() });
+      const { data } = await api.post<House>('/houses', { name: name.trim(), household_type: householdType });
       localStorage.setItem('ghm_active_house_id', String(data.id));
       setName('');
+      setHouseholdType('family');
       navigate(`/houses/${data.id}`);
     } catch (err) {
       setError(errorMessage(err));
@@ -121,7 +123,13 @@ export default function HousesPage() {
 
       {(showCreate || houses.length === 0) ? <section className="v95-create-home">
         <div><p className="eyebrow">PRIVATE SHARED SPACE</p><h2>{houses.length ? 'Add another household' : 'Create your first Grocery Home'}</h2><p>Inventory, shopping, receipts, expenses and members stay together. You can keep the name simple.</p></div>
-        {canCreateHouse || houses.length === 0 ? <form onSubmit={createHouse}><input placeholder="Example: Patel Family Home" value={name} onChange={(event) => setName(event.target.value)} /><button className="primary" disabled={!name.trim()}>Create household</button></form> : <div className="upgrade-callout"><strong>Your current plan has reached its household limit.</strong><Link to="/pricing">Compare plans →</Link></div>}
+        {canCreateHouse || houses.length === 0 ? <form onSubmit={createHouse} className="v96-house-create-form"><input placeholder="Example: Patel Family Home" value={name} onChange={(event) => setName(event.target.value)} /><div className="v96-household-type-grid" aria-label="Household type">{[
+          ['family','👨‍👩‍👧‍👦','Family','Meals, expiry and weekly shopping first'],
+          ['roommates','👥','Roommates','Shared lists, expenses and personal items first'],
+          ['couple','♥','Couple','Shared shopping, meals and spending first'],
+          ['solo','●','Just me','A simpler personal household workflow'],
+          ['other','⌂','Other','Keep the setup flexible'],
+        ].map(([key,icon,title,copy]) => <button key={key} type="button" className={householdType === key ? 'active' : ''} onClick={() => setHouseholdType(key as typeof householdType)}><span>{icon}</span><div><strong>{title}</strong><small>{copy}</small></div></button>)}</div><button className="primary" disabled={!name.trim()}>Create household</button></form> : <div className="upgrade-callout"><strong>Your current plan has reached its household limit.</strong><Link to="/pricing">Compare plans →</Link></div>}
       </section> : null}
 
       {onboarding?.complete && (showOffer || offers.length > 0) ? <details className="v95-updates-drawer">

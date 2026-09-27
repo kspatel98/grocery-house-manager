@@ -137,44 +137,54 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
     has_house = house is not None
     products_count = 0
     active_lists = 0
+    receipt_count = 0
     member_count = 0
-    invite_sent = False
+    household_type = (house.household_type if house else "family") or "family"
 
     if house:
         products_count = db.query(Product).filter(Product.house_id == house.id).count()
         active_lists = db.query(ShoppingList).filter(ShoppingList.house_id == house.id, ShoppingList.is_done.is_(False)).count()
+        receipt_count = db.query(Receipt).filter(Receipt.house_id == house.id).count()
         member_count = db.query(HouseMember).filter(HouseMember.house_id == house.id).count()
-        invite_sent = db.query(Invite).filter(Invite.house_id == house.id).count() > 0
 
-    # Four deliberate actions only. The UI automatically advances to the next unfinished action.
+    household_copy = {
+        "family": "Start with the groceries your family buys every week. GHM will begin learning expiry, meals and restocking.",
+        "roommates": "Start with shared staples or scan a receipt. Personal and shared products can stay clearly separated.",
+        "couple": "Start with a few everyday products or scan a receipt so shared shopping and meal planning become useful quickly.",
+        "solo": "Add a few everyday products or scan a receipt. GHM will keep the setup lightweight and personal.",
+        "other": "Add a few everyday products or scan a receipt. GHM will learn from how this household actually works.",
+    }.get(household_type, "Add a few everyday products or scan a receipt so GHM can start learning your home.")
+
+    # Three deliberate actions only. The product becomes useful before teaching every feature.
     steps = [
         OnboardingStepOut(
             key="house",
             title="Create or join your Home",
-            description="A House is your private shared grocery space — inventory, shopping lists, receipts, and household members all live together here.",
+            description="This is the private space where inventory, shopping, receipts, meals and household members stay connected.",
             complete=has_house,
             href="/houses",
         ),
         OnboardingStepOut(
-            key="inventory",
-            title="Add your first 5 groceries",
-            description=f"{min(products_count, 5)} of 5 added. Start with everyday items so Grocery House Manager can immediately become useful.",
-            complete=products_count >= 5,
+            key="teach_home",
+            title="Teach GHM what is already at home",
+            description=(
+                f"{min(products_count, 5)} of 5 starter products added. {household_copy}"
+                if receipt_count == 0
+                else f"Receipt history started. {household_copy}"
+            ),
+            complete=products_count >= 5 or receipt_count > 0,
             href=f"/houses/{house.id}/inventory" if house else "/houses",
         ),
         OnboardingStepOut(
-            key="list",
-            title="Create your first shopping list",
-            description="Add the groceries you need. Everyone in this Home can see the same list and cart status.",
+            key="first_trip",
+            title="Create your first shared shopping trip",
+            description=(
+                "Create one list. Roommates can then invite others and decide which products are shared or personal."
+                if household_type == "roommates"
+                else "Create one grocery list. GHM can then connect stock, meals, prices and the next trip around a real household action."
+            ),
             complete=active_lists > 0,
             href=f"/houses/{house.id}/shopping" if house else "/houses",
-        ),
-        OnboardingStepOut(
-            key="invite",
-            title="Invite someone you shop with",
-            description="Invite a partner, family member, or roommate. Creating an invite also completes this quick-start step.",
-            complete=bool(member_count > 1 or invite_sent),
-            href=f"/houses/{house.id}" if house else "/houses",
         ),
     ]
     completed = sum(1 for step in steps if step.complete)

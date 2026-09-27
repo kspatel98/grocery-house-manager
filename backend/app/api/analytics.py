@@ -20,6 +20,7 @@ _ALLOWED_EVENTS = {
     "shopping_completed",
     "receipt_saved",
     "meal_plan_built",
+    "meal_cooked",
     "kitchen_vision_applied",
     "review_submitted",
     "template_applied",

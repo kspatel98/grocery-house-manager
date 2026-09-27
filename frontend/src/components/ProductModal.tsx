@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { Product, Section } from '../types';
+import type { HouseMember, Product, Section } from '../types';
 import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 import OverlayPortal from './OverlayPortal';
 
@@ -91,7 +91,10 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
     expiry_date: product?.expiry_date || '',
     low_stock_threshold: product?.low_stock_threshold ?? '',
     notes: product?.notes || '',
+    usage_scope: product?.usage_scope || 'shared',
+    usage_member_ids: product?.usage_member_ids || [],
   });
+  const [members, setMembers] = useState<HouseMember[]>([]);
   const [error, setError] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
   const [previewBroken, setPreviewBroken] = useState(false);
@@ -101,6 +104,12 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   const scannerFrameRef = useRef<number | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerError, setScannerError] = useState('');
+
+  useEffect(() => {
+    api.get<HouseMember[]>(`/houses/${houseId}/members`)
+      .then(({ data }) => setMembers(Array.isArray(data) ? data : []))
+      .catch(() => setMembers([]));
+  }, [houseId]);
 
   useEffect(() => {
     if (modal.mode !== 'create' || categoryManuallyChosen.current || !form.name.trim()) return;
@@ -243,6 +252,8 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
       expiry_date: form.expiry_date || null,
       low_stock_threshold: optionalNumber(form.low_stock_threshold),
       notes: form.notes.trim() || null,
+      usage_scope: form.usage_scope,
+      usage_member_ids: form.usage_scope === 'shared' ? [] : form.usage_member_ids,
     };
 
     try {
@@ -284,6 +295,32 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
               <label>Quantity<input type="number" step="0.01" value={form.quantity} onChange={(e) => setField('quantity', e.target.value)} /></label>
               <label>Unit<input placeholder="bags, kg, pcs" value={form.unit} onChange={(e) => setField('unit', e.target.value)} /></label>
             </div>
+          </section>
+
+          <section className="product-form-section product-ownership-section-v96">
+            <div className="product-form-section-head">
+              <div><p className="eyebrow">Who is this for?</p><h3>Shared or personal</h3></div>
+              <small>This helps roommates and families keep shared staples separate from personal items without creating extra lists.</small>
+            </div>
+            <div className="product-scope-options-v96">
+              {[
+                { key: 'shared', icon: '⌂', title: 'Shared household', copy: 'Everyone can use and restock it.' },
+                { key: 'personal', icon: '●', title: 'Personal', copy: 'Primarily belongs to one household member.' },
+                { key: 'selected', icon: '◉', title: 'Selected members', copy: 'Useful for dietary groups or roommates who share only some products.' },
+              ].map((option) => <button type="button" key={option.key} className={form.usage_scope === option.key ? 'active' : ''} onClick={() => setForm((prev) => ({ ...prev, usage_scope: option.key as 'shared' | 'personal' | 'selected', usage_member_ids: option.key === 'shared' ? [] : prev.usage_member_ids }))}><span>{option.icon}</span><div><strong>{option.title}</strong><small>{option.copy}</small></div></button>)}
+            </div>
+            {form.usage_scope !== 'shared' ? <div className="product-member-picker-v96">
+              <strong>{form.usage_scope === 'personal' ? 'Who is it for?' : 'Choose members'}</strong>
+              <div>{members.map((member) => {
+                const checked = form.usage_member_ids.includes(member.user_id);
+                return <label key={member.user_id}><input type="checkbox" checked={checked} onChange={(event) => setForm((prev) => {
+                  const current = prev.usage_member_ids;
+                  const next = event.target.checked ? [...new Set([...current, member.user_id])] : current.filter((id) => id !== member.user_id);
+                  return { ...prev, usage_member_ids: prev.usage_scope === 'personal' && event.target.checked ? [member.user_id] : next };
+                })} /><span>{member.full_name || member.email || `Member ${member.user_id}`}</span></label>;
+              })}</div>
+              <small>{form.usage_scope === 'personal' ? 'Choose one member. If left blank, GHM treats it as yours when saved.' : 'Only the selected people are treated as regular users of this product.'}</small>
+            </div> : null}
           </section>
 
           <section className="product-form-section">

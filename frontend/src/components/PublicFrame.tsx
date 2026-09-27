@@ -41,8 +41,9 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
   const loggedIn = Boolean(localStorage.getItem('token'));
   const publicNavItems = [
     { to: '/', label: t('home') },
+    { to: '/how-it-works', label: 'How it works' },
     { to: '/pricing', label: t('plans') },
-    { to: '/about', label: 'About' },
+    { to: '/trust', label: 'Trust' },
     { to: '/support', label: t('support') },
   ];
   const siteHeaderRef = useRef<HTMLElement>(null);
@@ -138,7 +139,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
         <div className="shell wide site-footer-inner">
           <div>
             <strong>Grocery House Manager</strong>
-            <p>Smart grocery management for organized homes.</p>
+            <p>One household system for what you have, what comes next, and how you shop together.</p>
           </div>
           <div className="footer-brand-stack" aria-label="Product details">
             <span>Product: <strong>Grocery House Manager</strong></span>
@@ -146,7 +147,11 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
             <span>Support: <strong>Fast help for users</strong></span>
           </div>
           <div className="footer-links">
-            <Link to="/about">About</Link>
+            <Link to="/how-it-works">How it works</Link>
+            <Link to="/autopilot">Autopilot</Link>
+            <Link to="/kitchen-vision">Kitchen Vision</Link>
+            <Link to="/families">Families</Link>
+            <Link to="/roommates">Roommates</Link>
             <Link to="/pricing">Plans</Link>
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>

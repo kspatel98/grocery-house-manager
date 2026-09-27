@@ -57,6 +57,7 @@ def serialize_house(house: House, role: HouseRole | None, db: Session) -> HouseO
         owner_name=display_name(owner) if owner else None,
         owner_plan_name=owner.plan_name if owner else None,
         contribute_community_prices=bool(house.contribute_community_prices),
+        household_type=house.household_type or "family",
         created_at=house.created_at,
     )
 
@@ -111,7 +112,7 @@ def list_houses(db: Session = Depends(get_db), user: User = Depends(get_current_
 @router.post("", response_model=HouseOut)
 def create_house(payload: HouseCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     ensure_house_limit(db, user)
-    house = House(name=payload.name, created_by_id=user.id)
+    house = House(name=payload.name, created_by_id=user.id, household_type=payload.household_type)
     db.add(house)
     db.flush()
     db.add(HouseMember(house_id=house.id, user_id=user.id, role=HouseRole.owner))
@@ -135,6 +136,23 @@ def create_house(payload: HouseCreate, db: Session = Depends(get_db), user: User
 def get_house(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     membership = require_house_member(house_id, user, db)
     house = db.get(House, house_id)
+    return serialize_house(house, membership.role, db)
+
+
+@router.patch("/{house_id}", response_model=HouseOut)
+def update_house(house_id: int, payload: HouseUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    membership = require_house_member(house_id, user, db)
+    if membership.role not in {HouseRole.owner, HouseRole.admin}:
+        raise HTTPException(status_code=403, detail="Only a house owner or admin can change household settings.")
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    updates = payload.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(house, key, value)
+    log_activity(db, house_id=house_id, user=user, action="house_settings_updated", message=f"Household settings updated by {display_name(user)}.", entity_type="house", entity_id=house.id)
+    db.commit()
+    db.refresh(house)
     return serialize_house(house, membership.role, db)
 
 

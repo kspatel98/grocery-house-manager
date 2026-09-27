@@ -21,6 +21,7 @@ export default function InventoryPage() {
   const [direction, setDirection] = useState('asc');
   const [search, setSearch] = useState('');
   const [sectionFilter, setSectionFilter] = useState<number | ''>('');
+  const [scopeFilter, setScopeFilter] = useState<'shared' | 'personal' | 'selected' | ''>('');
   const [productModal, setProductModal] = useState<{ mode: 'create' | 'edit'; product?: Product; sectionId?: number; scanOnOpen?: boolean } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,7 +44,7 @@ export default function InventoryPage() {
   async function loadProducts() {
     try {
       const { data } = await api.get<Product[]>(`/houses/${id}/products`, {
-        params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT },
+        params: { sort_by: sortBy, direction, section_id: sectionFilter || undefined, usage_scope: scopeFilter || undefined, search: search || undefined, limit: PRODUCT_PAGE_LIMIT },
       });
       setProducts(data);
       setError('');
@@ -76,6 +77,7 @@ export default function InventoryPage() {
     setProducts([]);
     setSearch('');
     setSectionFilter('');
+    setScopeFilter('');
     setError('');
     setLoading(true);
     loadAll();
@@ -83,7 +85,7 @@ export default function InventoryPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => { loadProducts(); }, 300);
     return () => window.clearTimeout(timer);
-  }, [sortBy, direction, sectionFilter, search]);
+  }, [sortBy, direction, sectionFilter, scopeFilter, search]);
   useHouseLiveRefresh(id, loadAll);
 
   const outOfStock = useMemo(() => products.filter((p) => p.is_out_of_stock || p.quantity <= 0).length, [products]);
@@ -142,6 +144,12 @@ export default function InventoryPage() {
             <option value="">All sections</option>
             {sections.map((s) => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
           </select>
+          <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as typeof scopeFilter)}>
+            <option value="">Everyone + personal</option>
+            <option value="shared">Shared household</option>
+            <option value="personal">Personal</option>
+            <option value="selected">Selected members</option>
+          </select>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
             <option value="name">Product name</option>
             <option value="store_name">Store name</option>
@@ -159,14 +167,14 @@ export default function InventoryPage() {
       </section>
 
       {loading && <section className="panel skeleton-panel">Loading inventory...</section>}
-      {!loading && products.length === 0 && !search && !sectionFilter ? (
+      {!loading && products.length === 0 && !search && !sectionFilter && !scopeFilter ? (
         <section className="guided-empty-state inventory-first-empty">
           <span aria-hidden="true">🥛</span>
           <div><p className="eyebrow">Start with what you already have</p><h2>Add your first grocery</h2><p>Try milk, eggs, rice, bread, or anything your household buys often. Add five everyday items and the guided setup will move you to Shopping automatically.</p></div>
           <button type="button" className="primary" onClick={() => setProductModal({ mode: 'create' })}>Add first grocery</button>
         </section>
       ) : null}
-      {!loading && products.length > 0 && products.length < 5 && !search && !sectionFilter ? (
+      {!loading && products.length > 0 && products.length < 5 && !search && !sectionFilter && !scopeFilter ? (
         <div className="starter-inventory-progress"><span>Quick start</span><strong>{products.length}/5 groceries added</strong><small>Add {5 - products.length} more everyday item{5 - products.length === 1 ? '' : 's'} and the guide will move to your first shopping list.</small></div>
       ) : null}
       <div className="products-grid animated-card-grid">
@@ -188,6 +196,7 @@ export default function InventoryPage() {
                 </div>
               ) : null}
               <div className="badges graphical-badges">
+                <span className={`badge ownership-badge scope-${product.usage_scope || 'shared'}`}>{product.usage_scope === 'personal' ? 'Personal' : product.usage_scope === 'selected' ? 'Selected members' : 'Shared household'}</span>
                 {(product.is_out_of_stock || product.quantity <= 0) && <span className="badge danger">Out of stock</span>}
                 {product.is_expired && <span className="badge danger">Expired</span>}
                 {product.is_low_stock && !(product.is_out_of_stock || product.quantity <= 0) && <span className="badge warning">Low stock</span>}

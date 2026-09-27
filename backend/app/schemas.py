@@ -101,6 +101,12 @@ class ForgotPasswordResetIn(BaseModel):
 
 class HouseCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    household_type: Literal["family", "roommates", "couple", "solo", "other"] = "family"
+
+
+class HouseUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    household_type: Literal["family", "roommates", "couple", "solo", "other"] | None = None
 
 
 class HouseOut(BaseModel):
@@ -110,6 +116,7 @@ class HouseOut(BaseModel):
     owner_name: str | None = None
     owner_plan_name: PlanName | None = None
     contribute_community_prices: bool = False
+    household_type: str = "family"
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -180,6 +187,8 @@ class ProductBase(BaseModel):
     expiry_date: date | None = None
     low_stock_threshold: float | None = None
     notes: str | None = None
+    usage_scope: Literal["shared", "personal", "selected"] = "shared"
+    usage_member_ids: list[int] = Field(default_factory=list, max_length=30)
 
 
 class ProductCreate(ProductBase):
@@ -200,6 +209,8 @@ class ProductUpdate(BaseModel):
     expiry_date: date | None = None
     low_stock_threshold: float | None = None
     notes: str | None = None
+    usage_scope: Literal["shared", "personal", "selected"] | None = None
+    usage_member_ids: list[int] | None = Field(default=None, max_length=30)
 
 
 class ProductStorePriceOut(BaseModel):
@@ -227,6 +238,22 @@ class ProductOut(ProductBase):
     store_prices: list[ProductStorePriceOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class ProductConsumptionItemIn(BaseModel):
+    product_id: int
+    quantity: float = Field(gt=0, le=100000)
+
+
+class ProductConsumptionIn(BaseModel):
+    recipe_name: str = Field(min_length=1, max_length=180)
+    items: list[ProductConsumptionItemIn] = Field(min_length=1, max_length=80)
+
+
+class ProductConsumptionOut(BaseModel):
+    ok: bool = True
+    updated_items: int = 0
+    message: str
 
 
 class ShoppingListItemCreate(BaseModel):
@@ -694,7 +721,7 @@ class OnboardingStepOut(BaseModel):
 class OnboardingStatusOut(BaseModel):
     complete: bool = False
     completed_steps: int = 0
-    total_steps: int = 4
+    total_steps: int = 3
     percent: int = 0
     primary_house_id: int | None = None
     steps: list[OnboardingStepOut] = Field(default_factory=list)
@@ -1498,6 +1525,42 @@ class AISystemStatusOut(BaseModel):
     components: list[AISystemComponentOut] = Field(default_factory=list)
 
 
+class KitchenZoneCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    zone_type: Literal["fridge", "freezer", "pantry", "cupboard", "rack", "counter", "garage", "custom"] = "custom"
+
+
+class KitchenZoneUpdateIn(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    zone_type: Literal["fridge", "freezer", "pantry", "cupboard", "rack", "counter", "garage", "custom"] | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class KitchenZoneOut(BaseModel):
+    id: int
+    house_id: int
+    name: str
+    zone_type: str
+    sort_order: int = 0
+    is_active: bool = True
+    last_scanned_at: datetime | None = None
+    last_coverage_percent: int | None = None
+    last_confidence_label: str | None = None
+    expected_product_count: int = 0
+    recent_seen_count: int = 0
+
+
+class KitchenVisionNotConfirmedOut(BaseModel):
+    product_id: int
+    product_name: str
+    current_quantity: float = 0
+    unit: str = "pcs"
+    prior_missed_scans: int = 0
+    status: str = "not_confirmed"
+    reason: str
+
+
 class KitchenVisionDetectionOut(BaseModel):
     detection_id: str
     detected_name: str
@@ -1507,22 +1570,37 @@ class KitchenVisionDetectionOut(BaseModel):
     current_quantity: float | None = None
     current_unit: str | None = None
     estimated_quantity: float | None = None
+    quantity_min: float | None = None
+    quantity_max: float | None = None
     unit: str | None = None
+    visible_instance_count: int | None = None
+    seen_in_frames: list[int] = Field(default_factory=list)
     remaining_percent: float | None = None
     confidence: float = 0
     confidence_label: str = "low"
     evidence: str = "visual"
     exact_identity: bool = False
+    visibility_state: str = "seen"
     suggested_action: str = "review"
     notes: str = ""
 
 
 class KitchenVisionOut(BaseModel):
+    scan_id: int | None = None
     mode: str = "ghm_vision"
+    scan_mode: str = "quick"
+    zone_id: int | None = None
+    zone_name: str | None = None
     media_checked: int = 0
     frames_analyzed: int = 0
+    coverage_percent: int = 0
+    coverage_label: str = "partial"
+    scan_quality: str = "medium"
     scene_summary: str = ""
     detections: list[KitchenVisionDetectionOut] = Field(default_factory=list)
+    not_confirmed: list[KitchenVisionNotConfirmedOut] = Field(default_factory=list)
+    targeted_rechecks: list[str] = Field(default_factory=list)
+    unseen_areas: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     high_confidence_count: int = 0
     review_count: int = 0
@@ -1540,6 +1618,7 @@ class KitchenVisionApplyItemIn(BaseModel):
 
 
 class KitchenVisionApplyIn(BaseModel):
+    scan_id: int | None = None
     items: list[KitchenVisionApplyItemIn] = Field(default_factory=list, max_length=80)
     add_depleted_staples_to_list: bool = False
 

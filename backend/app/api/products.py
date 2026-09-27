@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import logging
 import difflib
+import json
 import re
 import shutil
 from uuid import uuid4
@@ -13,9 +14,9 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage, choose_receipt_scan_credit_source, consume_extra_receipt_scan_credit
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import CommunityPriceObservation, House, HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus
+from app.models import CommunityPriceObservation, House, HouseMember, HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus
 from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
-from app.schemas import ProductCreate, ProductOut, ProductUpdate, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut, ReceiptDeleteOut
+from app.schemas import ProductCreate, ProductOut, ProductUpdate, ProductConsumptionIn, ProductConsumptionOut, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut, ReceiptDeleteOut
 
 router = APIRouter(prefix="/houses/{house_id}", tags=["products"])
 logger = logging.getLogger(__name__)
@@ -74,6 +75,8 @@ def serialize_product(product: Product) -> ProductOut:
         expiry_date=product.expiry_date,
         low_stock_threshold=product.low_stock_threshold,
         notes=product.notes,
+        usage_scope=product.usage_scope or "shared",
+        usage_member_ids=(json.loads(product.usage_member_ids_json) if product.usage_member_ids_json else []),
         created_at=product.created_at,
         updated_at=product.updated_at,
         is_low_stock=is_low_stock,
@@ -92,6 +95,7 @@ def list_products(
     direction: str = Query(default="asc"),
     section_id: int | None = None,
     search: str | None = None,
+    usage_scope: str | None = Query(default=None),
     limit: int = Query(default=300, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -101,6 +105,8 @@ def list_products(
     query = db.query(Product).options(joinedload(Product.section), joinedload(Product.store_prices)).filter(Product.house_id == house_id)
     if section_id:
         query = query.filter(Product.section_id == section_id)
+    if usage_scope in {'shared', 'personal', 'selected'}:
+        query = query.filter(Product.usage_scope == usage_scope)
     if search:
         pattern = f"%{search.strip()}%"
         query = query.filter(or_(
@@ -115,6 +121,64 @@ def list_products(
     return [serialize_product(product) for product in query.all()]
 
 
+@router.post("/inventory/consume", response_model=ProductConsumptionOut)
+def consume_inventory_for_meal(
+    house_id: int,
+    payload: ProductConsumptionIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Apply only user-confirmed meal consumption to inventory.
+
+    This is intentionally review-first: recipes may suggest likely usage, but GHM never
+    silently decrements stock. Expired products are rejected even when a stale client
+    accidentally includes them.
+    """
+    require_house_member(house_id, user, db)
+    today = date.today()
+    product_ids = [item.product_id for item in payload.items]
+    if len(product_ids) != len(set(product_ids)):
+        raise HTTPException(status_code=400, detail="Each inventory product can be included only once.")
+
+    products = {
+        product.id: product
+        for product in db.query(Product).filter(Product.house_id == house_id, Product.id.in_(product_ids)).all()
+    }
+    if len(products) != len(product_ids):
+        raise HTTPException(status_code=404, detail="One or more inventory products no longer exist. Refresh and try again.")
+
+    for item in payload.items:
+        product = products[item.product_id]
+        if product.expiry_date and product.expiry_date < today:
+            raise HTTPException(status_code=400, detail=f"{product.name} is expired and cannot be recorded as consumed from a meal suggestion.")
+        current = max(float(product.quantity or 0), 0.0)
+        if item.quantity > current + 1e-9:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{product.name} now has only {current:g} {product.unit}. Refresh the meal review before applying consumption.",
+            )
+
+    for item in payload.items:
+        product = products[item.product_id]
+        product.quantity = max(0.0, round(float(product.quantity or 0) - float(item.quantity), 6))
+
+    recipe_name = " ".join(payload.recipe_name.strip().split())[:180]
+    log_activity(
+        db,
+        house_id=house_id,
+        user=user,
+        action="meal_inventory_confirmed",
+        message=f"{display_name(user)} confirmed inventory used for {recipe_name} ({len(payload.items)} item(s)).",
+        entity_type="meal",
+    )
+    db.commit()
+    return ProductConsumptionOut(
+        ok=True,
+        updated_items=len(payload.items),
+        message=f"Inventory updated for {len(payload.items)} confirmed ingredient(s).",
+    )
+
+
 @router.post("/sections/{section_id}/products", response_model=ProductOut)
 def create_product(house_id: int, section_id: int, payload: ProductCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_house_member(house_id, user, db)
@@ -122,10 +186,25 @@ def create_product(house_id: int, section_id: int, payload: ProductCreate, db: S
     section = db.query(Section).filter(Section.id == section_id, Section.house_id == house_id).first()
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
-    existing_product = find_existing_product(db, house_id, payload.name)
-    if existing_product and normalize_name_key(existing_product.name) == normalize_name_key(payload.name):
-        raise HTTPException(status_code=409, detail=f"{existing_product.name} already exists in this inventory. Edit the existing product or add it to your shopping list instead.")
-    product = Product(house_id=house_id, section_id=section_id, **payload.model_dump())
+    member_ids = sorted(set(int(value) for value in payload.usage_member_ids if int(value) > 0))
+    if payload.usage_scope == "personal" and not member_ids:
+        member_ids = [user.id]
+    if payload.usage_scope == "selected" and not member_ids:
+        raise HTTPException(status_code=400, detail="Choose at least one household member for selected-member products.")
+    valid_members = {row.user_id for row in db.query(HouseMember).filter(HouseMember.house_id == house_id).all()}
+    if any(member_id not in valid_members for member_id in member_ids):
+        raise HTTPException(status_code=400, detail="One of the selected household members does not belong to this house.")
+    scope_key = payload.usage_scope or "shared"
+    member_key = json.dumps(member_ids, separators=(",", ":")) if member_ids else None
+    same_named = db.query(Product).filter(Product.house_id == house_id, Product.name.ilike(payload.name.strip())).all()
+    for existing_product in same_named:
+        if normalize_name_key(existing_product.name) != normalize_name_key(payload.name):
+            continue
+        existing_members = existing_product.usage_member_ids_json or None
+        if (existing_product.usage_scope or "shared") == scope_key and existing_members == member_key:
+            raise HTTPException(status_code=409, detail=f"{existing_product.name} already exists for the same household scope. Increase its quantity instead of creating a duplicate row.")
+    data = payload.model_dump(exclude={"usage_member_ids"})
+    product = Product(house_id=house_id, section_id=section_id, usage_member_ids_json=member_key, **data)
     db.add(product)
     db.flush()
     if product.price is not None and product.store_name:
@@ -151,8 +230,19 @@ def _update_product_record(house_id: int, product_id: int, payload: ProductUpdat
         raise HTTPException(status_code=404, detail="Product not found")
 
     updates = payload.model_dump(exclude_unset=True)
+    if "usage_member_ids" in updates:
+        member_ids = sorted(set(int(value) for value in (updates.pop("usage_member_ids") or []) if int(value) > 0))
+        next_scope = str(updates.get("usage_scope") or product.usage_scope or "shared")
+        if next_scope == "personal" and not member_ids:
+            member_ids = [user.id]
+        if next_scope == "selected" and not member_ids:
+            raise HTTPException(status_code=400, detail="Choose at least one household member for selected-member products.")
+        valid_members = {row.user_id for row in db.query(HouseMember).filter(HouseMember.house_id == house_id).all()}
+        if any(member_id not in valid_members for member_id in member_ids):
+            raise HTTPException(status_code=400, detail="One of the selected household members does not belong to this house.")
+        updates["usage_member_ids_json"] = json.dumps(member_ids, separators=(",", ":")) if member_ids else None
     # Remove keys that are intentionally omitted or sent as undefined/null for required fields.
-    cleaned_updates = {key: value for key, value in updates.items() if value is not None or key in {"price", "image_url", "icon", "store_name", "brand", "barcode", "expiry_date", "low_stock_threshold", "notes"}}
+    cleaned_updates = {key: value for key, value in updates.items() if value is not None or key in {"price", "image_url", "icon", "store_name", "brand", "barcode", "expiry_date", "low_stock_threshold", "notes", "usage_member_ids_json"}}
 
     if "section_id" in cleaned_updates:
         section_id = cleaned_updates["section_id"]

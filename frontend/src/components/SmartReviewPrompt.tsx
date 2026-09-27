@@ -49,7 +49,7 @@ export default function SmartReviewPrompt() {
     if (detail.type === 'receipt') return 'Receipt saved successfully ✨';
     if (detail.type === 'shopping') return 'Shopping trip completed 🎉';
     if (detail.type === 'meal_plan') return 'Your meal plan is ready 🍲';
-    if (detail.type === 'inventory_check') return 'Kitchen check completed 📦';
+    if (detail.type === 'inventory_check') return 'Kitchen scan completed 📦';
     return 'Nice household win 🎉';
   }, [detail.type]);
 
@@ -109,7 +109,7 @@ export default function SmartReviewPrompt() {
         <span>✓</span>
         <strong>Thank you for the honest feedback.</strong>
         <p>Your household tip pack is unlocked:</p>
-        <div><small>1. Set low-stock thresholds only for staples you truly replace automatically.</small><small>2. Scan receipts after shopping so prices and the Digital Twin stay useful.</small><small>3. Use Kitchen Vision before a big trip to avoid buying duplicates.</small></div>
+        <div><small>1. Set low-stock thresholds only for staples you truly replace automatically.</small><small>2. Scan receipts after shopping so prices and your household forecast stay useful.</small><small>3. Use Kitchen Vision before a big trip to avoid buying duplicates.</small></div>
         <button className="primary" type="button" onClick={() => setOpen(false)}>Done</button>
       </div>}
     </aside>

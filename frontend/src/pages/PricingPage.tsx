@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import PageMeta from '../components/PageMeta';
 import type { CouponValidation, Plan, PlanName, ReceiptScanPack, Subscription } from '../types';
 
 function formatPrice(value: number) {
@@ -61,7 +62,7 @@ const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanNa
   { title: 'Savings Ledger', description: 'Separates evidence-backed savings from open opportunities so the value of your household routine remains auditable.', minPlan: 'free' },
   { title: 'Household expenses + reimbursements', description: 'Track shared grocery spending, personal share, balances and suggested reimbursements.', minPlan: 'family' },
   { title: 'Nearby store suggestions', description: 'Use your shopping needs and location to find supported nearby grocery options.', minPlan: 'pro' },
-  { title: 'Kitchen Check Beta', description: 'Camera-assisted pantry/fridge reconciliation using visible package labels and stored barcodes. Uncertain items always require confirmation.', minPlan: 'pro' },
+  { title: 'Kitchen Vision + Kitchen Map', description: 'Scan real storage areas with photos or short video. GHM remembers zones, preserves multiple identical units, records coverage and keeps uncertain changes for review.', minPlan: 'pro' },
   { title: 'Large household history and exports', description: 'Higher limits and deeper tracking for multiple houses, extended families and heavy users.', minPlan: 'pro' },
 ];
 
@@ -218,6 +219,7 @@ export default function PricingPage() {
 
   return (
     <main className="page shell wide pricing-page">
+      <PageMeta title="Plans | Grocery House Manager" description="Choose how much household work GHM should take over—from shared basics to receipt intelligence, weekly planning and Kitchen Vision." />
       <header className="topbar">
         <div>
           <Link to={loggedIn ? '/houses' : '/'} className="breadcrumb">← {loggedIn ? 'Houses' : 'Home'}</Link>
@@ -232,6 +234,16 @@ export default function PricingPage() {
           )}
         </div>
       </header>
+
+      <section className="v96-pricing-guide">
+        <div><p className="eyebrow">CHOOSE BY OUTCOME</p><h2>How much household work should GHM take over?</h2><p>Start free, then upgrade when automation saves enough time or money to earn its place.</p></div>
+        <div className="v96-pricing-path">
+          <span><b>Free</b><strong>Build the shared routine</strong><small>Inventory, lists, recall screening and value proof.</small></span>
+          <span><b>Basic</b><strong>Protect the receipt</strong><small>Scanning, Receipt Guardian and private price memory.</small></span>
+          <span><b>Family+</b><strong>Plan the whole week</strong><small>Meals, budget, trip intelligence, expenses and stock-up logic.</small></span>
+          <span><b>Pro</b><strong>Reconcile the physical home</strong><small>Kitchen Map + Vision and deeper household intelligence.</small></span>
+        </div>
+      </section>
 
       <section className="billing-cycle-switch" aria-label="Billing cycle">
         <div>

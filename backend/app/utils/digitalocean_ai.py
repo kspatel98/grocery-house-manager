@@ -55,7 +55,15 @@ def agent_configured() -> bool:
     return bool(settings.digitalocean_agent_enabled and settings.digitalocean_agent_url and settings.digitalocean_agent_access_key)
 
 
-def analyze_kitchen_frames(*, images: list[tuple[bytes, str, str]], inventory: list[dict[str, Any]]) -> dict[str, Any]:
+def analyze_kitchen_frames(
+    *,
+    images: list[tuple[bytes, str, str]],
+    inventory: list[dict[str, Any]],
+    zone: dict[str, Any] | None = None,
+    scan_mode: str = "quick",
+    recognition_memory: list[dict[str, Any]] | None = None,
+    target_products: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     if not vision_configured():
         raise DigitalOceanAIError("GHM Vision provider is not configured.")
     if not images:
@@ -69,43 +77,77 @@ def analyze_kitchen_frames(*, images: list[tuple[bytes, str, str]], inventory: l
             "barcode": row.get("barcode"),
             "quantity": row.get("quantity"),
             "unit": row.get("unit"),
+            "usage_scope": row.get("usage_scope", "shared"),
         }
         for row in inventory[:250]
     ]
-    prompt = f"""
-You are Kitchen Vision for Grocery House Manager. Inspect every supplied kitchen image/frame carefully.
-Your job is to identify physical grocery or household-consumable products, including unlabeled fresh foods.
-Use visual appearance, packaging, readable labels, and visible barcodes when available.
+    memory_payload = (recognition_memory or [])[:120]
+    target_payload = (target_products or [])[:30]
+    zone_payload = zone or {"name": "Unspecified kitchen area", "zone_type": "custom"}
 
-IMPORTANT RULES:
-- Do NOT claim an exact brand/SKU/size unless the visual evidence supports it.
-- Generic objects such as bananas, tomatoes, eggs, onions, bread, milk containers, detergent, toilet paper, etc. may be identified from appearance alone.
-- Quantities are estimates. If you cannot count reliably, use null and say why.
+    prompt = f"""
+You are GHM Kitchen Vision, a conservative household inventory observation system.
+Inspect every supplied image/frame from ONE storage zone. Real kitchens are messy: products can overlap, labels can face backwards, shelves can be crowded, and some items may be fully hidden.
+
+SCAN CONTEXT
+- Storage zone: {json.dumps(zone_payload, ensure_ascii=False)}
+- Scan mode: {scan_mode}
+- Target products for a recheck, if any: {json.dumps(target_payload, ensure_ascii=False)}
+
+CRITICAL PHYSICAL-INSTANCE RULES
+1. Distinguish PRODUCT IDENTITY from PHYSICAL INSTANCES.
+2. If the SAME physical carton appears in frames 1, 2, and 3, count it ONCE.
+3. If three separate identical cartons/cans/tubs are visibly present, preserve all three and set visible_instance_count=3. Do NOT merge legitimate multiple units into one.
+4. Use seen_in_frames to show where the grouped physical instances were observed.
+5. When exact counting is uncertain, use quantity_min/quantity_max and explain the obstruction. Do not create false precision.
+6. estimated_quantity means the inventory quantity only when the visible evidence supports the inventory unit. Example: six eggs -> 6 pcs can be estimated; one half-full 4 L milk jug does NOT justify claiming 2.0 L unless package size and fill level are both supported.
+
+SAFETY / UNCERTAINTY RULES
+- NOT VISIBLE DOES NOT MEAN GONE. Never conclude that an expected product is depleted only because it is absent from these frames.
+- Do NOT claim exact brand/SKU/package size unless the evidence supports it.
+- Generic objects such as bananas, tomatoes, eggs, onions, bread, milk containers, detergent, toilet paper, etc. may be identified from visual appearance alone.
+- Quantities are estimates. Prefer a range when partially blocked.
 - Remaining-percent estimates are allowed only when visually defensible; otherwise null.
 - Match against existing inventory only when reasonably confident. Never invent an inventory id.
-- If multiple frames show the same product, merge them rather than double-counting.
+- Use household recognition memory only as supporting context, never as proof that an unseen item is present.
 - Confidence must be between 0 and 1.
+- coverage_percent estimates HOW MUCH OF THIS STORAGE ZONE WAS VISUALLY INSPECTED, not how many products were recognized.
+- If shelves/drawers/door areas appear unscanned or blocked, list them in unseen_areas.
+- targeted_rechecks should contain at most 5 short, practical prompts such as "Show the lower fridge drawer" or "Show the egg tray more closely".
 - Return ONLY valid JSON. No markdown.
 
-Existing inventory JSON:
+Existing household inventory JSON:
 {json.dumps(inventory_payload, ensure_ascii=False)}
+
+Recent recognition memory for this zone (previous confirmed/observed products):
+{json.dumps(memory_payload, ensure_ascii=False)}
 
 Return this exact structure:
 {{
   "scene_summary": "short summary",
+  "coverage_percent": 0,
+  "coverage_label": "limited|partial|good|strong",
+  "scan_quality": "low|medium|high",
+  "unseen_areas": ["short area description"],
+  "targeted_rechecks": ["short instruction"],
   "detections": [
     {{
       "detected_name": "generic or exact product name",
       "category": "food|beverage|produce|household|other",
       "matched_product_id": 123 or null,
       "matched_product_name": "existing name" or null,
+      "visible_instance_count": 3 or null,
+      "seen_in_frames": [1,2,4],
       "estimated_quantity": number or null,
+      "quantity_min": number or null,
+      "quantity_max": number or null,
       "unit": "pcs|L|kg|pack|unknown",
       "remaining_percent": number or null,
       "confidence": 0.0,
-      "evidence": "visual|label|barcode|combined",
+      "evidence": "visual|label|barcode|combined|household_history",
       "exact_identity": true or false,
-      "notes": "brief uncertainty/reason"
+      "visibility_state": "seen|partially_obscured",
+      "notes": "brief uncertainty/reason; mention occlusion when relevant"
     }}
   ],
   "warnings": ["brief caution if needed"]
@@ -113,14 +155,15 @@ Return this exact structure:
 """.strip()
 
     content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-    for raw, filename, content_type in images[: settings.kitchen_vision_max_frames]:
+    for index, (raw, filename, content_type) in enumerate(images[: settings.kitchen_vision_max_frames], start=1):
+        content.append({"type": "text", "text": f"FRAME {index}"})
         content.append({"type": "image_url", "image_url": {"url": image_data_uri(raw, filename, content_type)}})
 
     payload = {
         "model": settings.digitalocean_vision_model,
         "messages": [{"role": "user", "content": content}],
-        "temperature": 0.1,
-        "max_tokens": 2400,
+        "temperature": 0.05,
+        "max_tokens": 3200,
     }
     url = settings.digitalocean_inference_base_url.rstrip("/") + "/chat/completions"
     try:

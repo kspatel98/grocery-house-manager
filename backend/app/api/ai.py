@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from PIL import Image
 import pytesseract
 from sqlalchemy.orm import Session, joinedload
@@ -24,6 +24,9 @@ from app.db.session import get_db
 from app.models import (
     AutopilotDecision,
     House,
+    KitchenStorageZone,
+    KitchenVisionObservation,
+    KitchenVisionScan,
     Product,
     Receipt,
     ReceiptLineItem,
@@ -42,9 +45,14 @@ from app.schemas import (
     HouseholdDigitalTwinOut,
     KitchenVisionApplyIn,
     KitchenVisionApplyOut,
+    KitchenVisionNotConfirmedOut,
+    KitchenZoneCreateIn,
+    KitchenZoneOut,
+    KitchenZoneUpdateIn,
     KitchenVisionDetectionOut,
     KitchenVisionOut,
 )
+from app.services.kitchen_vision_logic import physical_observation_key
 from app.utils.digitalocean_ai import (
     DigitalOceanAIError,
     agent_configured,
@@ -137,108 +145,475 @@ def _ocr_fallback(frames: list[tuple[bytes, str, str]], inventory: list[Product]
                 "category": "other",
                 "matched_product_id": product.id,
                 "matched_product_name": product.name,
+                "visible_instance_count": None,
+                "seen_in_frames": [],
                 "estimated_quantity": None,
+                "quantity_min": None,
+                "quantity_max": None,
                 "unit": product.unit,
                 "remaining_percent": None,
                 "confidence": 0.72,
                 "evidence": "label",
                 "exact_identity": False,
+                "visibility_state": "seen",
                 "notes": "OCR fallback found readable text matching this inventory product; physical quantity was not inferred.",
             })
     return {
         "scene_summary": "GHM Vision is not configured, so the label-reading fallback checked readable package text only.",
+        "coverage_percent": min(40, max(15, len(frames) * 8)),
+        "coverage_label": "limited",
+        "scan_quality": "low",
+        "unseen_areas": ["Physical coverage cannot be measured reliably in OCR fallback mode."],
+        "targeted_rechecks": [],
         "detections": detections,
         "warnings": ["Advanced physical-object recognition is unavailable until the GHM Vision provider is configured."],
     }
 
 
-def _normalize_vision_result(raw: dict, inventory: list[Product], media_checked: int, frames_analyzed: int, mode: str) -> KitchenVisionOut:
+def _safe_float(value, *, minimum: float | None = None, maximum: float | None = None) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if minimum is not None:
+        number = max(minimum, number)
+    if maximum is not None:
+        number = min(maximum, number)
+    return number
+
+
+def _safe_int(value, *, minimum: int | None = None, maximum: int | None = None) -> int | None:
+    try:
+        number = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    if minimum is not None:
+        number = max(minimum, number)
+    if maximum is not None:
+        number = min(maximum, number)
+    return number
+
+
+def _coverage_label(percent: int) -> str:
+    if percent >= 85:
+        return "strong"
+    if percent >= 65:
+        return "good"
+    if percent >= 35:
+        return "partial"
+    return "limited"
+
+
+def _ensure_default_kitchen_zones(db: Session, house_id: int) -> list[KitchenStorageZone]:
+    zones = (
+        db.query(KitchenStorageZone)
+        .filter(KitchenStorageZone.house_id == house_id, KitchenStorageZone.is_active.is_(True))
+        .order_by(KitchenStorageZone.sort_order.asc(), KitchenStorageZone.id.asc())
+        .all()
+    )
+    if zones:
+        return zones
+    defaults = [
+        ("Fridge", "fridge"),
+        ("Freezer", "freezer"),
+        ("Pantry / cupboard", "pantry"),
+        ("Counter / rack", "rack"),
+    ]
+    zones = []
+    for index, (name, zone_type) in enumerate(defaults):
+        zone = KitchenStorageZone(house_id=house_id, name=name, zone_type=zone_type, sort_order=index)
+        db.add(zone)
+        zones.append(zone)
+    db.commit()
+    for zone in zones:
+        db.refresh(zone)
+    return zones
+
+
+def _zone_recognition_memory(db: Session, house_id: int, zone_id: int | None) -> list[dict]:
+    if not zone_id:
+        return []
+    since = datetime.now(timezone.utc) - timedelta(days=120)
+    rows = (
+        db.query(KitchenVisionObservation)
+        .filter(
+            KitchenVisionObservation.house_id == house_id,
+            KitchenVisionObservation.zone_id == zone_id,
+            KitchenVisionObservation.visibility_state.in_(["seen", "partially_obscured"]),
+            KitchenVisionObservation.created_at >= since,
+        )
+        .order_by(KitchenVisionObservation.created_at.desc())
+        .limit(220)
+        .all()
+    )
+    grouped: dict[str, dict] = {}
+    for row in rows:
+        key = str(row.product_id or row.detected_name.lower())
+        if key in grouped:
+            grouped[key]["observations"] += 1
+            continue
+        product = db.get(Product, row.product_id) if row.product_id else None
+        grouped[key] = {
+            "product_id": row.product_id,
+            "product_name": product.name if product else row.detected_name,
+            "brand": product.brand if product else None,
+            "barcode": product.barcode if product else None,
+            "usual_visible_instances": row.visible_instance_count,
+            "last_confidence": round(float(row.confidence or 0), 3),
+            "observations": 1,
+        }
+    return list(grouped.values())[:120]
+
+
+def _expected_zone_products(db: Session, house_id: int, zone_id: int | None) -> list[Product]:
+    if not zone_id:
+        return []
+    since = datetime.now(timezone.utc) - timedelta(days=120)
+    product_ids = [
+        row[0]
+        for row in (
+            db.query(KitchenVisionObservation.product_id)
+            .filter(
+                KitchenVisionObservation.house_id == house_id,
+                KitchenVisionObservation.zone_id == zone_id,
+                KitchenVisionObservation.product_id.is_not(None),
+                KitchenVisionObservation.visibility_state.in_(["seen", "partially_obscured"]),
+                KitchenVisionObservation.created_at >= since,
+            )
+            .distinct()
+            .all()
+        )
+        if row[0] is not None
+    ]
+    if not product_ids:
+        return []
+    return db.query(Product).filter(Product.house_id == house_id, Product.id.in_(product_ids)).all()
+
+
+def _prior_zone_misses(db: Session, house_id: int, zone_id: int | None, product_id: int) -> int:
+    if not zone_id:
+        return 0
+    since = datetime.now(timezone.utc) - timedelta(days=120)
+    return (
+        db.query(KitchenVisionObservation)
+        .join(KitchenVisionScan, KitchenVisionScan.id == KitchenVisionObservation.scan_id)
+        .filter(
+            KitchenVisionObservation.house_id == house_id,
+            KitchenVisionObservation.zone_id == zone_id,
+            KitchenVisionObservation.product_id == product_id,
+            KitchenVisionObservation.visibility_state == "not_confirmed",
+            KitchenVisionObservation.created_at >= since,
+            KitchenVisionScan.coverage_percent >= 65,
+        )
+        .count()
+    )
+
+
+def _zone_out(db: Session, zone: KitchenStorageZone) -> KitchenZoneOut:
+    since = datetime.now(timezone.utc) - timedelta(days=120)
+    expected = (
+        db.query(KitchenVisionObservation.product_id)
+        .filter(
+            KitchenVisionObservation.zone_id == zone.id,
+            KitchenVisionObservation.product_id.is_not(None),
+            KitchenVisionObservation.visibility_state.in_(["seen", "partially_obscured"]),
+            KitchenVisionObservation.created_at >= since,
+        )
+        .distinct()
+        .count()
+    )
+    recent_since = datetime.now(timezone.utc) - timedelta(days=14)
+    recent_seen = (
+        db.query(KitchenVisionObservation)
+        .filter(
+            KitchenVisionObservation.zone_id == zone.id,
+            KitchenVisionObservation.visibility_state.in_(["seen", "partially_obscured"]),
+            KitchenVisionObservation.created_at >= recent_since,
+        )
+        .count()
+    )
+    return KitchenZoneOut(
+        id=zone.id,
+        house_id=zone.house_id,
+        name=zone.name,
+        zone_type=zone.zone_type,
+        sort_order=zone.sort_order,
+        is_active=zone.is_active,
+        last_scanned_at=zone.last_scanned_at,
+        last_coverage_percent=zone.last_coverage_percent,
+        last_confidence_label=zone.last_confidence_label,
+        expected_product_count=expected,
+        recent_seen_count=recent_seen,
+    )
+
+
+def _normalize_vision_result(
+    raw: dict,
+    inventory: list[Product],
+    media_checked: int,
+    frames_analyzed: int,
+    mode: str,
+    *,
+    scan_mode: str,
+    zone: KitchenStorageZone | None,
+    db: Session,
+    house_id: int,
+    user_id: int,
+) -> KitchenVisionOut:
     by_id = {product.id: product for product in inventory}
     detections: list[KitchenVisionDetectionOut] = []
-    seen: set[str] = set()
+    seen_products: set[int] = set()
+    seen_keys: set[str] = set()
+    coverage = _safe_int(raw.get("coverage_percent"), minimum=0, maximum=100)
+    if coverage is None:
+        coverage = min(90, max(20, frames_analyzed * (12 if scan_mode == "full" else 8)))
+    coverage_label = str(raw.get("coverage_label") or _coverage_label(coverage)).lower()
+    if coverage_label not in {"limited", "partial", "good", "strong"}:
+        coverage_label = _coverage_label(coverage)
+    scan_quality = str(raw.get("scan_quality") or ("high" if coverage >= 80 else "medium" if coverage >= 45 else "low")).lower()
+    if scan_quality not in {"low", "medium", "high"}:
+        scan_quality = "medium"
+
     for index, row in enumerate(raw.get("detections") or []):
         if not isinstance(row, dict):
             continue
-        try:
-            confidence = max(0.0, min(float(row.get("confidence") or 0), 1.0))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        matched_id = row.get("matched_product_id")
-        try:
-            matched_id = int(matched_id) if matched_id is not None else None
-        except (TypeError, ValueError):
-            matched_id = None
+        confidence = _safe_float(row.get("confidence"), minimum=0, maximum=1) or 0.0
+        matched_id = _safe_int(row.get("matched_product_id"), minimum=1)
         product = by_id.get(matched_id) if matched_id else None
         if matched_id and product is None:
             matched_id = None
         detected_name = str(row.get("detected_name") or row.get("matched_product_name") or "Unknown item").strip()[:180]
-        merge_key = f"{matched_id or 0}:{detected_name.lower()}"
-        if merge_key in seen:
+        visible_instances = _safe_int(row.get("visible_instance_count"), minimum=0, maximum=500)
+        frame_values: list[int] = []
+        for value in row.get("seen_in_frames") or []:
+            parsed = _safe_int(value, minimum=1, maximum=max(frames_analyzed, 1))
+            if parsed is not None and parsed not in frame_values:
+                frame_values.append(parsed)
+        # The model should already group the same physical object across frames. This key only protects
+        # against accidental duplicate groups with identical evidence; legitimate multiple identical
+        # units stay represented by visible_instance_count rather than being collapsed here.
+        merge_key = physical_observation_key(matched_id, detected_name, visible_instances, frame_values)
+        if merge_key in seen_keys:
             continue
-        seen.add(merge_key)
-        est_qty = row.get("estimated_quantity")
-        try:
-            est_qty = max(float(est_qty), 0) if est_qty is not None else None
-        except (TypeError, ValueError):
-            est_qty = None
-        remaining = row.get("remaining_percent")
-        try:
-            remaining = max(0.0, min(float(remaining), 100.0)) if remaining is not None else None
-        except (TypeError, ValueError):
-            remaining = None
+        seen_keys.add(merge_key)
+        if product:
+            seen_products.add(product.id)
+        est_qty = _safe_float(row.get("estimated_quantity"), minimum=0)
+        qty_min = _safe_float(row.get("quantity_min"), minimum=0)
+        qty_max = _safe_float(row.get("quantity_max"), minimum=0)
+        if qty_min is not None and qty_max is not None and qty_min > qty_max:
+            qty_min, qty_max = qty_max, qty_min
+        remaining = _safe_float(row.get("remaining_percent"), minimum=0, maximum=100)
         exact = bool(row.get("exact_identity"))
         label = _confidence_label(confidence)
-        if product and est_qty is not None and confidence >= 0.80:
-            suggested_action = "update"
-        elif not product and confidence >= 0.88 and detected_name.lower() != "unknown item":
+        visibility_state = str(row.get("visibility_state") or "seen")[:32]
+        if visibility_state not in {"seen", "partially_obscured"}:
+            visibility_state = "seen"
+        current_quantity = float(product.quantity) if product else None
+        # Conservative suggestion rule: a high-confidence positive observation can support an update,
+        # but a lower visible count must not silently imply the missing units are gone unless the scan
+        # was strong/full. Even then the user must approve it.
+        suggested_action = "review"
+        if product and est_qty is not None and confidence >= 0.88:
+            if current_quantity is None or est_qty >= current_quantity:
+                suggested_action = "update"
+            elif scan_mode == "full" and coverage >= 85 and visibility_state == "seen":
+                suggested_action = "review"
+        elif not product and confidence >= 0.90 and detected_name.lower() != "unknown item":
             suggested_action = "add"
-        else:
-            suggested_action = "review"
         detections.append(KitchenVisionDetectionOut(
             detection_id=f"kv-{index}-{uuid.uuid4().hex[:8]}",
             detected_name=detected_name,
             category=str(row.get("category") or "other")[:40],
             matched_product_id=product.id if product else None,
             matched_product_name=product.name if product else None,
-            current_quantity=float(product.quantity) if product else None,
+            current_quantity=current_quantity,
             current_unit=product.unit if product else None,
             estimated_quantity=est_qty,
+            quantity_min=qty_min,
+            quantity_max=qty_max,
             unit=str(row.get("unit") or (product.unit if product else "unknown"))[:32],
+            visible_instance_count=visible_instances,
+            seen_in_frames=frame_values,
             remaining_percent=remaining,
             confidence=round(confidence, 3),
             confidence_label=label,
             evidence=str(row.get("evidence") or "visual")[:40],
             exact_identity=exact,
+            visibility_state=visibility_state,
             suggested_action=suggested_action,
             notes=str(row.get("notes") or "")[:600],
         ))
+
+    expected_products = _expected_zone_products(db, house_id, zone.id if zone else None)
+    not_confirmed: list[KitchenVisionNotConfirmedOut] = []
+    for product in expected_products:
+        if product.id in seen_products or float(product.quantity or 0) <= 0:
+            continue
+        misses = _prior_zone_misses(db, house_id, zone.id if zone else None, product.id)
+        reason = "Not visible in this scan. GHM keeps the recorded quantity unchanged because hidden or blocked products may still be present."
+        if scan_mode == "full" and coverage >= 85 and misses >= 1:
+            reason = "Not confirmed in another strong scan. This may be depleted, but GHM will not reduce inventory until you explicitly confirm it."
+        not_confirmed.append(KitchenVisionNotConfirmedOut(
+            product_id=product.id,
+            product_name=product.name,
+            current_quantity=float(product.quantity or 0),
+            unit=product.unit,
+            prior_missed_scans=misses,
+            status="possible_depletion" if scan_mode == "full" and coverage >= 85 and misses >= 1 else "not_confirmed",
+            reason=reason,
+        ))
+
+    targeted = [str(item).strip()[:180] for item in (raw.get("targeted_rechecks") or []) if str(item).strip()][:5]
+    # If the model did not produce useful rechecks, make conservative, context-aware prompts.
+    if not targeted:
+        for detection in detections:
+            if detection.confidence_label != "high" and len(targeted) < 3:
+                targeted.append(f"Show {detection.detected_name} more clearly from one close angle.")
+        for row in not_confirmed[: max(0, 5 - len(targeted))]:
+            targeted.append(f"If convenient, show where {row.product_name} is usually stored.")
+    unseen_areas = [str(item).strip()[:180] for item in (raw.get("unseen_areas") or []) if str(item).strip()][:8]
+    warnings = [str(item)[:400] for item in (raw.get("warnings") or []) if str(item).strip()][:8]
+
     high = sum(1 for row in detections if row.confidence_label == "high")
     new = sum(1 for row in detections if row.matched_product_id is None)
     review = sum(1 for row in detections if row.suggested_action == "review")
-    warnings = [str(item)[:400] for item in (raw.get("warnings") or []) if str(item).strip()][:8]
+    scene_summary = str(raw.get("scene_summary") or "Kitchen scan analyzed.")[:1000]
+
+    scan = KitchenVisionScan(
+        house_id=house_id,
+        zone_id=zone.id if zone else None,
+        user_id=user_id,
+        scan_mode=scan_mode,
+        coverage_percent=coverage,
+        coverage_label=coverage_label,
+        frames_analyzed=frames_analyzed,
+        detections_count=len(detections),
+        uncertain_count=review + len(not_confirmed),
+        scene_summary=scene_summary,
+    )
+    db.add(scan)
+    db.flush()
+    for detection in detections:
+        db.add(KitchenVisionObservation(
+            scan_id=scan.id,
+            house_id=house_id,
+            zone_id=zone.id if zone else None,
+            product_id=detection.matched_product_id,
+            detected_name=detection.detected_name,
+            visibility_state=detection.visibility_state,
+            visible_instance_count=detection.visible_instance_count,
+            quantity_min=detection.quantity_min,
+            quantity_max=detection.quantity_max,
+            confidence=detection.confidence,
+            evidence=detection.evidence,
+            notes=detection.notes,
+        ))
+    for row in not_confirmed:
+        db.add(KitchenVisionObservation(
+            scan_id=scan.id,
+            house_id=house_id,
+            zone_id=zone.id if zone else None,
+            product_id=row.product_id,
+            detected_name=row.product_name,
+            visibility_state="not_confirmed",
+            confidence=0,
+            evidence="coverage",
+            notes=row.reason,
+        ))
+    if zone:
+        zone.last_scanned_at = datetime.now(timezone.utc)
+        zone.last_coverage_percent = coverage
+        zone.last_confidence_label = "high" if coverage >= 85 and high >= max(1, len(detections) // 2) else "medium" if coverage >= 50 else "low"
+        db.add(zone)
+    db.commit()
+
     return KitchenVisionOut(
+        scan_id=scan.id,
         mode=mode,
+        scan_mode=scan_mode,
+        zone_id=zone.id if zone else None,
+        zone_name=zone.name if zone else None,
         media_checked=media_checked,
         frames_analyzed=frames_analyzed,
-        scene_summary=str(raw.get("scene_summary") or "Kitchen scan analyzed.")[:1000],
+        coverage_percent=coverage,
+        coverage_label=coverage_label,
+        scan_quality=scan_quality,
+        scene_summary=scene_summary,
         detections=detections[:80],
+        not_confirmed=not_confirmed[:80],
+        targeted_rechecks=targeted,
+        unseen_areas=unseen_areas,
         warnings=warnings,
         high_confidence_count=high,
         review_count=review,
         possible_new_count=new,
         message=(
-            "Kitchen Vision analyzed physical objects plus visible packaging. Review suggested changes before applying them; "
-            "generic foods can be recognized without labels, while exact brand/SKU/size still requires stronger visual evidence."
+            "GHM Kitchen Vision counted visible physical instances without collapsing legitimate multiple units. Hidden products are treated as not confirmed, never automatically gone. Review only the suggested changes before applying them."
             if mode == "ghm_vision"
-            else "Label-reading fallback is active. Configure GHM Vision to recognize unlabeled physical products."
+            else "Label-reading fallback is active. GHM did not infer missing physical products or destructive quantity changes."
         ),
     )
+
+
+@router.get("/houses/{house_id}/kitchen-zones", response_model=list[KitchenZoneOut])
+def list_kitchen_zones(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    zones = _ensure_default_kitchen_zones(db, house_id)
+    return [_zone_out(db, zone) for zone in zones if zone.is_active]
+
+
+@router.post("/houses/{house_id}/kitchen-zones", response_model=KitchenZoneOut)
+def create_kitchen_zone(house_id: int, payload: KitchenZoneCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    existing = db.query(KitchenStorageZone).filter(KitchenStorageZone.house_id == house_id, KitchenStorageZone.name.ilike(payload.name.strip())).first()
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            existing.zone_type = payload.zone_type
+            db.commit()
+            db.refresh(existing)
+            return _zone_out(db, existing)
+        raise HTTPException(status_code=409, detail="A kitchen area with this name already exists.")
+    max_sort = max([row.sort_order for row in db.query(KitchenStorageZone).filter(KitchenStorageZone.house_id == house_id).all()] or [-1])
+    zone = KitchenStorageZone(house_id=house_id, name=payload.name.strip(), zone_type=payload.zone_type, sort_order=max_sort + 1)
+    db.add(zone)
+    db.commit()
+    db.refresh(zone)
+    return _zone_out(db, zone)
+
+
+@router.patch("/houses/{house_id}/kitchen-zones/{zone_id}", response_model=KitchenZoneOut)
+def update_kitchen_zone(house_id: int, zone_id: int, payload: KitchenZoneUpdateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    zone = db.query(KitchenStorageZone).filter(KitchenStorageZone.id == zone_id, KitchenStorageZone.house_id == house_id).first()
+    if not zone:
+        raise HTTPException(status_code=404, detail="Kitchen area not found.")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(zone, key, value)
+    db.commit()
+    db.refresh(zone)
+    return _zone_out(db, zone)
+
+
+@router.delete("/houses/{house_id}/kitchen-zones/{zone_id}")
+def archive_kitchen_zone(house_id: int, zone_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    zone = db.query(KitchenStorageZone).filter(KitchenStorageZone.id == zone_id, KitchenStorageZone.house_id == house_id).first()
+    if not zone:
+        raise HTTPException(status_code=404, detail="Kitchen area not found.")
+    zone.is_active = False
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/houses/{house_id}/kitchen-vision", response_model=KitchenVisionOut)
 async def kitchen_vision(
     house_id: int,
     media: list[UploadFile] = File(...),
+    zone_id: int | None = Form(default=None),
+    scan_mode: str = Form(default="quick"),
+    target_product_ids_json: str | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -247,10 +622,34 @@ async def kitchen_vision(
         raise HTTPException(status_code=503, detail="Kitchen Vision is disabled for this deployment.")
     if not house_plan_has_kitchen_check(db, house_id):
         raise HTTPException(status_code=402, detail="Kitchen Vision requires Household Pro.")
+    if scan_mode not in {"quick", "full", "targeted"}:
+        raise HTTPException(status_code=400, detail="Kitchen Vision scan mode must be quick, full, or targeted.")
     if not media:
         raise HTTPException(status_code=400, detail="Add at least one kitchen photo or short video.")
     if len(media) > settings.kitchen_vision_max_files:
         raise HTTPException(status_code=400, detail=f"Kitchen Vision accepts up to {settings.kitchen_vision_max_files} files per scan.")
+
+    zone: KitchenStorageZone | None = None
+    if zone_id:
+        zone = db.query(KitchenStorageZone).filter(
+            KitchenStorageZone.id == zone_id,
+            KitchenStorageZone.house_id == house_id,
+            KitchenStorageZone.is_active.is_(True),
+        ).first()
+        if not zone:
+            raise HTTPException(status_code=404, detail="Kitchen area not found.")
+    else:
+        zones = _ensure_default_kitchen_zones(db, house_id)
+        zone = zones[0] if zones else None
+
+    target_ids: list[int] = []
+    if target_product_ids_json:
+        try:
+            parsed = json.loads(target_product_ids_json)
+            if isinstance(parsed, list):
+                target_ids = [int(value) for value in parsed[:30] if str(value).isdigit()]
+        except Exception:
+            raise HTTPException(status_code=400, detail="Target product ids were not valid JSON.")
 
     frames: list[tuple[bytes, str, str]] = []
     media_checked = 0
@@ -284,12 +683,34 @@ async def kitchen_vision(
 
     inventory = _product_inventory(db, house_id)
     inventory_payload = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "brand": p.brand,
+            "barcode": p.barcode,
+            "quantity": p.quantity,
+            "unit": p.unit,
+            "usage_scope": p.usage_scope or "shared",
+        }
+        for p in inventory
+    ]
+    zone_payload = {"id": zone.id, "name": zone.name, "zone_type": zone.zone_type} if zone else None
+    recognition_memory = _zone_recognition_memory(db, house_id, zone.id if zone else None)
+    target_products = [
         {"id": p.id, "name": p.name, "brand": p.brand, "barcode": p.barcode, "quantity": p.quantity, "unit": p.unit}
         for p in inventory
+        if p.id in target_ids
     ]
     if vision_configured():
         try:
-            raw_result = analyze_kitchen_frames(images=frames, inventory=inventory_payload)
+            raw_result = analyze_kitchen_frames(
+                images=frames,
+                inventory=inventory_payload,
+                zone=zone_payload,
+                scan_mode=scan_mode,
+                recognition_memory=recognition_memory,
+                target_products=target_products,
+            )
             mode = "ghm_vision"
         except DigitalOceanAIError as exc:
             raw_result = _ocr_fallback(frames, inventory)
@@ -298,7 +719,18 @@ async def kitchen_vision(
     else:
         raw_result = _ocr_fallback(frames, inventory)
         mode = "ocr_fallback"
-    return _normalize_vision_result(raw_result, inventory, media_checked, len(frames), mode)
+    return _normalize_vision_result(
+        raw_result,
+        inventory,
+        media_checked,
+        len(frames),
+        mode,
+        scan_mode=scan_mode,
+        zone=zone,
+        db=db,
+        house_id=house_id,
+        user_id=user.id,
+    )
 
 
 def _get_or_create_vision_section(db: Session, house_id: int) -> Section:
