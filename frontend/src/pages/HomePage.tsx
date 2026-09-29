@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import PageMeta from '../components/PageMeta';
+import HouseholdWorld from '../components/HouseholdWorld';
 import type { SiteReviewSummary } from '../types';
 
 const outcomeCards = [
@@ -95,14 +96,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="v96-today-preview" aria-label="GHM Today preview">
-          <div className="v96-preview-top"><span>GHM · TODAY</span><b>Friday</b></div>
-          <h2>2 things deserve attention.</h2>
-          <article className="v96-preview-action primary-action"><span>🥛</span><div><small>PREDICTION</small><strong>Milk likely needed tomorrow</strong><p>Based on recent household purchase cadence.</p></div><b>→</b></article>
-          <article className="v96-preview-action"><span>🥬</span><div><small>USE BEFORE EXPIRY</small><strong>Spinach should be used by Sunday</strong><p>Still within its recorded expiry date.</p></div><b>→</b></article>
-          <div className="v96-preview-proof"><span><small>Verified this month</small><strong>$18.40</strong></span><span><small>Open opportunities</small><strong>$7.25</strong></span></div>
-          <p className="v96-preview-note">The complex systems stay underneath. You review the decisions that matter.</p>
-        </div>
+        <HouseholdWorld variant="public" />
       </section>
 
       <section className="v96-outcome-section shell wide">

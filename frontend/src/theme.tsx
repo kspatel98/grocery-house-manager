@@ -18,6 +18,14 @@ export function getSavedTheme(): AppTheme {
 export function applyTheme(theme: AppTheme) {
   document.documentElement.dataset.ghmTheme = theme;
   document.documentElement.style.colorScheme = theme;
+  const themeColor = theme === 'dark' ? '#07130f' : '#f4f7f1';
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+  }
+  meta.content = themeColor;
   try {
     localStorage.setItem(STORAGE_KEY, theme);
     localStorage.setItem(LEGACY_KEY, theme);

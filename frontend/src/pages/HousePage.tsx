@@ -6,6 +6,7 @@ import { money } from '../currency';
 import { useHouseLiveRefresh } from '../hooks';
 import type { Activity, AutopilotOverview, ExpenseSummary, House, HouseMember, Product, Receipt, ShoppingList, User } from '../types';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
+import HouseholdWorld from '../components/HouseholdWorld';
 
 const PRODUCT_PAGE_LIMIT = 240;
 type HouseTab = 'today' | 'home' | 'money' | 'activity';
@@ -203,12 +204,14 @@ export default function HousePage() {
           <Link to={focus.to} className="primary center-link">{focus.cta}</Link>
         </section>
 
-        <section className="v95-signal-grid" aria-label="Today at a glance">
-          <article><small>Next trip</small><strong>{stats.activeListItems}</strong><span>items to buy</span></article>
-          <article className={stats.expiringSoon ? 'attention' : ''}><small>Use before expiry</small><strong>{stats.expiringSoon}</strong><span>still safe to plan</span></article>
-          <article className={stats.expired ? 'danger' : ''}><small>Expired</small><strong>{stats.expired}</strong><span>review / discard</span></article>
-          <article><small>Verified savings</small><strong>{money(autopilot?.verified_savings || 0, autopilot?.currency_code)}</strong><span>{autopilot?.savings_ledger.month_label || 'this month'}</span></article>
-        </section>
+        <HouseholdWorld
+          variant="app"
+          houseId={id}
+          itemsToBuy={stats.activeListItems}
+          useSoon={stats.expiringSoon}
+          expired={stats.expired}
+          verifiedSavings={money(autopilot?.verified_savings || 0, autopilot?.currency_code)}
+        />
 
         <section className="v95-next-grid">
           <Link to={`/assistant?house=${id}&view=plan`}><span>🍲</span><div><small>PLAN</small><strong>Plan the week</strong><p>Meals, servings, use-soon food and grocery gaps.</p></div><b>→</b></Link>
