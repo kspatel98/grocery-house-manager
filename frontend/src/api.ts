@@ -45,8 +45,17 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const requestUrl = String(error.config?.url || "");
+    const status = Number(error.response?.status || 0);
+    const method = String(error.config?.method || "get").toLowerCase();
+    const config = error.config as any;
+    const transient = status === 502 || status === 503 || (!error.response && Boolean(error.request));
+    if (transient && method === "get" && !requestUrl.includes("/health/") && Number(config?._ghmRetryCount || 0) < 2) {
+      config._ghmRetryCount = Number(config._ghmRetryCount || 0) + 1;
+      await new Promise((resolve) => window.setTimeout(resolve, 650 * config._ghmRetryCount));
+      return api.request(config);
+    }
     const isAuthAttempt = [
       "/auth/login",
       "/auth/register",
@@ -90,7 +99,30 @@ export function errorMessage(error: unknown): string {
     const topMessage = error.response?.data?.message;
     if (typeof topMessage === "string" && topMessage.trim()) return topMessage;
 
+    if (error.response?.status === 502) return "GHM reached the server, but the household service is temporarily unavailable. Your data is not deleted. Please retry in a moment.";
+    if (error.response?.status === 503) return typeof detail === "string" ? detail : "GHM is reconnecting to your household data. Please retry in a moment.";
+    if (!error.response && error.request) return "GHM could not reach the server. Check your connection and try again.";
     return error.message || "Something went wrong";
   }
   return "Something went wrong";
+}
+
+
+export async function probeApiHealth(): Promise<{ live: boolean; ready: boolean; detail?: string }> {
+  try {
+    const live = await axios.get(`${API_URL}/health/live`, { timeout: 5000, headers: { "Cache-Control": "no-cache" } });
+    if (live.status < 200 || live.status >= 300) return { live: false, ready: false, detail: "GHM service is not responding." };
+  } catch (error) {
+    return { live: false, ready: false, detail: axios.isAxiosError(error) ? error.message : "GHM service is not responding." };
+  }
+  try {
+    const ready = await axios.get(`${API_URL}/health/ready`, { timeout: 5000, headers: { "Cache-Control": "no-cache" } });
+    return { live: true, ready: ready.status >= 200 && ready.status < 300 };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const detail = error.response?.data?.detail;
+      return { live: true, ready: false, detail: typeof detail === "string" ? detail : "GHM is reconnecting to your household data." };
+    }
+    return { live: true, ready: false, detail: "GHM is reconnecting to your household data." };
+  }
 }

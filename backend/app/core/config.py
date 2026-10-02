@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     # Optional Google Maps Platform Places API key for nearby grocery store search.
     google_places_api_key: str | None = None
 
+
+    # V98 contextual Food Tonight / nearby place suggestions. Reuses the existing
+    # Google Places API (New) key; no restaurant-ordering marketplace key is required.
+    food_places_enabled: bool = True
+    food_places_radius_meters: int = 8000
+    food_places_max_results: int = 8
+    food_places_cache_minutes: int = 30
+    food_menu_fetch_timeout_seconds: int = 10
+
     # Grocery market/product data integrations.
     # Open Food Facts is used for universal barcode/product details. It does not provide live store pricing.
     open_food_facts_base_url: str = "https://world.openfoodfacts.org"

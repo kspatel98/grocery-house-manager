@@ -69,6 +69,7 @@ export default function AssistantPage() {
   const [agentAnswer, setAgentAnswer] = useState<HouseholdAgentResponse | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
   const [communityPriceBusy, setCommunityPriceBusy] = useState(false);
+  const [foodSuggestionsReady, setFoodSuggestionsReady] = useState(false);
   const [controlsBusy, setControlsBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState('');
   const kitchenInputRef = useRef<HTMLInputElement | null>(null);
@@ -161,6 +162,7 @@ export default function AssistantPage() {
   }
 
   useEffect(() => { loadHouses(); }, []);
+  useEffect(() => { void api.get<{ configured: boolean }>('/food/capabilities').then(({ data }) => setFoodSuggestionsReady(Boolean(data.configured))).catch(() => setFoodSuggestionsReady(false)); }, []);
   useEffect(() => {
     if (!houseId) return;
     setParams(workspace === 'today' ? { house: String(houseId) } : { house: String(houseId), view: workspace }, { replace: true });
@@ -279,6 +281,20 @@ export default function AssistantPage() {
 
   function toggleSkipDay(day: string) {
     setSkipDays((current) => current.includes(day) ? current.filter((row) => row !== day) : [...current, day]);
+  }
+
+  function applyHouseholdRoutine(key: 'normal' | 'busy' | 'guests' | 'away') {
+    const days = nextDayNames(key === 'normal' ? 5 : key === 'busy' ? 3 : 5);
+    if (key === 'normal') {
+      setPlanDays(5); setSkipDays([]); setServingOverrides({});
+    } else if (key === 'busy') {
+      setPlanDays(3); setSkipDays(days.slice(1, 2)); setServingOverrides({});
+    } else if (key === 'guests') {
+      setPlanDays(5); setSkipDays([]); setServingOverrides({ [days[2]]: Math.max(defaultServings + 2, 6) });
+    } else {
+      setPlanDays(5); setSkipDays(days.slice(2)); setServingOverrides({});
+    }
+    setMessage(key === 'normal' ? 'Normal-week routine applied.' : key === 'busy' ? 'Busy-week routine applied. One day is marked away/eating out.' : key === 'guests' ? 'Guest-week routine applied with a larger midweek serving count.' : 'Away-week routine applied. Adjust the away days before building if needed.');
   }
 
   async function buildHouseholdPlan() {
@@ -557,6 +573,10 @@ export default function AssistantPage() {
         <header className="autopilot-section-heading"><div><p className="eyebrow">THIS WEEK · MEALS + BUDGET</p><h2>Tell us only what changed. Autopilot handles the groceries.</h2><p>Choose how many days you are planning, servings, days you are away, and an optional budget. The planner prioritizes food already at home and items that should be used soon.</p></div><span className="autopilot-feature-number">01</span></header>
         {autopilot?.planner_unlocked ? <div className="autopilot-plan-layout">
           <div className="autopilot-plan-controls">
+            <div className="v98-routine-strip">
+              <div><small>HOUSEHOLD ROUTINES</small><strong>Start from real life, not a blank form.</strong></div>
+              <div><button type="button" onClick={() => applyHouseholdRoutine('normal')}>Normal week</button><button type="button" onClick={() => applyHouseholdRoutine('busy')}>Busy week</button><button type="button" onClick={() => applyHouseholdRoutine('guests')}>Guests coming</button><button type="button" onClick={() => applyHouseholdRoutine('away')}>Going away</button></div>
+            </div>
             <div className="autopilot-control-grid">
               <label><span>Plan length</span><select value={planDays} onChange={(event) => { setPlanDays(Number(event.target.value)); setSkipDays([]); setServingOverrides({}); }}><option value={3}>3 days</option><option value={5}>5 days</option><option value={7}>7 days</option></select></label>
               <label><span>Default servings</span><input type="number" min={1} max={20} value={defaultServings} onChange={(event) => setDefaultServings(Math.max(1, Number(event.target.value) || 1))} /></label>
@@ -569,6 +589,7 @@ export default function AssistantPage() {
               })}
             </div>
             <button type="button" className="primary full autopilot-build-plan" onClick={buildHouseholdPlan} disabled={planBusy}>{planBusy ? 'Building from your household data…' : '✨ Build my week'}</button>
+            {planBusy ? <div className="v98-background-work-note"><span>✦</span><div><strong>You can keep using the rest of GHM.</strong><small>This plan is being prepared from your household data. Stay on this screen for the result in this version; other long-running workflows are being designed to become resumable background jobs.</small></div></div> : null}
             <p className="autopilot-trust-note">No fake grocery prices: if an ingredient has no reliable saved price, it stays clearly marked as unpriced.</p>
           </div>
 
@@ -585,6 +606,8 @@ export default function AssistantPage() {
           <div><p className="eyebrow">FAMILY PLUS AUTOMATION</p><h3>Weekly Planner + Budget Rescue</h3><p>Family Plus turns your inventory, expiry dates, days at home, servings and known prices into a household plan without inventing unknown costs.</p><div className="autopilot-lock-points"><span>✓ Use-soon meal priority</span><span>✓ Away / eating-out days</span><span>✓ Budget-aware grocery gaps</span><span>✓ One-tap list creation</span></div></div>
           <Link to="/pricing" className="primary center-link">Unlock Family Plus →</Link>
         </div>}
+
+        {foodSuggestionsReady && <div className="v98-food-tonight-inline"><span>🍽️</span><div><small>DON'T FEEL LIKE COOKING?</small><strong>Food Tonight stays one click away—not another permanent module.</strong><p>See nearby restaurants or food stores, prepare dietary ordering instructions, then return to your weekly plan.</p></div><Link className="secondary center-link" to={`/houses/${houseId}/food`}>See nearby options →</Link></div>}
 
         <div className="autopilot-meal-suggestions">
           <div className="panel-title-row"><div><p className="eyebrow">COOK FROM WHAT YOU OWN</p><h3>Strong inventory matches right now</h3></div><Link to={`/houses/${houseId}/meals`}>All meals & community recipes →</Link></div>

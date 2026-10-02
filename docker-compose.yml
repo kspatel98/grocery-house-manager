@@ -14,6 +14,12 @@ services:
     volumes:
       - backend_uploads:/app/public/uploads
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
 
   frontend:
     build: ./frontend
@@ -25,7 +31,8 @@ services:
       # still contains localhost from local development.
       VITE_API_URL: /api
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     expose:
       - "5173"
     command: sh -c "npm run build && npm run preview -- --host 0.0.0.0 --port 5173"
@@ -34,8 +41,10 @@ services:
     image: caddy:2
     restart: always
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"

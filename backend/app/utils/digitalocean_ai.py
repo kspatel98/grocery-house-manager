@@ -262,3 +262,44 @@ def agent_healthcheck() -> tuple[bool, str]:
         return bool(answer), f"Agent endpoint responded: {answer[:120]}"
     except DigitalOceanAIError as exc:
         return False, str(exc)
+
+
+def text_json_completion(*, prompt: str, max_tokens: int = 1800) -> dict[str, Any]:
+    """Run a conservative structured text task through the configured serverless model.
+
+    V98 uses this only to summarize official restaurant menu evidence. It is never
+    treated as proof that a dietary restriction is satisfied; the caller must keep
+    source/evidence labels and require restaurant confirmation where needed.
+    """
+    if not vision_configured():
+        raise DigitalOceanAIError("GHM AI inference is not configured.")
+    payload = {
+        "model": settings.digitalocean_vision_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.05,
+        "max_tokens": max_tokens,
+    }
+    url = settings.digitalocean_inference_base_url.rstrip("/") + "/chat/completions"
+    try:
+        response = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {settings.digitalocean_inference_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=settings.digitalocean_vision_timeout_seconds,
+        )
+    except requests.RequestException as exc:
+        raise DigitalOceanAIError(f"GHM AI request failed: {exc}") from exc
+    if response.status_code >= 400:
+        raise DigitalOceanAIError(f"GHM AI provider returned HTTP {response.status_code}: {response.text[:700]}")
+    try:
+        data = response.json()
+        content = data["choices"][0]["message"]["content"]
+    except Exception as exc:
+        raise DigitalOceanAIError("GHM AI returned an unexpected response shape.") from exc
+    parsed = _json_from_text(str(content or ""))
+    if not isinstance(parsed, dict):
+        raise DigitalOceanAIError("GHM AI expected a JSON object response.")
+    return parsed

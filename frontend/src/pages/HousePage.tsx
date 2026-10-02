@@ -25,6 +25,7 @@ export default function HousePage() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary | null>(null);
   const [autopilot, setAutopilot] = useState<AutopilotOverview | null>(null);
+  const [foodSuggestionsReady, setFoodSuggestionsReady] = useState(false);
   const [inviteUrl, setInviteUrl] = useState('');
   const [error, setError] = useState('');
   const [membersOpen, setMembersOpen] = useState(false);
@@ -59,6 +60,7 @@ export default function HousePage() {
       setError('');
       void api.get<ExpenseSummary>(`/houses/${id}/expenses`).then(({ data }) => setExpenseSummary(data)).catch(() => setExpenseSummary(null));
       void api.get<AutopilotOverview>(`/insights/houses/${id}/autopilot`, { params: { t: Date.now() } }).then(({ data }) => setAutopilot(data)).catch(() => setAutopilot(null));
+      void api.get<{ configured: boolean }>('/food/capabilities', { params: { t: Date.now() } }).then(({ data }) => setFoodSuggestionsReady(Boolean(data.configured))).catch(() => setFoodSuggestionsReady(false));
     } catch (err) {
       const message = errorMessage(err);
       setError(message);
@@ -212,6 +214,23 @@ export default function HousePage() {
           expired={stats.expired}
           verifiedSavings={money(autopilot?.verified_savings || 0, autopilot?.currency_code)}
         />
+
+        <section className="v98-weekly-brief">
+          <div className="v98-weekly-brief-copy"><p className="eyebrow">YOUR HOUSEHOLD THIS WEEK</p><h2>One calm summary instead of checking every tool.</h2><p>GHM brings stock, shopping, meals, receipts and value into one short brief. Open the deeper workspace only when something deserves attention.</p></div>
+          <div className="v98-weekly-brief-grid">
+            <span><small>At home</small><strong>{stats.totalProducts}</strong><em>tracked products</em></span>
+            <span><small>Use before expiry</small><strong>{stats.expiringSoon}</strong><em>{stats.expired ? `${stats.expired} expired need review` : 'nothing expired'}</em></span>
+            <span><small>Next trip</small><strong>{stats.activeListItems}</strong><em>items waiting</em></span>
+            <span><small>Verified value</small><strong>{money(autopilot?.savings_ledger.verified_total || 0, autopilot?.currency_code)}</strong><em>evidence-backed</em></span>
+          </div>
+          <Link className="secondary center-link" to={`/assistant?house=${id}`}>Review my week →</Link>
+        </section>
+
+        {foodSuggestionsReady && <section className="v98-contextual-choice">
+          <span className="v98-contextual-icon">🍽️</span>
+          <div><small>TONIGHT</small><strong>Don't feel like cooking?</strong><p>See a short list of nearby restaurants or food stores. Dietary guidance stays evidence-based and special requests are prepared before you order.</p></div>
+          <Link to={`/houses/${id}/food`} className="secondary center-link">Food tonight →</Link>
+        </section>}
 
         <section className="v95-next-grid">
           <Link to={`/assistant?house=${id}&view=plan`}><span>🍲</span><div><small>PLAN</small><strong>Plan the week</strong><p>Meals, servings, use-soon food and grocery gaps.</p></div><b>→</b></Link>

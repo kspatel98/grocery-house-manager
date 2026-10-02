@@ -1,0 +1,190 @@
+/* V98 Calm Capture + Food Tonight + service resilience */
+:root {
+  --v98-radius: 24px;
+  --v98-line: color-mix(in srgb, var(--ghm-border, #d6e2d7) 82%, transparent);
+  --v98-shadow: 0 18px 42px rgba(11, 45, 31, .12);
+}
+
+.ghm-service-status {
+  position: sticky;
+  top: var(--site-header-height, 0px);
+  z-index: 74;
+  margin: 0 auto;
+  width: min(1100px, calc(100% - 28px));
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 0 0 18px 18px;
+  background: linear-gradient(135deg, #6d4c17, #4b3512);
+  color: #fff7df;
+  box-shadow: 0 12px 26px rgba(0,0,0,.18);
+}
+.ghm-service-status.offline { background: linear-gradient(135deg, #6b2929, #3d1717); }
+.ghm-service-status strong,.ghm-service-status small { display:block; color:inherit; }
+.ghm-service-status small { opacity:.88; margin-top:2px; }
+.ghm-service-status button { border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.12); color:#fff; border-radius:999px; padding:8px 12px; }
+.ghm-service-pulse { width:10px; height:10px; border-radius:50%; background:#ffd66b; box-shadow:0 0 0 8px rgba(255,214,107,.12); animation:v98Pulse 1.5s ease-in-out infinite; }
+@keyframes v98Pulse { 50% { transform:scale(.8); opacity:.7; } }
+
+.ghm-capture-fab {
+  position: fixed;
+  right: 22px;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 88;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid rgba(255,255,255,.5);
+  border-radius:999px;
+  padding:12px 16px;
+  color:#f7fff9;
+  background:linear-gradient(135deg,#176341,#0d3b2a 68%,#10291f);
+  box-shadow:0 16px 36px rgba(6,48,31,.28), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.ghm-capture-fab span { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,.1); }
+.ghm-capture-fab:hover { transform:translateY(-2px); }
+
+.ghm-capture-backdrop { align-items:flex-end; padding:16px; }
+.ghm-capture-sheet {
+  width:min(760px,100%);
+  max-height:min(86vh,760px);
+  overflow:auto;
+  margin:0 auto;
+  padding:22px;
+  border-radius:28px;
+  border:1px solid var(--v98-line);
+  background:var(--ghm-surface, #fff);
+  color:var(--ghm-text, #173126);
+  box-shadow:0 28px 70px rgba(0,0,0,.28);
+}
+.ghm-capture-sheet > header { display:flex; justify-content:space-between; gap:18px; align-items:flex-start; }
+.ghm-capture-sheet h2 { margin:.15rem 0 .4rem; }
+.ghm-capture-sheet p { margin:0; }
+.ghm-capture-shortcuts { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:18px 0; }
+.ghm-capture-shortcuts button { min-height:112px; text-align:left; border:1px solid var(--v98-line); border-radius:18px; padding:14px; background:var(--ghm-surface-raised,#f7fbf7); color:inherit; }
+.ghm-capture-shortcuts button span,.ghm-capture-shortcuts button strong,.ghm-capture-shortcuts button small { display:block; }
+.ghm-capture-shortcuts button span { font-size:1.45rem; }
+.ghm-capture-shortcuts button small { margin-top:5px; opacity:.72; }
+.ghm-capture-input span { display:block; font-weight:800; margin-bottom:7px; }
+.ghm-capture-input textarea { width:100%; }
+.ghm-capture-actions { display:flex; gap:10px; margin-top:14px; }
+.ghm-capture-answer { margin-top:14px; padding:15px; border-radius:18px; border:1px solid var(--v98-line); background:rgba(41,122,78,.08); }
+.ghm-capture-answer small { font-weight:900; letter-spacing:.08em; }
+
+.food-tonight-page-v98 { padding-bottom:110px; }
+.food-tonight-hero-v98 { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:22px; align-items:end; padding:28px; border-radius:30px; border:1px solid var(--v98-line); background:linear-gradient(135deg,rgba(28,106,67,.12),rgba(203,176,96,.08)),var(--ghm-surface,#fff); box-shadow:var(--v98-shadow); }
+.food-tonight-hero-v98 h1 { max-width:780px; margin:.2rem 0 .65rem; }
+.food-tonight-hero-actions-v98 { display:flex; gap:8px; flex-wrap:wrap; }
+.food-tonight-control-v98 { display:grid; grid-template-columns:1fr 1.4fr auto auto; gap:10px; align-items:end; margin:18px 0 12px; padding:15px; border:1px solid var(--v98-line); border-radius:22px; background:var(--ghm-surface,#fff); }
+.food-tonight-control-v98 label > span { display:block; font-size:.78rem; font-weight:850; margin:0 0 6px; opacity:.76; }
+.food-tonight-control-v98 select,.food-tonight-control-v98 input { width:100%; min-height:44px; }
+.food-open-toggle-v98 { display:flex; align-items:center; gap:7px; min-height:44px; white-space:nowrap; }
+.food-open-toggle-v98 input { width:auto; min-height:auto; }
+.food-location-strip-v98 { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:13px 15px; border-radius:18px; background:rgba(43,116,76,.07); border:1px solid var(--v98-line); }
+.food-location-strip-v98 strong,.food-location-strip-v98 small { display:block; }
+.food-location-strip-v98 small { margin-top:2px; opacity:.68; }
+.food-safety-note-v98 { margin:14px 0; padding:15px 16px; border-radius:18px; border:1px solid rgba(194,140,42,.42); background:rgba(206,163,71,.12); }
+.food-safety-note-v98 p { margin:.35rem 0 0; }
+.food-result-grid-v98 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:16px; }
+.food-place-card-v98 { border:1px solid var(--v98-line); border-radius:24px; padding:18px; background:var(--ghm-surface,#fff); box-shadow:0 10px 24px rgba(9,58,37,.08); }
+.food-place-card-v98 h2 { margin:.4rem 0 .35rem; font-size:1.22rem; }
+.food-place-card-v98 > p { margin:.2rem 0 .7rem; opacity:.78; }
+.food-place-rank-v98,.food-place-meta-v98,.food-place-actions-v98 { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.food-place-rank-v98 { justify-content:space-between; }
+.food-place-rank-v98 > span { font-size:.74rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.food-place-rank-v98 b { font-size:.72rem; border-radius:999px; padding:4px 8px; }
+.food-place-rank-v98 .open { background:rgba(29,142,86,.12); color:#177348; }
+.food-place-rank-v98 .closed { background:rgba(151,63,63,.1); color:#944040; }
+.food-place-meta-v98 { margin:10px 0; }
+.food-place-meta-v98 span { font-size:.78rem; padding:6px 8px; border-radius:999px; background:rgba(20,86,57,.07); }
+.food-dietary-status-v98 { margin:12px 0; padding:12px; border-radius:15px; border:1px solid var(--v98-line); background:rgba(185,140,60,.07); }
+.food-dietary-status-v98.promising { background:rgba(34,139,83,.08); }
+.food-dietary-status-v98 p { margin:.3rem 0 0; font-size:.86rem; }
+.food-place-actions-v98 { margin-top:13px; }
+.food-place-actions-v98 > * { flex:1 1 120px; }
+.food-card-note-v98 { display:block; margin-top:10px; opacity:.66; line-height:1.45; }
+.food-more-note-v98 { text-align:center; margin:14px 0; opacity:.72; }
+.food-context-card-v98,.v98-contextual-choice,.v98-food-tonight-inline { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:14px; align-items:center; margin:16px 0; padding:16px; border:1px solid var(--v98-line); border-radius:22px; background:linear-gradient(135deg,rgba(38,115,76,.08),rgba(192,172,107,.08)); }
+.food-context-card-v98 > span,.v98-contextual-icon,.v98-food-tonight-inline > span { display:grid; place-items:center; width:48px; height:48px; border-radius:16px; background:rgba(35,111,72,.11); font-size:1.35rem; }
+.food-context-card-v98 small,.v98-contextual-choice small,.v98-food-tonight-inline small { font-size:.72rem; font-weight:900; letter-spacing:.08em; }
+.food-context-card-v98 strong,.v98-contextual-choice strong,.v98-food-tonight-inline strong { display:block; margin:2px 0; }
+.food-context-card-v98 p,.v98-contextual-choice p,.v98-food-tonight-inline p { margin:0; opacity:.74; }
+.food-menu-guide-v98 { width:min(820px,100%); max-height:88vh; overflow:auto; margin:auto; border-radius:28px; padding:22px; background:var(--ghm-surface,#fff); color:var(--ghm-text,#173126); box-shadow:0 28px 70px rgba(0,0,0,.32); }
+.food-menu-guide-v98 > header { display:flex; justify-content:space-between; gap:16px; }
+.food-menu-guide-v98 section { margin-top:16px; padding:15px; border:1px solid var(--v98-line); border-radius:18px; }
+.food-menu-guide-v98 section h3 { margin:0 0 10px; }
+.food-menu-guide-v98 section article + article { margin-top:10px; padding-top:10px; border-top:1px solid var(--v98-line); }
+.food-menu-guide-v98 section article p { margin:.25rem 0; }
+.food-menu-guide-v98 footer { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.food-evidence-note-v98 { margin-top:14px; padding:13px 14px; border-radius:16px; background:rgba(194,152,63,.10); }
+.food-evidence-note-v98 p { margin:.3rem 0 0; }
+.food-script-v98 p { font-size:1rem; line-height:1.6; }
+
+.v98-weekly-brief { display:grid; grid-template-columns:minmax(260px,.9fr) 1.45fr auto; gap:16px; align-items:center; margin:16px 0; padding:20px; border:1px solid var(--v98-line); border-radius:26px; background:var(--ghm-surface,#fff); box-shadow:0 12px 28px rgba(9,58,37,.07); }
+.v98-weekly-brief-copy h2 { margin:.2rem 0 .4rem; font-size:1.25rem; }
+.v98-weekly-brief-copy p { margin:0; opacity:.72; }
+.v98-weekly-brief-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.v98-weekly-brief-grid span { min-width:0; padding:12px; border:1px solid var(--v98-line); border-radius:16px; background:rgba(33,105,69,.06); }
+.v98-weekly-brief-grid small,.v98-weekly-brief-grid strong,.v98-weekly-brief-grid em { display:block; }
+.v98-weekly-brief-grid strong { margin:3px 0; font-size:1.08rem; }
+.v98-weekly-brief-grid em { font-size:.7rem; font-style:normal; opacity:.66; }
+
+.v98-routine-strip { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px; margin-bottom:12px; border:1px solid var(--v98-line); border-radius:18px; background:rgba(35,111,72,.06); }
+.v98-routine-strip small,.v98-routine-strip strong { display:block; }
+.v98-routine-strip small { font-size:.7rem; font-weight:900; letter-spacing:.08em; }
+.v98-routine-strip > div:last-child { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+.v98-routine-strip button { border:1px solid var(--v98-line); border-radius:999px; padding:8px 11px; background:var(--ghm-surface,#fff); color:inherit; }
+.v98-background-work-note { display:flex; gap:10px; align-items:flex-start; margin-top:10px; padding:11px 12px; border-radius:15px; background:rgba(46,119,79,.08); }
+.v98-background-work-note strong,.v98-background-work-note small { display:block; }
+.v98-background-work-note small { margin-top:3px; opacity:.7; }
+.v98-onboarding-capture-choices { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.v98-onboarding-capture-choices a { min-width:150px; }
+
+html[data-theme='dark'] .ghm-capture-sheet,
+html[data-theme='dark'] .food-tonight-hero-v98,
+html[data-theme='dark'] .food-tonight-control-v98,
+html[data-theme='dark'] .food-place-card-v98,
+html[data-theme='dark'] .food-menu-guide-v98,
+html[data-theme='dark'] .v98-weekly-brief {
+  background:linear-gradient(137deg,#214727,#0e2019 58%,#10231e);
+  color:#f1f7f3;
+  border-color:rgba(255,255,255,.15);
+}
+html[data-theme='dark'] .ghm-capture-shortcuts button,
+html[data-theme='dark'] .v98-routine-strip button { background:#12251e; color:#f1f7f3; border-color:rgba(255,255,255,.16); }
+html[data-theme='dark'] .food-location-strip-v98,
+html[data-theme='dark'] .v98-routine-strip,
+html[data-theme='dark'] .food-context-card-v98,
+html[data-theme='dark'] .v98-contextual-choice,
+html[data-theme='dark'] .v98-food-tonight-inline,
+html[data-theme='dark'] .v98-weekly-brief-grid span { background:rgba(255,255,255,.055); border-color:rgba(255,255,255,.14); }
+html[data-theme='dark'] .food-place-meta-v98 span { background:rgba(255,255,255,.06); }
+html[data-theme='dark'] .food-place-rank-v98 .open { color:#95efba; }
+html[data-theme='dark'] .food-place-rank-v98 .closed { color:#ffaaaa; }
+
+@media (max-width: 980px) {
+  .food-tonight-hero-v98,.v98-weekly-brief { grid-template-columns:1fr; }
+  .food-tonight-control-v98 { grid-template-columns:1fr 1fr; }
+  .food-result-grid-v98 { grid-template-columns:1fr; }
+  .v98-weekly-brief-grid { grid-template-columns:repeat(2,1fr); }
+  .ghm-capture-fab { bottom:calc(78px + env(safe-area-inset-bottom)); right:14px; padding:10px 13px; }
+}
+@media (max-width: 640px) {
+  .ghm-capture-shortcuts { grid-template-columns:1fr; }
+  .ghm-capture-shortcuts button { min-height:80px; }
+  .ghm-capture-shortcuts button span { display:inline-block; margin-right:8px; }
+  .food-tonight-control-v98 { grid-template-columns:1fr; }
+  .food-location-strip-v98,.food-context-card-v98,.v98-contextual-choice,.v98-food-tonight-inline { grid-template-columns:1fr; align-items:start; }
+  .v98-weekly-brief-grid { grid-template-columns:1fr 1fr; }
+  .v98-routine-strip { align-items:flex-start; flex-direction:column; }
+  .v98-routine-strip > div:last-child { justify-content:flex-start; }
+  .ghm-service-status { grid-template-columns:auto 1fr; }
+  .ghm-service-status button { grid-column:1 / -1; width:100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghm-service-pulse { animation:none; }
+}

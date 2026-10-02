@@ -27,6 +27,7 @@ const MealsPage = lazy(() => import('./pages/MealsPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
 const KitchenVisionPage = lazy(() => import('./pages/KitchenVisionPage'));
+const FoodTonightPage = lazy(() => import('./pages/FoodTonightPage'));
 const FeatureLandingPage = lazy(() => import('./pages/FeatureLandingPage'));
 
 function RouteFallback() {
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="/houses/:houseId/expenses" element={<RequireAuth><ExpensesPage /></RequireAuth>} />
         <Route path="/houses/:houseId/templates" element={<RequireAuth><TemplatesPage /></RequireAuth>} />
         <Route path="/houses/:houseId/kitchen" element={<RequireAuth><KitchenVisionPage /></RequireAuth>} />
+        <Route path="/houses/:houseId/food" element={<RequireAuth><FoodTonightPage /></RequireAuth>} />
         <Route path="/houses/:houseId/receipts" element={<RequireAuth><ReceiptHistoryPage /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

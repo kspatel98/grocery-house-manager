@@ -55,11 +55,11 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
       <div className="first-run-head">
         <div>
           <p className="eyebrow">{status.complete ? 'Quick start complete' : `Guided setup • step ${nextIndex} of ${status.total_steps}`}</p>
-          <h2>{status.complete ? 'Your Grocery Home is ready' : 'Let’s get your Grocery Home ready'}</h2>
+          <h2>{status.complete ? 'Your Grocery Home is ready' : 'Get useful before you learn everything'}</h2>
           <p>
             {status.complete
               ? 'The essentials are in place. From here, GHM can connect inventory, shopping, receipts, meals and household predictions without making you learn every feature first.'
-              : 'Three quick actions are enough. GHM reveals deeper tools only after your household has something real to work with.'}
+              : 'Three quick actions are enough. Give GHM one real household signal, get your first useful result, and leave the deeper tools hidden until you need them.'}
           </p>
           {!status.complete && nextStep?.key === 'house' ? (
             <div className="house-definition-callout">
@@ -84,7 +84,7 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
             <strong>{nextStep.title}</strong>
             <p>{nextStep.description}</p>
           </div>
-          {nextStep.href ? <Link to={nextStep.href} className="primary center-link">Continue setup →</Link> : null}
+          {nextStep.key === 'teach_home' && status.primary_house_id ? <div className="v98-onboarding-capture-choices"><Link to={`/houses/${status.primary_house_id}/scan`} className="primary center-link"><span>🧾</span>Scan a receipt</Link><Link to={`/houses/${status.primary_house_id}/kitchen`} className="secondary center-link"><span>👁️</span>Scan part of my kitchen</Link><Link to={`/houses/${status.primary_house_id}/inventory`} className="secondary center-link"><span>＋</span>Add a few essentials</Link></div> : nextStep.href ? <Link to={nextStep.href} className="primary center-link">Continue setup →</Link> : null}
         </div>
       ) : null}
 

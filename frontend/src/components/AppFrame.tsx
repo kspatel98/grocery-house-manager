@@ -10,6 +10,8 @@ import { LanguagePicker, useLanguage } from '../i18n';
 import OverlayPortal from './OverlayPortal';
 import SmartReviewPrompt from './SmartReviewPrompt';
 import { ThemeToggle } from '../theme';
+import ServiceStatusBanner from './ServiceStatusBanner';
+import UniversalCapture from './UniversalCapture';
 
 function EmailIcon() {
   return (
@@ -310,7 +312,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [premiumArrival]);
 
-  const pageTitle = ([
+  const pageTitle = location.pathname.includes('/food') ? 'Food tonight' : ([
     ...navItems,
     ...extraNavItems,
     { to: '/profile', label: t('profile'), icon: '👤' },
@@ -402,6 +404,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         style={siteHeaderHeight ? { height: `${siteHeaderHeight}px` } : undefined}
         aria-hidden="true"
       />
+
+      <ServiceStatusBanner />
 
       <div className={`desktop-shell-v86 ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
         <aside className="desktop-sidebar-v86" aria-label="Desktop navigation">
@@ -568,6 +572,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       )}
 
       <SmartReviewPrompt />
+      <UniversalCapture houseId={contextHouseId} />
 
       <PremiumAwardCelebration
         open={celebrationOpen && showPremiumCrown}

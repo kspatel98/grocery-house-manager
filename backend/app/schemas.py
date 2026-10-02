@@ -1721,3 +1721,65 @@ class ProductAnalyticsOut(BaseModel):
     retention_d30: float | None = None
     success_events_30d: dict[str, int] = Field(default_factory=dict)
     message: str
+
+# --- V98 contextual Food Tonight / nearby places ---
+class FoodPlaceOut(BaseModel):
+    place_id: str
+    name: str
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    rating: float | None = None
+    user_rating_count: int | None = None
+    price_level: str | None = None
+    open_now: bool | None = None
+    website_uri: str | None = None
+    maps_uri: str | None = None
+    primary_type: str | None = None
+    dine_in: bool | None = None
+    takeout: bool | None = None
+    delivery: bool | None = None
+    serves_vegetarian_food: bool | None = None
+    dietary_status: str = "unknown"
+    dietary_note: str = ""
+    order_note: str = ""
+
+
+class FoodSuggestionsOut(BaseModel):
+    configured: bool = False
+    mode: str = "restaurant"
+    query: str
+    dietary_mode: str = "none"
+    location_label: str | None = None
+    places: list[FoodPlaceOut] = Field(default_factory=list)
+    message: str
+    caution: str | None = None
+
+
+class FoodMenuGuideIn(BaseModel):
+    place_id: str = Field(min_length=1, max_length=255)
+    dietary_mode: str = Field(default="swaminarayan", pattern="^(none|vegetarian|vegan|jain|swaminarayan)$")
+
+
+class FoodMenuItemGuideOut(BaseModel):
+    item_name: str
+    status: str = "possible"
+    reason: str = ""
+    modifications: list[str] = Field(default_factory=list)
+    confidence: str = "low"
+
+
+class FoodMenuGuideOut(BaseModel):
+    place_id: str
+    place_name: str
+    dietary_mode: str
+    verified_items: list[FoodMenuItemGuideOut] = Field(default_factory=list)
+    possible_with_changes: list[FoodMenuItemGuideOut] = Field(default_factory=list)
+    avoid_or_uncertain: list[FoodMenuItemGuideOut] = Field(default_factory=list)
+    online_order_steps: list[str] = Field(default_factory=list)
+    in_person_script: str
+    phone_script: str
+    official_menu_url: str | None = None
+    official_website_url: str | None = None
+    evidence_note: str
+    message: str

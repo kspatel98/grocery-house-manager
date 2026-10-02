@@ -1137,3 +1137,61 @@ export type ProductAnalytics = {
   success_events_30d: Record<string, number>;
   message: string;
 };
+
+// V98 Food Tonight / nearby suggestion-only discovery
+export type FoodPlace = {
+  place_id: string;
+  name: string;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  rating?: number | null;
+  user_rating_count?: number | null;
+  price_level?: string | null;
+  open_now?: boolean | null;
+  website_uri?: string | null;
+  maps_uri?: string | null;
+  primary_type?: string | null;
+  dine_in?: boolean | null;
+  takeout?: boolean | null;
+  delivery?: boolean | null;
+  serves_vegetarian_food?: boolean | null;
+  dietary_status: string;
+  dietary_note: string;
+  order_note: string;
+};
+
+export type FoodSuggestions = {
+  configured: boolean;
+  mode: 'restaurant' | 'grocery' | string;
+  query: string;
+  dietary_mode: string;
+  location_label?: string | null;
+  places: FoodPlace[];
+  message: string;
+  caution?: string | null;
+};
+
+export type FoodMenuItemGuide = {
+  item_name: string;
+  status: string;
+  reason: string;
+  modifications: string[];
+  confidence: string;
+};
+
+export type FoodMenuGuide = {
+  place_id: string;
+  place_name: string;
+  dietary_mode: string;
+  verified_items: FoodMenuItemGuide[];
+  possible_with_changes: FoodMenuItemGuide[];
+  avoid_or_uncertain: FoodMenuItemGuide[];
+  online_order_steps: string[];
+  in_person_script: string;
+  phone_script: string;
+  official_menu_url?: string | null;
+  official_website_url?: string | null;
+  evidence_note: string;
+  message: string;
+};
