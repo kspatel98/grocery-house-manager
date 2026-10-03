@@ -1759,6 +1759,13 @@ class FoodSuggestionsOut(BaseModel):
 class FoodMenuGuideIn(BaseModel):
     place_id: str = Field(min_length=1, max_length=255)
     dietary_mode: str = Field(default="swaminarayan", pattern="^(none|vegetarian|vegan|jain|swaminarayan)$")
+    # V99 fallback context: lets Prepare my order still open a useful, honest
+    # ordering guide if the richer Place Details call is unavailable. These values
+    # come from the already-rendered Google Places shortlist and are never treated
+    # as proof of ingredients.
+    place_name: str | None = Field(default=None, max_length=220)
+    website_uri: str | None = Field(default=None, max_length=1200)
+    maps_uri: str | None = Field(default=None, max_length=1200)
 
 
 class FoodMenuItemGuideOut(BaseModel):

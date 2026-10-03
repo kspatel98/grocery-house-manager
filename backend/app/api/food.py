@@ -373,9 +373,25 @@ def food_menu_guide(
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
-    place = _get_place(payload.place_id)
-    place_name = _clean_display_name(place) or "Restaurant"
-    website = str(place.get("websiteUri") or "").strip() or None
+
+    # V99: Prepare my order must always open a useful guide. Rich Google Place
+    # Details are preferred, but a temporary provider/billing/field failure should
+    # not turn the button into a dead end. Fall back to the shortlist context that
+    # the user already saw and keep all dish-level claims conservative.
+    details_warning: str | None = None
+    try:
+        place = _get_place(payload.place_id)
+    except HTTPException as exc:
+        details_warning = str(exc.detail)
+        place = {
+            "id": payload.place_id,
+            "displayName": {"text": payload.place_name or "Restaurant"},
+            "websiteUri": payload.website_uri,
+            "googleMapsUri": payload.maps_uri,
+        }
+
+    place_name = _clean_display_name(place) or payload.place_name or "Restaurant"
+    website = str(place.get("websiteUri") or payload.website_uri or "").strip() or None
     menu_url, evidence = _official_menu_evidence(website)
     in_person_script, phone_script = _scripts(payload.dietary_mode)
 
@@ -383,6 +399,8 @@ def food_menu_guide(
     possible: list[FoodMenuItemGuideOut] = []
     uncertain: list[FoodMenuItemGuideOut] = []
     evidence_note = "No readable official menu text was available. GHM will not invent dish-level dietary claims. Use the official website/Maps listing and confirm directly with the restaurant."
+    if details_warning:
+        evidence_note = f"Restaurant detail lookup was temporarily limited ({details_warning}). " + evidence_note
 
     if evidence and vision_configured():
         prompt = f"""

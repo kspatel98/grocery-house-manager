@@ -15,6 +15,37 @@ const DIET_LABELS: Record<Dietary, string> = {
   swaminarayan: 'Swaminarayan · no onion / no garlic',
 };
 
+function localFallbackGuide(place: FoodPlace, dietary: Dietary): FoodMenuGuide {
+  const scripts: Record<Dietary, string> = {
+    none: 'Could you please confirm the ingredients and preparation for this dish before I order?',
+    vegetarian: 'I am vegetarian. Can you please confirm this dish and its sauce or stock contain no meat, poultry, fish or other non-vegetarian ingredients?',
+    vegan: 'I am vegan. Can you please confirm this dish contains no dairy, egg, ghee, honey or other animal-derived ingredients, including the sauce and garnish?',
+    jain: 'I follow a Jain diet. Could you please confirm which dishes can be prepared according to Jain restrictions, including the ingredients in sauces, gravies and shared preparations?',
+    swaminarayan: 'I follow a Swaminarayan diet. I cannot have onion or garlic, including in sauces, gravies, chutneys, marinades, spice mixes, stocks, toppings or garnishes. Can this dish be prepared without onion and garlic, and can you please confirm those ingredients are not already in the base sauce?',
+  };
+  const steps = [
+    'Open the restaurant’s official menu or ordering page.',
+    'Choose a dish only when its ingredients look compatible with your restriction.',
+    dietary === 'swaminarayan' ? 'Request no onion and no garlic, including sauces, gravies, chutneys, marinades, spice mixes, stocks, toppings and garnishes.' : `Add your ${DIET_LABELS[dietary].toLowerCase()} requirement in the special-instructions box when available.`,
+    'If a base sauce or preparation is unclear, call the restaurant before submitting the order.',
+  ];
+  return {
+    place_id: place.place_id,
+    place_name: place.name,
+    dietary_mode: dietary,
+    verified_items: [],
+    possible_with_changes: [],
+    avoid_or_uncertain: [],
+    online_order_steps: steps,
+    in_person_script: scripts[dietary],
+    phone_script: scripts[dietary],
+    official_menu_url: place.website_uri || null,
+    official_website_url: place.website_uri || null,
+    evidence_note: 'GHM could not read enough official menu evidence right now, so it is not making dish-level claims. Use this preparation guide and confirm the exact ingredients with the restaurant.',
+    message: 'Safe ordering guidance is available even when the official menu cannot be analyzed. GHM will not guess that a dish meets your dietary restriction.',
+  };
+}
+
 function serviceText(place: FoodPlace) {
   const rows: string[] = [];
   if (place.dine_in) rows.push('Dine-in');
@@ -97,10 +128,17 @@ export default function FoodTonightPage() {
       const { data } = await api.post<FoodMenuGuide>(`/food/houses/${id}/menu-guide`, {
         place_id: place.place_id,
         dietary_mode: dietary,
+        place_name: place.name,
+        website_uri: place.website_uri || undefined,
+        maps_uri: place.maps_uri || undefined,
       });
       setGuide(data);
     } catch (err) {
-      setError(errorMessage(err));
+      // The order-prep action should never feel dead. If rich menu analysis is
+      // temporarily unavailable, open a conservative local guide instead of
+      // leaving the user with a button that appears to do nothing.
+      setError(`${errorMessage(err)} Showing a safe preparation guide instead.`);
+      setGuide(localFallbackGuide(place, dietary));
     } finally {
       setGuideBusy('');
     }
@@ -158,7 +196,7 @@ export default function FoodTonightPage() {
       <section className="food-context-card-v98"><span>🍳</span><div><small>STILL WANT TO COOK?</small><strong>Compare eating out with what is already at home.</strong><p>GHM can plan a meal around inventory and use-soon food instead of turning restaurants into another permanent module.</p></div><Link className="secondary center-link" to={`/assistant?house=${id}&view=plan`}>Plan from home →</Link></section>
 
       {guide && <OverlayPortal><div className="overlay-backdrop food-guide-backdrop-v98" onMouseDown={(event) => { if (event.target === event.currentTarget) setGuide(null); }}><section className="food-menu-guide-v98" role="dialog" aria-modal="true" aria-label={`Ordering guide for ${guide.place_name}`}>
-        <header><div><p className="eyebrow">ORDER PREP</p><h2>{guide.place_name}</h2><p>{guide.message}</p></div><button className="icon-button" onClick={() => setGuide(null)}>×</button></header>
+        <header><div><p className="eyebrow">ORDER PREP</p><h2>{guide.place_name}</h2><p>{guide.message}</p></div><button className="icon-button" onClick={() => setGuide(null)} data-dialog-close="true" aria-label="Close order preparation">×</button></header>
         <div className="food-evidence-note-v98"><strong>What GHM knows</strong><p>{guide.evidence_note}</p></div>
         {guide.verified_items.length > 0 && <section><h3>✓ Explicitly supported by menu evidence</h3>{guide.verified_items.map((item) => <article key={item.item_name}><strong>{item.item_name}</strong><p>{item.reason}</p></article>)}</section>}
         {guide.possible_with_changes.length > 0 && <section><h3>◇ May work with modifications</h3>{guide.possible_with_changes.map((item) => <article key={item.item_name}><strong>{item.item_name}</strong><p>{item.reason}</p>{item.modifications.length > 0 && <ul>{item.modifications.map((row) => <li key={row}>{row}</li>)}</ul>}</article>)}</section>}

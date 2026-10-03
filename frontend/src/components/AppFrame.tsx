@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { api } from '../api';
+import { api, errorMessage } from '../api';
 import OfferCrownWidget from './OfferCrownWidget';
 import PremiumAwardCelebration from './PremiumAwardCelebration';
 import SetupCoach from './SetupCoach';
@@ -79,6 +79,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [accountReady, setAccountReady] = useState(false);
+  const [accountLoadError, setAccountLoadError] = useState('');
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
   const [premiumArrival, setPremiumArrival] = useState(false);
@@ -137,6 +138,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           if (nextActiveHouseId) localStorage.setItem('ghm_active_house_id', String(nextActiveHouseId));
           else localStorage.removeItem('ghm_active_house_id');
           setAccountReady(true);
+          setAccountLoadError('');
           const effectiveProfile: UserProfile = {
             ...data.user,
             plan_name: data.subscription.plan_name,
@@ -147,8 +149,13 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
           localStorage.setItem('account_profile_cache', JSON.stringify(effectiveProfile));
         })
-        .catch(() => {
-          // Keep navigation usable if bootstrap is temporarily unavailable.
+        .catch((err) => {
+          if (cancelled) return;
+          // Keep cached navigation usable, but never fail silently. A healthy API
+          // can still have a route/schema-specific bootstrap problem, which used
+          // to look like the user's household data had disappeared.
+          setAccountLoadError(errorMessage(err));
+          setAccountReady(false);
         });
     };
 
@@ -406,6 +413,13 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       />
 
       <ServiceStatusBanner />
+      {accountLoadError && (
+        <div className="ghm-account-data-warning" role="status" aria-live="polite">
+          <span aria-hidden="true">↻</span>
+          <div><strong>Your account is signed in, but GHM could not refresh household data.</strong><small>{accountLoadError}</small></div>
+          <button type="button" onClick={() => window.dispatchEvent(new Event('account:refresh'))}>Retry household data</button>
+        </div>
+      )}
 
       <div className={`desktop-shell-v86 ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
         <aside className="desktop-sidebar-v86" aria-label="Desktop navigation">

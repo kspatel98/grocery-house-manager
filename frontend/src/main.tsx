@@ -5,6 +5,7 @@ import App from './App';
 import './styles.css';
 import './theme-v97.css';
 import './theme-v98.css';
+import './theme-v99.css';
 import { LanguageProvider } from './i18n';
 import DialogFocusManager from './components/DialogFocusManager';
 import { applyTheme, getSavedTheme } from './theme';
@@ -25,6 +26,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    navigator.serviceWorker.register('/sw.js').then((registration) => registration.update()).catch(() => undefined);
   });
 }

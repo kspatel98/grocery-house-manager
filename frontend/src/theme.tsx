@@ -17,8 +17,12 @@ export function getSavedTheme(): AppTheme {
 
 export function applyTheme(theme: AppTheme) {
   document.documentElement.dataset.ghmTheme = theme;
+  // Keep the legacy theme attribute in sync too. Several historical GHM screens
+  // still use html[data-theme=...] selectors; setting both prevents mixed-theme
+  // islands where a dark page accidentally keeps a light/green surface.
+  document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
-  const themeColor = theme === 'dark' ? '#07130f' : '#f4f7f1';
+  const themeColor = theme === 'dark' ? '#071321' : '#f7f0e5';
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement('meta');

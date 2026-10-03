@@ -1,5 +1,10 @@
 # Grocery House Manager
 
+## Current release: V99 — Blue, Cream & Orange + Stability
+
+V99 resets the UI to a blue/cream/orange design system, fixes the shared overlay behind **Tell GHM** and **Prepare my order**, and makes production database compatibility work less likely to block login. See `V99_BLUE_CREAM_ORANGE_STABILITY.md` for deployment and validation details.
+
+
 ## V96 — Household Intelligence & Kitchen Map
 
 V96 keeps the calm V95 **Today → Plan → Shop → Home** experience while making the system underneath substantially smarter: outcome-led public pages and SEO, adaptive Family/Roommate/Couple/Solo onboarding, Shared/Personal/Selected-member inventory ownership, a zone-based Kitchen Map with Quick Scan and Full Kitchen Refresh, coverage-aware “not visible ≠ gone” reconciliation, correct counting of multiple identical physical items, targeted rechecks, and review-first meal consumption updates. See `V96_HOUSEHOLD_INTELLIGENCE_KITCHEN_MAP.md`.

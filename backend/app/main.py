@@ -18,23 +18,44 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name)
 app.state.db_ready = False
 app.state.db_error = None
+app.state.schema_warnings = []
 
 
-def _initialize_database() -> None:
-    Base.metadata.create_all(bind=engine)
-    ensure_dev_schema(engine)
+def _initialize_database() -> list[str]:
+    # Verify the managed database itself first. Schema maintenance should not hide
+    # a healthy PostgreSQL connection behind an opaque 502/503.
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
+
+    warnings: list[str] = []
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        warning = f"metadata create_all warning: {type(exc).__name__}: {exc}"
+        warnings.append(warning[:700])
+        logger.exception("GHM metadata create_all had a compatibility warning")
+
+    try:
+        warnings.extend(ensure_dev_schema(engine))
+    except Exception as exc:
+        warning = f"compatibility schema pass warning: {type(exc).__name__}: {exc}"
+        warnings.append(warning[:700])
+        logger.exception("GHM compatibility schema pass failed unexpectedly")
+    return warnings
 
 
 async def _database_retry_loop() -> None:
     delay = 3
     while not app.state.db_ready:
         try:
-            await asyncio.to_thread(_initialize_database)
+            warnings = await asyncio.to_thread(_initialize_database)
             app.state.db_ready = True
             app.state.db_error = None
-            logger.info("GHM database is ready")
+            app.state.schema_warnings = warnings
+            if warnings:
+                logger.warning("GHM database is ready with %s compatibility warning(s)", len(warnings))
+            else:
+                logger.info("GHM database is ready")
             return
         except Exception as exc:
             app.state.db_ready = False
@@ -116,7 +137,7 @@ def health_live():
 def health_ready():
     from fastapi.responses import JSONResponse
     if app.state.db_ready:
-        return {"status": "ready", "database": "connected"}
+        return {"status": "ready", "database": "connected", "schema_warnings": len(getattr(app.state, "schema_warnings", []) or [])}
     return JSONResponse(
         status_code=503,
         content={"status": "starting", "database": "not_ready", "detail": app.state.db_error or "Database initialization is still in progress."},

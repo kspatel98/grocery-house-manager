@@ -1,13 +1,18 @@
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def ensure_dev_schema(engine: Engine) -> None:
-    """Tiny development-only schema helper.
+def ensure_dev_schema(engine: Engine) -> list[str]:
+    """Best-effort backwards-compatible additive schema helper.
 
-    The starter project uses Base.metadata.create_all(), which creates missing tables but
-    does not alter existing tables. This helper keeps local Docker volumes from older ZIPs
-    working after new starter columns are added. Use Alembic in production.
+    Historical GHM releases used this helper for additive compatibility changes. V99
+    isolates each statement behind a savepoint so one optional/legacy migration cannot
+    abort every later migration or keep login unavailable forever. Production should
+    still move to versioned Alembic migrations, but this keeps existing installations
+    recoverable while that transition is made.
     """
     statements = [
         # Existing local Docker volumes from earlier starter ZIPs may be missing
@@ -208,6 +213,17 @@ def ensure_dev_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_product_events_event_name ON product_events(event_name)",
         "CREATE INDEX IF NOT EXISTS ix_product_events_created_at ON product_events(created_at)",
     ]
+    warnings: list[str] = []
     with engine.begin() as connection:
-        for statement in statements:
-            connection.execute(text(statement))
+        for index, statement in enumerate(statements, start=1):
+            try:
+                # PostgreSQL marks a transaction failed after a statement error. A
+                # nested transaction/savepoint lets us roll back only that statement
+                # and continue applying unrelated additive compatibility updates.
+                with connection.begin_nested():
+                    connection.execute(text(statement))
+            except Exception as exc:
+                summary = f"compat migration {index} skipped: {type(exc).__name__}: {exc}"
+                warnings.append(summary[:700])
+                logger.warning(summary)
+    return warnings

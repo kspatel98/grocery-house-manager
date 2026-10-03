@@ -16,81 +16,81 @@ html[data-ghm-theme="light"] {
   --ghm-surface-elevated: #fbfdf9;
   --ghm-card-gradient: linear-gradient(145deg, rgba(255,255,255,.99) 0%, #f6faf5 58%, #edf4ee 100%);
   --ghm-card-gradient-strong: linear-gradient(145deg, #ffffff 0%, #eef7f0 62%, #e4efe7 100%);
-  --ghm-hero-gradient: linear-gradient(137deg, #154a32 0%, #0c3728 58%, #102e25 100%);
-  --ghm-primary: #176b45;
-  --ghm-primary-deep: #0d4c31;
-  --ghm-primary-bright: #35a86d;
-  --ghm-primary-soft: #dff1e5;
+  --ghm-hero-gradient: linear-gradient(137deg, #123c67 0%, #102c48 58%, #142b44 100%);
+  --ghm-primary: #1f66a8;
+  --ghm-primary-deep: #174f86;
+  --ghm-primary-bright: #4b92d0;
+  --ghm-primary-soft: #e7f1f8;
   --ghm-gold: #d6a94f;
   --ghm-gold-soft: #f8e9bf;
   --ghm-accent: #c0c26b;
   --ghm-premium: #ff7e1f;
   --ghm-info: #3d7f8b;
-  --ghm-text: #17241d;
-  --ghm-text-strong: #0e1b15;
-  --ghm-muted: #607166;
-  --ghm-muted-soft: #7d8c83;
-  --ghm-border: #d3dfd6;
-  --ghm-border-strong: #b9cbbf;
-  --ghm-divider: rgba(20, 64, 43, .10);
-  --ghm-shadow: 0 18px 48px rgba(31, 67, 48, .09);
-  --ghm-shadow-strong: 0 26px 72px rgba(24, 63, 43, .14);
-  --ghm-focus: 0 0 0 4px rgba(53,168,109,.18);
-  --ghm-success: #176b45;
-  --ghm-success-soft: #e4f5e9;
+  --ghm-text: #24384a;
+  --ghm-text-strong: #10283f;
+  --ghm-muted: #617486;
+  --ghm-muted-soft: #7e8e9c;
+  --ghm-border: #d7d8d7;
+  --ghm-border-strong: #b9c9d6;
+  --ghm-divider: rgba(28,46,64, .10);
+  --ghm-shadow: 0 18px 48px rgba(37,52,67, .09);
+  --ghm-shadow-strong: 0 26px 72px rgba(31,47,63, .14);
+  --ghm-focus: 0 0 0 4px rgba(78,123,168,.18);
+  --ghm-success: #1f66a8;
+  --ghm-success-soft: #e7f1f8;
   --ghm-warning: #8e641f;
   --ghm-warning-soft: #fff3d8;
   --ghm-danger: #a9403b;
   --ghm-danger-soft: #fff0ed;
   --ghm-world-plate-start: #e3f0e6;
   --ghm-world-plate-end: #cfded2;
-  --ghm-world-ring: rgba(23,107,69,.25);
+  --ghm-world-ring: rgba(47,77,107,.25);
   --ghm-world-door: #f1c76b;
   --ghm-world-window: #d8f3e4;
   color-scheme: light;
 }
 
 html[data-ghm-theme="dark"] {
-  --ghm-bg: #07130f;
-  --ghm-bg-deep: #091a14;
-  --ghm-canvas: #0b1b15;
-  --ghm-surface: #10231b;
-  --ghm-surface-soft: #142d22;
-  --ghm-surface-strong: #19382a;
-  --ghm-surface-elevated: #173126;
-  --ghm-card-gradient: linear-gradient(137deg, #214727 0%, #0e2019 58%, #10231e 100%);
-  --ghm-card-gradient-strong: linear-gradient(137deg, #285638 0%, #123025 58%, #16352a 100%);
-  --ghm-hero-gradient: linear-gradient(137deg, #214727 0%, #0e2019 58%, #10231e 100%);
-  --ghm-primary: #6ed39a;
-  --ghm-primary-deep: #2d9a62;
-  --ghm-primary-bright: #45c780;
-  --ghm-primary-soft: #173b2a;
+  --ghm-bg: #071321;
+  --ghm-bg-deep: #091827;
+  --ghm-canvas: #0b2035;
+  --ghm-surface: #0f2237;
+  --ghm-surface-soft: #142b44;
+  --ghm-surface-strong: #1b3857;
+  --ghm-surface-elevated: #152c45;
+  --ghm-card-gradient: linear-gradient(137deg, #1b3b5e 0%, #0e2034 58%, #0f2237 100%);
+  --ghm-card-gradient-strong: linear-gradient(137deg, #22517f 0%, #102c48 58%, #173c61 100%);
+  --ghm-hero-gradient: linear-gradient(137deg, #1b3b5e 0%, #0e2034 58%, #0f2237 100%);
+  --ghm-primary: #7fb8e7;
+  --ghm-primary-deep: #3972a8;
+  --ghm-primary-bright: #69aee7;
+  --ghm-primary-soft: #183655;
   --ghm-gold: #f2c86d;
   --ghm-gold-soft: #4c3d1b;
   --ghm-accent: #c0c26b;
   --ghm-premium: #ff7e1f;
-  --ghm-info: #7bc3cf;
+  --ghm-info: #83bce9;
   --ghm-text: #edf7f1;
   --ghm-text-strong: #f7fbf8;
-  --ghm-muted: #b0c2b7;
-  --ghm-muted-soft: #91a89b;
-  --ghm-border: #355745;
-  --ghm-border-strong: #547763;
+  --ghm-muted: #b6c3ce;
+  --ghm-muted-soft: #93a6b6;
+  --ghm-border: #2c4965;
+  --ghm-border-strong: #456986;
   --ghm-divider: rgba(231, 247, 237, .10);
   --ghm-shadow: 0 18px 48px rgba(0,0,0,.28);
   --ghm-shadow-strong: 0 28px 76px rgba(0,0,0,.38);
-  --ghm-focus: 0 0 0 4px rgba(110,211,154,.18);
-  --ghm-success: #91e4b3;
-  --ghm-success-soft: #173a2b;
+  --ghm-focus: 0 0 0 4px rgba(138,175,211,.18);
+  --ghm-success: #8fabc7;
+  --ghm-success-soft: #133b35;
   --ghm-warning: #f1cb79;
   --ghm-warning-soft: #41361c;
   --ghm-danger: #ff9991;
   --ghm-danger-soft: #482625;
-  --ghm-world-plate-start: #193b2c;
-  --ghm-world-plate-end: #0d241b;
-  --ghm-world-ring: rgba(126, 222, 164, .24);
+  --ghm-world-plate-start: #173653;
+  --ghm-world-plate-end: #0b2035;
+  --ghm-world-ring: rgba(153,187,222, .24);
   --ghm-world-door: #f2c86d;
-  --ghm-world-window: #b6ebce;
+  --ghm-world-window: #9cc8ea;
   color-scheme: dark;
 }
 
@@ -347,7 +347,7 @@ button.danger {
 
 /* ---------- Product and data surfaces ---------- */
 .product-media {
-  background: linear-gradient(135deg, #004d30, #004f34) !important;
+  background: linear-gradient(135deg, #164d7d, #286fa8) !important;
 }
 .product-body,
 .card-actions,
@@ -453,20 +453,20 @@ button.danger {
 .header-premium-badge,
 .desktop-sidebar-premium-v86,
 .header-premium-mini-crown,
-.crown-soft { background: #16432f !important; }
+.crown-soft { background: #3e250f !important; }
 
-.language-picker { background: #12251e !important; color: #edf8f2 !important; }
+.language-picker { background: #142b44 !important; color: #f3f8fc !important; }
 
 /* ---------- Footer / public chrome ---------- */
 .site-footer,
 .parent-company-royal {
-  background: #0e1d17 !important;
+  background: #11171d !important;
   color: #e8f3ed !important;
-  border-color: #365244 !important;
+  border-color: #3c4752 !important;
 }
 .footer-brand-stack,
 .footer-links {
-  background: #0e1d17 !important;
+  background: #11171d !important;
   border: 2px solid #fff !important;
   color: #edf7f1 !important;
 }
@@ -484,11 +484,11 @@ button.danger {
 .extra-scan-visual-frame > * { min-height: 100%; }
 .flyer-local-filer-panel,
 .flyer-local-filter-panel {
-  background: #12211b !important;
+  background: #102c48 !important;
   margin-bottom: 10px !important;
   border: 1px solid #fff !important;
   transform-style: preserve-3d !important;
-  color: #edf8f2 !important;
+  color: #f3f8fc !important;
 }
 
 /* ---------- Premium Household World ---------- */
@@ -759,7 +759,7 @@ html[data-ghm-theme="dark"] :where(
 
 html[data-ghm-theme="dark"] .ghm-world-v97 {
   background:
-    radial-gradient(circle at 18% 4%, rgba(69,199,128,.12), transparent 31%),
+    radial-gradient(circle at 18% 4%, rgba(115,157,199,.12), transparent 31%),
     radial-gradient(circle at 86% 8%, rgba(242,200,109,.10), transparent 28%),
     var(--ghm-card-gradient) !important;
 }
