@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, errorMessage, probeApiHealth } from "../api";
+import { api, errorMessage } from "../api";
 import type { AuthResponse } from "../types";
 import { ThemeToggle } from "../theme";
 
@@ -103,23 +103,12 @@ export default function LoginPage() {
     return () => window.clearInterval(timer);
   }, [registerCooldown]);
 
-  async function ensureServiceReady() {
-    const health = await probeApiHealth();
-    if (!health.live) {
-      setLoginError(health.detail || "GHM cannot reach the server right now. Please try again shortly.");
-      return false;
-    }
-    if (!health.ready) {
-      setLoginError(health.detail || "GHM is reconnecting to the household database. Your data is safe; please retry in a moment.");
-      return false;
-    }
-    return true;
-  }
-
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setLoginError("");
-    if (!(await ensureServiceReady())) return;
+    // Do not block authentication behind a separate health probe. The login or
+    // registration request is the authoritative check and will return a clear
+    // 503 if the database is genuinely unavailable.
     setRegisterMessage("");
     setResetMessage("");
     try {
