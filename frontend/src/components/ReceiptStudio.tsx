@@ -177,7 +177,10 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
       setError(scanUsage.message || 'Smart Receipt Scan is not available right now. You can buy extra scans anytime or enter prices manually.');
       return;
     }
-    if (scanUsage?.will_use_extra_credit) {
+    if (scanUsage?.premium_try_available) {
+      const confirmed = window.confirm('Use Smart Receipt Scan as your one free Premium Try? The free try is only used after the scan succeeds. No subscription starts automatically.');
+      if (!confirmed) return;
+    } else if (scanUsage?.will_use_extra_credit) {
       const confirmed = window.confirm(`Your included scans are finished. This will use 1 extra scan credit. Extra credits left before scanning: ${scanUsage.extra_credits}. Continue?`);
       if (!confirmed) return;
     } else if (scanUsage?.is_last_available) {
@@ -194,7 +197,10 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
       setUploadResult(null);
       setReviewLines([]);
       const { data } = await api.post<ReceiptUploadResult>(`/houses/${houseId}/receipts/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(scanUsage?.premium_try_available ? { 'X-GHM-Premium-Try': 'smart_receipt_scan' } : {}),
+        },
       });
       setUploadResult(data);
       if (data.usage) setScanUsage(data.usage);
@@ -369,9 +375,10 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
       {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}
 
       <div className="receipt-v85-quota">
-        <div><strong>{scanLimitText}</strong><small>{scanUsage?.message || 'Manual receipt entry stays available without using a scan.'}</small></div>
+        <div><strong>{scanUsage?.premium_try_available ? 'Your free Smart Receipt Scan is ready' : scanLimitText}</strong><small>{scanUsage?.message || 'Manual receipt entry stays available without using a scan.'}</small></div>
         <div><span>{Number(scanUsage?.extra_credits || 0)} extra</span><Link to="/pricing#extra-scans">Get more scans →</Link></div>
       </div>
+      {scanUsage && scanUsage.plan_key === 'free' && !scanUsage.premium_try_selected ? <Link className="premium-try-invite-v102 compact receipt-v102-premium-try" to={`/premium-try?feature=smart_receipt_scan&house=${houseId}`}><span aria-hidden="true">✨</span><div><strong>Want to experience this before subscribing?</strong><small>Choose Smart Receipt Scan as your one free Premium Try. One successful scan, no card required.</small></div><b aria-hidden="true">→</b></Link> : null}
 
       {!uploadResult && (
         <div className="receipt-v85-workbench">
@@ -398,7 +405,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
             </label>
             <label>Store name<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Costco, Walmart, No Frills…" /></label>
             <label>Notes<textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional note for this trip" /></label>
-            <button className="primary full receipt-v85-scan-button" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt…' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt'}</button>
+            <button className="primary full receipt-v85-scan-button" type="button" onClick={uploadReceipt} disabled={scanButtonDisabled}>{uploadBusy ? 'Scanning receipt…' : scanUsage?.premium_try_available ? 'Use free Premium Try — scan receipt' : scanUsage?.is_last_available ? 'Use last scan this month' : 'Scan receipt'}</button>
             <div className="receipt-v85-mini-benefits"><span>✓ Detect store & total</span><span>✓ Extract product rows</span><span>✓ Compare with shopping</span><span>✓ You approve before saving</span></div>
           </div>
 

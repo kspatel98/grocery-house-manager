@@ -1,8 +1,8 @@
 # Grocery House Manager
 
-## Current release: V99 — Blue, Cream & Orange + Stability
+## Current release: V100 — Graphical Home + Rich More + Flexible Expense Books
 
-V99 resets the UI to a blue/cream/orange design system, fixes the shared overlay behind **Tell GHM** and **Prepare my order**, and makes production database compatibility work less likely to block login. See `V99_BLUE_CREAM_ORANGE_STABILITY.md` for deployment and validation details.
+V100 keeps the detailed GHM feature pages from V99, adds the richer graphical **Home** and grouped mobile **More** experience, and introduces user-selectable expense accounting months with **house-owner month locking**. See `V100_GRAPHICAL_HOME_MORE_EXPENSE_BOOKS.md` for the new behavior and deployment notes. The V99 blue/cream/orange stability work remains included underneath this release.
 
 
 ## V96 — Household Intelligence & Kitchen Map

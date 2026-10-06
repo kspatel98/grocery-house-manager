@@ -142,7 +142,7 @@ export default function HousePage() {
 
   const expenseSnapshot = useMemo(() => {
     const monthKey = new Date().toISOString().slice(0, 7);
-    const monthExpenses = (expenseSummary?.expenses || []).filter((expense) => String(expense.expense_date || expense.created_at).slice(0, 7) === monthKey);
+    const monthExpenses = (expenseSummary?.expenses || []).filter((expense) => String(expense.expense_month || expense.expense_date || expense.created_at).slice(0, 7) === monthKey);
     const houseTotal = monthExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
     const userId = Number(currentUser?.id || 0);
     const myShare = monthExpenses.reduce((sum, expense) => sum + Number(expense.shares.find((share) => share.user_id === userId)?.share_amount || 0), 0);
@@ -246,6 +246,24 @@ export default function HousePage() {
       </>}
 
       {tab === 'home' && <>
+        <section className="v100-home-overview" aria-label="Household overview">
+          <div className="v100-home-overview-main">
+            <p className="eyebrow">YOUR HOUSEHOLD AT A GLANCE</p>
+            <h2>{house?.name || 'Your home'} is ready for what comes next.</h2>
+            <p className="v100-home-overview-copy">See the important numbers first, then jump straight into the detailed GHM tools you already use.</p>
+            <div className="v100-home-stat-grid">
+              <Link to={`/houses/${id}/inventory`} className="inventory"><span>▣</span><div><small>Inventory</small><strong>{stats.totalProducts}</strong><em>tracked products</em></div></Link>
+              <Link to={`/houses/${id}/shopping`} className="shopping"><span>🛒</span><div><small>Shopping</small><strong>{stats.activeListItems}</strong><em>still to buy</em></div></Link>
+              <Link to={`/houses/${id}/receipts`} className="receipts"><span>🧾</span><div><small>Receipts</small><strong>{stats.receiptCount}</strong><em>saved records</em></div></Link>
+              <button type="button" className="members" onClick={() => setMembersOpen(true)}><span>👥</span><div><small>Members</small><strong>{members.length}</strong><em>connected people</em></div></button>
+            </div>
+          </div>
+          <div className="v100-home-visual" aria-hidden="true">
+            <div className="v100-home-art-card"><span className="v100-home-house">🏡</span><div className="v100-home-grocery-row"><span>🥦</span><span>🍎</span><span>🥕</span><span>🥛</span></div></div>
+            <div className="v100-home-health"><div><small>HOUSEHOLD FLOW</small><strong>{stats.lowStock + stats.outOfStock ? `${stats.lowStock + stats.outOfStock} need attention` : 'Looking good'}</strong></div><span>{stats.lowStock + stats.outOfStock ? '!' : '✓'}</span></div>
+          </div>
+        </section>
+        <section className="v101-discover-strip"><span aria-hidden="true">✦</span><div><strong>Discover why GHM features exist</strong><small>See the household problem each smart tool solves, with simple examples.</small></div><Link to="/learn">How GHM helps →</Link></section>
         <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
         <section className="v95-home-grid">
           <article className="v95-home-card">

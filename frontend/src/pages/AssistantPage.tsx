@@ -16,6 +16,7 @@ import type {
   KitchenVisionApplyResponse,
   KitchenVisionResult,
   KitchenVisionReviewItem,
+  PremiumTryStatus,
   RecipeMissingAddResponse,
   ReceiptGuardianIssue,
   ShoppingList,
@@ -36,6 +37,8 @@ export default function AssistantPage() {
   const requestedView = params.get('view') as AutopilotView | null;
   const workspace: AutopilotView = ['today', 'intelligence', 'plan', 'spend', 'protect'].includes(requestedView || '') ? (requestedView as AutopilotView) : 'today';
   const [houses, setHouses] = useState<House[]>([]);
+  const [premiumTry, setPremiumTry] = useState<PremiumTryStatus | null>(null);
+  const [stockUpTryBusy, setStockUpTryBusy] = useState(false);
   const [houseId, setHouseId] = useState<number | null>(null);
   const chooseWorkspace = (next: AutopilotView) => {
     const nextParams = new URLSearchParams(params);
@@ -80,6 +83,7 @@ export default function AssistantPage() {
       const { data } = await api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } });
       const list = data.houses || [];
       setHouses(list);
+      setPremiumTry(data.subscription.premium_try || null);
       const requested = Number(params.get('house'));
       const selected = list.find((row) => row.id === requested)?.id || list[0]?.id || null;
       setHouseId(selected);
@@ -302,19 +306,48 @@ export default function AssistantPage() {
     try {
       setPlanBusy(true);
       setError('');
+      const usingPremiumTry = Boolean(premiumTry?.available && premiumTry.selected_feature === 'autopilot_planner');
+      if (usingPremiumTry && !window.confirm('Use GHM Autopilot Planner as your one free Premium Try? The try is used only after GHM successfully builds the household plan.')) return;
       const { data } = await api.post<HouseholdPlan>(`/insights/houses/${houseId}/household-plan`, {
         days: planDays,
         default_servings: defaultServings,
         skip_days: skipDays,
         guest_servings: servingOverrides,
         budget: budget.trim() ? Number(budget) : null,
-      });
+      }, { headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'autopilot_planner' } : undefined });
       setPlan(data);
+      if (usingPremiumTry) {
+        const refreshed = await api.get<PremiumTryStatus>('/billing/premium-try', { params: { t: Date.now() } }).catch(() => null);
+        if (refreshed?.data) setPremiumTry(refreshed.data);
+        window.dispatchEvent(new Event('account:refresh'));
+      }
       window.dispatchEvent(new CustomEvent('ghm:success-moment', { detail: { type: 'meal_plan', message: `Your ${data.days_requested}-day household plan is ready with ${data.planned_days} meal day${data.planned_days === 1 ? '' : 's'} planned.` } }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setPlanBusy(false);
+    }
+  }
+
+  async function runStockUpPremiumTry() {
+    if (!houseId) return;
+    try {
+      setStockUpTryBusy(true);
+      setError('');
+      const { data } = await api.get<AutopilotOverview['stock_up']>(`/insights/houses/${houseId}/stock-up`, { headers: { 'X-GHM-Premium-Try': 'smart_stock_up' }, params: { t: Date.now() } });
+      setAutopilot((current) => current ? { ...current, stock_up: data, stock_up_unlocked: true } : current);
+      if (data.length) {
+        const refreshed = await api.get<PremiumTryStatus>('/billing/premium-try', { params: { t: Date.now() } }).catch(() => null);
+        if (refreshed?.data) setPremiumTry(refreshed.data);
+        window.dispatchEvent(new Event('account:refresh'));
+        setMessage(`Smart Stock-Up found ${data.length} history-aware opportunit${data.length === 1 ? 'y' : 'ies'}. Your one free Premium Try has been used.`);
+      } else {
+        setMessage('GHM did not find a high-confidence stock-up signal yet, so your one free Premium Try was not used.');
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setStockUpTryBusy(false);
     }
   }
 
@@ -571,7 +604,7 @@ export default function AssistantPage() {
 
       <section id="weekly-plan" className="autopilot-section autopilot-week-section" data-v95-view="plan">
         <header className="autopilot-section-heading"><div><p className="eyebrow">THIS WEEK · MEALS + BUDGET</p><h2>Tell us only what changed. Autopilot handles the groceries.</h2><p>Choose how many days you are planning, servings, days you are away, and an optional budget. The planner prioritizes food already at home and items that should be used soon.</p></div><span className="autopilot-feature-number">01</span></header>
-        {autopilot?.planner_unlocked ? <div className="autopilot-plan-layout">
+        {(autopilot?.planner_unlocked || (premiumTry?.selected_feature === 'autopilot_planner' && (premiumTry.available || Boolean(plan)))) ? <div className="autopilot-plan-layout">
           <div className="autopilot-plan-controls">
             <div className="v98-routine-strip">
               <div><small>HOUSEHOLD ROUTINES</small><strong>Start from real life, not a blank form.</strong></div>
@@ -588,7 +621,7 @@ export default function AssistantPage() {
                 return <div key={day} className={`autopilot-day-setting ${skipped ? 'skipped' : ''}`}><button type="button" onClick={() => toggleSkipDay(day)}><strong>{day.slice(0, 3)}</strong><small>{skipped ? 'Away / eating out' : 'Eating at home'}</small></button>{!skipped ? <label><span>Servings</span><input type="number" min={1} max={20} value={servingOverrides[day] || defaultServings} onChange={(event) => setServingOverrides((current) => ({ ...current, [day]: Math.max(1, Number(event.target.value) || defaultServings) }))} /></label> : null}</div>;
               })}
             </div>
-            <button type="button" className="primary full autopilot-build-plan" onClick={buildHouseholdPlan} disabled={planBusy}>{planBusy ? 'Building from your household data…' : '✨ Build my week'}</button>
+            <button type="button" className="primary full autopilot-build-plan" onClick={buildHouseholdPlan} disabled={planBusy}>{planBusy ? 'Building from your household data…' : premiumTry?.available && premiumTry.selected_feature === 'autopilot_planner' ? '✨ Use free Premium Try — build my week' : '✨ Build my week'}</button>
             {planBusy ? <div className="v98-background-work-note"><span>✦</span><div><strong>You can keep using the rest of GHM.</strong><small>This plan is being prepared from your household data. Stay on this screen for the result in this version; other long-running workflows are being designed to become resumable background jobs.</small></div></div> : null}
             <p className="autopilot-trust-note">No fake grocery prices: if an ingredient has no reliable saved price, it stays clearly marked as unpriced.</p>
           </div>
@@ -604,7 +637,7 @@ export default function AssistantPage() {
         </div> : <div className="autopilot-premium-lock autopilot-premium-lock-wide">
           <span className="autopilot-lock-icon">✨</span>
           <div><p className="eyebrow">FAMILY PLUS AUTOMATION</p><h3>Weekly Planner + Budget Rescue</h3><p>Family Plus turns your inventory, expiry dates, days at home, servings and known prices into a household plan without inventing unknown costs.</p><div className="autopilot-lock-points"><span>✓ Use-soon meal priority</span><span>✓ Away / eating-out days</span><span>✓ Budget-aware grocery gaps</span><span>✓ One-tap list creation</span></div></div>
-          <Link to="/pricing" className="primary center-link">Unlock Family Plus →</Link>
+          {premiumTry?.available ? <Link to={`/premium-try?feature=autopilot_planner&house=${houseId || ''}`} className="primary center-link">Try Autopilot once free →</Link> : <Link to="/pricing" className="primary center-link">Unlock Family Plus →</Link>}
         </div>}
 
         {foodSuggestionsReady && <div className="v98-food-tonight-inline"><span>🍽️</span><div><small>DON'T FEEL LIKE COOKING?</small><strong>Food Tonight stays one click away—not another permanent module.</strong><p>See nearby restaurants or food stores, prepare dietary ordering instructions, then return to your weekly plan.</p></div><Link className="secondary center-link" to={`/houses/${houseId}/food`}>See nearby options →</Link></div>}
@@ -649,7 +682,7 @@ export default function AssistantPage() {
 
           <article className="autopilot-stockup-card">
             <div className="panel-title-row"><div><p className="eyebrow">BUY 1 OR BUY MORE?</p><h3>Smart stock-up opportunities</h3></div><span className="badge">History-aware</span></div>
-            {autopilot?.stock_up_unlocked ? <div className="autopilot-stockup-list">{autopilot.stock_up.slice(0, 4).map((item) => <div key={item.product_id}><div><strong>{item.product_name}</strong><small>{item.store_name || 'Saved price'} · {item.history_points} price observations</small></div><span><b>{money(item.current_price, autopilot.currency_code)}</b><small>typical {money(item.typical_price, autopilot.currency_code)}</small></span><em>-{item.discount_percent}%</em><p>{item.reason}</p><footer><strong>Consider {item.recommended_quantity}</strong><small>Potential value {money(item.potential_savings, autopilot.currency_code)} · {item.caution}</small></footer></div>)}{!autopilot.stock_up.length ? <div className="autopilot-empty-insight"><span>📉</span><strong>No high-confidence stock-up signal yet</strong><p>Autopilot waits for enough real purchase history and a meaningfully lower saved price instead of calling every sale a deal.</p></div> : null}</div> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Smart stock-up unlocks with Family Plus</strong><small>It waits for enough purchase history, compares the current saved price with your household's typical price, then suggests a conservative quantity.</small></div><Link to="/pricing">See Family Plus →</Link></div>}
+            {autopilot?.stock_up_unlocked ? <div className="autopilot-stockup-list">{autopilot.stock_up.slice(0, 4).map((item) => <div key={item.product_id}><div><strong>{item.product_name}</strong><small>{item.store_name || 'Saved price'} · {item.history_points} price observations</small></div><span><b>{money(item.current_price, autopilot.currency_code)}</b><small>typical {money(item.typical_price, autopilot.currency_code)}</small></span><em>-{item.discount_percent}%</em><p>{item.reason}</p><footer><strong>Consider {item.recommended_quantity}</strong><small>Potential value {money(item.potential_savings, autopilot.currency_code)} · {item.caution}</small></footer></div>)}{!autopilot.stock_up.length ? <div className="autopilot-empty-insight"><span>📉</span><strong>No high-confidence stock-up signal yet</strong><p>Autopilot waits for enough real purchase history and a meaningfully lower saved price instead of calling every sale a deal.</p></div> : null}</div> : <div className="autopilot-inline-lock"><span>🔒</span><div><strong>Smart stock-up unlocks with Family Plus</strong><small>It waits for enough purchase history, compares the current saved price with your household's typical price, then suggests a conservative quantity.</small></div>{premiumTry?.available ? (premiumTry.selected_feature === 'smart_stock_up' ? <button type="button" className="primary" disabled={stockUpTryBusy} onClick={runStockUpPremiumTry}>{stockUpTryBusy ? 'Checking history…' : 'Use my free Premium Try'}</button> : <Link to={`/premium-try?feature=smart_stock_up&house=${houseId || ''}`}>Try this once free →</Link>) : <Link to="/pricing">See Family Plus →</Link>}</div>}
           </article>
 
           <article className="autopilot-community-price-card">

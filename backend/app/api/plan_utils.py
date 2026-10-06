@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -45,7 +45,8 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "Join other houses by invitation",
             "Low-stock, expiry awareness, community recipes, and Food Recall Guardian",
             "Savings Ledger separates verified value from open opportunities",
-            "Upgrade when you want receipt, planning, price, and camera automation",
+            "Try one premium feature once for free — you choose which one, no card required",
+            "Upgrade when you want receipt, planning, price, and camera automation repeatedly",
         ],
         price_annual_cad=0,
     ),
@@ -109,6 +110,167 @@ PLANS: dict[PlanName, PlanDefinition] = {
         price_annual_cad=59.99,
     ),
 }
+
+
+# V102 — one complimentary premium experience for Free Starter accounts.
+# These are intentionally workflow-sized experiences: the user chooses one,
+# gets the real result once, and then upgrades only if they want to repeat it.
+PREMIUM_TRY_FEATURES: dict[str, dict[str, object]] = {
+    "smart_receipt_scan": {
+        "label": "Smart Receipt Scan",
+        "description": "Scan one real receipt and let GHM extract the rows, prepare inventory updates and remember prices.",
+        "icon": "🧾",
+        "min_plan": PlanName.basic,
+        "upgrade_label": "Basic Home",
+    },
+    "product_lookup": {
+        "label": "Product Lookup",
+        "description": "Search one product by barcode, item number or name and use the result in your household inventory.",
+        "icon": "🔎",
+        "min_plan": PlanName.basic,
+        "upgrade_label": "Basic Home",
+    },
+    "whole_list_compare": {
+        "label": "Whole-List Comparison",
+        "description": "Compare one full shopping list and see the best supported one-store or two-store trip instead of comparing products one by one.",
+        "icon": "🛒",
+        "min_plan": PlanName.family,
+        "upgrade_label": "Family Plus",
+    },
+    "live_price_compare": {
+        "label": "Live Grocery Price Compare",
+        "description": "Run one live Canadian grocery-price comparison for the products you choose.",
+        "icon": "💲",
+        "min_plan": PlanName.family,
+        "upgrade_label": "Family Plus",
+    },
+    "weekly_flyers": {
+        "label": "Weekly Flyer Intelligence",
+        "description": "Load one real local flyer result and see current deals around your Grocery Home.",
+        "icon": "🏷️",
+        "min_plan": PlanName.family,
+        "upgrade_label": "Family Plus",
+    },
+    "autopilot_planner": {
+        "label": "GHM Autopilot Planner",
+        "description": "Build one household plan from inventory, days at home, servings, food to use soon and an optional budget.",
+        "icon": "✦",
+        "min_plan": PlanName.family,
+        "upgrade_label": "Family Plus",
+    },
+    "smart_stock_up": {
+        "label": "Smart Stock-Up",
+        "description": "Run one history-aware stock-up check so GHM can identify unusually strong prices without treating every sale as a deal.",
+        "icon": "📦",
+        "min_plan": PlanName.family,
+        "upgrade_label": "Family Plus",
+    },
+    "nearby_store_suggestions": {
+        "label": "Smart Nearby Stores",
+        "description": "Use one shopping list to get GHM's store-aware nearby shopping suggestions.",
+        "icon": "📍",
+        "min_plan": PlanName.pro,
+        "upgrade_label": "Household Pro",
+    },
+    "kitchen_vision": {
+        "label": "Kitchen Vision",
+        "description": "Run one camera-assisted pantry or fridge scan and review what GHM can recognize before applying changes.",
+        "icon": "👁️",
+        "min_plan": PlanName.pro,
+        "upgrade_label": "Household Pro",
+    },
+}
+
+
+def premium_try_choices() -> list[dict[str, object]]:
+    return [{"key": key, **value} for key, value in PREMIUM_TRY_FEATURES.items()]
+
+
+def premium_try_status(user: User) -> dict[str, object]:
+    plan = get_user_plan(user)
+    selected = (getattr(user, "premium_try_feature", None) or "").strip() or None
+    selected_meta = PREMIUM_TRY_FEATURES.get(selected or "")
+    used_at = getattr(user, "premium_try_used_at", None)
+    started_at = getattr(user, "premium_try_started_at", None)
+    is_free_now = plan.key == PlanName.free
+    available = bool(is_free_now and used_at is None)
+    if used_at:
+        label = str((selected_meta or {}).get("label") or "premium feature")
+        message = f"Your complimentary premium try was used on {label}. Subscribe to use premium workflows again."
+    elif not is_free_now:
+        message = f"{plan.name} already unlocks premium tools. Your complimentary try is only needed while your account is on Free Starter."
+    elif selected_meta:
+        message = f"{selected_meta['label']} is selected. Your free try is used only after that workflow completes successfully."
+    else:
+        message = "Choose one premium feature to try once for free. No card is required, and the choice can be changed until you use it."
+    return {
+        "eligible": is_free_now and used_at is None,
+        "available": available,
+        "selected_feature": selected,
+        "selected_label": str(selected_meta.get("label")) if selected_meta else None,
+        "started_at": started_at,
+        "used_at": used_at,
+        "house_id": getattr(user, "premium_try_house_id", None),
+        "message": message,
+        "choices": premium_try_choices(),
+    }
+
+
+def premium_try_can_start(db: Session, house_id: int, user: User | None, feature_key: str, requested_feature: str | None = None) -> bool:
+    if not user or requested_feature != feature_key or feature_key not in PREMIUM_TRY_FEATURES:
+        return False
+    if get_user_plan(user).key != PlanName.free or getattr(user, "premium_try_used_at", None) is not None:
+        return False
+    if (getattr(user, "premium_try_feature", None) or "") != feature_key:
+        return False
+    # House-level subscriptions follow the owner. Keeping the complimentary try on a
+    # house the user owns means the upgrade they see afterwards unlocks that same house.
+    house = db.get(House, house_id)
+    return bool(house and house.created_by_id == user.id)
+
+
+def begin_premium_try(db: Session, house_id: int, user: User, feature_key: str, requested_feature: str | None) -> bool:
+    if not premium_try_can_start(db, house_id, user, feature_key, requested_feature):
+        return False
+    if getattr(user, "premium_try_started_at", None) is None or getattr(user, "premium_try_house_id", None) != house_id:
+        user.premium_try_started_at = datetime.now(timezone.utc)
+        user.premium_try_house_id = house_id
+        db.add(user)
+        db.flush()
+    return True
+
+
+def complete_premium_try(db: Session, house_id: int, user: User, feature_key: str, requested_feature: str | None) -> bool:
+    if not premium_try_can_start(db, house_id, user, feature_key, requested_feature):
+        return False
+    if getattr(user, "premium_try_started_at", None) is None:
+        user.premium_try_started_at = datetime.now(timezone.utc)
+    user.premium_try_house_id = house_id
+    user.premium_try_used_at = datetime.now(timezone.utc)
+    db.add(user)
+    db.commit()
+    return True
+
+
+def premium_try_followup_allowed(db: Session, house_id: int, user: User | None, feature_key: str) -> bool:
+    """Allow only the completion step of a just-used multi-step trial (Kitchen Vision)."""
+    if not user or feature_key != (getattr(user, "premium_try_feature", None) or ""):
+        return False
+    if getattr(user, "premium_try_house_id", None) != house_id or getattr(user, "premium_try_used_at", None) is None:
+        return False
+    started = getattr(user, "premium_try_started_at", None)
+    if not started:
+        return False
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - started <= timedelta(hours=2)
+
+
+def house_plan_or_premium_try(db: Session, house_id: int, user: User | None, paid_plans: set[PlanName], feature_key: str, requested_feature: str | None = None) -> bool:
+    if get_house_plan(db, house_id).key in paid_plans:
+        return True
+    return premium_try_can_start(db, house_id, user, feature_key, requested_feature)
+
 
 
 def normalize_plan(plan_name: object) -> PlanName:
@@ -226,7 +388,7 @@ def _count_monthly_receipt_scans(db: Session, *, month_start: datetime, house_id
     query = db.query(Receipt).filter(
         Receipt.created_at >= month_start,
         Receipt.ocr_provider.isnot(None),
-        or_(Receipt.receipt_scan_credit_source.is_(None), Receipt.receipt_scan_credit_source != "extra"),
+        or_(Receipt.receipt_scan_credit_source.is_(None), ~Receipt.receipt_scan_credit_source.in_(["extra", "premium_try"])),
     )
     if house_ids is not None:
         if not house_ids:
@@ -256,9 +418,12 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
     service_remaining = max(service_cap - service_used, 0) if service_cap else None
     service_available = service_cap == 0 or service_remaining > 0
     will_use_extra_credit = remaining == 0 and extra_credits > 0 and service_available
+    premium_try_available = premium_try_can_start(db, house_id, user, "smart_receipt_scan", "smart_receipt_scan")
 
-    if limit <= 0 and extra_credits <= 0:
-        message = f"Smart Receipt Scan is locked on {plan.name}. You can enter prices manually or buy extra scans if scanning is needed."
+    if limit <= 0 and extra_credits <= 0 and premium_try_available:
+        message = "Your selected free Premium Try is ready. Scan one receipt successfully and this one-time experience will be used."
+    elif limit <= 0 and extra_credits <= 0:
+        message = f"Smart Receipt Scan is locked on {plan.name}. You can enter prices manually, buy extra scans, or choose Smart Receipt Scan as your one free Premium Try."
     elif not service_available:
         message = "Smart Receipt Scan is temporarily unavailable because this month's scan capacity has been reached. Manual price entry still works."
     elif remaining == 0 and extra_credits > 0:
@@ -277,8 +442,10 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
         "plan_name": plan.name,
         "plan_key": plan.key.value,
         "month_label": month_label,
-        "allowed": ((limit > 0 and remaining > 0) or extra_credits > 0) and service_available,
+        "allowed": (((limit > 0 and remaining > 0) or extra_credits > 0) or premium_try_available) and service_available,
         "is_last_available": limit > 0 and remaining == 1 and service_available,
+        "premium_try_available": premium_try_available,
+        "premium_try_selected": (getattr(user, "premium_try_feature", None) or "") == "smart_receipt_scan" and getattr(user, "premium_try_used_at", None) is None,
         "quota_scope": "Included scans reset monthly. Extra scans stay until used.",
         "quota_owner_id": owner.id if owner else None,
         "quota_owner_name": owner.full_name or owner.email if owner else None,
@@ -290,13 +457,15 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
     }
 
 
-def choose_receipt_scan_credit_source(db: Session, house_id: int, user: User) -> str:
+def choose_receipt_scan_credit_source(db: Session, house_id: int, user: User, requested_feature: str | None = None) -> str:
     usage = receipt_scan_usage(db, house_id, user)
     if usage.get("remaining", 0) > 0:
         return "included"
     if usage.get("extra_credits", 0) > 0:
         return "extra"
-    ensure_receipt_scan_limit(db, house_id, user)
+    if begin_premium_try(db, house_id, user, "smart_receipt_scan", requested_feature):
+        return "premium_try"
+    ensure_receipt_scan_limit(db, house_id, user, requested_feature=requested_feature)
     return "included"
 
 
@@ -307,9 +476,10 @@ def consume_extra_receipt_scan_credit(db: Session, house_id: int) -> None:
     owner.extra_receipt_scan_credits = max(int(owner.extra_receipt_scan_credits or 0) - 1, 0)
 
 
-def ensure_receipt_scan_limit(db: Session, house_id: int, user: User) -> None:
+def ensure_receipt_scan_limit(db: Session, house_id: int, user: User, requested_feature: str | None = None) -> None:
     usage = receipt_scan_usage(db, house_id, user)
-    if usage.get("limit", 0) <= 0 and usage.get("extra_credits", 0) <= 0:
+    premium_try_requested = premium_try_can_start(db, house_id, user, "smart_receipt_scan", requested_feature)
+    if usage.get("limit", 0) <= 0 and usage.get("extra_credits", 0) <= 0 and not premium_try_requested:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=usage["message"],
@@ -319,26 +489,29 @@ def ensure_receipt_scan_limit(db: Session, house_id: int, user: User) -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=usage["message"],
         )
-    if usage.get("remaining", 0) <= 0 and usage.get("extra_credits", 0) <= 0:
+    if usage.get("remaining", 0) <= 0 and usage.get("extra_credits", 0) <= 0 and not premium_try_requested:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=usage["message"],
         )
 
 
-def house_plan_has_smart_market(db: Session, house_id: int) -> bool:
-    """House-level premium feature. Household Pro unlocks live nearby store suggestions."""
-    return get_house_plan(db, house_id).key == PlanName.pro
+def house_plan_has_smart_market(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None) -> bool:
+    """Household Pro, or an explicitly selected one-time Premium Try."""
+    return house_plan_or_premium_try(db, house_id, user, {PlanName.pro}, "nearby_store_suggestions", requested_feature)
 
 
-def house_plan_has_product_lookup(db: Session, house_id: int) -> bool:
-    """Basic Home and higher can use product lookup/barcode enrichment."""
-    return get_house_plan(db, house_id).key in {PlanName.basic, PlanName.family, PlanName.pro}
+def house_plan_has_product_lookup(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None) -> bool:
+    """Basic Home+, or an explicitly selected one-time Premium Try."""
+    return house_plan_or_premium_try(db, house_id, user, {PlanName.basic, PlanName.family, PlanName.pro}, "product_lookup", requested_feature)
 
 
-def house_plan_has_external_price_comparison(db: Session, house_id: int) -> bool:
-    """Family Plus and Household Pro unlock live Canadian grocery price comparison."""
-    return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
+def house_plan_has_external_price_comparison(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None) -> bool:
+    """Family Plus+, or an explicitly selected live-price / flyer Premium Try."""
+    paid = get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
+    if paid:
+        return True
+    return premium_try_can_start(db, house_id, user, requested_feature or "", requested_feature) and requested_feature in {"live_price_compare", "weekly_flyers"}
 
 
 def house_plan_has_receipt_guardian(db: Session, house_id: int) -> bool:
@@ -346,16 +519,20 @@ def house_plan_has_receipt_guardian(db: Session, house_id: int) -> bool:
     return get_house_plan(db, house_id).key in {PlanName.basic, PlanName.family, PlanName.pro}
 
 
-def house_plan_has_autopilot_planner(db: Session, house_id: int) -> bool:
-    """Family Plus and Household Pro unlock Budget Rescue and weekly household planning."""
-    return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
+def house_plan_has_autopilot_planner(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None) -> bool:
+    """Family Plus+, or one explicitly selected Autopilot Premium Try."""
+    return house_plan_or_premium_try(db, house_id, user, {PlanName.family, PlanName.pro}, "autopilot_planner", requested_feature)
 
 
-def house_plan_has_stock_up_intelligence(db: Session, house_id: int) -> bool:
-    """Family Plus and Household Pro unlock history-aware stock-up recommendations."""
-    return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
+def house_plan_has_stock_up_intelligence(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None) -> bool:
+    """Family Plus+, or one explicitly selected Smart Stock-Up Premium Try."""
+    return house_plan_or_premium_try(db, house_id, user, {PlanName.family, PlanName.pro}, "smart_stock_up", requested_feature)
 
 
-def house_plan_has_kitchen_check(db: Session, house_id: int) -> bool:
-    """Household Pro unlocks camera-assisted pantry/fridge reconciliation."""
-    return get_house_plan(db, house_id).key == PlanName.pro
+def house_plan_has_kitchen_check(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None, allow_followup: bool = False) -> bool:
+    """Household Pro, or one explicitly selected Kitchen Vision Premium Try."""
+    if get_house_plan(db, house_id).key == PlanName.pro:
+        return True
+    if allow_followup and premium_try_followup_allowed(db, house_id, user, "kitchen_vision"):
+        return True
+    return premium_try_can_start(db, house_id, user, "kitchen_vision", requested_feature)

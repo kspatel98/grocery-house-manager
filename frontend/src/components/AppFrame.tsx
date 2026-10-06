@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api';
 import OfferCrownWidget from './OfferCrownWidget';
 import PremiumAwardCelebration from './PremiumAwardCelebration';
 import SetupCoach from './SetupCoach';
-import type { AccountBootstrap, PremiumCrownStats, UserProfile } from '../types';
+import type { AccountBootstrap, PremiumCrownStats, PremiumTryStatus, UserProfile } from '../types';
 import { LanguagePicker, useLanguage } from '../i18n';
 import OverlayPortal from './OverlayPortal';
 import SmartReviewPrompt from './SmartReviewPrompt';
@@ -71,6 +71,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(cachedAdminFlag);
   const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
   const [premiumStats, setPremiumStats] = useState<PremiumCrownStats | null>(null);
+  const [premiumTry, setPremiumTry] = useState<PremiumTryStatus | null>(null);
   const [activeHouseId, setActiveHouseId] = useState<number | null>(() => {
     const saved = Number(localStorage.getItem('ghm_active_house_id'));
     return Number.isFinite(saved) && saved > 0 ? saved : null;
@@ -131,6 +132,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           if (cancelled) return;
           setIsAdmin(Boolean(data.is_admin));
           setPremiumStats(data.premium_crown_stats || null);
+          setPremiumTry(data.subscription.premium_try || null);
           const savedHouseId = Number(localStorage.getItem('ghm_active_house_id'));
           const rememberedHouse = data.houses?.find((house) => house.id === savedHouseId);
           const nextActiveHouseId = rememberedHouse?.id || data.houses?.[0]?.id || null;
@@ -223,21 +225,30 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       ];
   const extraNavItems = [
     ...(contextHouseId ? [
-      { to: `/houses/${contextHouseId}/inventory`, label: 'Inventory', icon: '▣' },
-      { to: `/houses/${contextHouseId}/kitchen`, label: 'Kitchen Vision', icon: '👁️' },
-      { to: `/houses/${contextHouseId}/meals`, label: 'Meals', icon: '🍲' },
-      { to: `/houses/${contextHouseId}/scan`, label: 'Scan receipt', icon: '🧾' },
-      { to: `/houses/${contextHouseId}/receipts`, label: 'Receipts', icon: '🗂️' },
-      { to: `/houses/${contextHouseId}/expenses`, label: 'Money', icon: '$' },
-      { to: '/market', label: 'Prices & flyers', icon: '◉' },
-      { to: `/houses/${contextHouseId}/templates`, label: 'Templates', icon: '▤' },
+      { to: `/houses/${contextHouseId}/inventory`, label: 'Inventory', icon: '▣', group: 'household', description: 'Stock, sections and low-stock tools' },
+      { to: `/houses/${contextHouseId}/kitchen`, label: 'Kitchen Vision', icon: '👁️', group: 'household', description: 'Visual checks for fridge, pantry and storage' },
+      { to: `/houses/${contextHouseId}/meals`, label: 'Meals', icon: '🍲', group: 'household', description: 'Recipes, servings and cook-from-home' },
+      { to: `/houses/${contextHouseId}/food`, label: 'Food tonight', icon: '🍽️', group: 'household', description: 'Nearby food ideas when you do not want to cook' },
+      { to: `/houses/${contextHouseId}/templates`, label: 'Templates', icon: '▤', group: 'household', description: 'Reusable household lists and routines' },
+      { to: `/houses/${contextHouseId}/scan`, label: 'Scan receipt', icon: '🧾', group: 'money', description: 'OCR, inventory, prices and expenses' },
+      { to: `/houses/${contextHouseId}/receipts`, label: 'Receipts', icon: '🗂️', group: 'money', description: 'History, images and saved evidence' },
+      { to: `/houses/${contextHouseId}/expenses`, label: 'Money', icon: '$', group: 'money', description: 'Expenses, monthly books and reimbursements' },
+      { to: '/market', label: 'Prices & flyers', icon: '◉', group: 'shopping', description: 'Compare prices, flyers and nearby options' },
     ] : []),
-    { to: '/reports', label: 'Reports', icon: '📈' },
-    { to: '/pricing', label: t('plans'), icon: '✨' },
-    { to: '/support', label: t('support'), icon: '💬' },
-    { to: '/privacy', label: 'Privacy', icon: '◌' },
-    { to: '/terms', label: 'Terms', icon: '§' },
-    ...(isAdmin ? [{ to: '/admin', label: t('admin'), icon: '🛡️' }] : []),
+    { to: '/reports', label: 'Reports', icon: '📈', group: 'shopping', description: 'Savings, spending and household insight' },
+    { to: '/premium-try', label: 'Try Premium Free', icon: '✨', group: 'account', description: 'Choose one premium feature and use it once for free' },
+    { to: '/pricing', label: t('plans'), icon: '✨', group: 'account', description: 'Plans, premium tools and extra scans' },
+    { to: '/learn', label: 'How GHM helps', icon: '✦', group: 'learn', description: 'The problem each smart feature is designed to solve' },
+    { to: '/support', label: t('support'), icon: '💬', group: 'account', description: 'Get help with GHM' },
+    { to: '/privacy', label: 'Privacy', icon: '◌', group: 'account', description: 'Privacy and data information' },
+    { to: '/terms', label: 'Terms', icon: '§', group: 'account', description: 'Terms of service' },
+    ...(isAdmin ? [{ to: '/admin', label: t('admin'), icon: '🛡️', group: 'account', description: 'Admin controls and offers' }] : []),
+  ];
+  const mobileMoreGroups = [
+    { key: 'household', title: 'Household', subtitle: 'Your home, food and shared routines' },
+    { key: 'money', title: 'Receipts & money', subtitle: 'Capture, split, settle and review' },
+    { key: 'shopping', title: 'Smart shopping', subtitle: 'Prices, flyers, reports and savings' },
+    { key: 'account', title: 'Account & app', subtitle: 'Plans, help and app controls' },
   ];
   const navActive = (to: string) => {
     const [itemPath, query = ''] = to.split('?');
@@ -570,15 +581,36 @@ export default function AppFrame({ children }: { children: ReactNode }) {
           <div className="mobile-more-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
             <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More Grocery House Manager options" onClick={(event) => event.stopPropagation()}>
               <div className="mobile-more-handle" aria-hidden="true" />
-              <div className="mobile-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2></div><button type="button" data-dialog-close="true" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
-              <div className="mobile-more-grid">
-                <ThemeToggle className="mobile-more-theme-v87" />
-                <div className="mobile-more-language-card-v88"><span aria-hidden="true">🌐</span><div><strong>Language</strong><LanguagePicker compact /></div></div>
-                {showPremiumCrown && <div className="mobile-more-premium-card-v88"><span aria-hidden="true">👑</span><div><strong>Premium</strong><small>{premiumSubtext}</small></div></div>}
-                {extraNavItems.map((item) => (
-                  <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">{item.icon}</span><strong>{item.label}</strong></Link>
-                ))}
-                <Link to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><strong>{t('profile')}</strong></Link>
+              <div className="mobile-more-head v100-more-head"><div><small>GROCERY HOUSE MANAGER</small><h2>{t('more')}</h2><p>Everything in your household, without hiding the detailed tools.</p></div><button type="button" data-dialog-close="true" aria-label="Close more menu" onClick={() => setMobileMoreOpen(false)}>×</button></div>
+              <div className="v100-more-scroll">
+                <section className="v100-more-spotlight">
+                  <div className="v100-more-spotlight-copy"><small>YOUR GHM WORKSPACE</small><strong>{showPremiumCrown ? 'Household Pro' : 'Your household tools'}</strong><p>{showPremiumCrown ? premiumSubtext : 'Inventory, meals, receipts, money and shopping intelligence in one place.'}</p></div>
+                  <div className="v100-more-spotlight-art" aria-hidden="true"><span>🏡</span><div><i>🥦</i><i>🧾</i><i>💸</i></div></div>
+                </section>
+
+                {profile?.plan_name === 'free' ? <Link className={`v102-more-premium-try ${premiumTry?.used_at ? 'used' : ''}`} to="/premium-try" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">✨</span><div><strong>{premiumTry?.used_at ? `You tried ${premiumTry.selected_label || 'Premium'}` : premiumTry?.selected_label ? `${premiumTry.selected_label} is ready` : 'Try one premium feature free'}</strong><small>{premiumTry?.used_at ? 'Subscribe when you want to use premium workflows again.' : premiumTry?.selected_label ? 'Use the real workflow once. It counts only after a successful result.' : 'You choose the feature • one successful use • no card required.'}</small></div><b aria-hidden="true">→</b></Link> : null}
+
+                <Link className="v101-more-discover" to="/learn" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">✦</span><div><strong>Discover what GHM can do</strong><small>See the problem each smart feature solves and when to use it.</small></div><b aria-hidden="true">→</b></Link>
+
+                <section className="v100-more-preferences">
+                  <ThemeToggle className="mobile-more-theme-v87 v100-more-pref-card" />
+                  <div className="mobile-more-language-card-v88 v100-more-pref-card"><span aria-hidden="true">🌐</span><div><strong>Language</strong><LanguagePicker compact /></div></div>
+                  <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
+                </section>
+
+                {mobileMoreGroups.map((group) => {
+                  const items = extraNavItems.filter((item) => item.group === group.key);
+                  if (!items.length) return null;
+                  return <section className="v100-more-section" key={group.key}>
+                    <header><div><h3>{group.title}</h3><p>{group.subtitle}</p></div></header>
+                    <div className="v100-more-feature-grid">
+                      {items.map((item) => <Link key={item.to} to={item.to} onClick={() => setMobileMoreOpen(false)} className={`v100-more-feature-card group-${group.key}${item.to === '/learn' ? ' v101-more-learn-card' : ''}`}>
+                        <span className="v100-more-feature-icon" aria-hidden="true">{item.icon}</span>
+                        <div><strong>{item.label}</strong><small>{item.description}</small></div><b aria-hidden="true">›</b>
+                      </Link>)}
+                    </div>
+                  </section>;
+                })}
               </div>
             </section>
           </div>

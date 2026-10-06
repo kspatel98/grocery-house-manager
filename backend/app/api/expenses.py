@@ -9,7 +9,17 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
 from app.db.session import get_db
-from app.models import ExpenseCategory, ExpenseSettlement, ExpenseShare, HouseExpense, HouseMember, Receipt, User
+from app.models import (
+    ExpenseCategory,
+    ExpenseMonthLock,
+    ExpenseSettlement,
+    ExpenseShare,
+    HouseExpense,
+    HouseMember,
+    HouseRole,
+    Receipt,
+    User,
+)
 from app.services.expense_math import suggest_transfer_cents
 from app.schemas import (
     ExpenseBalanceOut,
@@ -17,6 +27,8 @@ from app.schemas import (
     ExpenseCategoryIn,
     ExpenseCategoryOut,
     ExpenseCreateIn,
+    ExpenseMonthLockIn,
+    ExpenseMonthOut,
     ExpenseOut,
     ExpenseSettlementIn,
     ExpenseSettlementOut,
@@ -41,6 +53,43 @@ def _name(user: User | None) -> str:
     return display_name(user) if user else "House member"
 
 
+def _normalize_month_key(value: str | None, fallback_date: date | None = None) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        basis = fallback_date or date.today()
+        return basis.strftime("%Y-%m")
+    try:
+        parsed = datetime.strptime(raw, "%Y-%m")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Expense month must use YYYY-MM format.") from exc
+    normalized = parsed.strftime("%Y-%m")
+    if normalized != raw:
+        raise HTTPException(status_code=400, detail="Expense month must use YYYY-MM format.")
+    return normalized
+
+
+def _expense_month_key(expense: HouseExpense) -> str:
+    return _normalize_month_key(getattr(expense, "expense_month", None), expense.expense_date)
+
+
+def _month_lock(db: Session, house_id: int, month_key: str) -> ExpenseMonthLock | None:
+    return (
+        db.query(ExpenseMonthLock)
+        .options(joinedload(ExpenseMonthLock.locked_by))
+        .filter(ExpenseMonthLock.house_id == house_id, ExpenseMonthLock.month_key == month_key)
+        .first()
+    )
+
+
+def _ensure_month_open(db: Session, house_id: int, month_key: str) -> None:
+    lock = _month_lock(db, house_id, month_key)
+    if lock and lock.is_locked:
+        raise HTTPException(
+            status_code=423,
+            detail=f"{month_key} is locked by the house owner. Unlock that expense month before adding or changing expenses.",
+        )
+
+
 def _expense_out(expense: HouseExpense) -> ExpenseOut:
     return ExpenseOut(
         id=expense.id,
@@ -52,6 +101,7 @@ def _expense_out(expense: HouseExpense) -> ExpenseOut:
         paid_by_user_id=expense.paid_by_user_id,
         paid_by_name=_name(expense.paid_by),
         expense_date=expense.expense_date,
+        expense_month=_expense_month_key(expense),
         notes=expense.notes,
         receipt_id=expense.receipt_id,
         created_at=expense.created_at,
@@ -109,6 +159,12 @@ def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
         .options(joinedload(ExpenseSettlement.from_user), joinedload(ExpenseSettlement.to_user))
         .filter(ExpenseSettlement.house_id == house_id)
         .order_by(ExpenseSettlement.created_at.desc())
+        .all()
+    )
+    month_locks = (
+        db.query(ExpenseMonthLock)
+        .options(joinedload(ExpenseMonthLock.locked_by))
+        .filter(ExpenseMonthLock.house_id == house_id)
         .all()
     )
 
@@ -197,12 +253,28 @@ def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
             balance=_dollars(actual_balances[uid]),
         ))
 
+    lock_by_month = {row.month_key: row for row in month_locks}
+    month_keys = {date.today().strftime("%Y-%m")}
+    month_keys.update(_expense_month_key(x) for x in expenses)
+    month_keys.update(row.month_key for row in month_locks)
+    months = []
+    for month_key in sorted(month_keys, reverse=True):
+        lock = lock_by_month.get(month_key)
+        months.append(ExpenseMonthOut(
+            month=month_key,
+            is_locked=bool(lock and lock.is_locked),
+            locked_by_user_id=lock.locked_by_user_id if lock and lock.is_locked else None,
+            locked_by_name=_name(lock.locked_by) if lock and lock.is_locked and lock.locked_by else None,
+            locked_at=lock.locked_at if lock and lock.is_locked else None,
+        ))
+
     return ExpenseSummaryOut(
         expenses=[_expense_out(x) for x in expenses],
         settlements=[_settlement_out(x) for x in settlements],
         balances=[ExpenseBalanceOut(user_id=uid, user_name=_name(user_by_id.get(uid)), balance=_dollars(value)) for uid, value in sorted(actual_balances.items())],
         balance_breakdown=breakdown,
         suggested_payments=suggestions,
+        months=months,
         balance_is_valid=balance_is_valid,
     )
 
@@ -216,6 +288,9 @@ def list_expenses(house_id: int, db: Session = Depends(get_db), user: User = Dep
 @router.post("", response_model=ExpenseSummaryOut)
 def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_house_member(house_id, user, db)
+    expense_date = payload.expense_date or date.today()
+    expense_month = _normalize_month_key(payload.expense_month, expense_date)
+    _ensure_month_open(db, house_id, expense_month)
     members = _members(db, house_id)
     member_ids = {m.user_id for m in members}
     if payload.paid_by_user_id not in member_ids:
@@ -249,7 +324,7 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
     row = HouseExpense(
         house_id=house_id, title=payload.title.strip(), amount=float(payload.amount), currency=payload.currency.upper(),
         category=payload.category.strip() or "Groceries", paid_by_user_id=payload.paid_by_user_id,
-        created_by_user_id=user.id, receipt_id=payload.receipt_id, expense_date=payload.expense_date or date.today(), notes=payload.notes,
+        created_by_user_id=user.id, receipt_id=payload.receipt_id, expense_date=expense_date, expense_month=expense_month, notes=payload.notes,
     )
     db.add(row); db.flush()
     for share in shares:
@@ -270,6 +345,13 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
     )
     if not row:
         raise HTTPException(status_code=404, detail="Expense not found.")
+
+    existing_month = _expense_month_key(row)
+    _ensure_month_open(db, house_id, existing_month)
+    next_date = payload.expense_date or date.today()
+    next_month = _normalize_month_key(payload.expense_month, next_date)
+    if next_month != existing_month:
+        _ensure_month_open(db, house_id, next_month)
 
     members = _members(db, house_id)
     member_ids = {m.user_id for m in members}
@@ -310,7 +392,8 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
     row.currency = payload.currency.upper()
     row.category = payload.category.strip() or "Groceries"
     row.paid_by_user_id = payload.paid_by_user_id
-    row.expense_date = payload.expense_date or date.today()
+    row.expense_date = next_date
+    row.expense_month = next_month
     row.notes = payload.notes
     row.receipt_id = payload.receipt_id
 
@@ -324,6 +407,44 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
         db, house_id=house_id, user=user, action="expense_updated",
         message=f"{display_name(user)} updated shared expense: {row.title} (${row.amount:.2f}).",
         entity_type="expense", entity_id=row.id,
+    )
+    db.commit()
+    return _summary(db, house_id)
+
+
+@router.put("/months/{month_key}", response_model=ExpenseSummaryOut)
+def set_expense_month_lock(
+    house_id: int,
+    month_key: str,
+    payload: ExpenseMonthLockIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    membership = require_house_member(house_id, user, db)
+    role = getattr(membership.role, "value", membership.role)
+    if role != HouseRole.owner.value:
+        raise HTTPException(status_code=403, detail="Only the house owner can lock or unlock expense months.")
+
+    normalized = _normalize_month_key(month_key)
+    row = db.query(ExpenseMonthLock).filter(
+        ExpenseMonthLock.house_id == house_id,
+        ExpenseMonthLock.month_key == normalized,
+    ).first()
+    if not row:
+        row = ExpenseMonthLock(house_id=house_id, month_key=normalized)
+        db.add(row)
+
+    row.is_locked = payload.locked
+    row.locked_by_user_id = user.id if payload.locked else None
+    row.locked_at = datetime.now(timezone.utc) if payload.locked else None
+    row.updated_at = datetime.now(timezone.utc)
+    log_activity(
+        db,
+        house_id=house_id,
+        user=user,
+        action="expense_month_locked" if payload.locked else "expense_month_unlocked",
+        message=f"{display_name(user)} {'locked' if payload.locked else 'unlocked'} the {normalized} expense month.",
+        entity_type="expense_month",
     )
     db.commit()
     return _summary(db, house_id)
@@ -446,5 +567,6 @@ def delete_expense(house_id: int, expense_id: int, db: Session = Depends(get_db)
     row = db.query(HouseExpense).filter(HouseExpense.id == expense_id, HouseExpense.house_id == house_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Expense not found.")
+    _ensure_month_open(db, house_id, _expense_month_key(row))
     db.delete(row); db.commit()
     return _summary(db, house_id)

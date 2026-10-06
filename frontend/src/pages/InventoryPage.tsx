@@ -6,6 +6,7 @@ import { money } from '../currency';
 import ProductModal from '../components/ProductModal';
 import SectionManager from '../components/SectionManager';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
+import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import type { House, Product, Section } from '../types';
 
 const PRODUCT_PAGE_LIMIT = 240;
@@ -98,13 +99,14 @@ export default function InventoryPage() {
         <div>
           <Link to={`/houses/${id}`} className="breadcrumb">← {house?.name || 'Home'}</Link>
           <p className="eyebrow">What’s at home</p>
-          <h1>Your grocery inventory</h1>
+          <div className="feature-heading-with-why-v101"><h1>Your grocery inventory</h1><FeatureWhyButton feature="inventory" label="Why?" /></div>
           <p>Keep a simple picture of what you already have. Add everyday groceries first; low-stock, expiry, meal, and shopping suggestions will build automatically.</p>
         </div>
         <div className="inventory-hero-actions-v94"><button className="secondary" onClick={() => setProductModal({ mode: 'create', scanOnOpen: true })}>▦ Scan barcode</button><button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button></div>
       </header>
 
       <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="inventory" />
+      <FeaturePurposeCard feature="inventory" />
 
       <nav className="house-mini-nav" aria-label="House sections">
         <Link to={`/houses/${id}/shopping`}>🛒 Grocery lists</Link>

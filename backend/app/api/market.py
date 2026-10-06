@@ -5,12 +5,12 @@ import hashlib
 import json
 import re
 import requests
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Header
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, house_plan_has_product_lookup, house_plan_has_external_price_comparison
+from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, house_plan_has_product_lookup, house_plan_has_external_price_comparison, complete_premium_try
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import ExternalPriceCache, Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
@@ -277,6 +277,7 @@ def flyer_merchants(
     house_id: int,
     postal_code: str = Query(min_length=3, max_length=12),
     force_refresh: bool = False,
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -285,7 +286,7 @@ def flyer_merchants(
     clean_postal = normalize_canadian_postal_code(postal_code)
     if not clean_postal or len(clean_postal.replace(" ", "")) != 6:
         return FlyerMerchantsOut(configured=bool(settings.apify_api_token), postal_code=clean_postal, message="Enter a complete Canadian postal code to load available flyer stores.", merchants=[])
-    if not house_plan_has_external_price_comparison(db, house_id):
+    if not house_plan_has_external_price_comparison(db, house_id, user, premium_try_feature):
         return FlyerMerchantsOut(premium_required=True, configured=bool(settings.apify_api_token), postal_code=clean_postal, message=f"Weekly flyer intelligence is a Family Plus or Household Pro feature. This house is on the owner's {plan.name} plan.", merchants=[])
     if not settings.apify_api_token:
         return FlyerMerchantsOut(configured=False, postal_code=clean_postal, message="Weekly flyer fetching is not connected yet.", merchants=[])
@@ -326,6 +327,7 @@ def weekly_flyers(
     query: str | None = Query(default=None, max_length=100),
     merchants: str | None = Query(default=None, max_length=500),
     force_refresh: bool = False,
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -337,7 +339,7 @@ def weekly_flyers(
             premium_required=False, configured=bool(settings.apify_api_token), postal_code=clean_postal,
             message="Enter a complete Canadian postal code, for example L8P 1A1.", deals=[], merchants=[]
         )
-    if not house_plan_has_external_price_comparison(db, house_id):
+    if not house_plan_has_external_price_comparison(db, house_id, user, premium_try_feature):
         return FlyerDealsOut(
             premium_required=True, configured=bool(settings.apify_api_token), postal_code=clean_postal,
             message=f"Weekly flyer intelligence is a Family Plus or Household Pro feature. This house is on the owner's {plan.name} plan.",
@@ -382,6 +384,8 @@ def weekly_flyers(
     cache_valid_until = min(future_expiries) if future_expiries else None
     qualifier = f" for ‘{query.strip()}’" if query and query.strip() else ""
     cache_note = "cached flyer data" if cached else "fresh flyer data"
+    if active and premium_try_feature == "weekly_flyers":
+        complete_premium_try(db, house_id, user, "weekly_flyers", premium_try_feature)
     return FlyerDealsOut(
         configured=True, cached=cached, postal_code=clean_postal, fetched_at=fetched_at, cache_valid_until=cache_valid_until,
         message=f"Showing {len(active)} active weekly flyer deals{qualifier} across {len(found_merchants)} local merchants from {cache_note}. Flyer prices are promotional prices valid only for the displayed dates.",
@@ -396,13 +400,19 @@ def product_lookup(
     query: str | None = Query(default=None, max_length=120),
     store_name: str | None = Query(default=None, max_length=80),
     force_refresh: bool = False,
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
     house_plan = get_house_plan(db, house_id)
     store_filter = (store_name or "").strip()
-    if not house_plan_has_product_lookup(db, house_id):
+
+    def finish_lookup(result: ProductLookupOut) -> ProductLookupOut:
+        if premium_try_feature == "product_lookup" and result.results and any(getattr(item, "found", True) for item in result.results):
+            complete_premium_try(db, house_id, user, "product_lookup", premium_try_feature)
+        return result
+    if not house_plan_has_product_lookup(db, house_id, user, premium_try_feature):
         return ProductLookupOut(
             premium_required=True,
             configured=True,
@@ -416,7 +426,7 @@ def product_lookup(
     if not force_refresh:
         cached_result = _read_product_lookup_cache(db, store_filter or None, barcode, query)
         if cached_result is not None:
-            return cached_result
+            return finish_lookup(cached_result)
 
     if store_filter:
         store_key, display_store, results, details = lookup_store_product(store_name=store_filter, product_id=barcode, query=query, limit=8)
@@ -451,7 +461,7 @@ def product_lookup(
                 message=f"I could not read product details automatically from {display_store}. Open the official store search link below, then add the product manually after confirming the details.",
                 results=results,
             ))
-        return _write_product_lookup_cache(db, store_name=store_filter, barcode=barcode, query=query, result=ProductLookupOut(
+        return finish_lookup(_write_product_lookup_cache(db, store_name=store_filter, barcode=barcode, query=query, result=ProductLookupOut(
             premium_required=False,
             configured=True,
             store_filter=display_store,
@@ -459,7 +469,7 @@ def product_lookup(
             lookup_details=details,
             message=f"Official {display_store} product result found. Open the product page to confirm size, price, and availability before adding it to inventory.",
             results=results,
-        ))
+        )))
 
     results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)
     if not results:
@@ -470,13 +480,13 @@ def product_lookup(
             message="No matching product details were found. You can still add the product manually.",
             results=[],
         ))
-    return _write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
+    return finish_lookup(_write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
         premium_required=False,
         configured=True,
         store_filter=None,
         message="Product details found from the universal database. Please review before saving to inventory.",
         results=results,
-    ))
+    )))
 
 
 def _reverse_geocode_postal_code(lat: float | None, lng: float | None) -> tuple[str | None, str | None, str | None]:
@@ -570,6 +580,7 @@ def _recent_saved_price_rows(db: Session, house_id: int, items: list[str], *, ma
 def price_compare(
     house_id: int,
     payload: PriceCompareIn,
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -594,7 +605,7 @@ def price_compare(
                 items.append(product.name)
     items = items[: settings.market_max_compare_items]
 
-    if not house_plan_has_external_price_comparison(db, house_id):
+    if not house_plan_has_external_price_comparison(db, house_id, user, premium_try_feature):
         fallback = _recent_saved_price_rows(db, house_id, items) if items else []
         return LivePriceCompareOut(
             premium_required=True,
@@ -659,6 +670,8 @@ def price_compare(
 
     if rows:
         message = "Showing cached Canadian grocery price results." if cached else "Showing latest available Canadian grocery price results for the selected postal code."
+        if premium_try_feature == "live_price_compare":
+            complete_premium_try(db, house_id, user, "live_price_compare", premium_try_feature)
         return LivePriceCompareOut(
             configured=True,
             cached=cached,
@@ -725,12 +738,13 @@ def shopping_suggestions(
     postal_code: str | None = Query(default=None, max_length=20),
     lat: float | None = None,
     lng: float | None = None,
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
     house_plan = get_house_plan(db, house_id)
-    if not house_plan_has_smart_market(db, house_id):
+    if not house_plan_has_smart_market(db, house_id, user, premium_try_feature):
         return ShoppingSuggestionsOut(
             currency_code=currency_for_country(country or user.country),
             premium_required=True,
@@ -872,6 +886,8 @@ def shopping_suggestions(
             )
         )
 
+    if (stores or suggestions) and premium_try_feature == "nearby_store_suggestions":
+        complete_premium_try(db, house_id, user, "nearby_store_suggestions", premium_try_feature)
     return ShoppingSuggestionsOut(
         currency_code=currency_for_country(country or user.country),
         location_label=location_label,

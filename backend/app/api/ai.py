@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Header
 from PIL import Image
 import pytesseract
 from sqlalchemy.orm import Session, joinedload
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import log_activity
 from app.api.admin import require_admin
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_product_limit, house_plan_has_kitchen_check
+from app.api.plan_utils import ensure_product_limit, house_plan_has_kitchen_check, premium_try_can_start, complete_premium_try
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import (
@@ -614,13 +614,15 @@ async def kitchen_vision(
     zone_id: int | None = Form(default=None),
     scan_mode: str = Form(default="quick"),
     target_product_ids_json: str | None = Form(default=None),
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
     if not settings.kitchen_vision_enabled:
         raise HTTPException(status_code=503, detail="Kitchen Vision is disabled for this deployment.")
-    if not house_plan_has_kitchen_check(db, house_id):
+    trial_allowed = premium_try_can_start(db, house_id, user, "kitchen_vision", premium_try_feature)
+    if not house_plan_has_kitchen_check(db, house_id, user, premium_try_feature):
         raise HTTPException(status_code=402, detail="Kitchen Vision requires Household Pro.")
     if scan_mode not in {"quick", "full", "targeted"}:
         raise HTTPException(status_code=400, detail="Kitchen Vision scan mode must be quick, full, or targeted.")
@@ -719,7 +721,7 @@ async def kitchen_vision(
     else:
         raw_result = _ocr_fallback(frames, inventory)
         mode = "ocr_fallback"
-    return _normalize_vision_result(
+    result = _normalize_vision_result(
         raw_result,
         inventory,
         media_checked,
@@ -731,6 +733,9 @@ async def kitchen_vision(
         house_id=house_id,
         user_id=user.id,
     )
+    if trial_allowed:
+        complete_premium_try(db, house_id, user, "kitchen_vision", premium_try_feature)
+    return result
 
 
 def _get_or_create_vision_section(db: Session, house_id: int) -> Section:
@@ -766,8 +771,8 @@ def apply_kitchen_vision(
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
-    if not house_plan_has_kitchen_check(db, house_id):
-        raise HTTPException(status_code=402, detail="Kitchen Vision requires Household Pro.")
+    if not house_plan_has_kitchen_check(db, house_id, user, allow_followup=True):
+        raise HTTPException(status_code=402, detail="Kitchen Vision requires Household Pro. A completed Premium Try scan can still apply its reviewed changes for up to 2 hours.")
     updated: list[str] = []
     added: list[str] = []
     added_to_list: list[str] = []

@@ -6,12 +6,12 @@ import json
 import re
 import shutil
 from uuid import uuid4
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Header
 from sqlalchemy import asc, desc, or_
 from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage, choose_receipt_scan_credit_source, consume_extra_receipt_scan_credit
+from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage, choose_receipt_scan_credit_source, consume_extra_receipt_scan_credit, complete_premium_try
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import CommunityPriceObservation, House, HouseMember, HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus
@@ -807,6 +807,7 @@ def upload_receipt_file(
     notes: str | None = Form(default=None),
     receipt_text: str | None = Form(default=None),
     shopping_list_id: int | None = Form(default=None),
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -816,8 +817,8 @@ def upload_receipt_file(
         linked_list = db.query(ShoppingList).filter(ShoppingList.id == shopping_list_id, ShoppingList.house_id == house_id).first()
         if not linked_list:
             raise HTTPException(status_code=400, detail="Shopping list not found in this house.")
-    ensure_receipt_scan_limit(db, house_id, user)
-    credit_source = choose_receipt_scan_credit_source(db, house_id, user)
+    ensure_receipt_scan_limit(db, house_id, user, requested_feature=premium_try_feature)
+    credit_source = choose_receipt_scan_credit_source(db, house_id, user, requested_feature=premium_try_feature)
     receipt_upload_size_ok(file)
     uploads_dir = Path(settings.upload_dir) / f"house-{house_id}"
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -908,6 +909,8 @@ def upload_receipt_file(
         entity_id=receipt.id,
     )
     db.commit()
+    if credit_source == "premium_try":
+        complete_premium_try(db, house_id, user, "smart_receipt_scan", premium_try_feature)
     refreshed = db.query(Receipt).options(joinedload(Receipt.uploaded_by), joinedload(Receipt.price_entries), joinedload(Receipt.line_items).joinedload(ReceiptLineItem.matched_product)).filter(Receipt.id == receipt.id).first()
     parsed = [parsed_line_from_item(item) for item in sorted(refreshed.line_items, key=lambda line: (line.sort_order, line.id))]
     usage = receipt_scan_usage(db, house_id, user)

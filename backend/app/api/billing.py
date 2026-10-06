@@ -4,11 +4,11 @@ from sqlalchemy.orm import Session
 import stripe
 
 from app.api.deps import get_current_user
-from app.api.plan_utils import PLANS, get_user_plan, plan_usage
+from app.api.plan_utils import PLANS, PREMIUM_TRY_FEATURES, get_user_plan, plan_usage, premium_try_status
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
 from app.models import PlanName, User, ReceiptScanPurchase, AdminUserOffer
-from app.schemas import BillingRenewalOut, CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn
+from app.schemas import BillingRenewalOut, CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn, PremiumTrySelectIn, PremiumTryStatusOut
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -146,6 +146,7 @@ def subscription_out(user: User, db: Session) -> SubscriptionOut:
         limits=plan_limits_out(plan),
         usage={**plan_usage(db, user), "extra_receipt_scan_credits": int(user.extra_receipt_scan_credits or 0)},
         new_user_offer=new_user_offer_for(user),
+        premium_try=PremiumTryStatusOut(**premium_try_status(user)),
     )
 
 
@@ -157,6 +158,31 @@ def list_plans():
 @router.get("/me", response_model=SubscriptionOut)
 def get_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return subscription_out(user, db)
+
+
+@router.get("/premium-try", response_model=PremiumTryStatusOut)
+def get_premium_try(user: User = Depends(get_current_user)):
+    return PremiumTryStatusOut(**premium_try_status(user))
+
+
+@router.post("/premium-try/select", response_model=PremiumTryStatusOut)
+def select_premium_try(payload: PremiumTrySelectIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    feature_key = payload.feature_key.strip()
+    if feature_key not in PREMIUM_TRY_FEATURES:
+        raise HTTPException(status_code=400, detail="Choose one of the available Premium Try features.")
+    if get_user_plan(user).key != PlanName.free:
+        raise HTTPException(status_code=400, detail="Your current paid plan already unlocks premium tools. The one-time free try is for Free Starter access.")
+    if user.premium_try_used_at is not None:
+        raise HTTPException(status_code=409, detail="Your one free Premium Try has already been used.")
+    # Selection is reversible until the successful use. Starting data is reset so
+    # changing your mind does not burn the experience.
+    user.premium_try_feature = feature_key
+    user.premium_try_started_at = None
+    user.premium_try_house_id = None
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return PremiumTryStatusOut(**premium_try_status(user))
 
 
 @router.get("/renewal-details", response_model=BillingRenewalOut)

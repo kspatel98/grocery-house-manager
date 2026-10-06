@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { House, KitchenVisionApplyResponse, KitchenVisionDetection, KitchenVisionResult, KitchenVisionReviewItem, KitchenZone } from '../types';
+import type { House, KitchenVisionApplyResponse, KitchenVisionDetection, KitchenVisionResult, KitchenVisionReviewItem, KitchenZone, PremiumTryStatus } from '../types';
 
 const ZONE_TYPES = [
   ['fridge', '🥛', 'Fridge'],
@@ -52,6 +52,7 @@ export default function KitchenVisionPage() {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [house, setHouse] = useState<House | null>(null);
+  const [premiumTry, setPremiumTry] = useState<PremiumTryStatus | null>(null);
   const [zones, setZones] = useState<KitchenZone[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const [scanMode, setScanMode] = useState<'quick' | 'full' | 'targeted'>('quick');
@@ -70,12 +71,14 @@ export default function KitchenVisionPage() {
 
   async function load() {
     try {
-      const [houseRes, zonesRes] = await Promise.all([
+      const [houseRes, zonesRes, premiumTryRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
         api.get<KitchenZone[]>(`/ai/houses/${id}/kitchen-zones`, { params: { t: Date.now() } }),
+        api.get<PremiumTryStatus>('/billing/premium-try', { params: { t: Date.now() } }).catch(() => ({ data: null as PremiumTryStatus | null })),
       ]);
       setHouse(houseRes.data);
       setZones(zonesRes.data);
+      setPremiumTry(premiumTryRes.data);
       setSelectedZoneId((current) => current && zonesRes.data.some((zone) => zone.id === current) ? current : zonesRes.data[0]?.id || null);
       setError('');
     } catch (err) {
@@ -130,8 +133,15 @@ export default function KitchenVisionPage() {
       files.slice(0, 6).forEach((file) => form.append('media', file));
       form.append('zone_id', String(selectedZone.id));
       form.append('scan_mode', scanMode);
-      const { data } = await api.post<KitchenVisionResult>(`/ai/houses/${id}/kitchen-vision`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const usingPremiumTry = Boolean(premiumTry?.available && premiumTry.selected_feature === 'kitchen_vision');
+      if (usingPremiumTry && !window.confirm('Use Kitchen Vision as your one free Premium Try? The free try is only used after GHM successfully analyzes the scan.')) return;
+      const { data } = await api.post<KitchenVisionResult>(`/ai/houses/${id}/kitchen-vision`, form, { headers: { 'Content-Type': 'multipart/form-data', ...(usingPremiumTry ? { 'X-GHM-Premium-Try': 'kitchen_vision' } : {}) } });
       setResult(data);
+      if (usingPremiumTry) {
+        const refreshed = await api.get<PremiumTryStatus>('/billing/premium-try', { params: { t: Date.now() } }).catch(() => null);
+        if (refreshed?.data) setPremiumTry(refreshed.data);
+        window.dispatchEvent(new Event('account:refresh'));
+      }
       prepareReview(data);
       await load();
     } catch (err) {
@@ -251,6 +261,7 @@ export default function KitchenVisionPage() {
 
       {error ? <div className="error">{error}</div> : null}
       {message ? <div className="success">{message}</div> : null}
+      {premiumTry?.available ? (premiumTry.selected_feature === 'kitchen_vision' ? <div className="premium-try-invite-v102"><span aria-hidden="true">✨</span><div><strong>Your free Kitchen Vision experience is ready.</strong><small>Scan one real storage area. The try is used only after GHM successfully analyzes it; you can still review changes before applying them.</small></div><b aria-hidden="true">Ready</b></div> : <Link className="premium-try-invite-v102" to={`/premium-try?feature=kitchen_vision&house=${id}`}><span aria-hidden="true">✨</span><div><strong>Want to see Kitchen Vision before subscribing?</strong><small>Choose it as your one free Premium Try. One successful scan, no card required.</small></div><b aria-hidden="true">→</b></Link>) : null}
 
       <section className="kitchen-trust-strip-v96">
         <span>✓</span><div><strong>Not visible ≠ gone</strong><small>GHM can confirm what it sees. It will not silently remove products that may be behind something, in a drawer, or stored somewhere else.</small></div>
@@ -287,7 +298,7 @@ export default function KitchenVisionPage() {
           <div><p className="eyebrow">{scanMode === 'full' ? 'FULL REFRESH' : 'QUICK CHECK'} · {selectedZone.name.toUpperCase()}</p><h2>Show the area naturally.</h2></div>
           <ol><li><span>1</span><div><strong>Open it normally</strong><small>No need to take everything out.</small></div></li><li><span>2</span><div><strong>Move slowly left → right</strong><small>For video, pause briefly at each shelf or drawer.</small></div></li><li><span>3</span><div><strong>Show important hidden sections if easy</strong><small>GHM will tell you afterward if one small recheck would help.</small></div></li></ol>
           <div className="kitchen-scan-file-v96"><input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" capture="environment" multiple /><small>Best: 2–4 photos or one slow 10–20 second video. Maximum 30 seconds.</small></div>
-          <button type="button" className="primary full" onClick={runScan} disabled={busy}>{busy ? `Understanding ${selectedZone.name}…` : `Scan ${selectedZone.name}`}</button>
+          <button type="button" className="primary full" onClick={runScan} disabled={busy}>{busy ? `Understanding ${selectedZone.name}…` : premiumTry?.available && premiumTry.selected_feature === 'kitchen_vision' ? `Use free Premium Try — scan ${selectedZone.name}` : `Scan ${selectedZone.name}`}</button>
           {fullRefresh ? <button type="button" className="ghost-button full" onClick={() => moveToNextFullZone(selectedZone.id)}>Skip this area</button> : null}
         </div>
 

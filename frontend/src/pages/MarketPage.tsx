@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { AccountBootstrap, FlyerDeal, FlyerDealsResponse, FlyerMerchantDirectoryResponse, House, LivePriceCompareResponse, MarketCapabilities, ProductLookupResult, ProductLookupResponse, Section, User } from '../types';
+import type { AccountBootstrap, FlyerDeal, FlyerDealsResponse, FlyerMerchantDirectoryResponse, House, LivePriceCompareResponse, MarketCapabilities, PremiumTryStatus, ProductLookupResult, ProductLookupResponse, Section, User } from '../types';
 import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
+import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 
 const retailerLabels: Record<string, string> = {
   loblaws: 'Loblaws',
@@ -33,11 +34,13 @@ function storeSourceLabel(source: string) {
 }
 
 export default function MarketPage() {
+  const [searchParams] = useSearchParams();
   const [houses, setHouses] = useState<House[]>([]);
   const [selectedHouseId, setSelectedHouseId] = useState<number | ''>('');
   const [user, setUser] = useState<User | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [capabilities, setCapabilities] = useState<MarketCapabilities | null>(null);
+  const [premiumTry, setPremiumTry] = useState<PremiumTryStatus | null>(null);
   const [productSearch, setProductSearch] = useState('');
   const [barcode, setBarcode] = useState('');
   const [storeName, setStoreName] = useState('');
@@ -75,12 +78,29 @@ export default function MarketPage() {
       setHouses(nextHouses);
       setUser(boot.user);
       setCapabilities(caps);
-      if (!selectedHouseId && nextHouses[0]) setSelectedHouseId(nextHouses[0].id);
+      setPremiumTry(boot.subscription.premium_try || null);
+      const requestedHouse = Number(searchParams.get('house') || 0);
+      const requestedMatch = nextHouses.find((house) => house.id === requestedHouse)?.id || null;
+      if (!selectedHouseId && nextHouses[0]) setSelectedHouseId(requestedMatch || nextHouses[0].id);
       localStorage.setItem('account_profile_cache', JSON.stringify(boot.user));
       localStorage.setItem('account_is_admin', boot.is_admin ? 'true' : 'false');
     } catch (err) {
       setError(errorMessage(err));
     }
+  }
+
+  async function refreshPremiumTry() {
+    try {
+      const { data } = await api.get<PremiumTryStatus>('/billing/premium-try', { params: { t: Date.now() } });
+      setPremiumTry(data);
+      window.dispatchEvent(new Event('account:refresh'));
+    } catch {
+      // A completed market result remains usable even if the status refresh is delayed.
+    }
+  }
+
+  function premiumTryReady(feature: string) {
+    return Boolean(premiumTry?.available && premiumTry.selected_feature === feature);
   }
 
   async function loadSections(houseId: number | '') {
@@ -164,14 +184,18 @@ export default function MarketPage() {
       setLookup(null);
       setAddFeedback('');
       setError('');
+      const usingPremiumTry = premiumTryReady('product_lookup');
+      if (usingPremiumTry && !window.confirm('Use Product Lookup as your one free Premium Try? It is only used if GHM returns a real result. No subscription starts automatically.')) return;
       const { data } = await api.get<ProductLookupResponse>(`/market/houses/${selectedHouseId}/product-lookup`, {
         params: {
           query: productSearch.trim() || undefined,
           barcode: barcode.trim() || undefined,
           store_name: storeName.trim() || undefined,
         },
+        headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'product_lookup' } : undefined,
       });
       setLookup(data);
+      if (usingPremiumTry && !data.premium_required && data.results.length) void refreshPremiumTry();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -229,6 +253,7 @@ export default function MarketPage() {
       setCompareBusy(true);
       setCompare(null);
       setError('');
+      const usingPremiumTry = premiumTryReady('live_price_compare');
       const { data } = await api.post<LivePriceCompareResponse>(`/market/houses/${selectedHouseId}/price-compare`, {
         items,
         postal_code: params.postal || undefined,
@@ -238,8 +263,9 @@ export default function MarketPage() {
         province: params.country === 'Canada' ? undefined : params.country,
         retailers: selectedRetailers,
         force_refresh: params.forceRefresh || false,
-      });
+      }, { headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'live_price_compare' } : undefined });
       setCompare(data);
+      if (usingPremiumTry && !data.premium_required && data.results.length) void refreshPremiumTry();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -287,6 +313,7 @@ export default function MarketPage() {
       setFlyerMerchantBusy(true);
       const { data } = await api.get<FlyerMerchantDirectoryResponse>(`/market/houses/${selectedHouseId}/flyer-merchants`, {
         params: { postal_code: typedPostal, force_refresh: forceRefresh || undefined, t: Date.now() },
+        headers: premiumTryReady('weekly_flyers') ? { 'X-GHM-Premium-Try': 'weekly_flyers' } : undefined,
       });
       setFlyerMerchantDirectory(data);
       const allowed = new Set(data.merchants.map((item) => item.merchant_id || item.merchant));
@@ -321,6 +348,8 @@ export default function MarketPage() {
       setFlyerBusy(true);
       setError('');
       localStorage.setItem('ghm_price_postal', typedPostal);
+      const usingPremiumTry = premiumTryReady('weekly_flyers');
+      if (usingPremiumTry && !window.confirm('Use Weekly Flyer Intelligence as your one free Premium Try? It is only used when GHM returns an active flyer result.')) return;
       const { data } = await api.get<FlyerDealsResponse>(`/market/houses/${selectedHouseId}/flyers`, {
         params: {
           postal_code: typedPostal,
@@ -329,9 +358,11 @@ export default function MarketPage() {
           force_refresh: forceRefresh || undefined,
           t: Date.now(),
         },
+        headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'weekly_flyers' } : undefined,
       });
       setFlyers(data);
       setExpandedFlyers({});
+      if (usingPremiumTry && !data.premium_required && data.deals.length) void refreshPremiumTry();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -344,7 +375,7 @@ export default function MarketPage() {
       <header className="topbar market-hero-bar market-hero-v47">
         <div>
           <p className="eyebrow">Find & compare</p>
-          <h1>Find products and compare grocery prices</h1>
+          <div className="feature-heading-with-why-v101"><h1>Find products and compare grocery prices</h1><FeatureWhyButton feature="price_compare" label="Why?" /></div>
           <p>
             Find a grocery product or compare Canadian prices. Grocery House Manager uses the best available source automatically and falls back to prices you have already saved when needed.
           </p>
@@ -358,6 +389,7 @@ export default function MarketPage() {
         </div>
       </header>
 
+      <FeaturePurposeCard feature="price_compare" />
       {error && <div className="error">{error}</div>}
 
       <section className="panel market-access-panel animated-card-lift">
@@ -379,7 +411,7 @@ export default function MarketPage() {
         <div className="panel-title-row flyer-title-row">
           <div>
             <p className="eyebrow">Family Plus • weekly savings</p>
-            <h2>Weekly flyers near your Grocery Home</h2>
+            <div className="feature-heading-with-why-v101"><h2>Weekly flyers near your Grocery Home</h2><FeatureWhyButton feature="flyers" label="Why?" /></div>
             <p>Pull structured sale prices for your postal code, cache them for your area, and reuse them in whole-list shopping comparisons.</p>
           </div>
           <span className={capabilities?.flyer_configured ? 'market-status-pill connected' : 'market-status-pill offline'}>
@@ -416,9 +448,10 @@ export default function MarketPage() {
           ) : <small className="small-muted">{flyerMerchantBusy ? 'Loading local stores…' : flyerMerchantDirectory?.message || 'Enter a complete postal code to load the stores that actually have flyers in your area.'}</small>}
         </div>
         <div className="market-button-row">
-          <button className="primary" type="button" disabled={flyerBusy || !selectedHouseId} onClick={() => void loadFlyers(false)}>{flyerBusy ? 'Loading flyers…' : 'Find weekly deals'}</button>
+          <button className="primary" type="button" disabled={flyerBusy || !selectedHouseId} onClick={() => void loadFlyers(false)}>{flyerBusy ? 'Loading flyers…' : premiumTryReady('weekly_flyers') ? 'Use free Premium Try — find deals' : 'Find weekly deals'}</button>
           <button className="secondary" type="button" disabled={flyerBusy || !selectedHouseId} onClick={() => void loadFlyers(true)}>Refresh flyer data</button>
         </div>
+        {premiumTry?.available && premiumTry.selected_feature !== 'weekly_flyers' ? <Link className="premium-try-invite-v102 compact" to={`/premium-try?feature=weekly_flyers&house=${selectedHouseId || ''}`}><span aria-hidden="true">✨</span><div><strong>Try Weekly Flyer Intelligence once for free</strong><small>Choose it as your one free Premium Try before subscribing.</small></div><b aria-hidden="true">→</b></Link> : null}
         {flyers ? (
           <div ref={flyerResultsRef} className={flyers.premium_required || !flyers.configured ? 'hint flyer-results-wrap' : 'flyer-results-wrap'}>
             <div className="compare-summary-card flyer-cache-summary">
@@ -488,8 +521,9 @@ export default function MarketPage() {
             <label>Barcode or store item number<input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Example: UPC, Walmart item #, or store product #" /></label>
             <label>Product name<input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Example: milk, rice, cereal" /></label>
             <label>Store name optional<input value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Example: Costco, Walmart, No Frills. Blank = universal search" /></label>
-            <button className="primary" disabled={lookupBusy || !selectedHouseId}>{lookupBusy ? 'Searching...' : 'Search product'}</button>
+            <button className="primary" disabled={lookupBusy || !selectedHouseId}>{lookupBusy ? 'Searching...' : premiumTryReady('product_lookup') ? 'Use free Premium Try — search' : 'Search product'}</button>
           </form>
+          {premiumTry?.available && premiumTry.selected_feature !== 'product_lookup' ? <Link className="premium-try-invite-v102 compact" to={`/premium-try?feature=product_lookup&house=${selectedHouseId || ''}`}><span aria-hidden="true">✨</span><div><strong>Want to try Product Lookup before paying?</strong><small>Choose it as your one free Premium Try.</small></div><b aria-hidden="true">→</b></Link> : null}
           {addFeedback && <div className={addFeedback.includes('added') ? 'success compact-message' : 'hint'}>{addFeedback}</div>}
           {lookup && (
             <div ref={lookupResultsRef} className={lookup.premium_required ? 'hint' : 'market-results lookup-results-grid'}>
@@ -534,7 +568,7 @@ export default function MarketPage() {
           <div className="panel-title-row">
             <div>
               <p className="eyebrow">Family Plus+</p>
-              <h2>Canadian price comparison</h2>
+              <div className="feature-heading-with-why-v101"><h2>Canadian price comparison</h2><FeatureWhyButton feature="price_compare" label="Why?" /></div>
             </div>
             <span className="badge access-family">Family Plus+</span>
           </div>
@@ -550,9 +584,10 @@ export default function MarketPage() {
             ))}
           </div>
           <div className="market-button-row">
-            <button className="primary" disabled={compareBusy || !selectedHouseId} onClick={() => runCompare(false)}>{compareBusy ? 'Comparing...' : 'Compare prices'}</button>
+            <button className="primary" disabled={compareBusy || !selectedHouseId} onClick={() => runCompare(false)}>{compareBusy ? 'Comparing...' : premiumTryReady('live_price_compare') ? 'Use free Premium Try — compare' : 'Compare prices'}</button>
             <button className="secondary" disabled={compareBusy || !selectedHouseId} onClick={() => runCompare(false)}>Check again</button>
           </div>
+          {premiumTry?.available && premiumTry.selected_feature !== 'live_price_compare' ? <Link className="premium-try-invite-v102 compact" to={`/premium-try?feature=live_price_compare&house=${selectedHouseId || ''}`}><span aria-hidden="true">✨</span><div><strong>Try live grocery price comparison once for free</strong><small>Use a real list and see the result before choosing Family Plus.</small></div><b aria-hidden="true">→</b></Link> : null}
           {compare && (
             <div ref={compareResultsRef} className={compare.premium_required || (!compare.configured && !compare.results.length) ? 'hint' : 'market-results'}>
               <div className="compare-summary-card">

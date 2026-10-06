@@ -352,6 +352,31 @@ class NewUserOfferOut(BaseModel):
     message: str
 
 
+class PremiumTryChoiceOut(BaseModel):
+    key: str
+    label: str
+    description: str
+    icon: str
+    min_plan: PlanName
+    upgrade_label: str
+
+
+class PremiumTryStatusOut(BaseModel):
+    eligible: bool = False
+    available: bool = False
+    selected_feature: str | None = None
+    selected_label: str | None = None
+    started_at: datetime | None = None
+    used_at: datetime | None = None
+    house_id: int | None = None
+    message: str
+    choices: list[PremiumTryChoiceOut] = Field(default_factory=list)
+
+
+class PremiumTrySelectIn(BaseModel):
+    feature_key: str = Field(min_length=1, max_length=80)
+
+
 class SubscriptionOut(BaseModel):
     plan_name: PlanName
     subscription_status: str
@@ -359,6 +384,7 @@ class SubscriptionOut(BaseModel):
     limits: PlanLimitsOut
     usage: dict[str, int | dict[str, int]] = Field(default_factory=dict)
     new_user_offer: NewUserOfferOut | None = None
+    premium_try: PremiumTryStatusOut | None = None
 
 
 class BillingRenewalOut(BaseModel):
@@ -503,6 +529,8 @@ class ReceiptScanUsageOut(BaseModel):
     extra_credits: int = 0
     will_use_extra_credit: bool = False
     can_buy_extra_scans: bool = True
+    premium_try_available: bool = False
+    premium_try_selected: bool = False
 
 
 class ReceiptUploadOut(BaseModel):
@@ -590,6 +618,7 @@ class ExpenseCreateIn(BaseModel):
     category: str = Field(default="Groceries", max_length=80)
     paid_by_user_id: int
     expense_date: date | None = None
+    expense_month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     notes: str | None = None
     receipt_id: int | None = None
     shares: list[ExpenseShareIn] = Field(default_factory=list)
@@ -611,10 +640,23 @@ class ExpenseOut(BaseModel):
     paid_by_user_id: int
     paid_by_name: str
     expense_date: date
+    expense_month: str
     notes: str | None = None
     receipt_id: int | None = None
     created_at: datetime
     shares: list[ExpenseShareOut] = Field(default_factory=list)
+
+
+class ExpenseMonthLockIn(BaseModel):
+    locked: bool
+
+
+class ExpenseMonthOut(BaseModel):
+    month: str
+    is_locked: bool = False
+    locked_by_user_id: int | None = None
+    locked_by_name: str | None = None
+    locked_at: datetime | None = None
 
 
 class ExpenseSettlementIn(BaseModel):
@@ -672,6 +714,7 @@ class ExpenseSummaryOut(BaseModel):
     balances: list[ExpenseBalanceOut] = Field(default_factory=list)
     balance_breakdown: list[ExpenseBalanceBreakdownOut] = Field(default_factory=list)
     suggested_payments: list[ExpenseSuggestedPaymentOut] = Field(default_factory=list)
+    months: list[ExpenseMonthOut] = Field(default_factory=list)
     balance_is_valid: bool = True
 
 

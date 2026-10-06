@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.api.activity_utils import display_name
 from app.api.billing import subscription_out
-from app.api.plan_utils import get_user_plan
+from app.api.plan_utils import get_user_plan, premium_try_status
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.core.config import settings
 from app.models import House, HouseMember, HouseRole, PlanName, ProductStorePrice, Receipt, User
-from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, PlanLimitsOut, PremiumCrownStatsOut, SubscriptionOut, UserProfileOut
+from app.schemas import AccountBootstrapOut, HouseOut, PersonalInsightsOut, PlanLimitsOut, PremiumCrownStatsOut, SubscriptionOut, UserProfileOut, PremiumTryStatusOut
 from app.utils.location import currency_for_country
 
 router = APIRouter(prefix="/account", tags=["account"])
@@ -189,6 +189,7 @@ def safe_subscription_out(db: Session, user: User) -> SubscriptionOut:
                 "members_by_house": {},
             },
             new_user_offer=None,
+            premium_try=PremiumTryStatusOut(**premium_try_status(user)),
         )
 
 

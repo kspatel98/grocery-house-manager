@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { probeApiHealth } from '../api';
 
 type Status = 'checking' | 'ready' | 'degraded' | 'offline';
@@ -6,43 +6,26 @@ type Status = 'checking' | 'ready' | 'degraded' | 'offline';
 export default function ServiceStatusBanner() {
   const [status, setStatus] = useState<Status>('checking');
   const [detail, setDetail] = useState('');
-  const failedChecks = useRef(0);
-  const previousStatus = useRef<Status>('checking');
 
   async function check() {
     const result = await probeApiHealth();
-    let nextStatus: Status = 'ready';
-    let nextDetail = '';
-
     if (!result.live) {
-      failedChecks.current += 1;
-      // A single delayed health probe should never scare the user or make a
-      // healthy household look offline. Require two consecutive failures.
-      if (failedChecks.current < 2 && status !== 'offline') return;
-      nextStatus = 'offline';
-      nextDetail = result.detail || 'GHM cannot reach the server right now.';
-    } else if (!result.ready) {
-      failedChecks.current = 0;
-      nextStatus = 'degraded';
-      nextDetail = result.detail || 'GHM is reconnecting to your household data.';
-    } else {
-      failedChecks.current = 0;
+      setStatus('offline');
+      setDetail(result.detail || 'GHM cannot reach the server right now.');
+      return;
     }
-
-    const wasUnavailable = previousStatus.current === 'offline' || previousStatus.current === 'degraded';
-    previousStatus.current = nextStatus;
-    setStatus(nextStatus);
-    setDetail(nextDetail);
-
-    // When the API recovers, refresh the signed-in household shell automatically.
-    if (nextStatus === 'ready' && wasUnavailable) {
-      window.dispatchEvent(new Event('account:refresh'));
+    if (!result.ready) {
+      setStatus('degraded');
+      setDetail(result.detail || 'GHM is reconnecting to your household data.');
+      return;
     }
+    setStatus('ready');
+    setDetail('');
   }
 
   useEffect(() => {
     void check();
-    const timer = window.setInterval(() => void check(), status === 'ready' ? 60000 : 12000);
+    const timer = window.setInterval(() => void check(), status === 'ready' ? 45000 : 5000);
     return () => window.clearInterval(timer);
   }, [status]);
 

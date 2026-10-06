@@ -12,16 +12,13 @@ from app.db.dev_migrations import ensure_dev_schema
 # and retried in the background; /health/ready reports whether data APIs are ready.
 import asyncio
 import logging
-import time
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError, TimeoutError as SQLAlchemyTimeoutError
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name)
 app.state.db_ready = False
 app.state.db_error = None
 app.state.schema_warnings = []
-app.state.db_initialized = False
 
 
 def _initialize_database() -> list[str]:
@@ -47,126 +44,33 @@ def _initialize_database() -> list[str]:
     return warnings
 
 
-def _ping_database() -> None:
-    with engine.connect() as connection:
-        connection.execute(text("SELECT 1"))
-
-
-async def _database_monitor_loop() -> None:
-    # Stay alive for the lifetime of the process. V99 stopped monitoring after
-    # the first successful startup, so a later DB/network interruption could
-    # leave /health/ready stale while user requests failed.
+async def _database_retry_loop() -> None:
     delay = 3
-    while True:
+    while not app.state.db_ready:
         try:
-            if not app.state.db_initialized:
-                warnings = await asyncio.to_thread(_initialize_database)
-                app.state.schema_warnings = warnings
-                app.state.db_initialized = True
-                if warnings:
-                    logger.warning("GHM database initialized with %s compatibility warning(s)", len(warnings))
-                else:
-                    logger.info("GHM database initialized")
-            else:
-                await asyncio.to_thread(_ping_database)
-
-            recovered = not app.state.db_ready
+            warnings = await asyncio.to_thread(_initialize_database)
             app.state.db_ready = True
             app.state.db_error = None
-            delay = 3
-            if recovered:
-                logger.info("GHM database connection is ready")
-            await asyncio.sleep(30)
+            app.state.schema_warnings = warnings
+            if warnings:
+                logger.warning("GHM database is ready with %s compatibility warning(s)", len(warnings))
+            else:
+                logger.info("GHM database is ready")
+            return
         except Exception as exc:
             app.state.db_ready = False
             app.state.db_error = str(exc)[:500]
-            # Throw away pooled connections that may refer to a dead network path.
-            try:
-                engine.dispose()
-            except Exception:
-                pass
-            logger.exception("GHM database health check failed; retrying in %ss", delay)
+            logger.exception("GHM database initialization failed; retrying in %ss", delay)
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30)
 
 
 @app.on_event("startup")
 async def start_database_guard() -> None:
-    asyncio.create_task(_database_monitor_loop())
-
-@app.exception_handler(OperationalError)
-async def database_operational_error_handler(request, exc):
-    from fastapi.responses import JSONResponse
-    app.state.db_ready = False
-    app.state.db_error = "The database connection was interrupted and GHM is reconnecting."
-    try:
-        engine.dispose()
-    except Exception:
-        pass
-    logger.exception("GHM database connection interrupted path=%s", request.url.path)
-    return JSONResponse(
-        status_code=503,
-        content={
-            "detail": "GHM briefly lost its database connection and is reconnecting. Your saved data has not been deleted.",
-            "code": "database_reconnecting",
-        },
-        headers={"Retry-After": "3"},
-    )
-
-
-@app.exception_handler(SQLAlchemyTimeoutError)
-async def database_pool_timeout_handler(request, exc):
-    from fastapi.responses import JSONResponse
-    logger.exception("GHM database pool wait timed out path=%s %s", request.url.path, _pool_snapshot())
-    return JSONResponse(
-        status_code=503,
-        content={
-            "detail": "GHM is temporarily busy reaching household data. Please retry in a moment.",
-            "code": "database_busy",
-        },
-        headers={"Retry-After": "2"},
-    )
-
+    asyncio.create_task(_database_retry_loop())
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
-
-
-def _pool_snapshot() -> str:
-    pool = engine.pool
-    parts = []
-    for label, name in (("size", "size"), ("checked_out", "checkedout"), ("overflow", "overflow")):
-        value = getattr(pool, name, None)
-        if callable(value):
-            try:
-                parts.append(f"{label}={value()}")
-            except Exception:
-                pass
-    return " ".join(parts) or "pool=unknown"
-
-
-@app.middleware("http")
-async def request_timing(request, call_next):
-    started = time.perf_counter()
-    try:
-        response = await call_next(request)
-    except Exception:
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        logger.exception("GHM request failed path=%s duration_ms=%.0f %s", request.url.path, elapsed_ms, _pool_snapshot())
-        raise
-
-    elapsed_ms = (time.perf_counter() - started) * 1000
-    response.headers["X-GHM-Request-MS"] = str(int(elapsed_ms))
-    if elapsed_ms >= max(250, int(settings.slow_request_log_ms)):
-        logger.warning(
-            "GHM slow request method=%s path=%s status=%s duration_ms=%.0f %s",
-            request.method,
-            request.url.path,
-            response.status_code,
-            elapsed_ms,
-            _pool_snapshot(),
-        )
-    return response
 
 
 @app.middleware("http")
@@ -220,17 +124,17 @@ app.include_router(food.router)
 
 
 @app.get("/health")
-async def health():
+def health():
     return {"status": "ok", "app": settings.app_name, "database_ready": bool(app.state.db_ready)}
 
 
 @app.get("/health/live")
-async def health_live():
+def health_live():
     return {"status": "ok", "app": settings.app_name}
 
 
 @app.get("/health/ready")
-async def health_ready():
+def health_ready():
     from fastapi.responses import JSONResponse
     if app.state.db_ready:
         return {"status": "ready", "database": "connected", "schema_warnings": len(getattr(app.state, "schema_warnings", []) or [])}

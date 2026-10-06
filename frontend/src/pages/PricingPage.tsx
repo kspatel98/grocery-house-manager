@@ -245,6 +245,19 @@ export default function PricingPage() {
         </div>
       </section>
 
+      <section className="v102-pricing-premium-try">
+        <div className="premium-try-invite-v102">
+          <span aria-hidden="true">✨</span>
+          <div>
+            <strong>{subscription?.premium_try?.used_at ? `You already tried ${subscription.premium_try.selected_label || 'Premium'} once for free.` : subscription?.premium_try?.selected_label ? `${subscription.premium_try.selected_label} is selected as your free Premium Try.` : 'Free Starter includes one real Premium Try.'}</strong>
+            <small>{subscription?.premium_try?.used_at ? 'Your result was real—not a demo. Choose a paid plan only if you want premium workflows available again.' : 'Choose any available premium workflow, use it successfully once, and pay nothing. No card required. You can change the choice before you use it.'}</small>
+          </div>
+          <div className="premium-try-actions-v102">
+            {loggedIn ? <Link className="primary center-link" to="/premium-try">{subscription?.premium_try?.used_at ? 'See my Premium Try' : subscription?.premium_try?.selected_feature ? 'Use / change my free try' : 'Choose my free try'}</Link> : <Link className="primary center-link" to="/login?next=%2Fpremium-try">Create free account</Link>}
+          </div>
+        </div>
+      </section>
+
       <section className="billing-cycle-switch" aria-label="Billing cycle">
         <div>
           <strong>Choose billing</strong>

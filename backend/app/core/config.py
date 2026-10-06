@@ -11,18 +11,6 @@ class Settings(BaseSettings):
     secret_key: str
     access_token_expire_minutes: int = 60 * 24
 
-    # Production PostgreSQL resilience. Keep the app-side pool deliberately
-    # conservative so a small managed database is not flooded by one API process.
-    database_pool_size: int = 5
-    database_max_overflow: int = 3
-    database_pool_timeout_seconds: int = 8
-    database_pool_recycle_seconds: int = 300
-    database_connect_timeout_seconds: int = 8
-    database_keepalive_idle_seconds: int = 30
-    database_keepalive_interval_seconds: int = 10
-    database_keepalive_count: int = 3
-    slow_request_log_ms: int = 2000
-
     # Keep this as a string so .env can use a simple value like:
     # BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     backend_cors_origins: str = "http://localhost:5173"

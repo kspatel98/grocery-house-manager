@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import { money } from '../currency';
+import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import type { House, Receipt, ReceiptLineItem } from '../types';
 
 function receiptDateLabel(receipt: Receipt) {
@@ -120,7 +121,7 @@ export default function ReceiptHistoryPage() {
         <div>
           <Link to={`/houses/${id}`} className="breadcrumb">← Back to house</Link>
           <p className="eyebrow">Receipt history</p>
-          <h1>{house?.name || 'House'} receipts</h1>
+          <div className="feature-heading-with-why-v101"><h1>{house?.name || 'House'} receipts</h1><FeatureWhyButton feature="receipt_history" label="Why?" /></div>
           <p>Every saved receipt, extracted item row, receipt photo, total, and price-history detail in one clean place.</p>
         </div>
         <div className="topbar-actions">
@@ -129,6 +130,7 @@ export default function ReceiptHistoryPage() {
         </div>
       </header>
 
+      <FeaturePurposeCard feature="receipt_history" />
       {error && <div className="error">{error}</div>}
       {busy && <div className="panel muted-panel">Loading receipt history...</div>}
 

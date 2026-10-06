@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import ReceiptStudio from '../components/ReceiptStudio';
+import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import type { House, Product, Receipt, Section, ShoppingList } from '../types';
 
 const PRODUCT_LIMIT = 500;
@@ -46,7 +47,7 @@ export default function ReceiptScanPage() {
         <div>
           <Link to={`/houses/${id}`} className="breadcrumb">← {house?.name || 'House'} dashboard</Link>
           <p className="eyebrow">SMART RECEIPT WORKSPACE</p>
-          <h1>Scan receipt</h1>
+          <div className="feature-heading-with-why-v101"><h1>Scan receipt</h1><FeatureWhyButton feature="receipt_scan" label="Why?" /></div>
           <p>Turn one grocery receipt into organized inventory, shopping verification, saved prices and an optional shared expense.</p>
         </div>
         <nav aria-label="Receipt shortcuts">
@@ -55,6 +56,7 @@ export default function ReceiptScanPage() {
           <Link to={`/houses/${id}/expenses`}>💸 Expenses</Link>
         </nav>
       </header>
+      <FeaturePurposeCard feature="receipt_scan" />
       {loading && <section className="panel skeleton-panel">Loading receipt scanner…</section>}
       {error && <div className="error">{error}</div>}
       {!loading && !error && <ReceiptStudio houseId={id} products={products} sections={sections} receipts={receipts} shoppingLists={shoppingLists} initialShoppingListId={initialShoppingListId} onChange={load} />}

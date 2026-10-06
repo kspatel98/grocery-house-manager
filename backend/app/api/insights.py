@@ -13,7 +13,7 @@ import requests
 from PIL import Image
 import pytesseract
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, Header
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -27,6 +27,8 @@ from app.api.plan_utils import (
     house_plan_has_kitchen_check,
     house_plan_has_receipt_guardian,
     house_plan_has_stock_up_intelligence,
+    premium_try_can_start,
+    complete_premium_try,
 )
 from app.core.config import settings
 from app.db.session import get_db
@@ -735,12 +737,14 @@ def basket_comparison(
     postal_code: str | None = Query(default=None, max_length=20),
     force_refresh: bool = Query(default=False),
     live: bool = Query(default=True),
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
     plan = get_house_plan(db, house_id)
-    if plan.key not in {PlanName.family, PlanName.pro}:
+    trial_allowed = premium_try_can_start(db, house_id, user, "whole_list_compare", premium_try_feature)
+    if plan.key not in {PlanName.family, PlanName.pro} and not trial_allowed:
         shopping_list = db.query(ShoppingList).filter(ShoppingList.id == list_id, ShoppingList.house_id == house_id).first()
         if not shopping_list:
             raise HTTPException(status_code=404, detail="Shopping list not found")
@@ -754,7 +758,7 @@ def basket_comparison(
             flyer_configured=bool(settings.apify_api_token),
             last_refreshed_at=datetime.now(timezone.utc),
         )
-    return _basket_comparison(
+    result = _basket_comparison(
         db,
         house_id,
         list_id,
@@ -763,6 +767,9 @@ def basket_comparison(
         force_refresh=force_refresh,
         include_live=live,
     )
+    if trial_allowed and (result.comparison_ready or result.store_options or result.split_store_total is not None):
+        complete_premium_try(db, house_id, user, "whole_list_compare", premium_try_feature)
+    return result
 
 
 INGREDIENT_ALIASES: dict[str, set[str]] = {
@@ -1968,11 +1975,13 @@ def community_price_sharing(
 def household_plan(
     house_id: int,
     payload: HouseholdPlanIn,
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
-    if not house_plan_has_autopilot_planner(db, house_id):
+    trial_allowed = premium_try_can_start(db, house_id, user, "autopilot_planner", premium_try_feature)
+    if not house_plan_has_autopilot_planner(db, house_id, user, premium_try_feature):
         raise HTTPException(status_code=402, detail="Budget Rescue and life-aware weekly planning require Family Plus or Household Pro.")
     products = (
         db.query(Product)
@@ -2039,7 +2048,7 @@ def household_plan(
         message = "Every currently missing ingredient in this plan has a known saved price, so the budget check is fully supported by your household data."
     else:
         message = "This plan prioritizes meals that are ready from inventory and groceries that should be used soon. Missing items are never assigned made-up prices."
-    return HouseholdPlanOut(
+    result = HouseholdPlanOut(
         currency_code=currency_for_country(user.country),
         days_requested=payload.days,
         planned_days=sum(1 for row in days if row.status == "meal"),
@@ -2051,6 +2060,9 @@ def household_plan(
         known_budget_buffer=buffer,
         message=message,
     )
+    if trial_allowed:
+        complete_premium_try(db, house_id, user, "autopilot_planner", premium_try_feature)
+    return result
 
 
 def _split_pref_stores(raw: str | None) -> list[str]:
@@ -2270,11 +2282,13 @@ def save_autopilot_decision(house_id: int, payload: AutopilotDecisionIn, db: Ses
 async def kitchen_check(
     house_id: int,
     images: list[UploadFile] = File(...),
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
-    if not house_plan_has_kitchen_check(db, house_id):
+    trial_allowed = premium_try_can_start(db, house_id, user, "kitchen_vision", premium_try_feature)
+    if not house_plan_has_kitchen_check(db, house_id, user, premium_try_feature):
         raise HTTPException(status_code=402, detail="Kitchen Check Beta requires Household Pro.")
     if not images:
         raise HTTPException(status_code=400, detail="Add at least one fridge, freezer or pantry photo.")
@@ -2334,6 +2348,8 @@ async def kitchen_check(
         review_actions.append("Check whether any new visible package labels should be added to inventory.")
     if not review_actions:
         review_actions.append("Try clearer close-up photos with labels facing the camera for a stronger result.")
+    if trial_allowed:
+        complete_premium_try(db, house_id, user, "kitchen_vision", premium_try_feature)
     return KitchenCheckOut(
         images_checked=checked,
         inventory_count=len(products),
@@ -2364,11 +2380,20 @@ def receipt_guardian(house_id: int, db: Session = Depends(get_db), user: User = 
 
 
 @router.get("/houses/{house_id}/stock-up", response_model=list[StockUpSuggestionOut])
-def stock_up(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def stock_up(
+    house_id: int,
+    premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     require_house_member(house_id, user, db)
-    if not house_plan_has_stock_up_intelligence(db, house_id):
-        raise HTTPException(status_code=402, detail="Smart stock-up intelligence requires Family Plus or Household Pro.")
-    return _stock_up_suggestions(db, house_id)
+    trial_allowed = premium_try_can_start(db, house_id, user, "smart_stock_up", premium_try_feature)
+    if not house_plan_has_stock_up_intelligence(db, house_id, user, premium_try_feature):
+        raise HTTPException(status_code=402, detail="Smart stock-up intelligence requires Family Plus or Household Pro. Free Starter can choose it as the one-time Premium Try.")
+    result = _stock_up_suggestions(db, house_id)
+    if trial_allowed and result:
+        complete_premium_try(db, house_id, user, "smart_stock_up", premium_try_feature)
+    return result
 
 
 @router.get("/houses/{house_id}/recall-guardian", response_model=RecallGuardianOut)

@@ -29,6 +29,8 @@ const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
 const KitchenVisionPage = lazy(() => import('./pages/KitchenVisionPage'));
 const FoodTonightPage = lazy(() => import('./pages/FoodTonightPage'));
 const FeatureLandingPage = lazy(() => import('./pages/FeatureLandingPage'));
+const LearnGhmPage = lazy(() => import('./pages/LearnGhmPage'));
+const PremiumTryPage = lazy(() => import('./pages/PremiumTryPage'));
 
 function RouteFallback() {
   return <div className="route-fallback-v95" role="status" aria-live="polite"><span>✦</span><strong>Preparing your workspace…</strong></div>;
@@ -78,6 +80,8 @@ export default function App() {
         <Route path="/houses" element={<RequireAuth><HousesPage /></RequireAuth>} />
         <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+        <Route path="/learn" element={<RequireAuth><LearnGhmPage /></RequireAuth>} />
+        <Route path="/premium-try" element={<RequireAuth><PremiumTryPage /></RequireAuth>} />
         <Route path="/reports" element={<RequireAuth><ReportsPage /></RequireAuth>} />
         <Route path="/market" element={<RequireAuth><MarketPage /></RequireAuth>} />
         <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />

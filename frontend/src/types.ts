@@ -148,6 +148,27 @@ export type Plan = {
   recommended: boolean;
 };
 
+export type PremiumTryChoice = {
+  key: string;
+  label: string;
+  description: string;
+  icon: string;
+  min_plan: PlanName;
+  upgrade_label: string;
+};
+
+export type PremiumTryStatus = {
+  eligible: boolean;
+  available: boolean;
+  selected_feature?: string | null;
+  selected_label?: string | null;
+  started_at?: string | null;
+  used_at?: string | null;
+  house_id?: number | null;
+  message: string;
+  choices: PremiumTryChoice[];
+};
+
 export type Subscription = {
   plan_name: PlanName;
   subscription_status: string;
@@ -155,6 +176,7 @@ export type Subscription = {
   limits: PlanLimits;
   usage: Record<string, number | Record<string, number>>;
   new_user_offer?: NewUserOffer;
+  premium_try?: PremiumTryStatus | null;
 };
 
 export type BillingRenewalDetails = {
@@ -285,6 +307,8 @@ export type ReceiptScanUsage = {
   extra_credits: number;
   will_use_extra_credit: boolean;
   can_buy_extra_scans: boolean;
+  premium_try_available?: boolean;
+  premium_try_selected?: boolean;
 };
 
 export type ReceiptUploadResult = {
@@ -952,12 +976,13 @@ export type AutopilotOverview = {
 
 export type ExpenseCategory = { id:number; name:string; icon:string; created_at:string };
 export type ExpenseShare = { user_id: number; user_name: string; share_amount: number };
-export type HouseExpense = { id:number; house_id:number; title:string; amount:number; currency:string; category:string; paid_by_user_id:number; paid_by_name:string; expense_date:string; notes?:string|null; receipt_id?:number|null; created_at:string; shares:ExpenseShare[] };
+export type HouseExpense = { id:number; house_id:number; title:string; amount:number; currency:string; category:string; paid_by_user_id:number; paid_by_name:string; expense_date:string; expense_month:string; notes?:string|null; receipt_id?:number|null; created_at:string; shares:ExpenseShare[] };
+export type ExpenseMonthState = { month:string; is_locked:boolean; locked_by_user_id?:number|null; locked_by_name?:string|null; locked_at?:string|null };
 export type ExpenseSettlement = { id:number; from_user_id:number; from_user_name:string; to_user_id:number; to_user_name:string; amount:number; currency:string; notes?:string|null; status:'pending'|'confirmed'|'cancelled'|string; confirmed_at?:string|null; cancelled_at?:string|null; created_at:string };
 export type ExpenseBalance = { user_id:number; user_name:string; balance:number };
 export type ExpenseBalanceBreakdown = { user_id:number; user_name:string; paid:number; share:number; reimbursements_sent:number; reimbursements_received:number; pending_sent:number; pending_received:number; balance:number };
 export type ExpenseSuggestedPayment = { from_user_id:number; from_user_name:string; to_user_id:number; to_user_name:string; amount:number };
-export type ExpenseSummary = { expenses:HouseExpense[]; settlements:ExpenseSettlement[]; balances:ExpenseBalance[]; balance_breakdown:ExpenseBalanceBreakdown[]; suggested_payments:ExpenseSuggestedPayment[]; balance_is_valid:boolean };
+export type ExpenseSummary = { expenses:HouseExpense[]; settlements:ExpenseSettlement[]; balances:ExpenseBalance[]; balance_breakdown:ExpenseBalanceBreakdown[]; suggested_payments:ExpenseSuggestedPayment[]; months:ExpenseMonthState[]; balance_is_valid:boolean };
 
 // V94 GHM Intelligence / Kitchen Vision / Household Digital Twin
 export type AISystemComponent = {

@@ -62,6 +62,13 @@ class User(Base):
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     subscription_current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     extra_receipt_scan_credits: Mapped[int] = mapped_column(Integer, default=0)
+    # V102: one complimentary premium workflow for Free users. Selection may be
+    # changed until the experience is successfully used. The server records the
+    # selected workflow and completion time so this cannot be reset from a browser.
+    premium_try_feature: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    premium_try_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    premium_try_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    premium_try_house_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
@@ -381,6 +388,23 @@ class ExpenseCategory(Base):
 
 
 
+
+
+class ExpenseMonthLock(Base):
+    __tablename__ = "expense_month_locks"
+    __table_args__ = (UniqueConstraint("house_id", "month_key", name="uq_expense_month_lock_house_month"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    month_key: Mapped[str] = mapped_column(String(7), index=True)
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    locked_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    locked_by: Mapped[User | None] = relationship(foreign_keys=[locked_by_user_id])
+
+
 class HouseExpense(Base):
     __tablename__ = "house_expenses"
 
@@ -394,6 +418,9 @@ class HouseExpense(Base):
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     receipt_id: Mapped[int | None] = mapped_column(ForeignKey("receipts.id", ondelete="SET NULL"), nullable=True, index=True)
     expense_date: Mapped[date] = mapped_column(Date, default=date.today)
+    # Accounting month is intentionally separate from the purchase date. A household
+    # can keep posting to September for a few days in October, then switch when ready.
+    expense_month: Mapped[str | None] = mapped_column(String(7), nullable=True, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 

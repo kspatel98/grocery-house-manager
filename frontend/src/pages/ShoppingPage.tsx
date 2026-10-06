@@ -8,6 +8,7 @@ import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
 import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
+import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 
 const SHOPPING_PRODUCT_LIMIT = 80;
 
@@ -154,7 +155,7 @@ export default function ShoppingPage() {
       <header className="topbar">
         <div>
           <Link to={`/houses/${id}`} className="breadcrumb">← Back to Home</Link>
-          <h1>{house?.name || 'House'} grocery lists</h1>
+          <div className="feature-heading-with-why-v101"><h1>{house?.name || 'House'} grocery lists</h1><FeatureWhyButton feature="shopping" label="Why?" /></div>
           <p>Use this as your in-store checklist. Add what you need, check items into the cart, then finish shopping to update your Home automatically.</p>
         </div>
         <div className="shopping-topbar-actions">
@@ -179,6 +180,7 @@ export default function ShoppingPage() {
       </header>
 
       <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="shopping" />
+      <FeaturePurposeCard feature="shopping" />
 
       {error && <div className="error">{error}</div>}
       {initialLoading && <div className="panel muted-panel">Loading grocery lists...</div>}
@@ -186,7 +188,7 @@ export default function ShoppingPage() {
       <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
       {offlineFallback && <div className="offline-shopping-banner">Offline mode: showing the latest shopping list saved on this device. Changes require a connection.</div>}
 
-      {!creatingNew && selectedList ? <WholeListComparison houseId={id} selectedList={selectedList} /> : null}
+      {!creatingNew && selectedList ? <WholeListComparison houseId={id} selectedList={selectedList} premiumTry={subscription?.premium_try || null} /> : null}
 
       <div className="shopping-page-layout">
         <section className="shopping-main-column">
@@ -245,7 +247,7 @@ export default function ShoppingPage() {
           />
         </section>
         <aside className="shopping-side-column">
-          <SmartShoppingSuggestions houseId={id} selectedList={selectedList} />
+          <SmartShoppingSuggestions houseId={id} selectedList={selectedList} premiumTry={subscription?.premium_try || null} />
           <ActivityFeed activities={activities} onRefresh={loadAll} />
         </aside>
       </div>
@@ -265,7 +267,7 @@ export default function ShoppingPage() {
 
 
 
-function WholeListComparison({ houseId, selectedList }: { houseId: number; selectedList: ShoppingList }) {
+function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: number; selectedList: ShoppingList; premiumTry?: Subscription['premium_try'] }) {
   const [comparison, setComparison] = useState<BasketComparison | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -273,7 +275,7 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
   const [postalCode, setPostalCode] = useState(() => localStorage.getItem('ghm_price_postal') || '');
   const listSignature = selectedList.items.map((item) => `${item.id}:${item.product_id}:${item.requested_quantity}:${item.status}:${item.product.updated_at || ''}`).join('|');
 
-  async function compare(forceRefresh = false, postal = postalCode) {
+  async function compare(forceRefresh = false, postal = postalCode, usePremiumTry = false) {
     if (!navigator.onLine) {
       setError('You are offline. The saved shopping list is still available; price recommendations will refresh when you reconnect.');
       return;
@@ -290,7 +292,9 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
           force_refresh: forceRefresh || undefined,
           postal_code: normalizedPostal || undefined,
         },
+        headers: usePremiumTry ? { 'X-GHM-Premium-Try': 'whole_list_compare' } : undefined,
       });
+      if (usePremiumTry && !data.premium_required) window.dispatchEvent(new Event('account:refresh'));
       setComparison(data);
       setDetailsOpen(Boolean(data.store_options.length));
     } catch (err) {
@@ -317,14 +321,17 @@ function WholeListComparison({ houseId, selectedList }: { houseId: number; selec
         <div className="auto-compare-title-row">
           <div>
             <p className="eyebrow">Family Plus • automatic trip check</p>
-            <h2>Where should I buy “{selectedList.title}”?</h2>
+            <div className="feature-heading-with-why-v101"><h2>Where should I buy “{selectedList.title}”?</h2><FeatureWhyButton feature="price_compare" label="Why?" /></div>
           </div>
           <span className={`auto-status ${busy ? 'checking' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparison ? 'Prices checked' : 'Ready to check'}</span>
         </div>
         <p>Prices are checked automatically: current Canadian prices first, then active weekly flyer deals, then your recent receipts and older saved prices. If a price cannot be found, we say so instead of guessing.</p>
 
         {comparison?.premium_required ? (
-          <div className="basket-upgrade-line"><span>{comparison.message}</span><Link to="/pricing" className="secondary center-link">See Family Plus</Link></div>
+          <div className="basket-upgrade-line">
+            <span>{comparison.message}</span>
+            {premiumTry?.available ? (premiumTry.selected_feature === 'whole_list_compare' ? <button type="button" className="primary" disabled={busy} onClick={() => void compare(false, postalCode, true)}>{busy ? 'Comparing…' : 'Use my free Premium Try'}</button> : <Link to={`/premium-try?feature=whole_list_compare&house=${houseId}`} className="primary center-link">Choose this as my free try</Link>) : <Link to="/pricing" className="secondary center-link">See Family Plus</Link>}
+          </div>
         ) : null}
 
         {comparison && !comparison.premium_required ? (
@@ -416,7 +423,7 @@ function cachedLocation() {
   return { city: '', country: '' };
 }
 
-function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; selectedList: ShoppingList | null }) {
+function SmartShoppingSuggestions({ houseId, selectedList, premiumTry }: { houseId: number; selectedList: ShoppingList | null; premiumTry?: Subscription['premium_try'] }) {
   const initial = cachedLocation();
   const [city, setCity] = useState(initial.city);
   const [country, setCountry] = useState(initial.country || 'Canada');
@@ -427,14 +434,16 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
   const [error, setError] = useState('');
   const [selectedFlyerDeal, setSelectedFlyerDeal] = useState<FlyerOpenDeal | null>(null);
 
-  async function loadSuggestions(nextLat = lat, nextLng = lng) {
+  async function loadSuggestions(nextLat = lat, nextLng = lng, usePremiumTry = false) {
     if (!selectedList) return;
     try {
       setBusy(true);
       const flyerPostal = localStorage.getItem('ghm_price_postal') || '';
       const { data } = await api.get<ShoppingSuggestions>(`/market/houses/${houseId}/shopping-lists/${selectedList.id}/suggestions`, {
         params: { city: city || undefined, country: country || undefined, postal_code: flyerPostal || undefined, lat: nextLat ?? undefined, lng: nextLng ?? undefined },
+        headers: usePremiumTry ? { 'X-GHM-Premium-Try': 'nearby_store_suggestions' } : undefined,
       });
+      if (usePremiumTry && !data.premium_required) window.dispatchEvent(new Event('account:refresh'));
       setSuggestions(data);
       setError('');
     } catch (err) {
@@ -506,6 +515,10 @@ function SmartShoppingSuggestions({ houseId, selectedList }: { houseId: number; 
       {suggestions ? (
         <div className="suggestion-results">
           <div className={suggestions.premium_required ? 'hint' : 'success compact-message'}>{suggestions.message}</div>
+          {suggestions.premium_required && premiumTry?.available ? <div className="premium-try-invite-v102 compact">
+            <span aria-hidden="true">✨</span><div><strong>Try Smart Nearby Stores once for free</strong><small>{premiumTry.selected_feature === 'nearby_store_suggestions' ? 'Your selection is ready. Run the real nearby-store workflow once.' : 'Use your one free Premium Try here instead of subscribing first.'}</small></div>
+            {premiumTry.selected_feature === 'nearby_store_suggestions' ? <button className="primary" type="button" disabled={busy} onClick={() => void loadSuggestions(lat, lng, true)}>Use free try</button> : <Link className="primary center-link" to={`/premium-try?feature=nearby_store_suggestions&house=${houseId}`}>Choose this</Link>}
+          </div> : null}
           {!suggestions.premium_required && suggestions.item_suggestions.some((item) => item.flyer_store && item.flyer_price != null) ? (
             <div className="shopping-flyer-match-section">
               <div className="shopping-flyer-match-head">
