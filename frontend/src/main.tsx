@@ -9,6 +9,7 @@ import './theme-v99.css';
 import './theme-v100.css';
 import './theme-v101.css';
 import './theme-v102.css';
+import './theme-v104.css';
 import { LanguageProvider } from './i18n';
 import DialogFocusManager from './components/DialogFocusManager';
 import { applyTheme, getSavedTheme } from './theme';
@@ -29,6 +30,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then((registration) => registration.update()).catch(() => undefined);
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((registration) => registration.update()).catch(() => undefined);
   });
 }

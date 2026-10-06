@@ -33,7 +33,7 @@ export default function HousePage() {
   const inviteMessageRef = useRef<HTMLDivElement | null>(null);
 
   const requestedTab = searchParams.get('tab') as HouseTab | null;
-  const tab: HouseTab = ['today', 'home', 'money', 'activity'].includes(requestedTab || '') ? (requestedTab as HouseTab) : 'today';
+  const tab: HouseTab = ['today', 'home', 'money', 'activity'].includes(requestedTab || '') ? (requestedTab as HouseTab) : 'home';
   function chooseTab(next: HouseTab) {
     const nextParams = new URLSearchParams(searchParams);
     if (next === 'today') nextParams.delete('tab');
@@ -171,7 +171,22 @@ export default function HousePage() {
 
   return (
     <main className="page shell wide v95-house-page">
-      <header className="v95-house-hero">
+      {tab === 'home' ? <header className="v104-home-hero">
+        <div className="v104-home-hero-copy">
+          <Link to="/houses" className="breadcrumb">← Switch household</Link>
+          <p className="eyebrow">{house?.name || 'YOUR HOME'} · SMART HOUSEHOLD</p>
+          <h1>Everything your household needs, in one calm place.</h1>
+          <p>See what you own, what needs attention, what to buy and what GHM can handle for you next.</p>
+          <div className="v104-home-hero-actions">
+            <Link className="primary center-link" to={`/houses/${id}/inventory`}>Open inventory</Link>
+            <Link className="secondary center-link" to={`/houses/${id}/scan`}>Scan receipt</Link>
+          </div>
+        </div>
+        <div className="v104-home-hero-visual" aria-hidden="true">
+          <div className="v104-home-orb"><span>🏡</span><i>🥦</i><i>🍎</i><i>🥕</i><i>🥛</i></div>
+          <div className="v104-home-control"><small>HOUSEHOLD CONTROL</small><strong>{controlScore}/100</strong><span>{controlScore >= 85 ? 'Calm & ready' : controlScore >= 60 ? 'A few things to handle' : 'Needs attention'}</span></div>
+        </div>
+      </header> : <header className="v95-house-hero">
         <div className="v95-house-hero-copy">
           <Link to="/houses" className="breadcrumb">← Switch household</Link>
           <p className="eyebrow">{house?.name || 'YOUR HOME'} · HOUSEHOLD OS</p>
@@ -186,7 +201,7 @@ export default function HousePage() {
           <div className="v95-control-ring" style={{ '--control': `${controlScore}%` } as CSSProperties}><span><strong>{controlScore}</strong><small>/100</small></span></div>
           <div><small>HOUSEHOLD CONTROL</small><strong>{controlScore >= 85 ? 'Calm & ready' : controlScore >= 60 ? 'A few things to handle' : 'Needs attention'}</strong><span>{members.length} member{members.length === 1 ? '' : 's'} · {house?.role || 'member'}</span></div>
         </div>
-      </header>
+      </header>}
 
       {inviteUrl && <div className="success focus-result-card" ref={inviteMessageRef} tabIndex={-1}>Invite copied: {inviteUrl}</div>}
       {error && <div className="error">{error}</div>}

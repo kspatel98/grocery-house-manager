@@ -213,10 +213,10 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const contextHouseId = routeHouseId || activeHouseId;
   const navItems = contextHouseId
     ? [
-        { to: `/houses/${contextHouseId}`, label: 'Today', icon: '✦' },
+        { to: `/houses/${contextHouseId}?tab=home`, label: 'Home', icon: '⌂' },
         { to: `/assistant?house=${contextHouseId}&view=plan`, label: 'Plan', icon: '◫' },
         { to: `/houses/${contextHouseId}/shopping`, label: 'Shop', icon: '🛒' },
-        { to: `/houses/${contextHouseId}?tab=home`, label: 'Home', icon: '⌂' },
+        { to: `/houses/${contextHouseId}?tab=today`, label: 'Today', icon: '✦' },
       ]
     : [
         { to: '/houses', label: t('home'), icon: '⌂' },
@@ -256,15 +256,15 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     if (itemPath === '/assistant') return location.pathname === '/assistant';
     if (contextHouseId && itemPath === `/houses/${contextHouseId}`) {
       if (location.pathname !== itemPath) return false;
-      const currentTab = new URLSearchParams(location.search).get('tab');
-      if (queryParams.get('tab') === 'home') return Boolean(currentTab && currentTab !== 'today');
-      return !currentTab || currentTab === 'today';
+      const currentTab = new URLSearchParams(location.search).get('tab') || 'home';
+      const desiredTab = queryParams.get('tab') || 'home';
+      return currentTab === desiredTab;
     }
     if (itemPath === '/houses') return location.pathname === '/houses';
     return location.pathname === itemPath || location.pathname.startsWith(`${itemPath}/`);
   };
   const extraActive = extraNavItems.some((item) => navActive(item.to));
-  const homeActive = location.pathname === '/houses' || Boolean(contextHouseId && navActive(`/houses/${contextHouseId}`));
+  const homeActive = location.pathname === '/houses' || Boolean(contextHouseId && navActive(`/houses/${contextHouseId}?tab=home`));
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -568,11 +568,11 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <nav className="mobile-bottom-nav v95-mobile-nav" aria-label="Mobile app navigation">
-        <Link to={contextHouseId ? `/houses/${contextHouseId}` : '/houses'} className={homeActive ? 'active' : ''}><span aria-hidden="true">✦</span><small>Today</small></Link>
+      <nav className="mobile-bottom-nav v95-mobile-nav v104-mobile-nav" aria-label="Mobile app navigation">
+        <Link to={contextHouseId ? `/houses/${contextHouseId}?tab=home` : '/houses'} className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
         <Link to={contextHouseId ? `/assistant?house=${contextHouseId}&view=plan` : '/houses'} className={location.pathname === '/assistant' ? 'active' : ''}><span aria-hidden="true">◫</span><small>Plan</small></Link>
         <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>Shop</small></Link>
-        <Link to={contextHouseId ? `/houses/${contextHouseId}?tab=home` : '/houses'} className={Boolean(contextHouseId && navActive(`/houses/${contextHouseId}?tab=home`)) ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}?tab=today` : '/houses'} className={Boolean(contextHouseId && navActive(`/houses/${contextHouseId}?tab=today`)) ? 'active' : ''}><span aria-hidden="true">✦</span><small>Today</small></Link>
         <button type="button" className={mobileMoreOpen || extraActive || location.pathname.startsWith('/profile') ? 'active' : ''} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>{t('more')}</small></button>
       </nav>
 
@@ -597,6 +597,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <div className="mobile-more-language-card-v88 v100-more-pref-card"><span aria-hidden="true">🌐</span><div><strong>Language</strong><LanguagePicker compact /></div></div>
                   <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
                 </section>
+
+                <div className="v104-build-badge" aria-label="Current app build">GHM design build V104</div>
 
                 {mobileMoreGroups.map((group) => {
                   const items = extraNavItems.filter((item) => item.group === group.key);

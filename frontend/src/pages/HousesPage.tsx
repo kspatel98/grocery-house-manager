@@ -104,9 +104,9 @@ export default function HousesPage() {
 
   return (
     <main className="page shell wide v95-switchboard-page">
-      <header className="v95-switchboard-hero">
-        <div><p className="eyebrow">GROCERY HOUSE MANAGER</p><h1>{firstName ? `${greeting}, ${firstName}` : greeting}</h1><p>One calm place for the household. You only need to deal with what matters now.</p></div>
-        {activeHouse ? <Link className="primary center-link" to={`/houses/${activeHouse.id}`}>Open {activeHouse.name} →</Link> : null}
+      <header className="v104-switchboard-hero">
+        <div className="v104-switchboard-copy"><p className="eyebrow">GROCERY HOUSE MANAGER</p><h1>{firstName ? `${greeting}, ${firstName}` : greeting}</h1><p>Your groceries, meals, receipts, shopping and household money — connected in one place.</p><div className="v104-switchboard-actions">{activeHouse ? <Link className="primary center-link" to={`/houses/${activeHouse.id}?tab=home`}>Open {activeHouse.name} →</Link> : null}{activeHouse ? <Link className="secondary center-link" to={`/houses/${activeHouse.id}/scan`}>Scan receipt</Link> : null}</div></div>
+        <div className="v104-switchboard-art" aria-hidden="true"><span>🏡</span><div><i>🥦</i><i>🧾</i><i>🛒</i><i>💸</i></div><small>Build V104</small></div>
       </header>
 
       <FirstRunSetup onStatus={setOnboarding} />
@@ -118,7 +118,7 @@ export default function HousesPage() {
 
       {!loading && houses.length > 0 ? <section className="v95-house-switcher">
         <header><div><p className="eyebrow">YOUR HOUSEHOLDS</p><h2>Choose where you want to work.</h2></div>{canCreateHouse ? <button type="button" className="secondary" onClick={() => setShowCreate((value) => !value)}>{showCreate ? 'Close' : '+ Add household'}</button> : null}</header>
-        <div className="v95-house-switcher-grid">{houses.map((house) => <Link key={house.id} to={`/houses/${house.id}`} onClick={() => localStorage.setItem('ghm_active_house_id', String(house.id))} className={activeHouse?.id === house.id ? 'active' : ''}><span>⌂</span><div><strong>{house.name}</strong><small>{house.role} access</small></div><b>→</b></Link>)}</div>
+        <div className="v95-house-switcher-grid">{houses.map((house) => <Link key={house.id} to={`/houses/${house.id}?tab=home`} onClick={() => localStorage.setItem('ghm_active_house_id', String(house.id))} className={activeHouse?.id === house.id ? 'active' : ''}><span>⌂</span><div><strong>{house.name}</strong><small>{house.role} access</small></div><b>→</b></Link>)}</div>
       </section> : null}
 
       {(showCreate || houses.length === 0) ? <section className="v95-create-home">
