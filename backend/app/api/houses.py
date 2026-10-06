@@ -8,7 +8,7 @@ from app.api.plan_utils import ensure_house_limit, ensure_member_limit, get_hous
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Activity, House, HouseMember, HouseRole, Invite, Section, User
-from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseOut, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
+from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseOut, HouseUpdate, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
 
 router = APIRouter(prefix="/houses", tags=["houses"])
 
