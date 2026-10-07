@@ -107,6 +107,7 @@ class HouseCreate(BaseModel):
 class HouseUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     household_type: Literal["family", "roommates", "couple", "solo", "other"] | None = None
+    expense_book_mode: Literal["auto", "custom"] | None = None
 
 
 class HouseOut(BaseModel):
@@ -117,6 +118,7 @@ class HouseOut(BaseModel):
     owner_plan_name: PlanName | None = None
     contribute_community_prices: bool = False
     household_type: str = "family"
+    expense_book_mode: Literal["auto", "custom"] = "auto"
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -658,10 +660,25 @@ class ExpenseMonthLockIn(BaseModel):
 
 class ExpenseMonthOut(BaseModel):
     month: str
+    name: str | None = None
+    is_auto_created: bool = False
     is_locked: bool = False
     locked_by_user_id: int | None = None
     locked_by_name: str | None = None
     locked_at: datetime | None = None
+
+
+class ExpenseSettingsIn(BaseModel):
+    month_mode: Literal["auto", "custom"]
+
+
+class ExpenseMonthCreateIn(BaseModel):
+    month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    name: str | None = Field(default=None, max_length=120)
+
+
+class ExpenseMonthUpdateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
 
 
 class ExpenseSettlementIn(BaseModel):
@@ -720,6 +737,7 @@ class ExpenseSummaryOut(BaseModel):
     balance_breakdown: list[ExpenseBalanceBreakdownOut] = Field(default_factory=list)
     suggested_payments: list[ExpenseSuggestedPaymentOut] = Field(default_factory=list)
     months: list[ExpenseMonthOut] = Field(default_factory=list)
+    month_mode: Literal["auto", "custom"] = "auto"
     balance_is_valid: bool = True
 
 

@@ -16,22 +16,28 @@ function offerStillActive(until?: string | null) {
 }
 
 export default function HousesPage() {
-  const [houses, setHouses] = useState<House[]>([]);
+  const [houses, setHouses] = useState<House[]>(() => {
+    try { const cached = JSON.parse(localStorage.getItem('account_bootstrap_cache_v106') || 'null') as AccountBootstrap | null; return Array.isArray(cached?.houses) ? cached!.houses : []; } catch { return []; }
+  });
   const [name, setName] = useState('');
   const [householdType, setHouseholdType] = useState<'family' | 'roommates' | 'couple' | 'solo' | 'other'>('family');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [loading, setLoading] = useState(() => houses.length === 0);
+  const [subscription, setSubscription] = useState<Subscription | null>(() => {
+    try { return (JSON.parse(localStorage.getItem('account_bootstrap_cache_v106') || 'null') as AccountBootstrap | null)?.subscription || null; } catch { return null; }
+  });
   const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
   const [todayBrief, setTodayBrief] = useState<WeeklyAssistant | null>(null);
-  const [firstName, setFirstName] = useState('');
+  const [firstName, setFirstName] = useState(() => {
+    try { const user = (JSON.parse(localStorage.getItem('account_bootstrap_cache_v106') || 'null') as AccountBootstrap | null)?.user; return (user?.full_name || user?.email || '').split(/[ @]/).filter(Boolean)[0] || ''; } catch { return ''; }
+  });
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const navigate = useNavigate();
 
   async function load() {
     try {
-      setLoading(true);
+      if (!houses.length) setLoading(true);
       setError('');
       const { data } = await api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } });
       const nextHouses = Array.isArray(data.houses) ? data.houses : [];
@@ -39,6 +45,7 @@ export default function HousesPage() {
       setSubscription(data.subscription);
       setFirstName((data.user.full_name || data.user.email || '').split(/[ @]/).filter(Boolean)[0] || '');
       localStorage.setItem('account_profile_cache', JSON.stringify(data.user));
+      localStorage.setItem('account_bootstrap_cache_v106', JSON.stringify(data));
       localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
       const savedHouse = Number(localStorage.getItem('ghm_active_house_id'));
       const primaryHouse = nextHouses.find((house) => house.id === savedHouse) || nextHouses[0];
@@ -56,7 +63,16 @@ export default function HousesPage() {
         .catch(() => setOffers([]));
     } catch (err) {
       setError(errorMessage(err));
-      setHouses([]);
+      // Keep the most recent household shell available during a transient reconnect.
+      // A background/API hiccup should not make the user's homes appear to vanish.
+      try {
+        const cached = JSON.parse(localStorage.getItem('account_bootstrap_cache_v106') || 'null') as AccountBootstrap | null;
+        if (Array.isArray(cached?.houses) && cached!.houses.length) {
+          setHouses(cached!.houses);
+          setSubscription(cached!.subscription);
+          setFirstName((cached!.user.full_name || cached!.user.email || '').split(/[ @]/).filter(Boolean)[0] || '');
+        }
+      } catch { /* no usable cache */ }
     } finally {
       setLoading(false);
     }
@@ -106,13 +122,13 @@ export default function HousesPage() {
     <main className="page shell wide v95-switchboard-page">
       <header className="v104-switchboard-hero">
         <div className="v104-switchboard-copy"><p className="eyebrow">GROCERY HOUSE MANAGER</p><h1>{firstName ? `${greeting}, ${firstName}` : greeting}</h1><p>Your groceries, meals, receipts, shopping and household money — connected in one place.</p><div className="v104-switchboard-actions">{activeHouse ? <Link className="primary center-link" to={`/houses/${activeHouse.id}?tab=home`}>Open {activeHouse.name} →</Link> : null}{activeHouse ? <Link className="secondary center-link" to={`/houses/${activeHouse.id}/scan`}>Scan receipt</Link> : null}</div></div>
-        <div className="v104-switchboard-art" aria-hidden="true"><span>🏡</span><div><i>🥦</i><i>🧾</i><i>🛒</i><i>💸</i></div><small>Build V105</small></div>
+        <div className="v104-switchboard-art" aria-hidden="true"><span>🏡</span><div><i>🥦</i><i>🧾</i><i>🛒</i><i>💸</i></div><small>Build V106</small></div>
       </header>
 
       <FirstRunSetup onStatus={setOnboarding} />
       {onboarding?.complete ? <InstallAppPrompt /> : null}
-      {error && <div className="error">{error}</div>}
-      {loading && <div className="panel muted-panel">Preparing your homes…</div>}
+      {error && houses.length === 0 ? <div className="error">{error}</div> : error ? <div className="ghm-refresh-note-v106"><span>↻</span><div><strong>Showing your last loaded household view.</strong><small>GHM will refresh automatically when the connection is stable.</small></div></div> : null}
+      {loading && houses.length === 0 && <div className="ghm-shell-loader-v106" aria-live="polite"><span></span><div><strong>Opening your homes</strong><small>Loading the latest household data…</small></div></div>}
 
       {!loading && todayAction ? <Link to={todayAction.to} className="v95-switchboard-focus"><span>{todayAction.icon}</span><div><p className="eyebrow">{todayAction.eyebrow}</p><h2>{todayAction.title}</h2><p>{todayAction.copy}</p></div><strong>{todayAction.cta} →</strong></Link> : null}
 

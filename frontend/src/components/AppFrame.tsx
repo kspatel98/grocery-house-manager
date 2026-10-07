@@ -58,6 +58,13 @@ function cachedProfile(): UserProfile | null {
   }
 }
 
+
+function cachedBootstrap(): AccountBootstrap | null {
+  const raw = localStorage.getItem('account_bootstrap_cache_v106');
+  if (!raw) return null;
+  try { return JSON.parse(raw) as AccountBootstrap; } catch { return null; }
+}
+
 function initialsFor(profile: UserProfile | null) {
   const name = profile?.full_name || profile?.email || 'AI';
   const parts = name.replace(/@.*/, '').split(/\s+/).filter(Boolean);
@@ -90,6 +97,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const desktopMoreRef = useRef<HTMLDivElement>(null);
   const siteHeaderRef = useRef<HTMLElement>(null);
   const [siteHeaderHeight, setSiteHeaderHeight] = useState(0);
+  const accountRefreshInFlightRef = useRef(false);
+  const lastAccountRefreshRef = useRef(0);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -124,50 +133,65 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    const refreshAccount = () => {
+    const applyBootstrap = (data: AccountBootstrap, persist = true) => {
+      if (cancelled) return;
+      setIsAdmin(Boolean(data.is_admin));
+      setPremiumStats(data.premium_crown_stats || null);
+      setPremiumTry(data.subscription.premium_try || null);
+      const savedHouseId = Number(localStorage.getItem('ghm_active_house_id'));
+      const rememberedHouse = data.houses?.find((house) => house.id === savedHouseId);
+      const nextActiveHouseId = rememberedHouse?.id || data.houses?.[0]?.id || null;
+      setActiveHouseId(nextActiveHouseId);
+      if (nextActiveHouseId) localStorage.setItem('ghm_active_house_id', String(nextActiveHouseId));
+      setAccountReady(true);
+      const effectiveProfile: UserProfile = {
+        ...data.user,
+        plan_name: data.subscription.plan_name,
+        subscription_status: data.subscription.subscription_status,
+        subscription_current_period_end: data.subscription.current_period_end,
+      };
+      setProfile(effectiveProfile);
+      if (persist) {
+        localStorage.setItem('account_bootstrap_cache_v106', JSON.stringify(data));
+        localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
+        localStorage.setItem('account_profile_cache', JSON.stringify(effectiveProfile));
+      }
+    };
+
+    const cached = cachedBootstrap();
+    if (cached) applyBootstrap(cached, false);
+
+    const refreshAccount = (force = false) => {
       const token = localStorage.getItem('token');
-      if (!token) return;
-      api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } })
+      if (!token || accountRefreshInFlightRef.current) return;
+      const now = Date.now();
+      if (!force && now - lastAccountRefreshRef.current < 30000) return;
+      accountRefreshInFlightRef.current = true;
+      lastAccountRefreshRef.current = now;
+      api.get<AccountBootstrap>('/account/bootstrap', { params: { t: now } })
         .then(({ data }) => {
-          if (cancelled) return;
-          setIsAdmin(Boolean(data.is_admin));
-          setPremiumStats(data.premium_crown_stats || null);
-          setPremiumTry(data.subscription.premium_try || null);
-          const savedHouseId = Number(localStorage.getItem('ghm_active_house_id'));
-          const rememberedHouse = data.houses?.find((house) => house.id === savedHouseId);
-          const nextActiveHouseId = rememberedHouse?.id || data.houses?.[0]?.id || null;
-          setActiveHouseId(nextActiveHouseId);
-          if (nextActiveHouseId) localStorage.setItem('ghm_active_house_id', String(nextActiveHouseId));
-          else localStorage.removeItem('ghm_active_house_id');
-          setAccountReady(true);
+          applyBootstrap(data, true);
           setAccountLoadError('');
-          const effectiveProfile: UserProfile = {
-            ...data.user,
-            plan_name: data.subscription.plan_name,
-            subscription_status: data.subscription.subscription_status,
-            subscription_current_period_end: data.subscription.current_period_end,
-          };
-          setProfile(effectiveProfile);
-          localStorage.setItem('account_is_admin', data.is_admin ? 'true' : 'false');
-          localStorage.setItem('account_profile_cache', JSON.stringify(effectiveProfile));
         })
         .catch((err) => {
           if (cancelled) return;
-          // Keep cached navigation usable, but never fail silently. A healthy API
-          // can still have a route/schema-specific bootstrap problem, which used
-          // to look like the user's household data had disappeared.
           setAccountLoadError(errorMessage(err));
-          setAccountReady(false);
-        });
+          // Never blank an already usable shell just because a background refresh
+          // briefly failed. Cached account/house context remains visible.
+          if (!cachedBootstrap() && !profile) setAccountReady(false);
+        })
+        .finally(() => { accountRefreshInFlightRef.current = false; });
     };
 
-    refreshAccount();
-    window.addEventListener('account:refresh', refreshAccount);
-    window.addEventListener('focus', refreshAccount);
+    refreshAccount(true);
+    const onExplicitRefresh = () => refreshAccount(true);
+    const onFocus = () => refreshAccount(false);
+    window.addEventListener('account:refresh', onExplicitRefresh);
+    window.addEventListener('focus', onFocus);
     return () => {
       cancelled = true;
-      window.removeEventListener('account:refresh', refreshAccount);
-      window.removeEventListener('focus', refreshAccount);
+      window.removeEventListener('account:refresh', onExplicitRefresh);
+      window.removeEventListener('focus', onFocus);
     };
   }, []);
 
@@ -602,7 +626,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
                 </section>
 
-                <div className="v104-build-badge" aria-label="Current app build">GHM design build V105</div>
+                <div className="v104-build-badge" aria-label="Current app build">GHM design build V106</div>
 
                 {mobileMoreGroups.map((group) => {
                   const items = extraNavItems.filter((item) => item.group === group.key);

@@ -30,6 +30,7 @@ export default function HousePage() {
   const [error, setError] = useState('');
   const [membersOpen, setMembersOpen] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [showInitialLoader, setShowInitialLoader] = useState(false);
   const inviteMessageRef = useRef<HTMLDivElement | null>(null);
 
   const requestedTab = searchParams.get('tab') as HouseTab | null;
@@ -40,6 +41,12 @@ export default function HousePage() {
     else nextParams.set('tab', next);
     setSearchParams(nextParams, { replace: true });
   }
+
+  useEffect(() => {
+    if (!initialLoading) { setShowInitialLoader(false); return; }
+    const timer = window.setTimeout(() => setShowInitialLoader(true), 450);
+    return () => window.clearTimeout(timer);
+  }, [initialLoading]);
 
   async function loadAll() {
     try {
@@ -205,7 +212,7 @@ export default function HousePage() {
 
       {inviteUrl && <div className="success focus-result-card" ref={inviteMessageRef} tabIndex={-1}>Invite copied: {inviteUrl}</div>}
       {error && <div className="error">{error}</div>}
-      {initialLoading && <section className="panel skeleton-panel">Preparing your household…</section>}
+      {initialLoading && showInitialLoader && <section className="ghm-shell-loader-v106" aria-live="polite"><span></span><div><strong>Opening your household</strong><small>Syncing the latest home data…</small></div></section>}
 
       <nav className="v95-house-tabs" aria-label="Household views">
         <button className={tab === 'today' ? 'active' : ''} onClick={() => chooseTab('today')}><span>✦</span><strong>Today</strong><small>What matters now</small></button>

@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models import (
     ExpenseCategory,
     ExpenseMonthLock,
+    House,
     ExpenseSettlement,
     ExpenseShare,
     HouseExpense,
@@ -28,6 +29,9 @@ from app.schemas import (
     ExpenseCategoryOut,
     ExpenseCreateIn,
     ExpenseMonthLockIn,
+    ExpenseSettingsIn,
+    ExpenseMonthCreateIn,
+    ExpenseMonthUpdateIn,
     ExpenseMonthOut,
     ExpenseOut,
     ExpenseSettlementIn,
@@ -78,6 +82,54 @@ def _month_lock(db: Session, house_id: int, month_key: str) -> ExpenseMonthLock 
         .options(joinedload(ExpenseMonthLock.locked_by))
         .filter(ExpenseMonthLock.house_id == house_id, ExpenseMonthLock.month_key == month_key)
         .first()
+    )
+
+
+def _default_month_name(month_key: str) -> str:
+    try:
+        return datetime.strptime(month_key, "%Y-%m").strftime("%B %Y")
+    except ValueError:
+        return month_key
+
+
+def _house_month_mode(db: Session, house_id: int) -> str:
+    house = db.get(House, house_id)
+    mode = (getattr(house, "expense_book_mode", None) or "auto").lower() if house else "auto"
+    return mode if mode in {"auto", "custom"} else "auto"
+
+
+def _ensure_book_record(db: Session, house_id: int, month_key: str, *, auto_created: bool = False, display_name: str | None = None) -> ExpenseMonthLock:
+    normalized = _normalize_month_key(month_key)
+    row = db.query(ExpenseMonthLock).filter(ExpenseMonthLock.house_id == house_id, ExpenseMonthLock.month_key == normalized).first()
+    if not row:
+        row = ExpenseMonthLock(
+            house_id=house_id,
+            month_key=normalized,
+            display_name=(display_name or _default_month_name(normalized))[:120],
+            is_auto_created=auto_created,
+        )
+        db.add(row)
+        db.flush()
+    else:
+        if not getattr(row, "display_name", None):
+            row.display_name = (display_name or _default_month_name(normalized))[:120]
+        if auto_created:
+            row.is_auto_created = True
+    return row
+
+
+def _sync_month_books(db: Session, house_id: int, expenses: list[HouseExpense]) -> list[ExpenseMonthLock]:
+    # Backfill metadata for historical months so existing households upgrade cleanly.
+    for expense in expenses:
+        _ensure_book_record(db, house_id, _expense_month_key(expense), auto_created=False)
+    if _house_month_mode(db, house_id) == "auto":
+        _ensure_book_record(db, house_id, date.today().strftime("%Y-%m"), auto_created=True)
+    db.commit()
+    return (
+        db.query(ExpenseMonthLock)
+        .options(joinedload(ExpenseMonthLock.locked_by))
+        .filter(ExpenseMonthLock.house_id == house_id)
+        .all()
     )
 
 
@@ -161,12 +213,7 @@ def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
         .order_by(ExpenseSettlement.created_at.desc())
         .all()
     )
-    month_locks = (
-        db.query(ExpenseMonthLock)
-        .options(joinedload(ExpenseMonthLock.locked_by))
-        .filter(ExpenseMonthLock.house_id == house_id)
-        .all()
-    )
+    month_locks = _sync_month_books(db, house_id, expenses)
 
     # Every calculation below is performed in integer cents.
     # Positive balance = this member should receive money.
@@ -254,14 +301,15 @@ def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
         ))
 
     lock_by_month = {row.month_key: row for row in month_locks}
-    month_keys = {date.today().strftime("%Y-%m")}
-    month_keys.update(_expense_month_key(x) for x in expenses)
+    month_keys = set(_expense_month_key(x) for x in expenses)
     month_keys.update(row.month_key for row in month_locks)
     months = []
     for month_key in sorted(month_keys, reverse=True):
         lock = lock_by_month.get(month_key)
         months.append(ExpenseMonthOut(
             month=month_key,
+            name=(lock.display_name if lock and getattr(lock, "display_name", None) else _default_month_name(month_key)),
+            is_auto_created=bool(lock and getattr(lock, "is_auto_created", False)),
             is_locked=bool(lock and lock.is_locked),
             locked_by_user_id=lock.locked_by_user_id if lock and lock.is_locked else None,
             locked_by_name=_name(lock.locked_by) if lock and lock.is_locked and lock.locked_by else None,
@@ -275,6 +323,7 @@ def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
         balance_breakdown=breakdown,
         suggested_payments=suggestions,
         months=months,
+        month_mode=_house_month_mode(db, house_id),
         balance_is_valid=balance_is_valid,
     )
 
@@ -290,6 +339,12 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
     require_house_member(house_id, user, db)
     expense_date = payload.expense_date or date.today()
     expense_month = _normalize_month_key(payload.expense_month, expense_date)
+    book = _month_lock(db, house_id, expense_month)
+    if not book:
+        if _house_month_mode(db, house_id) == "auto" and expense_month == date.today().strftime("%Y-%m"):
+            book = _ensure_book_record(db, house_id, expense_month, auto_created=True)
+        else:
+            raise HTTPException(status_code=409, detail="Create or open this expense account before adding an expense to it.")
     _ensure_month_open(db, house_id, expense_month)
     members = _members(db, house_id)
     member_ids = {m.user_id for m in members}
@@ -412,6 +467,73 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
     return _summary(db, house_id)
 
 
+@router.put("/settings", response_model=ExpenseSummaryOut)
+def update_expense_settings(
+    house_id: int,
+    payload: ExpenseSettingsIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    membership = require_house_member(house_id, user, db)
+    role = getattr(membership.role, "value", membership.role)
+    if role not in {HouseRole.owner.value, HouseRole.admin.value}:
+        raise HTTPException(status_code=403, detail="Only the house owner or admin can change expense account creation mode.")
+    mode = payload.month_mode
+    if mode not in {"auto", "custom"}:
+        raise HTTPException(status_code=400, detail="Month mode must be auto or custom.")
+    house = db.get(House, house_id)
+    if not house:
+        raise HTTPException(status_code=404, detail="House not found")
+    house.expense_book_mode = mode
+    if mode == "auto":
+        _ensure_book_record(db, house_id, date.today().strftime("%Y-%m"), auto_created=True)
+    log_activity(db, house_id=house_id, user=user, action="expense_month_mode_changed", message=f"{display_name(user)} changed expense account creation to {mode}.", entity_type="expense_settings")
+    db.commit()
+    return _summary(db, house_id)
+
+
+@router.post("/months", response_model=ExpenseSummaryOut)
+def create_expense_month(
+    house_id: int,
+    payload: ExpenseMonthCreateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    membership = require_house_member(house_id, user, db)
+    role = getattr(membership.role, "value", membership.role)
+    if role not in {HouseRole.owner.value, HouseRole.admin.value}:
+        raise HTTPException(status_code=403, detail="Only the house owner or admin can create expense accounts.")
+    normalized = _normalize_month_key(payload.month)
+    if _month_lock(db, house_id, normalized):
+        raise HTTPException(status_code=409, detail="That expense month already exists.")
+    _ensure_book_record(db, house_id, normalized, auto_created=False, display_name=payload.name)
+    log_activity(db, house_id=house_id, user=user, action="expense_month_created", message=f"{display_name(user)} created the {normalized} expense account.", entity_type="expense_month")
+    db.commit()
+    return _summary(db, house_id)
+
+
+@router.patch("/months/{month_key}", response_model=ExpenseSummaryOut)
+def rename_expense_month(
+    house_id: int,
+    month_key: str,
+    payload: ExpenseMonthUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    membership = require_house_member(house_id, user, db)
+    role = getattr(membership.role, "value", membership.role)
+    if role not in {HouseRole.owner.value, HouseRole.admin.value}:
+        raise HTTPException(status_code=403, detail="Only the house owner or admin can rename expense accounts.")
+    normalized = _normalize_month_key(month_key)
+    row = _month_lock(db, house_id, normalized)
+    if not row:
+        raise HTTPException(status_code=404, detail="Expense account not found.")
+    row.display_name = " ".join(payload.name.split())[:120]
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return _summary(db, house_id)
+
+
 @router.put("/months/{month_key}", response_model=ExpenseSummaryOut)
 def set_expense_month_lock(
     house_id: int,
@@ -431,7 +553,7 @@ def set_expense_month_lock(
         ExpenseMonthLock.month_key == normalized,
     ).first()
     if not row:
-        row = ExpenseMonthLock(house_id=house_id, month_key=normalized)
+        row = ExpenseMonthLock(house_id=house_id, month_key=normalized, display_name=_default_month_name(normalized), is_auto_created=False)
         db.add(row)
 
     row.is_locked = payload.locked

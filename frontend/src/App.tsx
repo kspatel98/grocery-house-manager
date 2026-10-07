@@ -35,7 +35,7 @@ const AppearancePage = lazy(() => import('./pages/AppearancePage'));
 const HouseChatPage = lazy(() => import('./pages/HouseChatPage'));
 
 function RouteFallback() {
-  return <div className="route-fallback-v95" role="status" aria-live="polite"><span>✦</span><strong>Preparing your workspace…</strong></div>;
+  return <div className="route-fallback-v95" role="status" aria-live="polite"><span>✦</span><strong>Opening GHM…</strong></div>;
 }
 
 function RequireAuth({ children }: { children: ReactElement }) {
@@ -94,6 +94,7 @@ export default function App() {
         <Route path="/houses/:houseId/shopping" element={<RequireAuth><ShoppingPage /></RequireAuth>} />
         <Route path="/houses/:houseId/meals" element={<RequireAuth><MealsPage /></RequireAuth>} />
         <Route path="/houses/:houseId/expenses" element={<RequireAuth><ExpensesPage /></RequireAuth>} />
+        <Route path="/houses/:houseId/expenses/:month" element={<RequireAuth><ExpensesPage /></RequireAuth>} />
         <Route path="/houses/:houseId/chat" element={<RequireAuth><HouseChatPage /></RequireAuth>} />
         <Route path="/houses/:houseId/templates" element={<RequireAuth><TemplatesPage /></RequireAuth>} />
         <Route path="/houses/:houseId/kitchen" element={<RequireAuth><KitchenVisionPage /></RequireAuth>} />

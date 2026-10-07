@@ -32,16 +32,14 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
   useEffect(() => {
     load();
     window.addEventListener('account:refresh', load);
-    window.addEventListener('focus', load);
     return () => {
       window.removeEventListener('account:refresh', load);
-      window.removeEventListener('focus', load);
     };
   }, []);
 
   useEffect(() => {
     if (!status || status.complete) return;
-    const timer = window.setInterval(load, 4500);
+    const timer = window.setInterval(load, 12000);
     return () => window.clearInterval(timer);
   }, [status?.complete]);
 

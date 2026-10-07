@@ -1,5 +1,5 @@
 {
-  "build": "V105",
-  "release": "premium-ui-expense-workspaces",
-  "serviceWorkerCache": "ghm-shell-v105"
+  "build": "V106",
+  "release": "premium-refinement",
+  "serviceWorkerCache": "ghm-shell-v106"
 }

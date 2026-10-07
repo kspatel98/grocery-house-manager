@@ -89,6 +89,7 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [completedListTitle, setCompletedListTitle] = useState('');
+  const [listView, setListView] = useState<'to_buy' | 'in_cart'>('to_buy');
 
   const selectedItems = useMemo(() => Object.entries(selection).filter(([, value]) => value.selected), [selection]);
   const existingProductIds = useMemo(() => new Set(activeList?.items.map((item) => item.product_id) || []), [activeList]);
@@ -332,10 +333,17 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
             </div>
           )}
 
-          <CategoryGroup title="Products to buy" items={toBuy} onUpdate={updateItem} onStatusChange={updateItemStatus} onRemove={removeItem} />
-          <CategoryGroup title="Added in cart" items={inCart} onUpdate={updateItem} onStatusChange={updateItemStatus} onRemove={removeItem} />
-          <button className="primary full done" disabled={!inCart.length || busy} onClick={shoppingDone}>Shopping done</button>
-          <p className="small-muted">Only items under “Added in cart” update real inventory.</p>
+          <section className="shopping-glance-v106">
+            <div><small>TO BUY</small><strong>{toBuy.length}</strong><span>remaining</span></div>
+            <div><small>IN CART</small><strong>{inCart.length}</strong><span>ready to finish</span></div>
+            <div><small>TOTAL</small><strong>{activeList.items.length}</strong><span>on this trip</span></div>
+          </section>
+          <div className="shopping-stage-tabs-v106" role="tablist" aria-label="Shopping list stage">
+            <button type="button" role="tab" aria-selected={listView === 'to_buy'} className={listView === 'to_buy' ? 'active' : ''} onClick={() => setListView('to_buy')}><span>🛒</span><strong>To buy</strong><small>{toBuy.length}</small></button>
+            <button type="button" role="tab" aria-selected={listView === 'in_cart'} className={listView === 'in_cart' ? 'active' : ''} onClick={() => setListView('in_cart')}><span>✓</span><strong>In cart</strong><small>{inCart.length}</small></button>
+          </div>
+          <CategoryGroup title={listView === 'to_buy' ? 'Still needed' : 'In your cart'} items={listView === 'to_buy' ? toBuy : inCart} onUpdate={updateItem} onStatusChange={updateItemStatus} onRemove={removeItem} />
+          {listView === 'in_cart' ? <div className="shopping-finish-bar-v106"><div><strong>{inCart.length ? `${inCart.length} item${inCart.length === 1 ? '' : 's'} ready` : 'Your cart is empty'}</strong><small>Only cart items update inventory when you finish.</small></div><button className="primary done" disabled={!inCart.length || busy} onClick={shoppingDone}>Shopping done</button></div> : null}
         </div>
       )}
     </section>
@@ -468,7 +476,6 @@ function ProductPicker({ houseId, sections, products, selection, onToggle, onUpd
 }
 
 function CategoryGroup({ title, items, onUpdate, onStatusChange, onRemove }: { title: string; items: ShoppingListItem[]; onUpdate: (item: ShoppingListItem, updates: ItemUpdates) => void; onStatusChange: (item: ShoppingListItem, status: ShoppingItemStatus) => void; onRemove: (item: ShoppingListItem) => void }) {
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const groups = useMemo(() => {
     const map = new Map<string, ShoppingListItem[]>();
     for (const item of items) {
@@ -477,51 +484,68 @@ function CategoryGroup({ title, items, onUpdate, onStatusChange, onRemove }: { t
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [items]);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  useEffect(() => {
+    if (!groups.length) { setOpenCategory(null); return; }
+    if (!openCategory || !groups.some(([category]) => category === openCategory)) setOpenCategory(groups[0][0]);
+  }, [groups, openCategory]);
 
   return (
     <div className="shopping-tag category-shopping-tag">
-      <h4>{title}</h4>
+      <div className="shopping-category-summary-v106"><div><h4>{title}</h4><small>{items.length} item{items.length === 1 ? '' : 's'} · open one section at a time</small></div>{groups.length > 1 ? <span>{groups.length} sections</span> : null}</div>
       {!items.length && <p className="small-muted">No items here.</p>}
-      {groups.map(([category, categoryItems]) => (
-        <section key={category} className="shopping-category-section">
-          <button className="category-toggle" type="button" onClick={() => setCollapsed((prev) => ({ ...prev, [category]: !prev[category] }))}>
-            <span>{collapsed[category] ? '▶' : '▼'} {category}</span>
+      {groups.map(([category, categoryItems]) => { const open = openCategory === category; return (
+        <section key={category} className={`shopping-category-section ${open ? 'open' : ''}`}>
+          <button className="category-toggle" type="button" aria-expanded={open} onClick={() => { if (!open) setOpenCategory(category); }}>
+            <span>{open ? '▾' : '›'} {category}</span>
             <small>{categoryItems.length} item{categoryItems.length === 1 ? '' : 's'}</small>
           </button>
-          {!collapsed[category] && categoryItems.map((item) => <ShoppingRow key={item.id} item={item} onUpdate={onUpdate} onStatusChange={onStatusChange} onRemove={onRemove} />)}
+          {open && categoryItems.map((item) => <ShoppingRow key={item.id} item={item} onUpdate={onUpdate} onStatusChange={onStatusChange} onRemove={onRemove} />)}
         </section>
-      ))}
+      ); })}
     </div>
   );
 }
 
 function ShoppingRow({ item, onUpdate, onStatusChange, onRemove }: { item: ShoppingListItem; onUpdate: (item: ShoppingListItem, updates: ItemUpdates) => void; onStatusChange: (item: ShoppingListItem, status: ShoppingItemStatus) => void; onRemove: (item: ShoppingListItem) => void }) {
   const suggestion = suggestedPrice(item.product);
+  const [expanded, setExpanded] = useState(false);
+  const requested = Number(item.requested_quantity || 1);
+  function adjust(delta: number) {
+    onUpdate(item, { requested_quantity: Math.max(0.01, Math.round((requested + delta) * 100) / 100) });
+  }
   return (
-    <article className="cart-item polished-cart-item">
-      <label className="cart-line">
-        <input
-          type="checkbox"
-          checked={item.status === 'in_cart'}
-          onChange={(e) => onStatusChange(item, e.target.checked ? 'in_cart' : 'to_buy')}
-        />
-        <strong>{item.product.icon || '🛒'} {item.product.name}</strong>
-      </label>
-      <div className="shopping-suggestion-badges cart-suggestion-badges">
-        {stockBadge(item.product)}
-        <SuggestedPriceBadge suggestion={suggestion} unit={item.product.unit || 'unit'} />
+    <article className={`shopping-compact-row-v106 ${expanded ? 'expanded' : ''} ${item.status === 'in_cart' ? 'in-cart' : ''}`}>
+      <div className="shopping-compact-main-v106">
+        <label className="shopping-check-v106" title={item.status === 'in_cart' ? 'Move back to To buy' : 'Add to cart'}>
+          <input type="checkbox" checked={item.status === 'in_cart'} onChange={(e) => onStatusChange(item, e.target.checked ? 'in_cart' : 'to_buy')} />
+          <span aria-hidden="true">✓</span>
+        </label>
+        <span className="shopping-product-icon-v106" aria-hidden="true">{item.product.icon || '🛒'}</span>
+        <div className="shopping-compact-copy-v106">
+          <strong>{item.product.name}</strong>
+          <small>{item.message || item.bought_store_name || item.product.store_name || item.product.section_name || 'Shopping item'}</small>
+          <div className="shopping-compact-meta-v106">
+            {stockBadge(item.product)}
+            {suggestion ? <span className="shopping-price-chip-v106">{suggestion.icon} {money(suggestion.price)} · {suggestion.store}</span> : null}
+          </div>
+        </div>
+        <div className="shopping-qty-v106" aria-label={`Requested quantity ${requested}`}>
+          <button type="button" onClick={() => adjust(-1)} aria-label="Decrease quantity">−</button><strong>{requested}</strong><small>{item.product.unit || 'pcs'}</small><button type="button" onClick={() => adjust(1)} aria-label="Increase quantity">+</button>
+        </div>
+        <button type="button" className="shopping-details-toggle-v106" onClick={() => setExpanded(v => !v)} aria-expanded={expanded}>{expanded ? 'Done' : 'Details'}</button>
       </div>
-      <div className="cart-grid">
-        <label>Need<input type="number" min="0.01" step="0.01" value={item.requested_quantity} onChange={(e) => onUpdate(item, { requested_quantity: Number(e.target.value) })} /></label>
-        <label>Bought<input type="number" min="0.01" step="0.01" value={item.bought_quantity} onChange={(e) => onUpdate(item, { bought_quantity: Number(e.target.value) })} /></label>
-        <label>Store<input value={item.bought_store_name || ''} onChange={(e) => onUpdate(item, { bought_store_name: e.target.value || null })} /></label>
-        <label>Price<input type="number" min="0" step="0.01" value={item.bought_price ?? ''} onChange={(e) => onUpdate(item, { bought_price: e.target.value === '' ? null : Number(e.target.value) })} /></label>
-      </div>
-      <textarea value={item.message || ''} placeholder="Message for this item" onChange={(e) => onUpdate(item, { message: e.target.value })} />
-      <div className="cart-footer">
-        <small>Trip store: {item.bought_store_name || item.product.store_name || 'No store'} • Current inventory: {item.product.quantity} {item.product.unit}</small>
-        <button className="secondary small-button" onClick={() => onRemove(item)}>Remove</button>
-      </div>
+      {expanded ? <div className="shopping-row-details-v106">
+        <div className="shopping-row-detail-head-v106"><div><small>CURRENT INVENTORY</small><strong>{item.product.quantity} {item.product.unit}</strong></div><SuggestedPriceBadge suggestion={suggestion} unit={item.product.unit || 'unit'} /></div>
+        <div className="cart-grid shopping-detail-grid-v106">
+          <label>Need<input type="number" min="0.01" step="0.01" value={item.requested_quantity} onChange={(e) => onUpdate(item, { requested_quantity: Number(e.target.value) })} /></label>
+          <label>Bought<input type="number" min="0.01" step="0.01" value={item.bought_quantity} onChange={(e) => onUpdate(item, { bought_quantity: Number(e.target.value) })} /></label>
+          <label>Store<input value={item.bought_store_name || ''} onChange={(e) => onUpdate(item, { bought_store_name: e.target.value || null })} /></label>
+          <label>Price<input type="number" min="0" step="0.01" value={item.bought_price ?? ''} onChange={(e) => onUpdate(item, { bought_price: e.target.value === '' ? null : Number(e.target.value) })} /></label>
+        </div>
+        <label className="shopping-note-v106">Item note<textarea value={item.message || ''} placeholder="2% milk, specific brand, size…" onChange={(e) => onUpdate(item, { message: e.target.value })} /></label>
+        <div className="shopping-row-detail-footer-v106"><small>Trip store: {item.bought_store_name || item.product.store_name || 'Not set'}</small><button className="secondary small-button" onClick={() => onRemove(item)}>Remove item</button></div>
+      </div> : null}
     </article>
   );
 }

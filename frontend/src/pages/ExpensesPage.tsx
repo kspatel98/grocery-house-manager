@@ -90,10 +90,11 @@ function monthStart(monthsBack: number) { const d = new Date(); d.setDate(1); d.
 function shareFor(expense: HouseExpense, userId: number | null) { return userId == null ? 0 : (expense.shares.find(s => s.user_id === userId)?.share_amount || 0); }
 
 export default function ExpensesPage() {
-  const { houseId } = useParams();
+  const { houseId, month: monthRoute } = useParams();
   const id = Number(houseId);
   const [params] = useSearchParams();
-  const monthView = /^\d{4}-\d{2}$/.test(params.get('month') || '') ? String(params.get('month')) : '';
+  const monthCandidate = monthRoute || params.get('month') || '';
+  const monthView = /^\d{4}-\d{2}$/.test(monthCandidate) ? String(monthCandidate) : '';
   const expenseSection = ['overview', 'settlements', 'insights', 'activity'].includes(params.get('view') || '') ? String(params.get('view')) : 'overview';
   const { language } = useLanguage();
   const lang = (language as Lang) || 'en';
@@ -131,6 +132,10 @@ export default function ExpensesPage() {
   const [categoryCreatorOpen, setCategoryCreatorOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('✨');
+  const [monthCreateOpen, setMonthCreateOpen] = useState(false);
+  const [monthEditOpen, setMonthEditOpen] = useState(false);
+  const [monthDraft, setMonthDraft] = useState(localMonthKey());
+  const [monthNameDraft, setMonthNameDraft] = useState('');
 
   const [reimbursementView, setReimbursementView] = useState<'mine' | 'house'>('mine');
   const [reimbursementHistoryView, setReimbursementHistoryView] = useState<'mine' | 'house'>('mine');
@@ -166,6 +171,13 @@ export default function ExpensesPage() {
     if (!editingExpenseId) setExpenseMonth(saved);
   }, [id]);
   useEffect(() => { localStorage.setItem(`ghm_expense_month_${id}`, activeExpenseMonth); }, [id, activeExpenseMonth]);
+  useEffect(() => {
+    if (!summary?.months?.length) return;
+    const saved = localStorage.getItem(`ghm_expense_month_${id}`) || '';
+    const openBooks = summary.months.filter(month => !month.is_locked);
+    const next = openBooks.find(month => month.month === saved)?.month || openBooks[0]?.month || summary.months[0]?.month;
+    if (next && next !== activeExpenseMonth) { setActiveExpenseMonth(next); if (!editingExpenseId) setExpenseMonth(next); }
+  }, [summary?.months, id]);
   useHouseLiveRefresh(id, load);
 
   useEffect(() => {
@@ -294,8 +306,6 @@ export default function ExpensesPage() {
       const row = map.get(key) || { month: key, houseSpend: 0, myShare: 0, myPaid: 0, expenseCount: 0 };
       row.houseSpend += expense.amount; row.myShare += shareFor(expense, currentUserId); row.myPaid += expense.paid_by_user_id === currentUserId ? expense.amount : 0; row.expenseCount += 1; map.set(key, row);
     });
-    if (!map.has(currentMonthKey)) map.set(currentMonthKey, { month: currentMonthKey, houseSpend: 0, myShare: 0, myPaid: 0, expenseCount: 0 });
-    if (!map.has(activeExpenseMonth)) map.set(activeExpenseMonth, { month: activeExpenseMonth, houseSpend: 0, myShare: 0, myPaid: 0, expenseCount: 0 });
     (summary?.months || []).forEach(m => { if (!map.has(m.month)) map.set(m.month, { month: m.month, houseSpend: 0, myShare: 0, myPaid: 0, expenseCount: 0 }); });
     return [...map.values()].sort((a, b) => b.month.localeCompare(a.month));
   }, [expenses, currentUserId, currentMonthKey, activeExpenseMonth, summary?.months]);
@@ -357,8 +367,23 @@ export default function ExpensesPage() {
   const isOwner = currentMembership?.role === 'owner';
   function useExpenseMonth(month: string) {
     const state = monthStateFor(month);
-    if (state?.is_locked) { setError(c.lockedMonthHelp); return; }
+    if (!state) { setError('Create this expense account first.'); return; }
+    if (state.is_locked) { setError(c.lockedMonthHelp); return; }
     setActiveExpenseMonth(month); setExpenseMonth(month); setSelectedMonth(month); setError('');
+  }
+  async function setMonthMode(mode: 'auto' | 'custom') {
+    if (!isOwner && currentMembership?.role !== 'admin') return;
+    try { setBusy(true); const { data } = await api.put<ExpenseSummary>(`/houses/${id}/expenses/settings`, { month_mode: mode }); setSummary(data); setError(''); }
+    catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
+  }
+  async function createMonthBook() {
+    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/months`, { month: monthDraft, name: monthNameDraft.trim() || null }); setSummary(data); setMonthCreateOpen(false); setMonthNameDraft(''); setActiveExpenseMonth(monthDraft); setExpenseMonth(monthDraft); setSelectedMonth(monthDraft); localStorage.setItem(`ghm_expense_month_${id}`, monthDraft); setError(''); }
+    catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
+  }
+  async function renameMonthBook() {
+    if (!monthView || !monthNameDraft.trim()) return;
+    try { setBusy(true); const { data } = await api.patch<ExpenseSummary>(`/houses/${id}/expenses/months/${monthView}`, { name: monthNameDraft.trim() }); setSummary(data); setMonthEditOpen(false); setError(''); }
+    catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
   async function toggleMonthLock(month: string) {
     const state = monthStateFor(month);
@@ -387,17 +412,20 @@ export default function ExpensesPage() {
   return <main className={`page shell wide expenses-page expenses-page-v82 expenses-page-v105 expense-section-${expenseSection} ${monthView ? 'expense-month-detail-mode-v105' : ''}`}>
     <header className="page-hero creative-hero expense-hero">
       <div><Link className="breadcrumb" to={`/houses/${id}`}>← {house?.name || 'House'}</Link><p className="eyebrow">HOUSE MONEY</p><div className="feature-heading-with-why-v101"><h1>💸 {c.title}</h1><FeatureWhyButton feature="expenses" label="Why?" /></div><p>{c.sub}</p></div>
-      <button className="expense-primary-action" disabled={activeMonthLocked} title={activeMonthLocked ? c.lockedMonthHelp : undefined} onClick={() => { reset(); setOpen(true); }}><span>＋</span><strong>{c.add}</strong><small>Split in seconds</small></button>
+      {monthView ? <button className="expense-primary-action" disabled={Boolean(monthStateFor(monthView)?.is_locked)} title={monthStateFor(monthView)?.is_locked ? c.lockedMonthHelp : undefined} onClick={() => { useExpenseMonth(monthView); reset(); setExpenseMonth(monthView); setOpen(true); }}><span>＋</span><strong>{c.add}</strong><small>Inside this account</small></button> : summary?.month_mode === 'custom' ? <button className="expense-primary-action" onClick={() => { setMonthDraft(localMonthKey()); setMonthNameDraft(''); setMonthCreateOpen(true); }}><span>＋</span><strong>New account</strong><small>Create when needed</small></button> : activeExpenseMonth ? <Link className="expense-primary-action expense-primary-link-v106" to={`/houses/${id}/expenses/${activeExpenseMonth}`}><span>📘</span><strong>Open active account</strong><small>{monthLabel(activeExpenseMonth)}</small></Link> : null}
     </header>
     <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="expenses" />
     <FeaturePurposeCard feature="expenses" />
     {error && <div className="error">{error}</div>}
 
-    <section className={`expense-active-book-v100 ${activeMonthLocked ? 'locked' : ''}`}>
-      <div className="expense-active-book-icon"><span>{activeMonthLocked ? '🔒' : '📘'}</span></div>
-      <div className="expense-active-book-copy"><p className="eyebrow">ACTIVE EXPENSE BOOK</p><div className="feature-heading-with-why-v101"><h2>{c.postingMonth}: {monthLabel(activeExpenseMonth)}</h2><FeatureWhyButton feature="expense_months" label="Why?" /></div><p>{activeMonthLocked ? c.lockedMonthHelp : c.postingMonthSub}</p></div>
-      <div className="expense-active-book-controls"><label><span>{c.accountMonth}</span><input type="month" value={activeExpenseMonth} onChange={e => useExpenseMonth(e.target.value)} /></label>{activeMonthLocked ? <span className="expense-lock-badge-v100">🔒 {c.locked}</span> : <span className="expense-open-badge-v100">● Open</span>}</div>
-    </section>
+    {!monthView && <section className="expense-book-setup-v106">
+      <div className="expense-book-setup-copy-v106"><p className="eyebrow">EXPENSE ACCOUNT SETUP</p><h2>How should monthly accounts be created?</h2><p><strong>Automatic</strong> opens the new calendar month when it arrives. <strong>Custom</strong> creates nothing until your household decides it needs a new account.</p></div>
+      <div className="expense-book-mode-v106" role="group" aria-label="Expense account creation mode">
+        <button type="button" className={summary?.month_mode !== 'custom' ? 'active' : ''} disabled={busy || (!isOwner && currentMembership?.role !== 'admin')} onClick={() => setMonthMode('auto')}><span>⚡</span><strong>Automatic</strong><small>New month appears automatically</small></button>
+        <button type="button" className={summary?.month_mode === 'custom' ? 'active' : ''} disabled={busy || (!isOwner && currentMembership?.role !== 'admin')} onClick={() => setMonthMode('custom')}><span>✦</span><strong>Custom</strong><small>Create an account only when needed</small></button>
+      </div>
+      <div className="expense-book-setup-meta-v106"><span>{summary?.month_mode === 'custom' ? 'Custom creation is on' : 'Automatic creation is on'}</span>{!isOwner && currentMembership?.role !== 'admin' ? <small>Only the house owner or admin can change this setting.</small> : <small>You can rename each account later. Locking stays owner-controlled.</small>}</div>
+    </section>}
 
     <nav className="expense-workspace-tabs-v105" aria-label="Expense workspace views">
       <Link className={!monthView && expenseSection === 'overview' ? 'active' : ''} to={`/houses/${id}/expenses`}>Overview</Link>
@@ -408,9 +436,10 @@ export default function ExpensesPage() {
 
     {monthView && monthViewBook && <section className="expense-month-workspace-v105">
       <header className="expense-month-workspace-head-v105">
-        <div><Link className="breadcrumb" to={`/houses/${id}/expenses`}>← All expense months</Link><p className="eyebrow">MONTHLY EXPENSE BOOK</p><h2>{monthLabel(monthView)}</h2><p>Everything for this expense month is kept together in one focused view.</p></div>
+        <div><Link className="breadcrumb" to={`/houses/${id}/expenses`}>← All expense accounts</Link><p className="eyebrow">MONTHLY EXPENSE ACCOUNT</p><h2>{monthStateFor(monthView)?.name || monthLabel(monthView)}</h2><p>{monthLabel(monthView)} · Everything assigned to this account stays together in one focused view.</p></div>
         <div className="expense-month-workspace-actions-v105">
           {monthStateFor(monthView)?.is_locked ? <span className="expense-lock-badge-v100">🔒 {c.locked}</span> : activeExpenseMonth === monthView ? <span className="expense-open-badge-v100">✓ {c.activeBook}</span> : <button className="secondary" onClick={() => useExpenseMonth(monthView)}>{c.useMonth}</button>}
+          {(isOwner || currentMembership?.role === 'admin') && <button className="secondary" onClick={() => { setMonthNameDraft(monthStateFor(monthView)?.name || monthLabel(monthView)); setMonthEditOpen(true); }}>✎ Edit account</button>}
           {isOwner && <button className="secondary" disabled={busy} onClick={() => toggleMonthLock(monthView)}>{monthStateFor(monthView)?.is_locked ? `🔓 ${c.unlockMonth}` : `🔒 ${c.lockMonth}`}</button>}
           <button className="expense-primary-action compact-v105" disabled={Boolean(monthStateFor(monthView)?.is_locked)} onClick={() => { useExpenseMonth(monthView); reset(); setExpenseMonth(monthView); setOpen(true); }}><span>＋</span><strong>{c.add}</strong></button>
         </div>
@@ -435,7 +464,7 @@ export default function ExpensesPage() {
     </section>}
 
     <section className="expense-month-snapshot" aria-label={c.thisMonth}>
-      <div className="expense-snapshot-heading"><div><p className="eyebrow">{c.thisMonth}</p><h2>{monthLabel(currentMonthKey)}</h2></div><span className="expense-auto-badge">⚡ {c.automatic}</span></div>
+      <div className="expense-snapshot-heading"><div><p className="eyebrow">CURRENT CALENDAR MONTH</p><h2>{monthLabel(currentMonthKey)}</h2></div><span className="expense-auto-badge">{summary?.month_mode === 'custom' ? '✦ Custom accounts' : '⚡ Automatic accounts'}</span></div>
       <div className="expense-snapshot-grid">
         <article className="house"><span>🏠</span><small>{c.houseThisMonth}</small><strong>{money(currentHouseSpend)}</strong><i>{currentMonthExpenses.length} {c.expenses}</i></article>
         <article className="mine"><span>👤</span><small>{c.myThisMonth}</small><strong>{money(currentMyShare)}</strong><i>{c.myShare}</i></article>
@@ -445,11 +474,11 @@ export default function ExpensesPage() {
     </section>
 
     <section className="panel expense-month-books">
-      <div className="panel-title-row"><div><p className="eyebrow">MONTH BY MONTH</p><h2>{c.monthlyBooks}</h2><p>{c.monthlyBooksSub}{isOwner ? ` ${c.ownerLockHelp}` : ''}</p></div><Link className="secondary center-link" to={`/houses/${id}/expenses`}>{c.allMonths}</Link></div>
+      <div className="panel-title-row"><div><p className="eyebrow">EXPENSE ACCOUNTS</p><h2>Open the month you want to work in.</h2><p>Each account has its own expenses, add flow and lock status. Insights stay on the main Expenses workspace.</p></div>{summary?.month_mode === 'custom' && (isOwner || currentMembership?.role === 'admin') ? <button className="secondary" onClick={() => { setMonthDraft(localMonthKey()); setMonthNameDraft(''); setMonthCreateOpen(true); }}>+ New account</button> : null}</div>
       <div className="expense-month-book-strip">
         {monthBooks.map(book => { const state = monthStateFor(book.month); const locked = Boolean(state?.is_locked); const active = activeExpenseMonth === book.month; return <article key={book.month} className={`expense-month-book expense-month-book-v100 ${selectedMonth === book.month ? 'active' : ''} ${locked ? 'locked' : ''} ${active ? 'posting' : ''}`}>
-          <Link className="expense-month-book-main-v100" to={`/houses/${id}/expenses?month=${book.month}`}>
-            <div className="expense-month-book-top"><span>{locked ? '🔒' : '📅'}</span><strong>{monthLabel(book.month)}</strong>{book.month === currentMonthKey && <i>{c.thisMonth}</i>}{active && <i className="posting-badge-v100">{c.activeBook}</i>}</div>
+          <Link className="expense-month-book-main-v100" to={`/houses/${id}/expenses/${book.month}`}>
+            <div className="expense-month-book-top"><span>{locked ? '🔒' : '📅'}</span><strong>{state?.name || monthLabel(book.month)}</strong>{book.month === currentMonthKey && <i>{c.thisMonth}</i>}{state?.is_auto_created ? <i>Auto</i> : <i>Custom</i>}{active && <i className="posting-badge-v100">{c.activeBook}</i>}</div>
             <div className="expense-month-book-total"><small>{c.houseExpenses}</small><b>{money(book.houseSpend)}</b></div>
             <div className="expense-month-book-metrics"><span><small>{c.myShare}</small><strong>{money(book.myShare)}</strong></span><span><small>{c.paidByMe}</small><strong>{money(book.myPaid)}</strong></span><span><small>{c.expenses}</small><strong>{book.expenseCount}</strong></span></div>
           </Link>
@@ -517,7 +546,7 @@ export default function ExpensesPage() {
       <header className="focus-dialog-titlebar expense-form-titlebar"><div><p className="eyebrow">SHARED COST</p><h2>{editingExpenseId ? c.editTitle : c.add}</h2><p>{editingExpenseId ? 'Update the details below. Balances and insights will recalculate automatically.' : 'Start with the total, then choose who shares it.'}</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setOpen(false)}>×</button></header>
       <div className="focus-dialog-scroll expense-form-scroll">
         {receiptId && <div className="expense-linked-receipt-banner"><span>🧾</span><div><strong>{c.linkedReceipt}</strong><small>{receipts.find(r => r.id === Number(receiptId))?.store_name || 'Receipt'} · {amount ? money(Number(amount)) : ''}</small></div></div>}
-        <section className={`expense-form-month-v100 ${monthStateFor(expenseMonth)?.is_locked ? 'locked' : ''}`}><div><span>{monthStateFor(expenseMonth)?.is_locked ? '🔒' : '📘'}</span><div><small>{c.accountMonth}</small><strong>{monthLabel(expenseMonth)}</strong></div></div><input type="month" value={expenseMonth} onChange={e => setExpenseMonth(e.target.value)} />{monthStateFor(expenseMonth)?.is_locked && <p>{c.lockedMonthHelp}</p>}</section>
+        <section className={`expense-form-month-v100 ${monthStateFor(expenseMonth)?.is_locked ? 'locked' : ''}`}><div><span>{monthStateFor(expenseMonth)?.is_locked ? '🔒' : '📘'}</span><div><small>{c.accountMonth}</small><strong>{monthStateFor(expenseMonth)?.name || monthLabel(expenseMonth)}</strong></div></div><select value={expenseMonth} onChange={e => setExpenseMonth(e.target.value)}>{monthBooks.filter(book => !monthStateFor(book.month)?.is_locked || book.month === expenseMonth).map(book => <option key={book.month} value={book.month}>{monthStateFor(book.month)?.name || monthLabel(book.month)} · {monthLabel(book.month)}</option>)}</select>{monthStateFor(expenseMonth)?.is_locked && <p>{c.lockedMonthHelp}</p>}</section>
         <section className="expense-form-section expense-basics-section"><div className="expense-amount-field"><label>{c.amount}<div className="money-input"><span>$</span><input autoFocus inputMode="decimal" type="number" min="0.01" step="0.01" value={amount} onChange={e => handleAmountChange(e.target.value)} placeholder="0.00" /></div></label></div><label className="expense-title-field">{c.expenseTitle}<input value={title} onChange={e => setTitle(e.target.value)} placeholder="Groceries, electricity, dinner..." /></label></section>
         <section className="expense-form-section"><div className="expense-section-heading"><div><span>1</span><div><h3>{c.category}</h3><p>Tap one — no dropdown hunting.</p></div></div></div><div className="expense-category-grid">{categories.map(item => <button type="button" key={item.name} className={`expense-category-choice ${category === item.name ? 'active' : ''}`} onClick={() => setCategory(item.name)}><span>{item.icon}</span><strong>{item.name}</strong></button>)}<button type="button" className={`expense-category-choice add-category ${categoryCreatorOpen ? 'active' : ''}`} onClick={() => setCategoryCreatorOpen(v => !v)}><span>＋</span><strong>{c.addCategory}</strong></button></div>
           {categoryCreatorOpen && <div className="expense-category-creator"><div className="category-icon-picker">{CATEGORY_ICONS.map(icon => <button type="button" key={icon} className={newCategoryIcon === icon ? 'active' : ''} onClick={() => setNewCategoryIcon(icon)}>{icon}</button>)}</div><div className="category-create-row"><input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder={c.categoryName} /><button type="button" onClick={createCategory} disabled={busy || !newCategoryName.trim()}>{c.createCategory}</button></div></div>}
@@ -532,6 +561,10 @@ export default function ExpensesPage() {
       </div>
       <footer className="focus-dialog-actions expense-form-actions"><button className="secondary" onClick={() => setOpen(false)}>{c.cancel}</button><div className="expense-save-summary"><small>{participants.length} participant{participants.length === 1 ? '' : 's'}</small><strong>{amount ? money(Number(amount)) : money(0)}</strong></div><button className="expense-save-button" disabled={busy || !participants.length || Boolean(monthStateFor(expenseMonth)?.is_locked) || (splitMode === 'custom' && Math.abs(splitDifference) > .02)} onClick={save}>{busy ? 'Saving…' : editingExpenseId ? c.update : c.save}</button></footer>
     </section></div></OverlayPortal>}
+
+    {monthCreateOpen && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setMonthCreateOpen(false); }}><section className="modal focus-dialog expense-account-modal-v106" role="dialog" aria-modal="true" aria-label="Create expense account"><header className="focus-dialog-titlebar"><div><p className="eyebrow">NEW EXPENSE ACCOUNT</p><h2>Create a monthly account</h2><p>Choose the accounting month. You can give it a custom name now or rename it later.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setMonthCreateOpen(false)}>×</button></header><div className="focus-dialog-scroll form-grid"><label>Month<input type="month" value={monthDraft} onChange={e => setMonthDraft(e.target.value)} /></label><label>Account name <span className="small-muted">optional</span><input value={monthNameDraft} onChange={e => setMonthNameDraft(e.target.value)} placeholder={monthLabel(monthDraft)} /></label></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setMonthCreateOpen(false)}>Cancel</button><button className="primary" disabled={busy || !monthDraft} onClick={createMonthBook}>{busy ? 'Creating…' : 'Create account'}</button></footer></section></div></OverlayPortal>}
+
+    {monthEditOpen && monthView && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setMonthEditOpen(false); }}><section className="modal focus-dialog expense-account-modal-v106" role="dialog" aria-modal="true" aria-label="Edit expense account"><header className="focus-dialog-titlebar"><div><p className="eyebrow">ACCOUNT DETAILS</p><h2>Edit {monthLabel(monthView)}</h2><p>The accounting month stays the same; this changes only the household-facing name.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setMonthEditOpen(false)}>×</button></header><div className="focus-dialog-scroll form-grid"><label>Account name<input autoFocus value={monthNameDraft} onChange={e => setMonthNameDraft(e.target.value)} /></label></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setMonthEditOpen(false)}>Cancel</button><button className="primary" disabled={busy || !monthNameDraft.trim()} onClick={renameMonthBook}>{busy ? 'Saving…' : 'Save name'}</button></footer></section></div></OverlayPortal>}
 
     {reimburseTarget && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setReimburseTarget(null); }}><section className="modal focus-dialog reimbursement-modal" role="dialog" aria-modal="true" aria-label={c.confirm}><header className="focus-dialog-titlebar"><div><p className="eyebrow">MARK PAYMENT SENT</p><h2>{lc.markSent}</h2></div><button data-dialog-close="true" className="icon-btn" onClick={() => setReimburseTarget(null)}>×</button></header><div className="focus-dialog-scroll"><div className="reimbursement-confirm-route"><div className="reimburse-person"><span className="member-avatar debt">{initials(reimburseTarget.from_user_name)}</span><strong>{displayMember(reimburseTarget.from_user_id, reimburseTarget.from_user_name)}</strong></div><div className="reimburse-flow large"><span></span><i>→</i></div><div className="reimburse-person"><span className="member-avatar credit">{initials(reimburseTarget.to_user_name)}</span><strong>{displayMember(reimburseTarget.to_user_id, reimburseTarget.to_user_name)}</strong></div></div><div className="reimburse-amount-card"><small>Suggested</small><strong>{money(reimburseTarget.amount)}</strong><p>{c.partial}</p><label>Amount to reimburse<div className="money-input"><span>$</span><input type="number" min="0.01" max={reimburseTarget.amount} step="0.01" value={reimburseAmount} onChange={e => setReimburseAmount(e.target.value)} /></div></label></div></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setReimburseTarget(null)}>{c.cancel}</button><button className="reimburse-button" disabled={busy || Number(reimburseAmount) <= 0} onClick={saveReimbursement}>{busy ? 'Saving…' : lc.markSent}</button></footer></section></div></OverlayPortal>}
   </main>;

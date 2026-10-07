@@ -31,8 +31,6 @@ export default function LearnGhmPage() {
       <div className="learn-ghm-hero-art-v101" aria-hidden="true"><span>🏡</span><div><i>▣</i><i>🧾</i><i>🍲</i><i>💸</i></div></div>
     </section>
 
-    <section className="learn-ghm-principle-v101"><span>✦</span><div><strong>GHM explains the benefit first.</strong><p>Short guidance appears where it matters. Deeper explanations stay optional so everyday tasks remain fast.</p></div></section>
-
     <section className="premium-try-invite-v102 learn-premium-try-v102">
       <div className="premium-try-invite-icon-v102" aria-hidden="true">✨</div>
       <div className="premium-try-invite-copy-v102">

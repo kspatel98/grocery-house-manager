@@ -1,0 +1,247 @@
+/* ========================================================================== 
+   GHM V106 — Premium refinement: compact shopping, expense account workspaces,
+   calm spacing, readable dark surfaces, resilient shell states
+   ========================================================================== */
+
+:root{
+  --ghm-page-pad-x:clamp(16px,2.4vw,34px);
+  --ghm-section-gap:24px;
+  --ghm-card-pad:clamp(16px,1.8vw,22px);
+  --ghm-control-gap:10px;
+}
+
+/* ---- Global rhythm: one spacing contract for signed-in workspaces ---- */
+.page{padding-left:var(--ghm-page-pad-x)!important;padding-right:var(--ghm-page-pad-x)!important}
+.page>section,.page>header,.page>nav{scroll-margin-top:110px}
+.page>section+section{margin-top:var(--ghm-section-gap)!important}
+.panel,.shopping-panel,.polished-shopping-panel,.first-run-setup-v71,.install-app-card,.house-context-switcher{padding:var(--ghm-card-pad)!important}
+.panel-title-row,.section-heading,.expense-insights-head,.chat-heading-v105{gap:16px}
+
+/* Never let fixed/floating UI cover the final card. */
+@media(max-width:760px){
+  .page{padding:16px 16px calc(112px + env(safe-area-inset-bottom))!important}
+  .page>*+*{margin-top:18px!important}
+  .page h1{font-size:clamp(1.78rem,8vw,2.35rem)!important;line-height:1.04!important}
+  .page h2{font-size:clamp(1.25rem,5.5vw,1.65rem)!important}
+  .panel,.shopping-panel,.polished-shopping-panel,.first-run-setup-v71,.install-app-card,.house-context-switcher{padding:16px!important;border-radius:20px!important}
+  .modal-backdrop,.overlay-backdrop{padding:10px!important;align-items:flex-end!important}
+  .focus-dialog,.modal.focus-dialog{width:100%!important;max-height:calc(100dvh - 20px)!important;border-radius:24px 24px 18px 18px!important}
+  .focus-dialog-titlebar{padding:18px 18px 14px!important;gap:12px!important}
+  .focus-dialog-titlebar h2{font-size:clamp(1.45rem,7vw,1.85rem)!important}
+  .focus-dialog-scroll{padding:16px 18px 20px!important}
+  .focus-dialog-actions{padding:12px 18px calc(12px + env(safe-area-inset-bottom))!important}
+}
+
+/* ---- Soft loading shell: no more repeated giant "Preparing..." panels ---- */
+.ghm-shell-loader-v106{display:flex;align-items:center;gap:12px;min-height:68px;padding:13px 16px;border:1px solid var(--ghm-border);border-radius:18px;background:var(--ghm-surface-elevated);box-shadow:0 8px 24px rgba(15,23,42,.05)}
+.ghm-shell-loader-v106>span{width:26px;height:26px;border-radius:50%;border:3px solid var(--ghm-primary-soft);border-top-color:var(--ghm-primary);animation:ghmV106Spin .9s linear infinite;flex:0 0 auto}
+.ghm-shell-loader-v106 strong,.ghm-shell-loader-v106 small{display:block}.ghm-shell-loader-v106 small{margin-top:2px;color:var(--ghm-muted)}
+@keyframes ghmV106Spin{to{transform:rotate(360deg)}}
+
+/* ---- Why dialogs: concise and readable ---- */
+.feature-purpose-dialog-v101 .focus-dialog-titlebar{padding-bottom:15px!important}
+.feature-purpose-dialog-v101 .focus-dialog-scroll{display:grid;gap:15px}
+.feature-purpose-dialog-hero-v105{display:grid!important;grid-template-columns:48px minmax(0,1fr)!important;gap:13px!important;align-items:center!important;padding:16px 17px!important;background:linear-gradient(135deg,#174f86,#2878bd)!important}
+.feature-purpose-dialog-hero-v105>span{width:48px;height:48px;border-radius:15px;background:rgba(255,255,255,.13);display:grid;place-items:center}
+.feature-purpose-dialog-hero-v105 strong{font-size:1.02rem!important;line-height:1.35!important}
+.feature-purpose-dialog-hero-v105 small{font-size:.68rem!important;letter-spacing:.1em!important}
+.feature-purpose-explanation-v101{font-size:.94rem!important;line-height:1.62!important}
+.feature-purpose-example-v105{margin-top:0!important;padding:15px 16px!important}
+.feature-purpose-principle-v101,.learn-ghm-principle-v101{display:none!important}
+@media(max-width:520px){
+  .feature-purpose-dialog-hero-v105{grid-template-columns:42px 1fr!important}.feature-purpose-dialog-hero-v105>span{width:42px;height:42px}
+  .feature-purpose-actions-v105{display:grid!important;grid-template-columns:1fr!important}.feature-purpose-actions-v105>*{width:100%!important}
+}
+
+/* ========================================================================== 
+   Shopping V106 — glance first, detail on demand
+   ========================================================================== */
+.shopping-list{display:grid;gap:14px}
+.shopping-list .list-title-editor{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 14px;border:1px solid var(--ghm-border);border-radius:16px;background:var(--ghm-surface-elevated)}
+.shopping-list .list-title-editor input{font-weight:850;font-size:1rem;background:transparent!important;border-color:transparent!important;box-shadow:none!important;padding-inline:4px!important}
+.shopping-list .list-actions{display:flex;gap:8px;flex-wrap:wrap;margin:0!important}
+.shopping-list .list-actions button{min-height:38px!important;padding:8px 12px!important;font-size:.82rem}
+.shopping-glance-v106{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.shopping-glance-v106>div{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;min-width:0;padding:13px 15px;border:1px solid var(--ghm-border);border-radius:17px;background:var(--ghm-surface-elevated)}
+.shopping-glance-v106 small{grid-column:2;color:var(--ghm-muted);font-size:.65rem;font-weight:900;letter-spacing:.08em}
+.shopping-glance-v106 strong{grid-row:1/3;font-size:1.65rem;line-height:1;color:var(--ghm-text-strong)}
+.shopping-glance-v106 span{grid-column:2;color:var(--ghm-muted-soft);font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shopping-stage-tabs-v106{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border:1px solid var(--ghm-border);border-radius:17px;background:var(--ghm-surface-soft)}
+.shopping-stage-tabs-v106 button{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;min-height:46px;padding:8px 12px;border:0;border-radius:12px;background:transparent;color:var(--ghm-muted);text-align:left}
+.shopping-stage-tabs-v106 button.active{background:var(--ghm-surface-elevated);color:var(--ghm-text-strong);box-shadow:0 5px 16px rgba(15,23,42,.08)}
+.shopping-stage-tabs-v106 button>small{display:grid;place-items:center;min-width:25px;height:25px;padding:0 7px;border-radius:999px;background:var(--ghm-primary-soft);color:var(--ghm-primary-deep);font-weight:900}
+.category-shopping-tag{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+.category-shopping-tag>h4{margin:0 0 9px;font-size:.78rem;color:var(--ghm-muted);letter-spacing:.08em;text-transform:uppercase}
+.shopping-category-section{overflow:hidden;margin:0 0 10px;border:1px solid var(--ghm-border);border-radius:18px;background:var(--ghm-surface-elevated)}
+.category-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:43px;padding:10px 13px;border:0;border-bottom:1px solid var(--ghm-divider);background:var(--ghm-surface-soft);color:var(--ghm-text-strong);font-weight:850}
+.category-toggle small{color:var(--ghm-muted)}
+.shopping-compact-row-v106{border-bottom:1px solid var(--ghm-divider);background:var(--ghm-surface-elevated)}
+.shopping-compact-row-v106:last-child{border-bottom:0}
+.shopping-compact-row-v106.in-cart{background:color-mix(in srgb,var(--ghm-success-soft) 24%,var(--ghm-surface-elevated))}
+.shopping-compact-main-v106{display:grid;grid-template-columns:38px 42px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:11px 12px}
+.shopping-check-v106{position:relative;width:34px;height:34px;display:grid;place-items:center;cursor:pointer}.shopping-check-v106 input{position:absolute;opacity:0;pointer-events:none}.shopping-check-v106 span{width:31px;height:31px;border-radius:10px;border:1.5px solid var(--ghm-border-strong);display:grid;place-items:center;color:transparent;background:var(--ghm-surface-soft);font-weight:950}.shopping-check-v106 input:checked+span{background:var(--ghm-success);border-color:var(--ghm-success);color:#06291d}
+.shopping-product-icon-v106{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:var(--ghm-surface-soft);font-size:1.35rem}
+.shopping-compact-copy-v106{min-width:0}.shopping-compact-copy-v106>strong{display:block;color:var(--ghm-text-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.shopping-compact-copy-v106>small{display:block;margin-top:2px;color:var(--ghm-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shopping-compact-meta-v106{display:flex;gap:5px;align-items:center;margin-top:6px;flex-wrap:wrap}.shopping-price-chip-v106{max-width:230px;padding:3px 7px;border-radius:999px;background:var(--ghm-primary-soft);color:var(--ghm-primary-deep);font-size:.68rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shopping-qty-v106{display:grid;grid-template-columns:28px auto auto 28px;gap:5px;align-items:center}.shopping-qty-v106 button{width:28px;height:28px;min-height:28px;border:1px solid var(--ghm-border);border-radius:9px;background:var(--ghm-surface-soft);color:var(--ghm-text-strong);font-weight:950}.shopping-qty-v106 strong{min-width:22px;text-align:right}.shopping-qty-v106 small{max-width:38px;color:var(--ghm-muted);font-size:.68rem;overflow:hidden;text-overflow:ellipsis}
+.shopping-details-toggle-v106{min-height:34px!important;padding:7px 9px;border:1px solid var(--ghm-border);border-radius:10px;background:transparent;color:var(--ghm-primary);font-size:.75rem;font-weight:850}
+.shopping-row-details-v106{padding:12px 14px 14px;border-top:1px solid var(--ghm-divider);background:var(--ghm-surface-soft)}
+.shopping-row-detail-head-v106{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}.shopping-row-detail-head-v106 small{display:block;color:var(--ghm-muted);font-size:.64rem;font-weight:900;letter-spacing:.08em}.shopping-row-detail-head-v106 strong{display:block;color:var(--ghm-text-strong)}
+.shopping-detail-grid-v106{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:9px!important}.shopping-detail-grid-v106 label,.shopping-note-v106{display:grid;gap:5px;color:var(--ghm-muted);font-size:.72rem;font-weight:850}.shopping-detail-grid-v106 input{min-width:0!important}.shopping-note-v106{margin-top:10px}.shopping-note-v106 textarea{min-height:68px!important}
+.shopping-row-detail-footer-v106{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:10px}.shopping-row-detail-footer-v106 small{color:var(--ghm-muted)}
+.shopping-finish-bar-v106{position:sticky;bottom:calc(82px + env(safe-area-inset-bottom));z-index:9;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid var(--ghm-border);border-radius:17px;background:color-mix(in srgb,var(--ghm-surface-elevated) 94%,transparent);box-shadow:0 12px 30px rgba(15,23,42,.13);backdrop-filter:blur(14px)}
+.shopping-finish-bar-v106 strong,.shopping-finish-bar-v106 small{display:block}.shopping-finish-bar-v106 small{color:var(--ghm-muted);margin-top:2px}
+.add-more-box{border-radius:18px!important;padding:16px!important;background:var(--ghm-surface-soft)!important;border:1px solid var(--ghm-border)!important}
+@media(max-width:760px){
+  .shopping-glance-v106{gap:7px}.shopping-glance-v106>div{display:block;padding:10px 9px;text-align:center}.shopping-glance-v106 small,.shopping-glance-v106 span{display:block}.shopping-glance-v106 strong{display:block;margin:3px 0;font-size:1.45rem}.shopping-glance-v106 span{font-size:.65rem}
+  .shopping-compact-main-v106{grid-template-columns:34px 38px minmax(0,1fr) auto;gap:8px;padding:10px}.shopping-product-icon-v106{width:38px;height:38px}.shopping-details-toggle-v106{grid-column:3/5;justify-self:end;margin-top:-3px}.shopping-qty-v106{grid-column:4;grid-row:1}.shopping-compact-meta-v106{display:none}.shopping-price-chip-v106{max-width:160px}
+  .shopping-row-details-v106{padding:11px}.shopping-detail-grid-v106{grid-template-columns:1fr 1fr!important}.shopping-row-detail-head-v106{align-items:flex-start}.shopping-row-detail-footer-v106{align-items:flex-start;flex-direction:column}.shopping-finish-bar-v106{bottom:calc(78px + env(safe-area-inset-bottom))}.shopping-finish-bar-v106 small{display:none}
+  .shopping-list .list-title-editor{grid-template-columns:1fr auto;padding:8px 10px}.shopping-list .list-title-editor button{min-height:36px!important;padding:7px 10px!important}.shopping-list .list-actions{gap:6px}
+}
+@media(min-width:1050px){
+  .shopping-compact-main-v106{padding-inline:15px}.shopping-glance-v106>div{min-height:72px}.shopping-stage-tabs-v106{max-width:600px}
+}
+
+/* ========================================================================== 
+   Expenses V106 — mode setup + separate monthly account workspaces
+   ========================================================================== */
+.expense-book-setup-v106{display:grid;grid-template-columns:minmax(260px,1fr) minmax(420px,1.25fr);gap:18px;align-items:center;padding:20px;border:1px solid var(--ghm-border);border-radius:22px;background:linear-gradient(135deg,var(--ghm-surface-elevated),color-mix(in srgb,var(--ghm-primary-soft) 28%,var(--ghm-surface-elevated)));box-shadow:0 10px 30px rgba(15,23,42,.045)}
+.expense-book-setup-copy-v106 h2{margin:3px 0 7px}.expense-book-setup-copy-v106 p:last-child{margin:0;color:var(--ghm-muted)}
+.expense-book-mode-v106{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:5px;border:1px solid var(--ghm-border);border-radius:18px;background:var(--ghm-surface-soft)}
+.expense-book-mode-v106 button{display:grid;grid-template-columns:40px 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;min-height:74px;padding:10px 12px;border:1px solid transparent;border-radius:14px;background:transparent;color:var(--ghm-text);text-align:left}
+.expense-book-mode-v106 button>span{grid-row:1/3;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--ghm-surface-elevated);font-size:1.15rem}.expense-book-mode-v106 button strong{color:var(--ghm-text-strong)}.expense-book-mode-v106 button small{color:var(--ghm-muted)}
+.expense-book-mode-v106 button.active{background:var(--ghm-surface-elevated);border-color:color-mix(in srgb,var(--ghm-primary) 34%,var(--ghm-border));box-shadow:0 7px 20px rgba(15,23,42,.08)}
+.expense-book-setup-meta-v106{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;padding-top:2px;color:var(--ghm-muted)}.expense-book-setup-meta-v106>span{font-weight:850;color:var(--ghm-primary)}
+.expense-month-books{padding:20px!important}.expense-month-book-strip{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px!important;overflow:visible!important;padding:0!important}.expense-month-book-v100{min-width:0!important;border-radius:19px!important;background:var(--ghm-surface-elevated)!important;border:1px solid var(--ghm-border)!important;box-shadow:none!important}.expense-month-book-v100.posting{border-color:color-mix(in srgb,var(--ghm-primary) 45%,var(--ghm-border))!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--ghm-primary) 11%,transparent)!important}.expense-month-book-main-v100{padding:15px!important}.expense-month-book-top{gap:7px!important}.expense-month-book-top>strong{font-size:1rem!important}.expense-month-book-total b{font-size:1.65rem!important}.expense-month-book-metrics{gap:7px!important}.expense-month-book-actions-v100{padding:10px 12px!important;background:var(--ghm-surface-soft)!important;border-top:1px solid var(--ghm-divider)!important}
+.expense-primary-link-v106{text-decoration:none!important}
+.expense-account-modal-v106 .form-grid{grid-template-columns:1fr!important}
+
+/* A month account is a focused ledger, not another dashboard. */
+.expense-month-workspace-v105{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+.expense-month-workspace-head-v105{padding:20px!important;border:1px solid var(--ghm-border)!important;border-radius:22px!important;background:var(--ghm-surface-elevated)!important}
+.expense-month-kpis-v105{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}.expense-month-kpis-v105>article:nth-child(4){display:none!important}.expense-month-kpis-v105>article{padding:14px!important;border-radius:17px!important;background:var(--ghm-surface-elevated)!important;border:1px solid var(--ghm-border)!important}
+.expense-month-detail-grid-v105{grid-template-columns:1fr!important}.expense-month-category-v105{display:none!important}.expense-month-expenses-v105{padding:18px!important}
+.expense-section-overview:not(.expense-month-detail-mode-v105)>.expense-insights{display:none!important}
+
+/* Current calendar snapshot must not imply custom mode is automatic. */
+.expense-snapshot-grid>article{background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important}
+
+@media(max-width:900px){.expense-book-setup-v106{grid-template-columns:1fr}.expense-book-setup-meta-v106{grid-column:auto}.expense-month-kpis-v105{grid-template-columns:repeat(3,1fr)!important}}
+@media(max-width:620px){
+  .expense-book-setup-v106{padding:16px;gap:14px}.expense-book-mode-v106{grid-template-columns:1fr}.expense-book-setup-meta-v106{display:grid;gap:3px}.expense-month-book-strip{grid-template-columns:1fr!important}.expense-month-workspace-head-v105{padding:16px!important}.expense-month-workspace-actions-v105{display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important}.expense-month-workspace-actions-v105>*{width:100%;justify-content:center}.expense-month-kpis-v105{grid-template-columns:1fr 1fr!important}.expense-month-kpis-v105>article:nth-child(3){grid-column:1/-1}.expense-month-expenses-v105{padding:14px!important}
+}
+
+/* ========================================================================== 
+   Light/dark readability audit fixes for high-visibility cards
+   ========================================================================== */
+:where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100){color:var(--ghm-text)!important}
+:where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100) :where(h1,h2,h3,h4,strong,b){color:var(--ghm-text-strong)!important}
+:where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100) :where(p,small,em){color:var(--ghm-muted)!important}
+
+/* Value proof: deliberate medium-blue surface with explicit contrast in BOTH modes. */
+.v95-value-card{background:linear-gradient(145deg,#174b79,#236eaa)!important;border-color:#3d7eaf!important}.v95-value-card :where(h2,strong,.eyebrow){color:#fff!important}.v95-value-card>div:first-child>p:last-child,.v95-value-card small{color:#deefff!important}.v95-value-numbers span{background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.12)}.v95-value-card>.secondary{background:#f7fbff!important;color:#15334d!important;border-color:rgba(255,255,255,.65)!important}
+
+html[data-ghm-theme="dark"],html[data-theme="dark"]{
+  /* Slightly lighter dark palette: clear depth without black-on-black. */
+  --ghm-bg:#0b1826;
+  --ghm-bg-deep:#07111c;
+  --ghm-canvas:#0f2031;
+  --ghm-surface:#12263a;
+  --ghm-surface-soft:#173047;
+  --ghm-surface-strong:#1c3a55;
+  --ghm-surface-elevated:#162d43;
+  --ghm-surface-raised:#1b354e;
+  --ghm-text:#edf5fc;
+  --ghm-text-strong:#ffffff;
+  --ghm-muted:#c2d0de;
+  --ghm-muted-soft:#9fb3c5;
+  --ghm-border:#36546d;
+  --ghm-border-strong:#4c6e89;
+}
+html[data-ghm-theme="dark"] :where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.shopping-panel,.polished-shopping-panel,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100),
+html[data-theme="dark"] :where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.shopping-panel,.polished-shopping-panel,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100){background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important;box-shadow:0 13px 32px rgba(0,0,0,.18)!important}
+html[data-ghm-theme="dark"] :where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.shopping-panel,.polished-shopping-panel,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100) :where(h1,h2,h3,h4,strong,b),
+html[data-theme="dark"] :where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.shopping-panel,.polished-shopping-panel,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100) :where(h1,h2,h3,h4,strong,b){color:#fff!important}
+html[data-ghm-theme="dark"] :where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.shopping-panel,.polished-shopping-panel,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100) :where(p,small,em,label),
+html[data-theme="dark"] :where(.first-run-setup-v71,.first-run-current-step,.install-app-card,.house-context-switcher,.shopping-panel,.polished-shopping-panel,.premium-try-invite-v102,.learn-ghm-card-v101,.v95-next-grid>a,.v95-home-card,.v98-weekly-brief,.v98-contextual-choice,.v100-home-overview,.v101-discover-strip,.expense-month-book-v100) :where(p,small,em,label){color:var(--ghm-muted)!important}
+html[data-ghm-theme="dark"] .first-run-progress-orb,html[data-theme="dark"] .first-run-progress-orb{color:#fff!important}
+html[data-ghm-theme="dark"] .premium-try-invite-v102 .eyebrow,html[data-theme="dark"] .premium-try-invite-v102 .eyebrow{color:#ffb36f!important}
+html[data-ghm-theme="dark"] .v95-value-card,html[data-theme="dark"] .v95-value-card{background:linear-gradient(145deg,#183b59,#225577)!important;border-color:#4f7390!important}
+html[data-ghm-theme="dark"] .v95-value-card :where(p,small),html[data-theme="dark"] .v95-value-card :where(p,small){color:#deebf6!important}
+html[data-ghm-theme="dark"] :where(input,select,textarea),html[data-theme="dark"] :where(input,select,textarea){background:#11283b!important;color:#fff!important;border-color:#46657e!important}
+html[data-ghm-theme="dark"] :where(input,select,textarea)::placeholder,html[data-theme="dark"] :where(input,select,textarea)::placeholder{color:#a9bdcf!important}
+html[data-ghm-theme="dark"] .secondary,html[data-theme="dark"] .secondary{background:#203a51!important;color:#fff!important;border-color:#4b6880!important}
+
+/* Desktop: more breathing room, calmer information width and compact tables/rows. */
+@media(min-width:981px){
+  .desktop-content-v86>.page,.desktop-content-v86>main.page{max-width:1480px!important;padding:28px 34px 64px!important}
+  .page-hero{padding:clamp(22px,2vw,30px)!important;border-radius:26px!important}
+  .shopping-page .shopping-panel,.expenses-page{max-width:1400px!important}
+  .shopping-list .list-actions{justify-content:flex-end}
+  .shopping-compact-row-v106:hover{background:color-mix(in srgb,var(--ghm-primary-soft) 18%,var(--ghm-surface-elevated))}
+  .expense-month-book-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* Specificity-safe dark overrides for legacy cards that previously mixed light surfaces with light copy. */
+html[data-ghm-theme="dark"] .first-run-setup-v71,
+html[data-ghm-theme="dark"] .first-run-current-step,
+html[data-ghm-theme="dark"] .install-app-card,
+html[data-ghm-theme="dark"] .house-context-switcher,
+html[data-ghm-theme="dark"] .shopping-panel,
+html[data-ghm-theme="dark"] .polished-shopping-panel,
+html[data-ghm-theme="dark"] .premium-try-invite-v102,
+html[data-ghm-theme="dark"] .learn-ghm-card-v101,
+html[data-ghm-theme="dark"] .v95-next-grid>a,
+html[data-ghm-theme="dark"] .v95-home-card,
+html[data-ghm-theme="dark"] .v98-weekly-brief,
+html[data-ghm-theme="dark"] .v98-contextual-choice,
+html[data-ghm-theme="dark"] .v100-home-overview,
+html[data-ghm-theme="dark"] .v101-discover-strip,
+html[data-theme="dark"] .first-run-setup-v71,
+html[data-theme="dark"] .first-run-current-step,
+html[data-theme="dark"] .install-app-card,
+html[data-theme="dark"] .house-context-switcher,
+html[data-theme="dark"] .shopping-panel,
+html[data-theme="dark"] .polished-shopping-panel,
+html[data-theme="dark"] .premium-try-invite-v102,
+html[data-theme="dark"] .learn-ghm-card-v101,
+html[data-theme="dark"] .v95-next-grid>a,
+html[data-theme="dark"] .v95-home-card,
+html[data-theme="dark"] .v98-weekly-brief,
+html[data-theme="dark"] .v98-contextual-choice,
+html[data-theme="dark"] .v100-home-overview,
+html[data-theme="dark"] .v101-discover-strip{
+  background:var(--ghm-surface-elevated)!important;
+  border-color:var(--ghm-border)!important;
+  color:var(--ghm-text)!important;
+}
+html[data-ghm-theme="dark"] .first-run-setup-v71 h2,
+html[data-ghm-theme="dark"] .first-run-current-step strong,
+html[data-ghm-theme="dark"] .install-app-card h3,
+html[data-ghm-theme="dark"] .house-context-switcher strong,
+html[data-ghm-theme="dark"] .premium-try-invite-v102 h2,
+html[data-ghm-theme="dark"] .premium-try-invite-v102 strong,
+html[data-ghm-theme="dark"] .learn-ghm-card-v101 h3,
+html[data-ghm-theme="dark"] .v95-next-grid>a strong,
+html[data-ghm-theme="dark"] .v95-home-card h2,
+html[data-theme="dark"] .first-run-setup-v71 h2,
+html[data-theme="dark"] .first-run-current-step strong,
+html[data-theme="dark"] .install-app-card h3,
+html[data-theme="dark"] .house-context-switcher strong,
+html[data-theme="dark"] .premium-try-invite-v102 h2,
+html[data-theme="dark"] .premium-try-invite-v102 strong,
+html[data-theme="dark"] .learn-ghm-card-v101 h3,
+html[data-theme="dark"] .v95-next-grid>a strong,
+html[data-theme="dark"] .v95-home-card h2{color:#fff!important}
+html[data-ghm-theme="dark"] .install-app-card p,
+html[data-ghm-theme="dark"] .first-run-setup-v71 p,
+html[data-ghm-theme="dark"] .house-context-switcher small,
+html[data-ghm-theme="dark"] .premium-try-invite-v102 p,
+html[data-ghm-theme="dark"] .premium-try-invite-v102 small,
+html[data-theme="dark"] .install-app-card p,
+html[data-theme="dark"] .first-run-setup-v71 p,
+html[data-theme="dark"] .house-context-switcher small,
+html[data-theme="dark"] .premium-try-invite-v102 p,
+html[data-theme="dark"] .premium-try-invite-v102 small{color:var(--ghm-muted)!important}
+.shopping-category-summary-v106{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin:2px 2px 10px}.shopping-category-summary-v106 h4{margin:0!important;color:var(--ghm-text-strong);font-size:.95rem!important;letter-spacing:0!important;text-transform:none!important}.shopping-category-summary-v106 small{display:block;margin-top:2px;color:var(--ghm-muted);font-size:.7rem}.shopping-category-summary-v106>span{padding:5px 8px;border-radius:999px;background:var(--ghm-surface-soft);color:var(--ghm-muted);font-size:.68rem;font-weight:850;white-space:nowrap}.shopping-category-section:not(.open) .category-toggle{border-bottom:0}.shopping-category-section.open{box-shadow:0 8px 22px rgba(15,23,42,.045)}
+.ghm-refresh-note-v106{display:flex;gap:10px;align-items:center;padding:10px 13px;border:1px solid color-mix(in srgb,var(--ghm-warning) 30%,var(--ghm-border));border-radius:14px;background:color-mix(in srgb,var(--ghm-warning-soft) 30%,var(--ghm-surface-elevated));color:var(--ghm-text)}.ghm-refresh-note-v106>span{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--ghm-surface-elevated);color:var(--ghm-warning);font-weight:900}.ghm-refresh-note-v106 strong,.ghm-refresh-note-v106 small{display:block}.ghm-refresh-note-v106 small{margin-top:2px;color:var(--ghm-muted)}

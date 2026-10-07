@@ -11,8 +11,10 @@ type HouseContextSwitcherProps = {
 
 export default function HouseContextSwitcher({ currentHouseId, currentHouseName, section }: HouseContextSwitcherProps) {
   const navigate = useNavigate();
-  const [houses, setHouses] = useState<House[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [houses, setHouses] = useState<House[]>(() => {
+    try { const cached = JSON.parse(localStorage.getItem('account_bootstrap_cache_v106') || 'null') as AccountBootstrap | null; return Array.isArray(cached?.houses) ? cached!.houses : []; } catch { return []; }
+  });
+  const [loading, setLoading] = useState(() => houses.length === 0);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -21,11 +23,12 @@ export default function HouseContextSwitcher({ currentHouseId, currentHouseName,
       .then(({ data }) => {
         if (cancelled) return;
         setHouses(data.houses || []);
+        localStorage.setItem('account_bootstrap_cache_v106', JSON.stringify(data));
         setError('');
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(errorMessage(err));
+        if (!houses.length) setError(errorMessage(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

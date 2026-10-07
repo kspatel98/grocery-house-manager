@@ -21,6 +21,7 @@ export function logoutToLogin() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
   localStorage.removeItem("account_profile_cache");
+  localStorage.removeItem("account_bootstrap_cache_v106");
   localStorage.removeItem("account_is_admin");
   if (window.location.pathname !== "/login") {
     window.location.href = "/login";
@@ -29,6 +30,7 @@ export function logoutToLogin() {
 
 export const api = axios.create({
   baseURL: API_URL,
+  timeout: 12000,
   headers: {
     "Cache-Control": "no-cache",
     Pragma: "no-cache",
@@ -50,10 +52,14 @@ api.interceptors.response.use(
     const status = Number(error.response?.status || 0);
     const method = String(error.config?.method || "get").toLowerCase();
     const config = error.config as any;
-    const transient = status === 502 || status === 503 || (!error.response && Boolean(error.request));
-    if (transient && method === "get" && !requestUrl.includes("/health/") && Number(config?._ghmRetryCount || 0) < 2) {
+    const transient = status === 502 || status === 503 || status === 504 || (!error.response && Boolean(error.request));
+    const retryableLogin = method === "post" && requestUrl.includes("/auth/login");
+    const retryableRequest = method === "get" || retryableLogin;
+    const retryLimit = retryableLogin ? 3 : 2;
+    if (transient && retryableRequest && !requestUrl.includes("/health/") && Number(config?._ghmRetryCount || 0) < retryLimit) {
       config._ghmRetryCount = Number(config._ghmRetryCount || 0) + 1;
-      await new Promise((resolve) => window.setTimeout(resolve, 650 * config._ghmRetryCount));
+      const baseDelay = retryableLogin ? 700 : 550;
+      await new Promise((resolve) => window.setTimeout(resolve, baseDelay * config._ghmRetryCount));
       return api.request(config);
     }
     const isAuthAttempt = [
@@ -100,7 +106,7 @@ export function errorMessage(error: unknown): string {
     if (typeof topMessage === "string" && topMessage.trim()) return topMessage;
 
     if (error.response?.status === 502) return "GHM reached the server, but the household service is temporarily unavailable. Your data is not deleted. Please retry in a moment.";
-    if (error.response?.status === 503) return typeof detail === "string" ? detail : "GHM is reconnecting to your household data. Please retry in a moment.";
+    if (error.response?.status === 503 || error.response?.status === 504) return typeof detail === "string" ? detail : "GHM is reconnecting to your household data. Please retry in a moment.";
     if (!error.response && error.request) return "GHM could not reach the server. Check your connection and try again.";
     return error.message || "Something went wrong";
   }

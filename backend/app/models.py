@@ -142,6 +142,9 @@ class House(Base):
     autopilot_learning_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     autopilot_use_community_recipes: Mapped[bool] = mapped_column(Boolean, default=True)
     household_type: Mapped[str] = mapped_column(String(24), default="family")
+    # Expense account creation mode: auto creates the current monthly account lazily
+    # when the household opens Expenses; custom creates accounts only on request.
+    expense_book_mode: Mapped[str] = mapped_column(String(16), default="auto")
     onboarding_preferences_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
@@ -400,6 +403,9 @@ class ExpenseMonthLock(Base):
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     locked_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    is_auto_created: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     locked_by: Mapped[User | None] = relationship(foreign_keys=[locked_by_user_id])

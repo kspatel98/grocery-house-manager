@@ -58,6 +58,7 @@ def serialize_house(house: House, role: HouseRole | None, db: Session) -> HouseO
         owner_plan_name=owner.plan_name if owner else None,
         contribute_community_prices=bool(house.contribute_community_prices),
         household_type=house.household_type or "family",
+        expense_book_mode=(house.expense_book_mode or "auto"),
         created_at=house.created_at,
     )
 

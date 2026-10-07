@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, errorMessage, probeApiHealth } from "../api";
+import { api, errorMessage } from "../api";
 import type { AuthResponse } from "../types";
 import { ThemeToggle } from "../theme";
 
@@ -65,6 +65,7 @@ export default function LoginPage() {
     localStorage.setItem("token", data.access_token);
     localStorage.setItem("user", JSON.stringify(data.user));
     localStorage.removeItem("account_is_admin");
+    localStorage.removeItem("account_bootstrap_cache_v106");
     navigate(nextPath);
   }
 
@@ -103,23 +104,9 @@ export default function LoginPage() {
     return () => window.clearInterval(timer);
   }, [registerCooldown]);
 
-  async function ensureServiceReady() {
-    const health = await probeApiHealth();
-    if (!health.live) {
-      setLoginError(health.detail || "GHM cannot reach the server right now. Please try again shortly.");
-      return false;
-    }
-    if (!health.ready) {
-      setLoginError(health.detail || "GHM is reconnecting to the household database. Your data is safe; please retry in a moment.");
-      return false;
-    }
-    return true;
-  }
-
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setLoginError("");
-    if (!(await ensureServiceReady())) return;
     setRegisterMessage("");
     setResetMessage("");
     try {

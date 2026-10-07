@@ -28,10 +28,8 @@ export default function SetupCoach() {
   useEffect(() => {
     refresh();
     window.addEventListener('account:refresh', refresh);
-    window.addEventListener('focus', refresh);
     return () => {
       window.removeEventListener('account:refresh', refresh);
-      window.removeEventListener('focus', refresh);
     };
   }, []);
 
@@ -41,7 +39,7 @@ export default function SetupCoach() {
 
   useEffect(() => {
     if (!status || status.complete) return;
-    const timer = window.setInterval(refresh, 4500);
+    const timer = window.setInterval(refresh, 12000);
     return () => window.clearInterval(timer);
   }, [status?.complete]);
 

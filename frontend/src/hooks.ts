@@ -48,7 +48,13 @@ export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Pro
 
     connect();
 
-    const onFocus = () => scheduleRefresh(1200);
+    let lastFocusRefresh = 0;
+    const onFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusRefresh < 30000) return;
+      lastFocusRefresh = now;
+      scheduleRefresh(700);
+    };
     window.addEventListener('focus', onFocus);
 
     return () => {
