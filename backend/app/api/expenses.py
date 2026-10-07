@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models import (
     ExpenseCategory,
     ExpenseMonthLock,
+    ExpenseMonthParticipant,
     House,
     ExpenseSettlement,
     ExpenseShare,
@@ -79,7 +80,7 @@ def _expense_month_key(expense: HouseExpense) -> str:
 def _month_lock(db: Session, house_id: int, month_key: str) -> ExpenseMonthLock | None:
     return (
         db.query(ExpenseMonthLock)
-        .options(joinedload(ExpenseMonthLock.locked_by))
+        .options(joinedload(ExpenseMonthLock.locked_by), joinedload(ExpenseMonthLock.participants))
         .filter(ExpenseMonthLock.house_id == house_id, ExpenseMonthLock.month_key == month_key)
         .first()
     )
@@ -98,9 +99,46 @@ def _house_month_mode(db: Session, house_id: int) -> str:
     return mode if mode in {"auto", "custom"} else "auto"
 
 
-def _ensure_book_record(db: Session, house_id: int, month_key: str, *, auto_created: bool = False, display_name: str | None = None) -> ExpenseMonthLock:
+def _house_member_ids(db: Session, house_id: int) -> set[int]:
+    return {m.user_id for m in _members(db, house_id)}
+
+
+def _book_participant_ids(db: Session, book: ExpenseMonthLock) -> set[int]:
+    rows = db.query(ExpenseMonthParticipant).filter(ExpenseMonthParticipant.expense_month_id == book.id).all()
+    return {row.user_id for row in rows}
+
+
+def _set_book_participants(db: Session, book: ExpenseMonthLock, user_ids: list[int] | set[int], *, actor_id: int | None = None) -> set[int]:
+    requested = {int(uid) for uid in user_ids}
+    valid = _house_member_ids(db, book.house_id)
+    if not requested:
+        raise HTTPException(status_code=400, detail="Choose at least one house member for this expense account.")
+    if not requested.issubset(valid):
+        raise HTTPException(status_code=400, detail="Every expense-account participant must currently belong to this house.")
+    existing = {row.user_id: row for row in db.query(ExpenseMonthParticipant).filter(ExpenseMonthParticipant.expense_month_id == book.id).all()}
+    for uid, row in existing.items():
+        if uid not in requested:
+            db.delete(row)
+    for uid in sorted(requested):
+        if uid not in existing:
+            db.add(ExpenseMonthParticipant(expense_month_id=book.id, user_id=uid, added_by_user_id=actor_id))
+    db.flush()
+    return requested
+
+
+def _ensure_book_record(
+    db: Session,
+    house_id: int,
+    month_key: str,
+    *,
+    auto_created: bool = False,
+    display_name: str | None = None,
+    participant_user_ids: list[int] | None = None,
+    actor_id: int | None = None,
+) -> ExpenseMonthLock:
     normalized = _normalize_month_key(month_key)
     row = db.query(ExpenseMonthLock).filter(ExpenseMonthLock.house_id == house_id, ExpenseMonthLock.month_key == normalized).first()
+    created = row is None
     if not row:
         row = ExpenseMonthLock(
             house_id=house_id,
@@ -115,6 +153,13 @@ def _ensure_book_record(db: Session, house_id: int, month_key: str, *, auto_crea
             row.display_name = (display_name or _default_month_name(normalized))[:120]
         if auto_created:
             row.is_auto_created = True
+    current_participants = _book_participant_ids(db, row)
+    if participant_user_ids is not None:
+        _set_book_participants(db, row, participant_user_ids, actor_id=actor_id)
+    elif created or not current_participants:
+        default_ids = sorted(_house_member_ids(db, house_id))
+        if default_ids:
+            _set_book_participants(db, row, default_ids, actor_id=actor_id)
     return row
 
 
@@ -127,7 +172,7 @@ def _sync_month_books(db: Session, house_id: int, expenses: list[HouseExpense]) 
     db.commit()
     return (
         db.query(ExpenseMonthLock)
-        .options(joinedload(ExpenseMonthLock.locked_by))
+        .options(joinedload(ExpenseMonthLock.locked_by), joinedload(ExpenseMonthLock.participants))
         .filter(ExpenseMonthLock.house_id == house_id)
         .all()
     )
@@ -182,6 +227,7 @@ def _settlement_status(row: ExpenseSettlement) -> str:
 def _settlement_out(row: ExpenseSettlement) -> ExpenseSettlementOut:
     return ExpenseSettlementOut(
         id=row.id,
+        expense_month=_normalize_month_key(getattr(row, "expense_month", None), row.created_at.date() if row.created_at else date.today()),
         from_user_id=row.from_user_id,
         from_user_name=_name(row.from_user),
         to_user_id=row.to_user_id,
@@ -196,32 +242,43 @@ def _settlement_out(row: ExpenseSettlement) -> ExpenseSettlementOut:
     )
 
 
-def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
+def _summary(db: Session, house_id: int, expense_month: str | None = None) -> ExpenseSummaryOut:
     members = _members(db, house_id)
     user_by_id = {m.user_id: m.user for m in members}
-    expenses = (
+    all_expenses = (
         db.query(HouseExpense)
         .options(joinedload(HouseExpense.shares).joinedload(ExpenseShare.user), joinedload(HouseExpense.paid_by))
         .filter(HouseExpense.house_id == house_id)
         .order_by(HouseExpense.expense_date.desc(), HouseExpense.id.desc())
         .all()
     )
-    settlements = (
+    all_settlements = (
         db.query(ExpenseSettlement)
         .options(joinedload(ExpenseSettlement.from_user), joinedload(ExpenseSettlement.to_user))
         .filter(ExpenseSettlement.house_id == house_id)
         .order_by(ExpenseSettlement.created_at.desc())
         .all()
     )
-    month_locks = _sync_month_books(db, house_id, expenses)
+    month_locks = _sync_month_books(db, house_id, all_expenses)
+    normalized_scope = _normalize_month_key(expense_month) if expense_month else None
+    expenses = [x for x in all_expenses if not normalized_scope or _expense_month_key(x) == normalized_scope]
+    settlements = [x for x in all_settlements if not normalized_scope or _normalize_month_key(getattr(x, "expense_month", None), x.created_at.date() if x.created_at else date.today()) == normalized_scope]
 
     # Every calculation below is performed in integer cents.
     # Positive balance = this member should receive money.
     # Negative balance = this member owes money.
+    # For an account-scoped view, start with only the people currently included in
+    # that account. Historical payers/shares/settlements are added below even if
+    # they were later removed from future expense entry. This keeps an account
+    # clean without rewriting its history.
+    scoped_member_ids = set(user_by_id)
+    if normalized_scope:
+        scoped_book = next((row for row in month_locks if row.month_key == normalized_scope), None)
+        scoped_member_ids = _book_participant_ids(db, scoped_book) if scoped_book else set()
     ledger = {uid: {
         "paid": 0, "share": 0, "sent": 0, "received": 0,
         "pending_sent": 0, "pending_received": 0,
-    } for uid in user_by_id}
+    } for uid in scoped_member_ids}
 
     source_data_valid = True
     for expense in expenses:
@@ -301,7 +358,7 @@ def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
         ))
 
     lock_by_month = {row.month_key: row for row in month_locks}
-    month_keys = set(_expense_month_key(x) for x in expenses)
+    month_keys = set(_expense_month_key(x) for x in all_expenses)
     month_keys.update(row.month_key for row in month_locks)
     months = []
     for month_key in sorted(month_keys, reverse=True):
@@ -314,6 +371,7 @@ def _summary(db: Session, house_id: int) -> ExpenseSummaryOut:
             locked_by_user_id=lock.locked_by_user_id if lock and lock.is_locked else None,
             locked_by_name=_name(lock.locked_by) if lock and lock.is_locked and lock.locked_by else None,
             locked_at=lock.locked_at if lock and lock.is_locked else None,
+            participant_user_ids=sorted(_book_participant_ids(db, lock)) if lock else [],
         ))
 
     return ExpenseSummaryOut(
@@ -334,6 +392,15 @@ def list_expenses(house_id: int, db: Session = Depends(get_db), user: User = Dep
     return _summary(db, house_id)
 
 
+@router.get("/months/{month_key}/summary", response_model=ExpenseSummaryOut)
+def expense_month_summary(house_id: int, month_key: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    normalized = _normalize_month_key(month_key)
+    if not _month_lock(db, house_id, normalized):
+        raise HTTPException(status_code=404, detail="Expense account not found.")
+    return _summary(db, house_id, normalized)
+
+
 @router.post("", response_model=ExpenseSummaryOut)
 def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_house_member(house_id, user, db)
@@ -346,10 +413,12 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
         else:
             raise HTTPException(status_code=409, detail="Create or open this expense account before adding an expense to it.")
     _ensure_month_open(db, house_id, expense_month)
-    members = _members(db, house_id)
-    member_ids = {m.user_id for m in members}
-    if payload.paid_by_user_id not in member_ids:
-        raise HTTPException(status_code=400, detail="Payer must be a member of this house.")
+    member_ids = _house_member_ids(db, house_id)
+    account_member_ids = _book_participant_ids(db, book)
+    if not account_member_ids:
+        account_member_ids = _set_book_participants(db, book, sorted(member_ids), actor_id=user.id)
+    if payload.paid_by_user_id not in account_member_ids:
+        raise HTTPException(status_code=400, detail="Payer is not included in this expense account. Edit the account and add them first.")
     if payload.receipt_id is not None:
         receipt = db.query(Receipt).filter(Receipt.id == payload.receipt_id, Receipt.house_id == house_id).first()
         if not receipt:
@@ -361,17 +430,17 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
             raise HTTPException(status_code=409, detail="This receipt is already linked to a shared expense.")
     shares = payload.shares
     if not shares:
-        each = round(float(payload.amount) / max(len(member_ids), 1), 2)
+        each = round(float(payload.amount) / max(len(account_member_ids), 1), 2)
         shares = []
-        ordered = sorted(member_ids)
+        ordered = sorted(account_member_ids)
         remaining = round(float(payload.amount), 2)
         from app.schemas import ExpenseShareIn
         for i, uid in enumerate(ordered):
             amount = remaining if i == len(ordered) - 1 else each
             shares.append(ExpenseShareIn(user_id=uid, share_amount=amount))
             remaining = round(remaining - amount, 2)
-    if any(s.user_id not in member_ids for s in shares):
-        raise HTTPException(status_code=400, detail="Every split participant must be a house member.")
+    if any(s.user_id not in account_member_ids for s in shares):
+        raise HTTPException(status_code=400, detail="Every split participant must be included in this expense account.")
     if len({s.user_id for s in shares}) != len(shares):
         raise HTTPException(status_code=400, detail="A member can appear only once in a split.")
     if sum(_cents(s.share_amount) for s in shares) != _cents(payload.amount):
@@ -407,11 +476,16 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
     next_month = _normalize_month_key(payload.expense_month, next_date)
     if next_month != existing_month:
         _ensure_month_open(db, house_id, next_month)
+    target_book = _month_lock(db, house_id, next_month)
+    if not target_book:
+        raise HTTPException(status_code=409, detail="Create this expense account before moving an expense into it.")
 
-    members = _members(db, house_id)
-    member_ids = {m.user_id for m in members}
-    if payload.paid_by_user_id not in member_ids:
-        raise HTTPException(status_code=400, detail="Payer must be a member of this house.")
+    member_ids = _house_member_ids(db, house_id)
+    account_member_ids = _book_participant_ids(db, target_book)
+    legacy_ids = ({row.paid_by_user_id} | {share.user_id for share in row.shares}) if next_month == existing_month else set()
+    allowed_member_ids = account_member_ids | legacy_ids
+    if payload.paid_by_user_id not in allowed_member_ids:
+        raise HTTPException(status_code=400, detail="Payer is not included in this expense account. Edit the account and add them first.")
 
     if payload.receipt_id is not None:
         receipt = db.query(Receipt).filter(Receipt.id == payload.receipt_id, Receipt.house_id == house_id).first()
@@ -427,7 +501,7 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
 
     shares = payload.shares
     if not shares:
-        ordered = sorted(member_ids)
+        ordered = sorted(account_member_ids or allowed_member_ids)
         if not ordered:
             raise HTTPException(status_code=400, detail="This house has no members.")
         total_cents = _cents(payload.amount)
@@ -435,8 +509,8 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
         from app.schemas import ExpenseShareIn
         shares = [ExpenseShareIn(user_id=uid, share_amount=_dollars(base + (1 if i < remainder else 0))) for i, uid in enumerate(ordered)]
 
-    if any(s.user_id not in member_ids for s in shares):
-        raise HTTPException(status_code=400, detail="Every split participant must be a house member.")
+    if any(s.user_id not in allowed_member_ids for s in shares):
+        raise HTTPException(status_code=400, detail="Every split participant must be included in this expense account.")
     if len({s.user_id for s in shares}) != len(shares):
         raise HTTPException(status_code=400, detail="A member can appear only once in a split.")
     if sum(_cents(s.share_amount) for s in shares) != _cents(payload.amount):
@@ -506,7 +580,7 @@ def create_expense_month(
     normalized = _normalize_month_key(payload.month)
     if _month_lock(db, house_id, normalized):
         raise HTTPException(status_code=409, detail="That expense month already exists.")
-    _ensure_book_record(db, house_id, normalized, auto_created=False, display_name=payload.name)
+    _ensure_book_record(db, house_id, normalized, auto_created=False, display_name=payload.name, participant_user_ids=payload.participant_user_ids or sorted(_house_member_ids(db, house_id)), actor_id=user.id)
     log_activity(db, house_id=house_id, user=user, action="expense_month_created", message=f"{display_name(user)} created the {normalized} expense account.", entity_type="expense_month")
     db.commit()
     return _summary(db, house_id)
@@ -528,7 +602,13 @@ def rename_expense_month(
     row = _month_lock(db, house_id, normalized)
     if not row:
         raise HTTPException(status_code=404, detail="Expense account not found.")
-    row.display_name = " ".join(payload.name.split())[:120]
+    if payload.name is not None:
+        cleaned_name = " ".join(payload.name.split()).strip()
+        if not cleaned_name:
+            raise HTTPException(status_code=400, detail="Enter an account name.")
+        row.display_name = cleaned_name[:120]
+    if payload.participant_user_ids is not None:
+        _set_book_participants(db, row, payload.participant_user_ids, actor_id=user.id)
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
     return _summary(db, house_id)
@@ -610,29 +690,33 @@ def _current_suggestion(summary: ExpenseSummaryOut, from_user_id: int, to_user_i
 
 def _record_reimbursement(house_id: int, payload: ExpenseSettlementIn, db: Session, user: User) -> ExpenseSummaryOut:
     require_house_member(house_id, user, db)
-    member_ids = {m.user_id for m in _members(db, house_id)}
-    if payload.from_user_id == payload.to_user_id or payload.from_user_id not in member_ids or payload.to_user_id not in member_ids:
-        raise HTTPException(status_code=400, detail="Choose two different house members.")
+    expense_month = _normalize_month_key(payload.expense_month)
+    book = _month_lock(db, house_id, expense_month)
+    if not book:
+        raise HTTPException(status_code=404, detail="Expense account not found.")
+    house_member_ids = _house_member_ids(db, house_id)
+    if payload.from_user_id == payload.to_user_id or payload.from_user_id not in house_member_ids or payload.to_user_id not in house_member_ids:
+        raise HTTPException(status_code=400, detail="Choose two different current members of this house.")
     if user.id != payload.from_user_id:
         raise HTTPException(status_code=403, detail="Only the person who owes can mark a reimbursement as sent.")
 
-    before = _summary(db, house_id)
+    before = _summary(db, house_id, expense_month)
     suggestion = _current_suggestion(before, payload.from_user_id, payload.to_user_id)
     if not suggestion:
-        raise HTTPException(status_code=409, detail="This reimbursement is no longer needed. Refresh the expense balances.")
+        raise HTTPException(status_code=409, detail="This reimbursement is no longer needed in this account. Refresh the account balances.")
     amount_cents = _cents(payload.amount)
     if amount_cents <= 0 or amount_cents > _cents(suggestion.amount):
         raise HTTPException(status_code=400, detail=f"Amount cannot exceed the current suggested reimbursement of ${suggestion.amount:.2f}.")
 
     row = ExpenseSettlement(
-        house_id=house_id, from_user_id=payload.from_user_id, to_user_id=payload.to_user_id,
+        house_id=house_id, expense_month=expense_month, from_user_id=payload.from_user_id, to_user_id=payload.to_user_id,
         amount=_dollars(amount_cents), currency=payload.currency.upper(), notes=payload.notes,
         status="pending", created_by_user_id=user.id,
     )
     db.add(row)
-    log_activity(db, house_id=house_id, user=user, action="expense_reimbursement_sent", message=f"{display_name(user)} marked ${row.amount:.2f} as sent for reimbursement.", entity_type="expense_settlement")
+    log_activity(db, house_id=house_id, user=user, action="expense_reimbursement_sent", message=f"{display_name(user)} marked ${row.amount:.2f} as sent in {book.display_name or expense_month}.", entity_type="expense_settlement")
     db.commit()
-    return _summary(db, house_id)
+    return _summary(db, house_id, expense_month)
 
 
 @router.post("/reimbursements", response_model=ExpenseSummaryOut)
@@ -655,7 +739,7 @@ def confirm_reimbursement(house_id: int, settlement_id: int, db: Session = Depen
     row.confirmed_at = datetime.now(timezone.utc)
     log_activity(db, house_id=house_id, user=user, action="expense_reimbursement_confirmed", message=f"{display_name(user)} confirmed a reimbursement of ${row.amount:.2f}.", entity_type="expense_settlement", entity_id=row.id)
     db.commit()
-    return _summary(db, house_id)
+    return _summary(db, house_id, _normalize_month_key(getattr(row, "expense_month", None), row.created_at.date() if row.created_at else date.today()))
 
 
 @router.post("/reimbursements/{settlement_id}/cancel", response_model=ExpenseSummaryOut)
@@ -668,12 +752,12 @@ def cancel_reimbursement(house_id: int, settlement_id: int, db: Session = Depend
     if user.id not in {row.from_user_id, row.to_user_id} and role not in {"owner", "admin"}:
         raise HTTPException(status_code=403, detail="Only the people involved or a house owner/admin can correct this reimbursement.")
     if _settlement_status(row) == "cancelled":
-        return _summary(db, house_id)
+        return _summary(db, house_id, _normalize_month_key(getattr(row, "expense_month", None), row.created_at.date() if row.created_at else date.today()))
     row.status = "cancelled"
     row.cancelled_at = datetime.now(timezone.utc)
     log_activity(db, house_id=house_id, user=user, action="expense_reimbursement_cancelled", message=f"{display_name(user)} cancelled a reimbursement record of ${row.amount:.2f}.", entity_type="expense_settlement", entity_id=row.id)
     db.commit()
-    return _summary(db, house_id)
+    return _summary(db, house_id, _normalize_month_key(getattr(row, "expense_month", None), row.created_at.date() if row.created_at else date.today()))
 
 
 # Backward-compatible endpoint used by older clients. It now follows the safer

@@ -409,6 +409,22 @@ class ExpenseMonthLock(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     locked_by: Mapped[User | None] = relationship(foreign_keys=[locked_by_user_id])
+    participants: Mapped[list["ExpenseMonthParticipant"]] = relationship(back_populates="expense_month", cascade="all, delete-orphan")
+
+
+class ExpenseMonthParticipant(Base):
+    __tablename__ = "expense_month_participants"
+    __table_args__ = (UniqueConstraint("expense_month_id", "user_id", name="uq_expense_month_participant_user"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    expense_month_id: Mapped[int] = mapped_column(ForeignKey("expense_month_locks.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    added_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    expense_month: Mapped[ExpenseMonthLock] = relationship(back_populates="participants")
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    added_by: Mapped[User | None] = relationship(foreign_keys=[added_by_user_id])
 
 
 class HouseExpense(Base):
@@ -456,6 +472,7 @@ class ExpenseSettlement(Base):
     house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
     from_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     to_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expense_month: Mapped[str | None] = mapped_column(String(7), nullable=True, index=True)
     amount: Mapped[float] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(12), default="CAD")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

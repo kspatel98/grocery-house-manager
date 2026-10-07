@@ -626,7 +626,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
                 </section>
 
-                <div className="v104-build-badge" aria-label="Current app build">GHM design build V106</div>
+                <div className="v104-build-badge" aria-label="Current app build">GHM design build V108</div>
 
                 {mobileMoreGroups.map((group) => {
                   const items = extraNavItems.filter((item) => item.group === group.key);
@@ -648,6 +648,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       )}
 
       <SmartReviewPrompt />
+      {contextHouseId ? <Link className="ghm-house-chat-fab-v108" to={`/houses/${contextHouseId}/chat`} aria-label="Open house chat" title="House Chat"><span aria-hidden="true">💬</span><strong>Chat</strong></Link> : null}
       <UniversalCapture houseId={contextHouseId} />
 
       <PremiumAwardCelebration

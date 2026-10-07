@@ -95,7 +95,7 @@ export default function ExpensesPage() {
   const [params] = useSearchParams();
   const monthCandidate = monthRoute || params.get('month') || '';
   const monthView = /^\d{4}-\d{2}$/.test(monthCandidate) ? String(monthCandidate) : '';
-  const expenseSection = ['overview', 'settlements', 'insights', 'activity'].includes(params.get('view') || '') ? String(params.get('view')) : 'overview';
+  const expenseSection = ['overview', 'insights'].includes(params.get('view') || '') ? String(params.get('view')) : 'overview';
   const { language } = useLanguage();
   const lang = (language as Lang) || 'en';
   const c = copy[lang] || copy.en;
@@ -106,6 +106,7 @@ export default function ExpensesPage() {
   const [members, setMembers] = useState<HouseMember[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [summary, setSummary] = useState<ExpenseSummary | null>(null);
+  const [accountSummary, setAccountSummary] = useState<ExpenseSummary | null>(null);
   const [customCategories, setCustomCategories] = useState<ExpenseCategory[]>([]);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -136,6 +137,7 @@ export default function ExpensesPage() {
   const [monthEditOpen, setMonthEditOpen] = useState(false);
   const [monthDraft, setMonthDraft] = useState(localMonthKey());
   const [monthNameDraft, setMonthNameDraft] = useState('');
+  const [monthParticipantDraft, setMonthParticipantDraft] = useState<number[]>([]);
 
   const [reimbursementView, setReimbursementView] = useState<'mine' | 'house'>('mine');
   const [reimbursementHistoryView, setReimbursementHistoryView] = useState<'mine' | 'house'>('mine');
@@ -166,6 +168,14 @@ export default function ExpensesPage() {
   }
   useEffect(() => { void load(); }, [id]);
   useEffect(() => {
+    let cancelled = false;
+    if (!monthView) { setAccountSummary(null); return; }
+    api.get<ExpenseSummary>(`/houses/${id}/expenses/months/${monthView}/summary`)
+      .then(({ data }) => { if (!cancelled) setAccountSummary(data); })
+      .catch((err) => { if (!cancelled) setError(errorMessage(err)); });
+    return () => { cancelled = true; };
+  }, [id, monthView]);
+  useEffect(() => {
     const saved = localStorage.getItem(`ghm_expense_month_${id}`) || localMonthKey();
     setActiveExpenseMonth(saved);
     if (!editingExpenseId) setExpenseMonth(saved);
@@ -187,8 +197,10 @@ export default function ExpensesPage() {
     prefilledReceiptRef.current = rid; setReceiptId(r.id); setTitle(`${r.store_name || 'Grocery'} receipt`); setCategory('Groceries');
     if (r.total_amount != null) setAmount(String(r.total_amount)); if (r.receipt_date) setDate(r.receipt_date); setExpenseMonth(activeExpenseMonth);
     const uploaderId = r.uploaded_by?.id; const fallback = currentUserId && members.some(m => m.user_id === currentUserId) ? currentUserId : members[0]?.user_id;
-    setPayer(uploaderId && members.some(m => m.user_id === uploaderId) ? uploaderId : (fallback || ''));
-    setParticipants(members.map(x => x.user_id)); setSplitMode('equal'); setShares({}); setManualShares(new Set<number>()); setMoreDetails(true); setOpen(true);
+    const allowedIds = monthStateFor(activeExpenseMonth)?.participant_user_ids?.length ? monthStateFor(activeExpenseMonth)!.participant_user_ids : members.map(x => x.user_id);
+    const allowedFallback = allowedIds.includes(Number(fallback)) ? fallback : allowedIds[0];
+    setPayer(uploaderId && allowedIds.includes(uploaderId) ? uploaderId : (allowedFallback || ''));
+    setParticipants(allowedIds); setSplitMode('equal'); setShares({}); setManualShares(new Set<number>()); setMoreDetails(true); setOpen(true);
   }, [receipts, members, currentUserId, params, summary, activeExpenseMonth]);
 
   const equalShares = useMemo(() => {
@@ -225,8 +237,8 @@ export default function ExpensesPage() {
   const splitDifference = Math.round(((Number(amount) || 0) - customTotal) * 100) / 100;
   function reset() {
     setEditingExpenseId(null);
-    setTitle('Groceries'); setAmount(''); setCategory('Groceries'); setNotes(''); setReceiptId(''); setSplitMode('equal'); setParticipants(members.map(x => x.user_id)); setShares({}); setManualShares(new Set<number>()); setMoreDetails(false); setDate(localDateKey()); setExpenseMonth(activeExpenseMonth);
-    const me = currentUserId && members.some(x => x.user_id === currentUserId) ? currentUserId : members[0]?.user_id; setPayer(me || '');
+    const accountIds = monthStateFor(activeExpenseMonth)?.participant_user_ids?.length ? monthStateFor(activeExpenseMonth)!.participant_user_ids : members.map(x => x.user_id); setTitle('Groceries'); setAmount(''); setCategory('Groceries'); setNotes(''); setReceiptId(''); setSplitMode('equal'); setParticipants(accountIds); setShares({}); setManualShares(new Set<number>()); setMoreDetails(false); setDate(localDateKey()); setExpenseMonth(activeExpenseMonth);
+    const me = currentUserId && accountIds.includes(currentUserId) ? currentUserId : accountIds[0]; setPayer(me || '');
   }
   async function save() {
     const total = Number(amount); if (!title.trim() || !total || !payer || !participants.length) { setError('Enter the expense, payer, and at least one participant.'); return; }
@@ -238,7 +250,9 @@ export default function ExpensesPage() {
       const { data } = editingExpenseId
         ? await api.put<ExpenseSummary>(`/houses/${id}/expenses/${editingExpenseId}`, payload)
         : await api.post<ExpenseSummary>(`/houses/${id}/expenses`, payload);
-      setSummary(data); setOpen(false); reset(); setError('');
+      setSummary(data);
+      if (monthView && expenseMonth === monthView) { const refreshed = await api.get<ExpenseSummary>(`/houses/${id}/expenses/months/${monthView}/summary`); setAccountSummary(refreshed.data); }
+      setOpen(false); reset(); setError('');
     }
     catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
@@ -249,16 +263,16 @@ export default function ExpensesPage() {
   }
   async function saveReimbursement() {
     if (!reimburseTarget) return; const value = Number(reimburseAmount); if (value <= 0 || value > reimburseTarget.amount + .01) { setError(`Enter an amount up to ${money(reimburseTarget.amount)}.`); return; }
-    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements`, { from_user_id: reimburseTarget.from_user_id, to_user_id: reimburseTarget.to_user_id, amount: value, currency: 'CAD' }); setSummary(data); setReimburseTarget(null); setReimburseAmount(''); setError(''); }
+    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements`, { from_user_id: reimburseTarget.from_user_id, to_user_id: reimburseTarget.to_user_id, expense_month: monthView || activeExpenseMonth, amount: value, currency: 'CAD' }); if (monthView) setAccountSummary(data); else setSummary(data); setReimburseTarget(null); setReimburseAmount(''); setError(''); }
     catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
   async function confirmReimbursement(settlementId: number) {
-    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements/${settlementId}/confirm`); setSummary(data); setError(''); }
+    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements/${settlementId}/confirm`); if (monthView) setAccountSummary(data); else setSummary(data); setError(''); }
     catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
   async function cancelReimbursement(settlementId: number) {
     if (!confirm('Cancel this reimbursement record? The history will remain visible, but it will no longer affect balances.')) return;
-    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements/${settlementId}/cancel`); setSummary(data); setError(''); }
+    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/reimbursements/${settlementId}/cancel`); if (monthView) setAccountSummary(data); else setSummary(data); setError(''); }
     catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
   function editExpense(expense: HouseExpense) {
@@ -284,15 +298,15 @@ export default function ExpensesPage() {
     setMoreDetails(Boolean(expense.notes || expense.receipt_id));
     setError(''); setOpen(true);
   }
-  async function remove(expenseId: number) { if (!confirm('Delete this shared expense?')) return; try { const { data } = await api.delete<ExpenseSummary>(`/houses/${id}/expenses/${expenseId}`); setSummary(data); } catch (err) { setError(errorMessage(err)); } }
+  async function remove(expenseId: number) { if (!confirm('Delete this shared expense?')) return; try { const { data } = await api.delete<ExpenseSummary>(`/houses/${id}/expenses/${expenseId}`); setSummary(data); if (monthView) { const refreshed = await api.get<ExpenseSummary>(`/houses/${id}/expenses/months/${monthView}/summary`); setAccountSummary(refreshed.data); } } catch (err) { setError(errorMessage(err)); } }
 
   const expenses = summary?.expenses || [];
-  const settlements = summary?.settlements || [];
-  const balanceBreakdown = summary?.balance_breakdown || [];
+  const moneySummary = monthView ? accountSummary : summary;
+  const settlements = moneySummary?.settlements || [];
+  const balanceBreakdown = moneySummary?.balance_breakdown || [];
   const pendingSettlements = settlements.filter(x => x.status === 'pending');
-  const currentBalance = summary?.balances.find(b => b.user_id === currentUserId)?.balance || 0;
-  const mySuggested = (summary?.suggested_payments || []).filter(x => x.from_user_id === currentUserId || x.to_user_id === currentUserId);
-  const visibleSuggestions = reimbursementView === 'mine' ? mySuggested : (summary?.suggested_payments || []);
+  const mySuggested = (moneySummary?.suggested_payments || []).filter(x => x.from_user_id === currentUserId || x.to_user_id === currentUserId);
+  const visibleSuggestions = reimbursementView === 'mine' ? mySuggested : (moneySummary?.suggested_payments || []);
   const currentMonthKey = localMonthKey();
   const currentMonthExpenses = expenses.filter(x => (x.expense_month || monthKey(x.expense_date)) === currentMonthKey);
   const currentHouseSpend = currentMonthExpenses.reduce((s, x) => s + x.amount, 0);
@@ -311,14 +325,7 @@ export default function ExpensesPage() {
   }, [expenses, currentUserId, currentMonthKey, activeExpenseMonth, summary?.months]);
 
   const monthViewBook = monthView ? (monthBooks.find(book => book.month === monthView) || { month: monthView, houseSpend: 0, myShare: 0, myPaid: 0, expenseCount: 0 }) : null;
-  const monthViewExpenses = useMemo(() => monthView ? expenses.filter(expense => (expense.expense_month || monthKey(expense.expense_date)) === monthView) : [], [expenses, monthView]);
-  const monthViewCategories = useMemo(() => {
-    const map = new Map<string, number>();
-    monthViewExpenses.forEach(expense => map.set(expense.category || 'Other', (map.get(expense.category || 'Other') || 0) + expense.amount));
-    return [...map.entries()].map(([name, amount]) => ({ name, amount })).sort((a,b) => b.amount - a.amount);
-  }, [monthViewExpenses]);
-  const maxMonthViewCategory = Math.max(1, ...monthViewCategories.map(row => row.amount));
-
+  const monthViewExpenses = useMemo(() => monthView ? (accountSummary?.expenses || expenses.filter(expense => (expense.expense_month || monthKey(expense.expense_date)) === monthView)) : [], [expenses, monthView, accountSummary]);
   const rangeExpenses = useMemo(() => {
     if (insightRange === 'all') return expenses;
     const start = monthStart(Number(insightRange));
@@ -347,12 +354,6 @@ export default function ExpensesPage() {
   const activeMonths = Math.max(1, new Set(insightRows.map(x => x.expense.expense_month || monthKey(x.expense.expense_date))).size);
   const maxCategory = Math.max(1, ...categoryInsights.map(x => x.amount)); const maxMonth = Math.max(1, ...monthInsights.map(x => x.value)); const topCategory = categoryInsights[0]?.name || '—';
 
-  const visibleExpenses = useMemo(() => expenses.filter(expense => {
-    if (selectedMonth !== 'all' && (expense.expense_month || monthKey(expense.expense_date)) !== selectedMonth) return false;
-    if (expenseScope === 'mine' && shareFor(expense, currentUserId) <= .0001) return false;
-    return true;
-  }), [expenses, selectedMonth, expenseScope, currentUserId]);
-
   const currentMembership = members.find(m => m.user_id === currentUserId);
   const visibleSettlementHistory = useMemo(() => settlements.filter(row => reimbursementHistoryView === 'house' || row.from_user_id === currentUserId || row.to_user_id === currentUserId), [settlements, reimbursementHistoryView, currentUserId]);
   const settlementGroups = useMemo(() => {
@@ -362,6 +363,14 @@ export default function ExpensesPage() {
 
   const monthStates = summary?.months || [];
   const monthStateFor = (month: string) => monthStates.find(x => x.month === month);
+  const accountParticipantIds = (month: string) => monthStateFor(month)?.participant_user_ids?.length ? monthStateFor(month)!.participant_user_ids : members.map(m => m.user_id);
+  const accountMembers = (month: string) => members.filter(m => accountParticipantIds(month).includes(m.user_id));
+  const eligibleExpenseMembers = useMemo(() => {
+    const allowed = new Set(accountParticipantIds(expenseMonth));
+    participants.forEach(uid => allowed.add(uid));
+    if (payer) allowed.add(Number(payer));
+    return members.filter(member => allowed.has(member.user_id));
+  }, [members, expenseMonth, participants, payer, summary?.months]);
   const activeMonthState = monthStateFor(activeExpenseMonth);
   const activeMonthLocked = Boolean(activeMonthState?.is_locked);
   const isOwner = currentMembership?.role === 'owner';
@@ -371,19 +380,34 @@ export default function ExpensesPage() {
     if (state.is_locked) { setError(c.lockedMonthHelp); return; }
     setActiveExpenseMonth(month); setExpenseMonth(month); setSelectedMonth(month); setError('');
   }
+  function chooseExpenseMonth(month: string) {
+    setExpenseMonth(month);
+    const allowed = accountParticipantIds(month);
+    setParticipants(allowed);
+    setShares({});
+    setManualShares(new Set<number>());
+    setSplitMode('equal');
+    if (!allowed.includes(Number(payer))) setPayer(allowed[0] || '');
+  }
   async function setMonthMode(mode: 'auto' | 'custom') {
     if (!isOwner && currentMembership?.role !== 'admin') return;
     try { setBusy(true); const { data } = await api.put<ExpenseSummary>(`/houses/${id}/expenses/settings`, { month_mode: mode }); setSummary(data); setError(''); }
     catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
   async function createMonthBook() {
-    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/months`, { month: monthDraft, name: monthNameDraft.trim() || null }); setSummary(data); setMonthCreateOpen(false); setMonthNameDraft(''); setActiveExpenseMonth(monthDraft); setExpenseMonth(monthDraft); setSelectedMonth(monthDraft); localStorage.setItem(`ghm_expense_month_${id}`, monthDraft); setError(''); }
+    try { setBusy(true); const { data } = await api.post<ExpenseSummary>(`/houses/${id}/expenses/months`, { month: monthDraft, name: monthNameDraft.trim() || null, participant_user_ids: monthParticipantDraft.length ? monthParticipantDraft : members.map(m => m.user_id) }); setSummary(data); setMonthCreateOpen(false); setMonthNameDraft(''); setActiveExpenseMonth(monthDraft); setExpenseMonth(monthDraft); setSelectedMonth(monthDraft); localStorage.setItem(`ghm_expense_month_${id}`, monthDraft); setError(''); }
     catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
   async function renameMonthBook() {
-    if (!monthView || !monthNameDraft.trim()) return;
-    try { setBusy(true); const { data } = await api.patch<ExpenseSummary>(`/houses/${id}/expenses/months/${monthView}`, { name: monthNameDraft.trim() }); setSummary(data); setMonthEditOpen(false); setError(''); }
-    catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
+    if (!monthView || !monthNameDraft.trim() || !monthParticipantDraft.length) return;
+    try {
+      setBusy(true);
+      const { data } = await api.patch<ExpenseSummary>(`/houses/${id}/expenses/months/${monthView}`, { name: monthNameDraft.trim(), participant_user_ids: monthParticipantDraft });
+      setSummary(data);
+      const refreshed = await api.get<ExpenseSummary>(`/houses/${id}/expenses/months/${monthView}/summary`);
+      setAccountSummary(refreshed.data);
+      setMonthEditOpen(false); setError('');
+    } catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   }
   async function toggleMonthLock(month: string) {
     const state = monthStateFor(month);
@@ -412,7 +436,7 @@ export default function ExpensesPage() {
   return <main className={`page shell wide expenses-page expenses-page-v82 expenses-page-v105 expense-section-${expenseSection} ${monthView ? 'expense-month-detail-mode-v105' : ''}`}>
     <header className="page-hero creative-hero expense-hero">
       <div><Link className="breadcrumb" to={`/houses/${id}`}>← {house?.name || 'House'}</Link><p className="eyebrow">HOUSE MONEY</p><div className="feature-heading-with-why-v101"><h1>💸 {c.title}</h1><FeatureWhyButton feature="expenses" label="Why?" /></div><p>{c.sub}</p></div>
-      {monthView ? <button className="expense-primary-action" disabled={Boolean(monthStateFor(monthView)?.is_locked)} title={monthStateFor(monthView)?.is_locked ? c.lockedMonthHelp : undefined} onClick={() => { useExpenseMonth(monthView); reset(); setExpenseMonth(monthView); setOpen(true); }}><span>＋</span><strong>{c.add}</strong><small>Inside this account</small></button> : summary?.month_mode === 'custom' ? <button className="expense-primary-action" onClick={() => { setMonthDraft(localMonthKey()); setMonthNameDraft(''); setMonthCreateOpen(true); }}><span>＋</span><strong>New account</strong><small>Create when needed</small></button> : activeExpenseMonth ? <Link className="expense-primary-action expense-primary-link-v106" to={`/houses/${id}/expenses/${activeExpenseMonth}`}><span>📘</span><strong>Open active account</strong><small>{monthLabel(activeExpenseMonth)}</small></Link> : null}
+      {monthView ? <button className="expense-primary-action" disabled={Boolean(monthStateFor(monthView)?.is_locked)} title={monthStateFor(monthView)?.is_locked ? c.lockedMonthHelp : undefined} onClick={() => { useExpenseMonth(monthView); reset(); setExpenseMonth(monthView); setOpen(true); }}><span>＋</span><strong>{c.add}</strong><small>Inside this account</small></button> : summary?.month_mode === 'custom' ? <button className="expense-primary-action" onClick={() => { setMonthDraft(localMonthKey()); setMonthNameDraft(''); setMonthParticipantDraft(members.map(m => m.user_id)); setMonthCreateOpen(true); }}><span>＋</span><strong>New account</strong><small>Create when needed</small></button> : activeExpenseMonth ? <Link className="expense-primary-action expense-primary-link-v106" to={`/houses/${id}/expenses/${activeExpenseMonth}`}><span>📘</span><strong>Open active account</strong><small>{monthLabel(activeExpenseMonth)}</small></Link> : null}
     </header>
     <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="expenses" />
     <FeaturePurposeCard feature="expenses" />
@@ -427,19 +451,17 @@ export default function ExpensesPage() {
       <div className="expense-book-setup-meta-v106"><span>{summary?.month_mode === 'custom' ? 'Custom creation is on' : 'Automatic creation is on'}</span>{!isOwner && currentMembership?.role !== 'admin' ? <small>Only the house owner or admin can change this setting.</small> : <small>You can rename each account later. Locking stays owner-controlled.</small>}</div>
     </section>}
 
-    <nav className="expense-workspace-tabs-v105" aria-label="Expense workspace views">
-      <Link className={!monthView && expenseSection === 'overview' ? 'active' : ''} to={`/houses/${id}/expenses`}>Overview</Link>
-      <Link className={!monthView && expenseSection === 'settlements' ? 'active' : ''} to={`/houses/${id}/expenses?view=settlements`}>Balances & reimbursements</Link>
-      <Link className={!monthView && expenseSection === 'insights' ? 'active' : ''} to={`/houses/${id}/expenses?view=insights`}>Insights</Link>
-      <Link className={!monthView && expenseSection === 'activity' ? 'active' : ''} to={`/houses/${id}/expenses?view=activity`}>Activity</Link>
-    </nav>
+    {!monthView && <nav className="expense-workspace-tabs-v105" aria-label="Expense workspace views">
+      <Link className={expenseSection === 'overview' ? 'active' : ''} to={`/houses/${id}/expenses`}>Accounts</Link>
+      <Link className={expenseSection === 'insights' ? 'active' : ''} to={`/houses/${id}/expenses?view=insights`}>Statistics & insights</Link>
+    </nav>}
 
     {monthView && monthViewBook && <section className="expense-month-workspace-v105">
       <header className="expense-month-workspace-head-v105">
-        <div><Link className="breadcrumb" to={`/houses/${id}/expenses`}>← All expense accounts</Link><p className="eyebrow">MONTHLY EXPENSE ACCOUNT</p><h2>{monthStateFor(monthView)?.name || monthLabel(monthView)}</h2><p>{monthLabel(monthView)} · Everything assigned to this account stays together in one focused view.</p></div>
+        <div><Link className="breadcrumb" to={`/houses/${id}/expenses`}>← All expense accounts</Link><p className="eyebrow">EXPENSE ACCOUNT</p><h2>{monthStateFor(monthView)?.name || monthLabel(monthView)}</h2><p>Accounting period: {monthLabel(monthView)} · Expenses, reimbursements and activity stay together in this account.</p></div>
         <div className="expense-month-workspace-actions-v105">
           {monthStateFor(monthView)?.is_locked ? <span className="expense-lock-badge-v100">🔒 {c.locked}</span> : activeExpenseMonth === monthView ? <span className="expense-open-badge-v100">✓ {c.activeBook}</span> : <button className="secondary" onClick={() => useExpenseMonth(monthView)}>{c.useMonth}</button>}
-          {(isOwner || currentMembership?.role === 'admin') && <button className="secondary" onClick={() => { setMonthNameDraft(monthStateFor(monthView)?.name || monthLabel(monthView)); setMonthEditOpen(true); }}>✎ Edit account</button>}
+          {(isOwner || currentMembership?.role === 'admin') && <button className="secondary" onClick={() => { setMonthNameDraft(monthStateFor(monthView)?.name || monthLabel(monthView)); setMonthParticipantDraft(accountParticipantIds(monthView)); setMonthEditOpen(true); }}>✎ Edit account</button>}
           {isOwner && <button className="secondary" disabled={busy} onClick={() => toggleMonthLock(monthView)}>{monthStateFor(monthView)?.is_locked ? `🔓 ${c.unlockMonth}` : `🔒 ${c.lockMonth}`}</button>}
           <button className="expense-primary-action compact-v105" disabled={Boolean(monthStateFor(monthView)?.is_locked)} onClick={() => { useExpenseMonth(monthView); reset(); setExpenseMonth(monthView); setOpen(true); }}><span>＋</span><strong>{c.add}</strong></button>
         </div>
@@ -452,48 +474,50 @@ export default function ExpensesPage() {
       </div>
       <div className="expense-month-detail-grid-v105">
         <section className="panel expense-month-activity-v105">
-          <div className="panel-title-row"><div><p className="eyebrow">EXPENSES</p><h3>{monthLabel(monthView)} activity</h3><p>Only transactions assigned to this monthly book.</p></div><div className="expense-history-scope"><button className={expenseScope === 'house' ? 'active' : ''} onClick={() => setExpenseScope('house')}>🏠 House</button><button className={expenseScope === 'mine' ? 'active' : ''} onClick={() => setExpenseScope('mine')}>👤 Mine</button></div></div>
+          <div className="panel-title-row"><div><p className="eyebrow">ACCOUNT ACTIVITY</p><h3>{monthStateFor(monthView)?.name || monthLabel(monthView)}</h3><p>Only transactions assigned to this expense account.</p></div><div className="expense-history-scope"><button className={expenseScope === 'house' ? 'active' : ''} onClick={() => setExpenseScope('house')}>🏠 House</button><button className={expenseScope === 'mine' ? 'active' : ''} onClick={() => setExpenseScope('mine')}>👤 Mine</button></div></div>
           {(expenseScope === 'house' ? monthViewExpenses : monthViewExpenses.filter(expense => shareFor(expense, currentUserId) > .0001)).length ? <div className="expense-list">{(expenseScope === 'house' ? monthViewExpenses : monthViewExpenses.filter(expense => shareFor(expense, currentUserId) > .0001)).map(x => { const myShare = shareFor(x, currentUserId); const rowLocked = Boolean(monthStateFor(monthView)?.is_locked); return <article className={`expense-row expense-row-v82 ${rowLocked ? 'expense-row-locked-v100' : ''}`} key={x.id}><div className="expense-row-category">{categoryIcon(x.category, categories)}</div><div className="expense-row-main"><strong>{x.title}</strong><small>{dayLabel(x.expense_date)} · {x.category}{x.receipt_id ? ` · Receipt #${x.receipt_id}` : ''}</small><span>{x.paid_by_name} {c.paid}{expenseScope === 'mine' ? ` · ${c.myShare}: ${money(myShare)}` : ''}</span></div><div className="expense-row-amount"><b>{expenseScope === 'mine' ? money(myShare) : money(x.amount)}</b><span className="expense-row-actions"><button className="expense-edit-action-v88" disabled={rowLocked} onClick={() => editExpense(x)}>✎ <strong>{c.edit}</strong></button><button className="expense-delete-action-v88" disabled={rowLocked} onClick={() => remove(x.id)}>⌫ <strong>{c.delete}</strong></button></span></div></article>; })}</div> : <div className="expense-empty-state"><span>🧾</span><strong>{c.noHistory}</strong></div>}
         </section>
-        <aside className="panel expense-month-category-v105">
-          <div className="panel-title-row"><div><p className="eyebrow">SPENDING MIX</p><h3>Where the month went</h3><p>Category totals for this book only.</p></div></div>
-          {monthViewCategories.length ? <div className="expense-category-insights">{monthViewCategories.map(row => <article key={row.name}><div className="expense-insight-label"><span className="expense-category-icon">{categoryIcon(row.name, categories)}</span><div><strong>{row.name}</strong><small>{monthViewBook.houseSpend ? Math.round(row.amount / monthViewBook.houseSpend * 100) : 0}%</small></div><b>{money(row.amount)}</b></div><div className="expense-insight-bar"><span style={{ width: `${Math.max(5, row.amount / maxMonthViewCategory * 100)}%` }} /></div></article>)}</div> : <div className="expense-empty-state"><span>📊</span><strong>No category data yet.</strong></div>}
-          <div className="expense-month-note-v105"><span>ℹ</span><p>Reimbursements settle the household balance across expenses. Manage them from <Link to={`/houses/${id}/expenses?view=settlements`}>Balances & reimbursements</Link>.</p></div>
+        <aside className="panel expense-account-people-v108">
+          <div className="panel-title-row"><div><p className="eyebrow">INCLUDED PEOPLE</p><h3>Who belongs to this account</h3><p>Only these people can be selected on new expenses in this account. Existing expenses keep their original splits.</p></div>{(isOwner || currentMembership?.role === 'admin') && <button className="secondary" onClick={() => { setMonthNameDraft(monthStateFor(monthView)?.name || monthLabel(monthView)); setMonthParticipantDraft(accountParticipantIds(monthView)); setMonthEditOpen(true); }}>Edit</button>}</div>
+          <div className="expense-account-people-list-v108">{accountMembers(monthView).map(member => <article key={member.user_id}><span className="member-avatar">{initials(member.full_name || `Member ${member.user_id}`)}</span><div><strong>{member.full_name || `Member ${member.user_id}`}</strong><small>{member.user_id === currentUserId ? 'You · included' : 'Included in new expenses'}</small></div><span>✓</span></article>)}</div>
+          <div className="expense-account-people-help-v108"><span>💡</span><p>If someone is away, remove them temporarily from this account. Add them back later from Edit account when they return.</p></div>
         </aside>
       </div>
     </section>}
 
+    {!monthView && <>
     <section className="expense-month-snapshot" aria-label={c.thisMonth}>
       <div className="expense-snapshot-heading"><div><p className="eyebrow">CURRENT CALENDAR MONTH</p><h2>{monthLabel(currentMonthKey)}</h2></div><span className="expense-auto-badge">{summary?.month_mode === 'custom' ? '✦ Custom accounts' : '⚡ Automatic accounts'}</span></div>
       <div className="expense-snapshot-grid">
         <article className="house"><span>🏠</span><small>{c.houseThisMonth}</small><strong>{money(currentHouseSpend)}</strong><i>{currentMonthExpenses.length} {c.expenses}</i></article>
         <article className="mine"><span>👤</span><small>{c.myThisMonth}</small><strong>{money(currentMyShare)}</strong><i>{c.myShare}</i></article>
         <article className="paid"><span>💳</span><small>{c.iPaidThisMonth}</small><strong>{money(currentMyPaid)}</strong><i>{c.paidByMe}</i></article>
-        <article className={currentBalance < -.009 ? 'owe' : currentBalance > .009 ? 'owed' : 'even'}><span>{currentBalance < -.009 ? '↗' : currentBalance > .009 ? '↙' : '✓'}</span><small>{c.netPosition}</small><strong>{money(Math.abs(currentBalance))}</strong><i>{currentBalance < -.009 ? c.owes : currentBalance > .009 ? c.gets : c.settled}</i></article>
+        <article className="even"><span>📚</span><small>Expense accounts</small><strong>{monthBooks.length}</strong><i>{monthBooks.filter(book => !monthStateFor(book.month)?.is_locked).length} open</i></article>
       </div>
     </section>
 
     <section className="panel expense-month-books">
-      <div className="panel-title-row"><div><p className="eyebrow">EXPENSE ACCOUNTS</p><h2>Open the month you want to work in.</h2><p>Each account has its own expenses, add flow and lock status. Insights stay on the main Expenses workspace.</p></div>{summary?.month_mode === 'custom' && (isOwner || currentMembership?.role === 'admin') ? <button className="secondary" onClick={() => { setMonthDraft(localMonthKey()); setMonthNameDraft(''); setMonthCreateOpen(true); }}>+ New account</button> : null}</div>
+      <div className="panel-title-row"><div><p className="eyebrow">EXPENSE ACCOUNTS</p><h2>Open the month you want to work in.</h2><p>Each account has its own expenses, add flow and lock status. Insights stay on the main Expenses workspace.</p></div>{summary?.month_mode === 'custom' && (isOwner || currentMembership?.role === 'admin') ? <button className="secondary" onClick={() => { setMonthDraft(localMonthKey()); setMonthNameDraft(''); setMonthParticipantDraft(members.map(m => m.user_id)); setMonthCreateOpen(true); }}>+ New account</button> : null}</div>
       <div className="expense-month-book-strip">
         {monthBooks.map(book => { const state = monthStateFor(book.month); const locked = Boolean(state?.is_locked); const active = activeExpenseMonth === book.month; return <article key={book.month} className={`expense-month-book expense-month-book-v100 ${selectedMonth === book.month ? 'active' : ''} ${locked ? 'locked' : ''} ${active ? 'posting' : ''}`}>
           <Link className="expense-month-book-main-v100" to={`/houses/${id}/expenses/${book.month}`}>
             <div className="expense-month-book-top"><span>{locked ? '🔒' : '📅'}</span><strong>{state?.name || monthLabel(book.month)}</strong>{book.month === currentMonthKey && <i>{c.thisMonth}</i>}{state?.is_auto_created ? <i>Auto</i> : <i>Custom</i>}{active && <i className="posting-badge-v100">{c.activeBook}</i>}</div>
             <div className="expense-month-book-total"><small>{c.houseExpenses}</small><b>{money(book.houseSpend)}</b></div>
-            <div className="expense-month-book-metrics"><span><small>{c.myShare}</small><strong>{money(book.myShare)}</strong></span><span><small>{c.paidByMe}</small><strong>{money(book.myPaid)}</strong></span><span><small>{c.expenses}</small><strong>{book.expenseCount}</strong></span></div>
+            <div className="expense-month-book-metrics"><span><small>{c.myShare}</small><strong>{money(book.myShare)}</strong></span><span><small>{c.expenses}</small><strong>{book.expenseCount}</strong></span><span><small>People</small><strong>{accountParticipantIds(book.month).length}</strong></span></div>
           </Link>
           <footer className="expense-month-book-actions-v100">{locked ? <span className="expense-lock-badge-v100">🔒 {c.locked}</span> : active ? <span className="expense-open-badge-v100">✓ {c.activeBook}</span> : <button className="ghost tiny" onClick={() => useExpenseMonth(book.month)}>{c.useMonth}</button>}{isOwner && <button className={`ghost tiny ${locked ? 'unlock' : ''}`} disabled={busy} onClick={() => toggleMonthLock(book.month)}>{locked ? `🔓 ${c.unlockMonth}` : `🔒 ${c.lockMonth}`}</button>}</footer>
         </article>; })}
       </div>
     </section>
 
-    <section className="expense-overview-balance-v105">
-      <div className={`expense-overview-net-v105 ${currentBalance < -.009 ? 'owe' : currentBalance > .009 ? 'owed' : 'even'}`}><span>{currentBalance < -.009 ? '↗' : currentBalance > .009 ? '↙' : '✓'}</span><div><small>YOUR CURRENT HOUSE BALANCE</small><strong>{currentBalance < -.009 ? `${c.owes} ${money(Math.abs(currentBalance))}` : currentBalance > .009 ? `${c.gets} ${money(Math.abs(currentBalance))}` : c.settled}</strong><p>Reimbursements and detailed balance math live in their own focused view.</p></div></div>
-      <div className="expense-overview-links-v105"><Link to={`/houses/${id}/expenses?view=settlements`}><span>🤝</span><div><strong>Balances & reimbursements</strong><small>{(summary?.suggested_payments || []).length} suggested settlement{(summary?.suggested_payments || []).length === 1 ? '' : 's'}</small></div><b>›</b></Link><Link to={`/houses/${id}/expenses?view=insights`}><span>📊</span><div><strong>Spending insights</strong><small>Categories and trends</small></div><b>›</b></Link><Link to={`/houses/${id}/expenses?view=activity`}><span>🧾</span><div><strong>Expense activity</strong><small>Transactions and reimbursement history</small></div><b>›</b></Link></div>
+    <section className="expense-overview-balance-v105 expense-overview-clean-v108">
+      <div className="expense-overview-links-v105"><Link to={`/houses/${id}/expenses?view=insights`}><span>📊</span><div><strong>Statistics & insights</strong><small>House spending, categories and month-to-month trends</small></div><b>›</b></Link></div>
     </section>
+    </>}
 
+{monthView && accountSummary && <>
     <section className="expense-balance-audit panel">
-      <div className="panel-title-row"><div><p className="eyebrow">BALANCE CHECK</p><h2>🧮 {lc.audit}</h2><p>{lc.auditSub}</p></div><span className={`expense-ledger-integrity ${summary?.balance_is_valid === false ? 'bad' : 'ok'}`}>{summary?.balance_is_valid === false ? `⚠ ${lc.balanceBad}` : `✓ ${lc.balanceOk}`}</span></div>
+      <div className="panel-title-row"><div><p className="eyebrow">BALANCE CHECK</p><h2>🧮 {lc.audit}</h2><p>{lc.auditSub}</p></div><span className={`expense-ledger-integrity ${moneySummary?.balance_is_valid === false ? 'bad' : 'ok'}`}>{moneySummary?.balance_is_valid === false ? `⚠ ${lc.balanceBad}` : `✓ ${lc.balanceOk}`}</span></div>
       <p className="expense-ledger-formula">{lc.formula} <small>· {lc.affectsBalance}</small></p>
       <div className="expense-ledger-grid">{balanceBreakdown.map(row => <article key={row.user_id} className={`expense-ledger-card ${row.balance > .009 ? 'credit' : row.balance < -.009 ? 'debt' : 'settled'}`}>
         <header><span className="member-avatar">{initials(row.user_name)}</span><div><strong>{displayMember(row.user_id, row.user_name)}</strong><small>{row.balance > .009 ? c.gets : row.balance < -.009 ? c.owes : c.settled}</small></div><b>{row.balance > .009 ? '+' : row.balance < -.009 ? '−' : ''}{money(Math.abs(row.balance))}</b></header>
@@ -511,7 +535,7 @@ export default function ExpensesPage() {
     </section>}
 
     <section className="expense-reimbursements panel premium-panel">
-      <div className="panel-title-row reimbursement-heading"><div><p className="eyebrow">SMART REIMBURSEMENTS</p><div className="feature-heading-with-why-v101"><h2>{c.suggest}</h2><FeatureWhyButton feature="reimbursements" label="Why?" /></div><p>Balances are netted across every expense first, then settled in exact cents.</p></div><div className="segmented reimbursement-tabs"><button className={reimbursementView === 'mine' ? 'active' : ''} onClick={() => setReimbursementView('mine')}>{c.mine}</button><button className={reimbursementView === 'house' ? 'active' : ''} onClick={() => setReimbursementView('house')}>{c.all}</button></div></div>
+      <div className="panel-title-row reimbursement-heading"><div><p className="eyebrow">SMART REIMBURSEMENTS</p><div className="feature-heading-with-why-v101"><h2>{c.suggest}</h2><FeatureWhyButton feature="reimbursements" label="Why?" /></div><p>Balances are calculated only from expenses and reimbursements inside this account, then settled in exact cents.</p></div><div className="segmented reimbursement-tabs"><button className={reimbursementView === 'mine' ? 'active' : ''} onClick={() => setReimbursementView('mine')}>{c.mine}</button><button className={reimbursementView === 'house' ? 'active' : ''} onClick={() => setReimbursementView('house')}>{c.all}</button></div></div>
       {visibleSuggestions.length ? <div className="reimbursement-grid">{visibleSuggestions.map((x, i) => {
         const mine = x.from_user_id === currentUserId || x.to_user_id === currentUserId; const debtorIsMe = x.from_user_id === currentUserId; const creditorIsMe = x.to_user_id === currentUserId;
         return <article className={`reimbursement-card ${mine ? 'mine' : ''}`} key={`${x.from_user_id}-${x.to_user_id}-${i}`}>
@@ -521,7 +545,9 @@ export default function ExpensesPage() {
       })}</div> : <div className="expense-empty-state"><span>🎉</span><strong>{c.noReimbursements}</strong><small>{c.settled}</small></div>}
     </section>
 
-    <section className="expense-insights panel expense-insights-v82">
+    </>}
+
+    {!monthView && <section className="expense-insights panel expense-insights-v82">
       <div className="expense-insights-head">
         <div><p className="eyebrow">SPENDING PICTURE</p><h2>{c.insights}</h2><p>Switch between the whole household and only your own share.</p></div>
         <div className="expense-scope-switch"><button className={expenseScope === 'house' ? 'active' : ''} onClick={() => setExpenseScope('house')}><span>🏠</span><strong>{c.houseExpenses}</strong></button><button className={expenseScope === 'mine' ? 'active' : ''} onClick={() => setExpenseScope('mine')}><span>👤</span><strong>{c.myExpenses}</strong></button></div>
@@ -529,32 +555,27 @@ export default function ExpensesPage() {
       <div className="expense-insight-toolbar"><div className="expense-range-pills">{rangeOptions.map(option => <button key={option.value} className={insightRange === option.value ? 'active' : ''} onClick={() => setInsightRange(option.value)}>{option.label}</button>)}</div><div className="segmented"><button className={insightMode === 'category' ? 'active' : ''} onClick={() => setInsightMode('category')}>{c.byCategory}</button><button className={insightMode === 'month' ? 'active' : ''} onClick={() => setInsightMode('month')}>{c.byMonth}</button></div></div>
       <div className="expense-insight-kpis"><article><span>{expenseScope === 'house' ? '🏠' : '👤'}</span><small>{c.periodSpend}</small><strong>{money(insightTotal)}</strong></article><article><span>🏆</span><small>{c.topCategory}</small><strong>{topCategory}</strong></article><article><span>📅</span><small>{c.monthlyAverage}</small><strong>{money(insightTotal / activeMonths)}</strong></article></div>
       {!insightRows.length ? <div className="expense-empty-state"><span>📊</span><strong>{c.noHistory}</strong></div> : insightMode === 'category' ? <div className="expense-category-insights">{categoryInsights.map(row => <article key={row.name}><div className="expense-insight-label"><span className="expense-category-icon">{categoryIcon(row.name, categories)}</span><div><strong>{row.name}</strong><small>{row.count} {c.expenses} · {insightTotal ? Math.round(row.amount / insightTotal * 100) : 0}%</small></div><b>{money(row.amount)}</b></div><div className="expense-insight-bar"><span style={{ width: `${Math.max(4, row.amount / maxCategory * 100)}%` }} /></div></article>)}</div> : <div className="expense-month-insights">{monthInsights.map(row => <article key={row.month}><div><strong>{monthLabel(row.month)}</strong><b>{money(row.value)}</b></div><div className="expense-month-bar"><span style={{ width: `${Math.max(4, row.value / maxMonth * 100)}%` }} /></div></article>)}</div>}
-    </section>
+    </section>}
 
-    <section className="panel reimbursement-history-panel">
+    {monthView && accountSummary && <section className="panel reimbursement-history-panel">
       <div className="panel-title-row"><div><p className="eyebrow">SETTLEMENT TIMELINE</p><h2>{c.reimbursementHistory}</h2><p>{c.reimbursementHistorySub}</p></div><div className="segmented"><button className={reimbursementHistoryView === 'mine' ? 'active' : ''} onClick={() => setReimbursementHistoryView('mine')}>{c.myHistory}</button><button className={reimbursementHistoryView === 'house' ? 'active' : ''} onClick={() => setReimbursementHistoryView('house')}>{c.houseHistory}</button></div></div>
       {settlementGroups.length ? <div className="reimbursement-history-groups">{settlementGroups.map(([month, rows]) => <section key={month} className="reimbursement-history-month"><header><span>📆</span><strong>{monthLabel(month)}</strong><small>{rows.length}</small></header><div>{rows.map(row => <article key={row.id} className={`reimbursement-history-row status-${row.status || 'confirmed'}`}><span className="reimbursement-history-icon">{row.status === 'cancelled' ? '↩' : row.status === 'pending' ? '⏳' : '✓'}</span><div><strong>{displayMember(row.from_user_id, row.from_user_name)} {c.reimbursed} {displayMember(row.to_user_id, row.to_user_name)}</strong><small>{dayLabel(row.created_at)} · {settlementStatusLabel(row)}{row.notes ? ` · ${row.notes}` : ''}</small></div><b>{money(row.amount)}</b>{row.status !== 'cancelled' && canCorrectSettlement(row) && <button className="ghost tiny reimbursement-correct" disabled={busy} onClick={() => cancelReimbursement(row.id)}>{lc.correctRecord}</button>}</article>)}</div></section>)}</div> : <div className="expense-empty-state"><span>🧾</span><strong>{c.noSettlementHistory}</strong></div>}
-    </section>
-
-    <section className="panel expense-history-panel">
-      <div className="panel-title-row"><div><p className="eyebrow">ACTIVITY</p><h2>{expenseScope === 'mine' ? c.myExpenses : c.history}</h2>{selectedMonth !== 'all' && <p>{c.selectedMonth}: <strong>{monthLabel(selectedMonth)}</strong> · <button className="text-button" onClick={() => setSelectedMonth('all')}>{c.clearMonth}</button></p>}</div></div>
-      <div className="expense-history-scope"><button className={expenseScope === 'house' ? 'active' : ''} onClick={() => setExpenseScope('house')}>🏠 {c.houseExpenses}</button><button className={expenseScope === 'mine' ? 'active' : ''} onClick={() => setExpenseScope('mine')}>👤 {c.myExpenses}</button></div>
-      {visibleExpenses.length ? <div className="expense-list">{visibleExpenses.map(x => { const myShare = shareFor(x, currentUserId); const rowMonth = x.expense_month || monthKey(x.expense_date); const rowLocked = Boolean(monthStateFor(rowMonth)?.is_locked); return <article className={`expense-row expense-row-v82 ${rowLocked ? 'expense-row-locked-v100' : ''}`} key={x.id}><div className="expense-row-category">{categoryIcon(x.category, categories)}</div><div className="expense-row-main"><strong>{x.title}</strong><small>{dayLabel(x.expense_date)} · {x.category} · 📘 {monthLabel(rowMonth)}{rowLocked ? ' · 🔒' : ''}{x.receipt_id ? ` · Receipt #${x.receipt_id}` : ''}</small><span>{x.paid_by_name} {c.paid}{expenseScope === 'mine' ? ` · ${c.myShare}: ${money(myShare)}` : ` · ${x.shares.map(s => `${s.user_name} ${money(s.share_amount)}`).join(' · ')}`}</span></div><div className="expense-row-amount"><b>{expenseScope === 'mine' ? money(myShare) : money(x.amount)}</b>{expenseScope === 'mine' && <small>{c.totalBill}: {money(x.amount)}</small>}<span className="expense-row-actions"><button className="expense-edit-action-v88" disabled={rowLocked} title={rowLocked ? c.lockedMonthHelp : undefined} onClick={() => editExpense(x)}><span aria-hidden="true">✎</span><strong>{c.edit}</strong></button><button className="expense-delete-action-v88" disabled={rowLocked} title={rowLocked ? c.lockedMonthHelp : undefined} onClick={() => remove(x.id)} aria-label={c.delete}><span aria-hidden="true">⌫</span><strong>{c.delete}</strong></button></span></div></article>; })}</div> : <div className="expense-empty-state"><span>🧾</span><strong>{c.noHistory}</strong></div>}
-    </section>
+    </section>}
 
     {open && <OverlayPortal><div className="modal-backdrop expense-form-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setOpen(false); }}><section className="modal focus-dialog expense-modal expense-modal-v80" role="dialog" aria-modal="true" aria-label={editingExpenseId ? c.editTitle : c.add}>
       <header className="focus-dialog-titlebar expense-form-titlebar"><div><p className="eyebrow">SHARED COST</p><h2>{editingExpenseId ? c.editTitle : c.add}</h2><p>{editingExpenseId ? 'Update the details below. Balances and insights will recalculate automatically.' : 'Start with the total, then choose who shares it.'}</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setOpen(false)}>×</button></header>
       <div className="focus-dialog-scroll expense-form-scroll">
         {receiptId && <div className="expense-linked-receipt-banner"><span>🧾</span><div><strong>{c.linkedReceipt}</strong><small>{receipts.find(r => r.id === Number(receiptId))?.store_name || 'Receipt'} · {amount ? money(Number(amount)) : ''}</small></div></div>}
-        <section className={`expense-form-month-v100 ${monthStateFor(expenseMonth)?.is_locked ? 'locked' : ''}`}><div><span>{monthStateFor(expenseMonth)?.is_locked ? '🔒' : '📘'}</span><div><small>{c.accountMonth}</small><strong>{monthStateFor(expenseMonth)?.name || monthLabel(expenseMonth)}</strong></div></div><select value={expenseMonth} onChange={e => setExpenseMonth(e.target.value)}>{monthBooks.filter(book => !monthStateFor(book.month)?.is_locked || book.month === expenseMonth).map(book => <option key={book.month} value={book.month}>{monthStateFor(book.month)?.name || monthLabel(book.month)} · {monthLabel(book.month)}</option>)}</select>{monthStateFor(expenseMonth)?.is_locked && <p>{c.lockedMonthHelp}</p>}</section>
+        <section className={`expense-form-month-v100 ${monthStateFor(expenseMonth)?.is_locked ? 'locked' : ''}`}><div><span>{monthStateFor(expenseMonth)?.is_locked ? '🔒' : '📘'}</span><div><small>{c.accountMonth}</small><strong>{monthStateFor(expenseMonth)?.name || monthLabel(expenseMonth)}</strong></div></div><select value={expenseMonth} onChange={e => chooseExpenseMonth(e.target.value)}>{monthBooks.filter(book => !monthStateFor(book.month)?.is_locked || book.month === expenseMonth).map(book => <option key={book.month} value={book.month}>{monthStateFor(book.month)?.name || monthLabel(book.month)} · {monthLabel(book.month)}</option>)}</select>{monthStateFor(expenseMonth)?.is_locked && <p>{c.lockedMonthHelp}</p>}</section>
         <section className="expense-form-section expense-basics-section"><div className="expense-amount-field"><label>{c.amount}<div className="money-input"><span>$</span><input autoFocus inputMode="decimal" type="number" min="0.01" step="0.01" value={amount} onChange={e => handleAmountChange(e.target.value)} placeholder="0.00" /></div></label></div><label className="expense-title-field">{c.expenseTitle}<input value={title} onChange={e => setTitle(e.target.value)} placeholder="Groceries, electricity, dinner..." /></label></section>
         <section className="expense-form-section"><div className="expense-section-heading"><div><span>1</span><div><h3>{c.category}</h3><p>Tap one — no dropdown hunting.</p></div></div></div><div className="expense-category-grid">{categories.map(item => <button type="button" key={item.name} className={`expense-category-choice ${category === item.name ? 'active' : ''}`} onClick={() => setCategory(item.name)}><span>{item.icon}</span><strong>{item.name}</strong></button>)}<button type="button" className={`expense-category-choice add-category ${categoryCreatorOpen ? 'active' : ''}`} onClick={() => setCategoryCreatorOpen(v => !v)}><span>＋</span><strong>{c.addCategory}</strong></button></div>
           {categoryCreatorOpen && <div className="expense-category-creator"><div className="category-icon-picker">{CATEGORY_ICONS.map(icon => <button type="button" key={icon} className={newCategoryIcon === icon ? 'active' : ''} onClick={() => setNewCategoryIcon(icon)}>{icon}</button>)}</div><div className="category-create-row"><input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder={c.categoryName} /><button type="button" onClick={createCategory} disabled={busy || !newCategoryName.trim()}>{c.createCategory}</button></div></div>}
         </section>
-        <section className="expense-form-section"><div className="expense-section-heading"><div><span>2</span><div><h3>{c.payer}</h3><p>Who paid at the store or covered the bill?</p></div></div></div><div className="payer-card-grid">{members.map(m => <button type="button" key={m.user_id} className={`payer-card ${payer === m.user_id ? 'active' : ''}`} onClick={() => setPayer(m.user_id)}><span className="member-avatar">{initials(m.full_name || `Member ${m.user_id}`)}</span><div><strong>{m.full_name || `Member ${m.user_id}`}</strong>{m.user_id === currentUserId && <small>{c.you}</small>}</div><i>✓</i></button>)}</div></section>
+        <div className="expense-account-scope-note-v108"><span>👥</span><div><strong>{eligibleExpenseMembers.length} people available in this account</strong><small>Need someone else? Edit this expense account first so they can be selected safely.</small></div></div>
+        <section className="expense-form-section"><div className="expense-section-heading"><div><span>2</span><div><h3>{c.payer}</h3><p>Who paid at the store or covered the bill?</p></div></div></div><div className="payer-card-grid">{eligibleExpenseMembers.map(m => <button type="button" key={m.user_id} className={`payer-card ${payer === m.user_id ? 'active' : ''}`} onClick={() => setPayer(m.user_id)}><span className="member-avatar">{initials(m.full_name || `Member ${m.user_id}`)}</span><div><strong>{m.full_name || `Member ${m.user_id}`}</strong>{m.user_id === currentUserId && <small>{c.you}</small>}</div><i>✓</i></button>)}</div></section>
         <section className="expense-form-section expense-split-section"><div className="expense-section-heading"><div><span>3</span><div><h3>{c.split}</h3><p>{splitMode === 'custom' ? c.customHelp : 'Everyone selected below shares the total equally.'}</p></div></div><div className="segmented"><button type="button" className={splitMode === 'equal' ? 'active' : ''} onClick={() => changeSplitMode('equal')}>{c.equal}</button><button type="button" className={splitMode === 'custom' ? 'active' : ''} onClick={() => changeSplitMode('custom')}>{c.custom}</button></div></div>
           {splitMode === 'custom' && <div className="custom-split-toolbar"><span>{c.remaining}: <strong>{money(Math.max(0, splitDifference))}</strong></span><button type="button" className="ghost tiny" onClick={resetCustomEqual}>{c.resetEqual}</button></div>}
-          <div className="expense-member-grid">{members.map(m => { const on = participants.includes(m.user_id); const value = splitMode === 'equal' ? (equalShares[m.user_id] || 0) : Number(shares[m.user_id] || 0); return <article className={`expense-member-card ${on ? 'selected' : ''}`} key={m.user_id}><label className="expense-member-select"><input type="checkbox" checked={on} onChange={e => toggleParticipant(m.user_id, e.target.checked)} /><span className="member-avatar">{initials(m.full_name || `Member ${m.user_id}`)}</span><div><strong>{m.full_name || `Member ${m.user_id}`}</strong>{m.user_id === currentUserId && <small>{c.you}</small>}</div></label>{on && (splitMode === 'equal' ? <strong className="member-share-amount">{money(value)}</strong> : <div className="custom-share-input"><span>$</span><input type="number" min="0" step="0.01" value={shares[m.user_id] ?? '0.00'} onChange={e => changeCustomShare(m.user_id, e.target.value)} />{manualShares.has(m.user_id) && <small>{c.manual}</small>}</div>)}</article>; })}</div>
+          <div className="expense-member-grid">{eligibleExpenseMembers.map(m => { const on = participants.includes(m.user_id); const value = splitMode === 'equal' ? (equalShares[m.user_id] || 0) : Number(shares[m.user_id] || 0); return <article className={`expense-member-card ${on ? 'selected' : ''}`} key={m.user_id}><label className="expense-member-select"><input type="checkbox" checked={on} onChange={e => toggleParticipant(m.user_id, e.target.checked)} /><span className="member-avatar">{initials(m.full_name || `Member ${m.user_id}`)}</span><div><strong>{m.full_name || `Member ${m.user_id}`}</strong>{m.user_id === currentUserId && <small>{c.you}</small>}</div></label>{on && (splitMode === 'equal' ? <strong className="member-share-amount">{money(value)}</strong> : <div className="custom-share-input"><span>$</span><input type="number" min="0" step="0.01" value={shares[m.user_id] ?? '0.00'} onChange={e => changeCustomShare(m.user_id, e.target.value)} />{manualShares.has(m.user_id) && <small>{c.manual}</small>}</div>)}</article>; })}</div>
           {splitMode === 'custom' && <div className={`split-total-status ${Math.abs(splitDifference) <= .02 ? 'ok' : 'warn'}`}><span>{Math.abs(splitDifference) <= .02 ? '✓' : '!'}</span><strong>{Math.abs(splitDifference) <= .02 ? c.splitReady : c.splitMismatch}</strong><b>{money(customTotal)} / {money(Number(amount) || 0)}</b></div>}
         </section>
         <section className="expense-form-section expense-more-section"><button type="button" className="expense-more-toggle" onClick={() => setMoreDetails(v => !v)}><span>⚙️</span><strong>{c.moreDetails}</strong><i>{moreDetails ? '−' : '+'}</i></button>{moreDetails && <div className="expense-more-grid"><label>{c.date}<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label><label>{c.receipt}<select value={receiptId} onChange={e => setReceiptId(e.target.value ? Number(e.target.value) : '')}><option value="">No linked receipt</option>{receipts.map(r => <option key={r.id} value={r.id}>{r.store_name || 'Receipt'} · {r.receipt_date || r.created_at.slice(0, 10)} {r.total_amount != null ? `· ${money(r.total_amount)}` : ''}</option>)}</select></label><label className="span-2">{c.notes}<textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional note" /></label></div>}</section>
@@ -562,9 +583,9 @@ export default function ExpensesPage() {
       <footer className="focus-dialog-actions expense-form-actions"><button className="secondary" onClick={() => setOpen(false)}>{c.cancel}</button><div className="expense-save-summary"><small>{participants.length} participant{participants.length === 1 ? '' : 's'}</small><strong>{amount ? money(Number(amount)) : money(0)}</strong></div><button className="expense-save-button" disabled={busy || !participants.length || Boolean(monthStateFor(expenseMonth)?.is_locked) || (splitMode === 'custom' && Math.abs(splitDifference) > .02)} onClick={save}>{busy ? 'Saving…' : editingExpenseId ? c.update : c.save}</button></footer>
     </section></div></OverlayPortal>}
 
-    {monthCreateOpen && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setMonthCreateOpen(false); }}><section className="modal focus-dialog expense-account-modal-v106" role="dialog" aria-modal="true" aria-label="Create expense account"><header className="focus-dialog-titlebar"><div><p className="eyebrow">NEW EXPENSE ACCOUNT</p><h2>Create a monthly account</h2><p>Choose the accounting month. You can give it a custom name now or rename it later.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setMonthCreateOpen(false)}>×</button></header><div className="focus-dialog-scroll form-grid"><label>Month<input type="month" value={monthDraft} onChange={e => setMonthDraft(e.target.value)} /></label><label>Account name <span className="small-muted">optional</span><input value={monthNameDraft} onChange={e => setMonthNameDraft(e.target.value)} placeholder={monthLabel(monthDraft)} /></label></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setMonthCreateOpen(false)}>Cancel</button><button className="primary" disabled={busy || !monthDraft} onClick={createMonthBook}>{busy ? 'Creating…' : 'Create account'}</button></footer></section></div></OverlayPortal>}
+    {monthCreateOpen && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setMonthCreateOpen(false); }}><section className="modal focus-dialog expense-account-modal-v106" role="dialog" aria-modal="true" aria-label="Create expense account"><header className="focus-dialog-titlebar"><div><p className="eyebrow">NEW EXPENSE ACCOUNT</p><h2>Create an expense account</h2><p>Give the account a useful name, choose its accounting period for sorting/insights, and decide who should be included from day one.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setMonthCreateOpen(false)}>×</button></header><div className="focus-dialog-scroll form-grid"><label>Accounting period <span className="small-muted">for sorting & insights</span><input type="month" value={monthDraft} onChange={e => setMonthDraft(e.target.value)} /></label><label>Account name <span className="small-muted">optional</span><input value={monthNameDraft} onChange={e => setMonthNameDraft(e.target.value)} placeholder={monthLabel(monthDraft)} /></label><section className="expense-account-member-editor-v108"><div><strong>Included people</strong><small>Only selected people can be used on new expenses in this account.</small></div><div className="expense-account-member-grid-v108">{members.map(member => { const selected = monthParticipantDraft.includes(member.user_id); return <label key={member.user_id} className={selected ? 'selected' : ''}><input type="checkbox" checked={selected} onChange={e => setMonthParticipantDraft(prev => e.target.checked ? (prev.includes(member.user_id) ? prev : [...prev, member.user_id]) : prev.filter(id => id !== member.user_id))} /><span className="member-avatar">{initials(member.full_name || `Member ${member.user_id}`)}</span><strong>{member.full_name || `Member ${member.user_id}`}</strong></label>; })}</div></section></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setMonthCreateOpen(false)}>Cancel</button><button className="primary" disabled={busy || !monthDraft || !monthParticipantDraft.length} onClick={createMonthBook}>{busy ? 'Creating…' : 'Create account'}</button></footer></section></div></OverlayPortal>}
 
-    {monthEditOpen && monthView && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setMonthEditOpen(false); }}><section className="modal focus-dialog expense-account-modal-v106" role="dialog" aria-modal="true" aria-label="Edit expense account"><header className="focus-dialog-titlebar"><div><p className="eyebrow">ACCOUNT DETAILS</p><h2>Edit {monthLabel(monthView)}</h2><p>The accounting month stays the same; this changes only the household-facing name.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setMonthEditOpen(false)}>×</button></header><div className="focus-dialog-scroll form-grid"><label>Account name<input autoFocus value={monthNameDraft} onChange={e => setMonthNameDraft(e.target.value)} /></label></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setMonthEditOpen(false)}>Cancel</button><button className="primary" disabled={busy || !monthNameDraft.trim()} onClick={renameMonthBook}>{busy ? 'Saving…' : 'Save name'}</button></footer></section></div></OverlayPortal>}
+    {monthEditOpen && monthView && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setMonthEditOpen(false); }}><section className="modal focus-dialog expense-account-modal-v106" role="dialog" aria-modal="true" aria-label="Edit expense account"><header className="focus-dialog-titlebar"><div><p className="eyebrow">ACCOUNT DETAILS</p><h2>Edit {monthStateFor(monthView)?.name || monthLabel(monthView)}</h2><p>Rename the account or change who can be included on new expenses. Removing someone does not rewrite old expenses.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setMonthEditOpen(false)}>×</button></header><div className="focus-dialog-scroll form-grid"><label>Account name<input autoFocus value={monthNameDraft} onChange={e => setMonthNameDraft(e.target.value)} /></label><section className="expense-account-member-editor-v108"><div><strong>Included people</strong><small>Deselect people who are away. Add them back whenever they return.</small></div><div className="expense-account-member-grid-v108">{members.map(member => { const selected = monthParticipantDraft.includes(member.user_id); return <label key={member.user_id} className={selected ? 'selected' : ''}><input type="checkbox" checked={selected} onChange={e => setMonthParticipantDraft(prev => e.target.checked ? (prev.includes(member.user_id) ? prev : [...prev, member.user_id]) : prev.filter(id => id !== member.user_id))} /><span className="member-avatar">{initials(member.full_name || `Member ${member.user_id}`)}</span><strong>{member.full_name || `Member ${member.user_id}`}</strong></label>; })}</div><div className="expense-account-member-warning-v108">Existing expenses and reimbursements keep their historical participants. This only controls future entries.</div></section></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setMonthEditOpen(false)}>Cancel</button><button className="primary" disabled={busy || !monthNameDraft.trim() || !monthParticipantDraft.length} onClick={renameMonthBook}>{busy ? 'Saving…' : 'Save account'}</button></footer></section></div></OverlayPortal>}
 
     {reimburseTarget && <OverlayPortal><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) setReimburseTarget(null); }}><section className="modal focus-dialog reimbursement-modal" role="dialog" aria-modal="true" aria-label={c.confirm}><header className="focus-dialog-titlebar"><div><p className="eyebrow">MARK PAYMENT SENT</p><h2>{lc.markSent}</h2></div><button data-dialog-close="true" className="icon-btn" onClick={() => setReimburseTarget(null)}>×</button></header><div className="focus-dialog-scroll"><div className="reimbursement-confirm-route"><div className="reimburse-person"><span className="member-avatar debt">{initials(reimburseTarget.from_user_name)}</span><strong>{displayMember(reimburseTarget.from_user_id, reimburseTarget.from_user_name)}</strong></div><div className="reimburse-flow large"><span></span><i>→</i></div><div className="reimburse-person"><span className="member-avatar credit">{initials(reimburseTarget.to_user_name)}</span><strong>{displayMember(reimburseTarget.to_user_id, reimburseTarget.to_user_name)}</strong></div></div><div className="reimburse-amount-card"><small>Suggested</small><strong>{money(reimburseTarget.amount)}</strong><p>{c.partial}</p><label>Amount to reimburse<div className="money-input"><span>$</span><input type="number" min="0.01" max={reimburseTarget.amount} step="0.01" value={reimburseAmount} onChange={e => setReimburseAmount(e.target.value)} /></div></label></div></div><footer className="focus-dialog-actions"><button className="secondary" onClick={() => setReimburseTarget(null)}>{c.cancel}</button><button className="reimburse-button" disabled={busy || Number(reimburseAmount) <= 0} onClick={saveReimbursement}>{busy ? 'Saving…' : lc.markSent}</button></footer></section></div></OverlayPortal>}
   </main>;

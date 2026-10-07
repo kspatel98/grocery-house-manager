@@ -1,0 +1,120 @@
+/* ========================================================================== 
+   GHM V108 — account-scoped money, mobile polish, one-scroll shell
+   ========================================================================== */
+
+/* One vertical document scroll. Avoid nested page/sidebar/chat scrollbars. */
+html { overflow-x:hidden; overflow-y:auto; }
+body,#root,.app-frame,.desktop-shell-v86,.desktop-main-v86,.app-main-content { min-height:100%; height:auto !important; max-height:none !important; }
+body,#root,.desktop-shell-v86,.desktop-main-v86,.app-main-content { overflow-y:visible !important; }
+.desktop-main-v86,.app-main-content { overflow-x:clip !important; }
+.chat-thread-v105 { max-height:none !important; overflow:visible !important; }
+@media(min-width:981px){
+  /* Keep the sidebar in the same document scroll instead of creating a second
+     vertical scrollbar. Do not hide long navigation: it moves naturally with
+     the page when the viewport is shorter than the menu. */
+  .desktop-sidebar-v86 { height:auto !important; min-height:100dvh !important; max-height:none !important; overflow:visible !important; align-self:start !important; }
+  .desktop-sidebar-nav-v86,.desktop-sidebar-navblock-v86 { max-height:none !important; overflow:visible !important; }
+}
+
+/* Consistent rounded language across signed-in cards and containers. */
+:where(.list-switcher-panel,.list-tab,.shopping-panel,.polished-shopping-panel,.shopping-glance-v106,.shopping-stage-tabs-v106,
+.shopping-category-section,.shopping-finish-bar-v106,.v98-food-tonight-inline,.v98-contextual-choice,.food-context-card-v98,
+.autopilot-control-card,.autopilot-metric,.autopilot-command,.autopilot-section,.expense-book-setup-v106,
+.expense-month-book-v100,.expense-month-workspace-head-v105,.expense-month-kpis-v105>article,.expense-balance-audit,
+.pending-reimbursements,.expense-reimbursements,.reimbursement-history-panel,.expense-insights,.expense-account-people-v108){
+  border-radius:20px !important;
+}
+.list-tab { min-height:74px; padding:12px 14px !important; }
+.list-tabs { gap:10px !important; scrollbar-width:none; }
+.list-tabs::-webkit-scrollbar,.expense-ledger-math::-webkit-scrollbar { display:none; }
+.expense-ledger-math { scrollbar-width:none; }
+.list-switcher-panel { padding:18px !important; }
+
+/* House chat lives beside Tell GHM on every house screen. */
+.ghm-house-chat-fab-v108{
+  position:fixed; z-index:88; right:178px; bottom:max(22px,env(safe-area-inset-bottom));
+  min-height:50px; display:flex; align-items:center; gap:7px; padding:9px 13px;
+  border:1px solid var(--ghm-border-strong); border-radius:999px; text-decoration:none;
+  background:var(--ghm-surface-elevated); color:var(--ghm-text-strong);
+  box-shadow:0 14px 34px rgba(8,29,49,.18);
+}
+.ghm-house-chat-fab-v108 span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ghm-primary-soft);font-size:1rem}
+.ghm-house-chat-fab-v108 strong{font-size:.83rem}
+.ghm-house-chat-fab-v108:hover{transform:translateY(-2px)}
+
+/* Shopping completion: ask for receipt at the moment Shopping done is tapped. */
+.shopping-finish-dialog-v108{width:min(680px,calc(100vw - 40px))!important}
+.shopping-finish-choice-grid-v108{display:grid;gap:10px}
+.shopping-finish-choice-v108{width:100%;display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;padding:15px;border:1px solid var(--ghm-border);border-radius:18px;background:var(--ghm-surface-elevated);color:var(--ghm-text);box-shadow:none}
+.shopping-finish-choice-v108>span{display:grid;place-items:center;width:46px;height:46px;border-radius:15px;background:var(--ghm-surface-soft);font-size:1.35rem}
+.shopping-finish-choice-v108 strong{display:block;color:var(--ghm-text-strong);font-size:1rem}.shopping-finish-choice-v108 small{display:block;margin-top:3px;color:var(--ghm-muted);line-height:1.45}.shopping-finish-choice-v108>b{font-size:1.25rem;color:var(--ghm-muted)}
+.shopping-finish-choice-v108.recommended{border-color:color-mix(in srgb,var(--ghm-primary) 55%,var(--ghm-border));background:color-mix(in srgb,var(--ghm-primary-soft) 44%,var(--ghm-surface-elevated))}.shopping-finish-choice-v108.recommended>span{background:var(--ghm-primary);color:#fff}
+.shopping-finish-note-v108{padding:12px 14px;border-radius:15px;background:var(--ghm-surface-soft);color:var(--ghm-muted);font-size:.84rem;line-height:1.5}.shopping-finish-note-v108 strong{color:var(--ghm-text-strong)}
+
+/* Expense account people are a property of the account, not each new expense. */
+.expense-account-people-v108{padding:18px!important}
+.expense-account-people-list-v108{display:grid;gap:7px;margin-top:12px}
+.expense-account-people-list-v108>article{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 10px;border:1px solid var(--ghm-divider);border-radius:15px;background:var(--ghm-surface-soft)}
+.expense-account-people-list-v108 strong,.expense-account-people-list-v108 small{display:block}.expense-account-people-list-v108 strong{color:var(--ghm-text-strong)}.expense-account-people-list-v108 small{color:var(--ghm-muted);font-size:.74rem}
+.expense-account-people-list-v108>article>span:last-child{color:var(--ghm-success);font-weight:950}
+.expense-account-people-help-v108,.expense-account-scope-note-v108{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;margin-top:12px;padding:11px 12px;border-radius:15px;background:color-mix(in srgb,var(--ghm-primary-soft) 38%,var(--ghm-surface-elevated));color:var(--ghm-muted)}
+.expense-account-people-help-v108 p{margin:0!important}.expense-account-scope-note-v108 strong,.expense-account-scope-note-v108 small{display:block}.expense-account-scope-note-v108 strong{color:var(--ghm-text-strong)}.expense-account-scope-note-v108 small{margin-top:2px;color:var(--ghm-muted)}
+.expense-account-member-editor-v108{display:grid;gap:12px;padding:14px;border:1px solid var(--ghm-border);border-radius:18px;background:var(--ghm-surface-soft)}
+.expense-account-member-editor-v108>div:first-child strong,.expense-account-member-editor-v108>div:first-child small{display:block}.expense-account-member-editor-v108>div:first-child small{margin-top:3px;color:var(--ghm-muted)}
+.expense-account-member-grid-v108{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.expense-account-member-grid-v108 label{display:grid;grid-template-columns:auto 34px minmax(0,1fr);gap:8px;align-items:center;padding:9px;border:1px solid var(--ghm-border);border-radius:14px;background:var(--ghm-surface-elevated);color:var(--ghm-text)}
+.expense-account-member-grid-v108 label.selected{border-color:color-mix(in srgb,var(--ghm-primary) 55%,var(--ghm-border));background:color-mix(in srgb,var(--ghm-primary-soft) 34%,var(--ghm-surface-elevated))}.expense-account-member-grid-v108 input{min-height:unset!important;width:16px;height:16px}.expense-account-member-grid-v108 .member-avatar{width:34px;height:34px}.expense-account-member-grid-v108 strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ghm-text-strong)}
+.expense-account-member-warning-v108{padding:10px 12px;border-radius:13px;background:var(--ghm-warning-soft);color:var(--ghm-text);font-size:.8rem;line-height:1.45}
+.expense-overview-clean-v108{grid-template-columns:1fr!important}.expense-overview-clean-v108 .expense-overview-links-v105{grid-template-columns:1fr!important}
+.expense-month-detail-mode-v105 .expense-balance-audit,.expense-month-detail-mode-v105 .pending-reimbursements,.expense-month-detail-mode-v105 .expense-reimbursements,.expense-month-detail-mode-v105 .reimbursement-history-panel{display:block!important}
+.expense-month-detail-mode-v105 .expense-insights{display:none!important}
+.expense-month-detail-mode-v105 .expense-month-snapshot,.expense-month-detail-mode-v105 .expense-month-books,.expense-month-detail-mode-v105 .expense-overview-balance-v105{display:none!important}
+
+/* Dark-mode contrast: never light card + light type. */
+html[data-ghm-theme="dark"] :where(.list-tab,.list-switcher-panel,.shopping-list,.shopping-glance-v106,.shopping-stage-tabs-v106,.shopping-category-section,.shopping-finish-bar-v106,.v98-food-tonight-inline,.v98-contextual-choice,.food-context-card-v98,.autopilot-control-card),
+html[data-theme="dark"] :where(.list-tab,.list-switcher-panel,.shopping-list,.shopping-glance-v106,.shopping-stage-tabs-v106,.shopping-category-section,.shopping-finish-bar-v106,.v98-food-tonight-inline,.v98-contextual-choice,.food-context-card-v98,.autopilot-control-card){background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important}
+html[data-ghm-theme="dark"] :where(.list-tab,.list-switcher-panel,.shopping-list,.shopping-glance-v106,.shopping-stage-tabs-v106,.shopping-category-section,.shopping-finish-bar-v106,.v98-food-tonight-inline,.v98-contextual-choice,.food-context-card-v98,.autopilot-control-card) :where(h1,h2,h3,h4,strong,b),
+html[data-theme="dark"] :where(.list-tab,.list-switcher-panel,.shopping-list,.shopping-glance-v106,.shopping-stage-tabs-v106,.shopping-category-section,.shopping-finish-bar-v106,.v98-food-tonight-inline,.v98-contextual-choice,.food-context-card-v98,.autopilot-control-card) :where(h1,h2,h3,h4,strong,b){color:#fff!important}
+html[data-ghm-theme="dark"] :where(.list-tab,.list-switcher-panel,.shopping-list,.shopping-glance-v106,.shopping-stage-tabs-v106,.shopping-category-section,.shopping-finish-bar-v106,.v98-food-tonight-inline,.v98-contextual-choice,.food-context-card-v98,.autopilot-control-card) :where(p,small,em),
+html[data-theme="dark"] :where(.list-tab,.list-switcher-panel,.shopping-list,.shopping-glance-v106,.shopping-stage-tabs-v106,.shopping-category-section,.shopping-finish-bar-v106,.v98-food-tonight-inline,.v98-contextual-choice,.food-context-card-v98,.autopilot-control-card) :where(p,small,em){color:var(--ghm-muted)!important;opacity:1!important}
+html[data-ghm-theme="dark"] .list-tab.active,html[data-theme="dark"] .list-tab.active{background:color-mix(in srgb,var(--ghm-primary-soft) 70%,var(--ghm-surface-elevated))!important;border-color:var(--ghm-primary)!important}
+html[data-ghm-theme="dark"] .v98-food-tonight-inline>.secondary,html[data-theme="dark"] .v98-food-tonight-inline>.secondary{background:var(--ghm-surface-strong)!important;color:#fff!important}
+
+/* Desktop rhythm: generous margins, no oversized empty chrome. */
+@media(min-width:981px){
+  .desktop-content-v86>.page,.desktop-content-v86>main.page{max-width:1480px!important;padding:30px 38px 70px!important}
+  .shopping-page-layout{gap:22px!important}.shopping-main-column,.shopping-side-column{gap:18px!important}
+  .expense-month-detail-grid-v105{grid-template-columns:minmax(0,1.5fr) minmax(300px,.5fr)!important;gap:18px!important}
+  .expense-month-workspace-v105>*+*,.expenses-page>*+*{margin-top:20px!important}
+}
+
+/* Mobile is composed for touch, not squeezed desktop. */
+@media(max-width:760px){
+  .page{padding:16px 14px calc(112px + env(safe-area-inset-bottom))!important}.page>*+*{margin-top:14px!important}
+  .panel{padding:15px!important;border-radius:19px!important}.page-hero{padding:18px!important;border-radius:22px!important}
+  .panel-title-row{display:grid!important;grid-template-columns:1fr;gap:10px!important}.panel-title-row>button,.panel-title-row>.primary,.panel-title-row>.secondary{width:100%}
+  .list-switcher-panel{padding:14px!important}.list-tabs{display:flex!important;overflow-x:auto!important;overflow-y:hidden!important;scroll-snap-type:x proximity;padding:2px 0 5px!important}.list-tab{flex:0 0 min(76vw,280px);scroll-snap-align:start;border-radius:18px!important}
+  .shopping-glance-v106{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;padding:8px!important}.shopping-glance-v106>div{padding:8px 6px!important}.shopping-glance-v106 span{display:none!important}
+  .shopping-stage-tabs-v106{position:sticky;top:calc(var(--site-header-height,64px) + 4px);z-index:8;padding:5px!important;border-radius:16px!important;background:color-mix(in srgb,var(--ghm-surface-elevated) 94%,transparent)!important;backdrop-filter:blur(12px)}
+  .shopping-finish-bar-v106{display:grid!important;grid-template-columns:1fr!important;gap:10px!important;padding:13px!important}.shopping-finish-bar-v106 .primary{width:100%}
+  .shopping-finish-choice-v108{grid-template-columns:42px minmax(0,1fr) auto;padding:12px;gap:10px}.shopping-finish-choice-v108>span{width:40px;height:40px}
+  .ghm-house-chat-fab-v108{right:142px;bottom:calc(88px + env(safe-area-inset-bottom));width:48px;height:48px;min-height:48px;padding:0;justify-content:center;border-radius:50%}.ghm-house-chat-fab-v108 span{width:auto;height:auto;background:transparent;font-size:1.2rem}.ghm-house-chat-fab-v108 strong{display:none}
+  .ghm-capture-fab{max-width:118px!important;padding:9px 11px!important;gap:6px!important}.ghm-capture-fab span{width:28px!important;height:28px!important}.ghm-capture-fab strong{font-size:.78rem!important;white-space:nowrap}
+  .expense-month-workspace-head-v105{display:grid!important;gap:13px!important;padding:15px!important}.expense-month-workspace-head-v105 h2{font-size:1.5rem!important}.expense-month-workspace-actions-v105{grid-template-columns:1fr 1fr!important}.expense-month-workspace-actions-v105 .compact-v105{grid-column:1/-1!important}
+  .expense-month-kpis-v105{grid-template-columns:1fr 1fr!important;gap:8px!important}.expense-month-kpis-v105>article{padding:11px!important;min-height:100px}.expense-month-kpis-v105>article strong{font-size:1.2rem!important}.expense-month-kpis-v105>article:nth-child(3){grid-column:auto!important}
+  .expense-month-detail-grid-v105{grid-template-columns:1fr!important;gap:12px!important}.expense-account-people-v108{padding:14px!important}
+  .expense-account-member-grid-v108{grid-template-columns:1fr!important}.expense-account-member-editor-v108{padding:12px}
+  .expense-snapshot-grid{grid-template-columns:1fr 1fr!important;gap:8px!important}.expense-snapshot-grid>article{padding:11px!important}.expense-snapshot-grid>article strong{font-size:1.2rem!important}
+  .expense-book-setup-v106,.expense-month-books{padding:14px!important}.expense-book-mode-v106{grid-template-columns:1fr!important}.expense-month-book-main-v100{padding:13px!important}
+  .expense-ledger-grid,.reimbursement-grid,.pending-reimbursement-grid{grid-template-columns:1fr!important}.expense-ledger-math{overflow-x:auto;overflow-y:hidden;padding-bottom:4px}
+  .expense-form-section{padding:13px!important}.payer-card-grid,.expense-member-grid,.expense-category-grid{grid-template-columns:1fr 1fr!important;gap:8px!important}.expense-form-actions{display:grid!important;grid-template-columns:1fr auto!important}.expense-form-actions>.secondary{grid-column:1}.expense-save-summary{grid-column:2}.expense-save-button{grid-column:1/-1;width:100%}
+  /* Plan household control should feel like a mobile status chip, not a giant desktop score. */
+  .autopilot-hero{display:grid!important;grid-template-columns:1fr!important;gap:12px!important;padding:18px!important}.autopilot-control-card{display:grid!important;grid-template-columns:72px minmax(0,1fr)!important;align-items:center!important;text-align:left!important;gap:12px!important;padding:12px!important;min-height:0!important}.autopilot-ring{width:68px!important;height:68px!important}.autopilot-ring:before{inset:7px!important}.autopilot-ring strong{font-size:1.45rem!important}.autopilot-ring small{font-size:.65rem!important}.autopilot-control-card>div:last-child{gap:2px!important}.autopilot-control-card>div:last-child>strong{font-size:.98rem!important}.autopilot-control-card>div:last-child>small{font-size:.72rem!important;line-height:1.35!important}
+  .v98-food-tonight-inline{grid-template-columns:42px minmax(0,1fr)!important;gap:10px!important;padding:13px!important}.v98-food-tonight-inline>span{width:42px!important;height:42px!important}.v98-food-tonight-inline>.secondary{grid-column:1/-1;width:100%}
+}
+
+@media(max-width:430px){
+  .expense-month-kpis-v105{grid-template-columns:1fr 1fr!important}.expense-month-kpis-v105>article{min-width:0}.expense-month-kpis-v105>article small,.expense-month-kpis-v105>article i{font-size:.68rem!important}
+  .payer-card-grid,.expense-member-grid,.expense-category-grid{grid-template-columns:1fr!important}
+  .shopping-glance-v106>div strong{font-size:1.15rem!important}.shopping-glance-v106>div small{font-size:.62rem!important}
+}

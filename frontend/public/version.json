@@ -1,5 +1,5 @@
 {
-  "build": "V106",
-  "release": "premium-refinement",
-  "serviceWorkerCache": "ghm-shell-v106"
+  "build": "V108",
+  "release": "account-scoped-money-mobile-polish",
+  "serviceWorkerCache": "ghm-shell-v108"
 }

@@ -666,6 +666,7 @@ class ExpenseMonthOut(BaseModel):
     locked_by_user_id: int | None = None
     locked_by_name: str | None = None
     locked_at: datetime | None = None
+    participant_user_ids: list[int] = Field(default_factory=list)
 
 
 class ExpenseSettingsIn(BaseModel):
@@ -675,15 +676,18 @@ class ExpenseSettingsIn(BaseModel):
 class ExpenseMonthCreateIn(BaseModel):
     month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     name: str | None = Field(default=None, max_length=120)
+    participant_user_ids: list[int] = Field(default_factory=list)
 
 
 class ExpenseMonthUpdateIn(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    participant_user_ids: list[int] | None = None
 
 
 class ExpenseSettlementIn(BaseModel):
     from_user_id: int
     to_user_id: int
+    expense_month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     amount: float = Field(gt=0)
     currency: str = Field(default="CAD", max_length=12)
     notes: str | None = None
@@ -691,6 +695,7 @@ class ExpenseSettlementIn(BaseModel):
 
 class ExpenseSettlementOut(BaseModel):
     id: int
+    expense_month: str
     from_user_id: int
     from_user_name: str
     to_user_id: int

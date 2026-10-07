@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { Product, Section, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
 import { normalizeText, smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
+import OverlayPortal from './OverlayPortal';
 
 type Selection = Record<number, { selected: boolean; requested_quantity: number; message: string; bought_price?: number | null; bought_store_name?: string }>;
 type ItemUpdates = {
@@ -88,8 +89,9 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
   const [showAddMore, setShowAddMore] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [completedListTitle, setCompletedListTitle] = useState('');
+  const [finishPromptOpen, setFinishPromptOpen] = useState(false);
   const [listView, setListView] = useState<'to_buy' | 'in_cart'>('to_buy');
+  const navigate = useNavigate();
 
   const selectedItems = useMemo(() => Object.entries(selection).filter(([, value]) => value.selected), [selection]);
   const existingProductIds = useMemo(() => new Set(activeList?.items.map((item) => item.product_id) || []), [activeList]);
@@ -253,16 +255,25 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
     }
   }
 
-  async function shoppingDone() {
+  function shoppingDone() {
     if (!activeList) return;
-    if (!confirm('Shopping done? This will add all cart quantities to the real inventory.')) return;
+    setFinishPromptOpen(true);
+  }
+
+  function finishWithReceipt() {
+    if (!activeList) return;
+    setFinishPromptOpen(false);
+    navigate(`/houses/${houseId}/scan?shoppingListId=${activeList.id}`);
+  }
+
+  async function finishWithoutReceipt() {
+    if (!activeList) return;
     try {
       setBusy(true);
-      const finishedTitle = activeList.title;
+      setFinishPromptOpen(false);
       await api.post(`/houses/${houseId}/shopping-lists/${activeList.id}/done`, { confirm: true });
       setError('');
-      setCompletedListTitle(finishedTitle);
-      window.dispatchEvent(new CustomEvent('ghm:success-moment', { detail: { type: 'shopping', message: 'Your shopping trip is complete and the inventory is updated.' } }));
+      window.dispatchEvent(new CustomEvent('ghm:success-moment', { detail: { type: 'shopping', message: 'Shopping complete. Cart quantities were added to inventory.' } }));
       window.dispatchEvent(new Event('account:refresh'));
       await onChange();
     } catch (err) {
@@ -281,19 +292,12 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
         <div>
           <p className="eyebrow">Shopping flow</p>
           <h2>Grocery list</h2>
-          <p>Add what you need, move items into the cart as you shop, then tap Shopping done. Your inventory updates automatically.</p>
+          <p>Add what you need, move items into the cart as you shop, then tap Shopping done. Verify with a receipt or finish directly when you are ready.</p>
         </div>
       </div>
       {error && <div className="error">{error}</div>}
       {busy && <div className="hint">Saving change...</div>}
-      {completedListTitle ? (
-        <div className="shopping-complete-next" role="status">
-          <span aria-hidden="true">✓</span>
-          <div><p className="eyebrow">Shopping complete</p><strong>{completedListTitle} updated your inventory</strong><small>If you have the receipt, scan it now and Grocery House Manager can save the real prices and spending history automatically.</small></div>
-          <Link to={`/houses/${houseId}/scan`} className="primary center-link">Scan receipt</Link>
-          <button type="button" className="ghost-button" onClick={() => setCompletedListTitle('')}>Not now</button>
-        </div>
-      ) : null}
+
 
       {!activeList && (
         <>
@@ -346,6 +350,7 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
           {listView === 'in_cart' ? <div className="shopping-finish-bar-v106"><div><strong>{inCart.length ? `${inCart.length} item${inCart.length === 1 ? '' : 's'} ready` : 'Your cart is empty'}</strong><small>Only cart items update inventory when you finish.</small></div><button className="primary done" disabled={!inCart.length || busy} onClick={shoppingDone}>Shopping done</button></div> : null}
         </div>
       )}
+      {finishPromptOpen && activeList && <OverlayPortal><div className="modal-backdrop shopping-finish-backdrop-v108" onMouseDown={(event) => { if (event.currentTarget === event.target) setFinishPromptOpen(false); }}><section className="modal focus-dialog shopping-finish-dialog-v108" role="dialog" aria-modal="true" aria-label="Finish shopping"><header className="focus-dialog-titlebar"><div><p className="eyebrow">FINISH SHOPPING</p><h2>Do you have the receipt?</h2><p>Scanning it first lets GHM compare what you planned with what you actually bought before inventory is finalized.</p></div><button data-dialog-close="true" className="icon-btn" onClick={() => setFinishPromptOpen(false)}>×</button></header><div className="focus-dialog-scroll"><div className="shopping-finish-choice-grid-v108"><button type="button" className="shopping-finish-choice-v108 recommended" onClick={finishWithReceipt}><span>🧾</span><div><strong>Scan receipt & finish</strong><small>Recommended · GHM checks missing/extra products, saves real prices, then updates inventory after your review.</small></div><b>→</b></button><button type="button" className="shopping-finish-choice-v108" onClick={finishWithoutReceipt} disabled={busy}><span>✓</span><div><strong>Finish without receipt</strong><small>Add the quantities currently in your cart directly to inventory.</small></div><b>→</b></button></div><div className="shopping-finish-note-v108">Your shopping-list data stays attached to the receipt flow through <strong>{activeList.title}</strong>. Nothing is added twice.</div></div><footer className="focus-dialog-actions"><button type="button" className="secondary" onClick={() => setFinishPromptOpen(false)}>Keep shopping</button></footer></section></div></OverlayPortal>}
     </section>
   );
 }
