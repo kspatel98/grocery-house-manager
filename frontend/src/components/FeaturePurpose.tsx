@@ -45,13 +45,12 @@ export function FeaturePurposeDialog({ feature, onClose, learnPath = '/learn' }:
     <div className="modal-backdrop feature-purpose-backdrop-v101" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section className="modal focus-dialog feature-purpose-dialog-v101" role="dialog" aria-modal="true" aria-label={item.title}>
         <header className="focus-dialog-titlebar"><div><p className="eyebrow">WHY GHM DOES THIS</p><h2>{item.title}</h2><p>{item.problem}</p></div><button data-dialog-close="true" className="icon-btn" onClick={onClose} aria-label="Close">×</button></header>
-        <div className="focus-dialog-scroll">
-          <div className="feature-purpose-dialog-hero-v101"><span aria-hidden="true">{item.icon}</span><div><small>THE BENEFIT</small><strong>{item.benefit}</strong></div></div>
-          <p className="feature-purpose-explanation-v101">{item.explanation}</p>
-          {item.example && <div className="feature-purpose-example-v101"><small>EXAMPLE</small><p>{item.example}</p></div>}
-          <div className="feature-purpose-principle-v101"><span>✦</span><div><strong>Benefit first. Details when you need them.</strong><p>GHM keeps the main screen focused and makes the deeper reason available without forcing you to read a manual.</p></div></div>
+        <div className="focus-dialog-scroll feature-purpose-scroll-v105">
+          <div className="feature-purpose-dialog-hero-v101 feature-purpose-dialog-hero-v105"><span aria-hidden="true">{item.icon}</span><div><small>WHY THIS HELPS</small><strong>{item.benefit}</strong></div></div>
+          <section className="feature-purpose-detail-v105"><small>HOW IT WORKS</small><p className="feature-purpose-explanation-v101">{item.explanation}</p></section>
+          {item.example && <div className="feature-purpose-example-v101 feature-purpose-example-v105"><small>EXAMPLE</small><p>{item.example}</p></div>}
         </div>
-        <footer className="focus-dialog-actions"><button className="secondary" onClick={onClose}>Close</button><Link className="primary center-link" to={learnPath} onClick={onClose}>How GHM helps</Link></footer>
+        <footer className="focus-dialog-actions feature-purpose-actions-v105"><button className="primary" onClick={onClose}>Got it</button><Link className="secondary center-link" to={learnPath} onClick={onClose}>How GHM helps</Link></footer>
       </section>
     </div>
   </OverlayPortal>;

@@ -8,7 +8,7 @@ from app.api.plan_utils import ensure_house_limit, ensure_member_limit, get_hous
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Activity, House, HouseMember, HouseRole, Invite, Section, User
-from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseOut, HouseUpdate, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
+from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseMessageIn, HouseOut, HouseUpdate, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
 
 router = APIRouter(prefix="/houses", tags=["houses"])
 
@@ -186,12 +186,75 @@ def list_house_activities(
     activities = (
         db.query(Activity)
         .options(joinedload(Activity.user))
-        .filter(Activity.house_id == house_id)
+        .filter(Activity.house_id == house_id, Activity.action != "house_message")
         .order_by(Activity.created_at.desc(), Activity.id.desc())
         .limit(limit)
         .all()
     )
     return [serialize_activity(activity) for activity in activities]
+
+
+@router.get("/{house_id}/chat", response_model=list[ActivityOut])
+def list_house_chat(
+    house_id: int,
+    limit: int = Query(default=100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    rows = (
+        db.query(Activity)
+        .options(joinedload(Activity.user))
+        .filter(Activity.house_id == house_id, Activity.action == "house_message")
+        .order_by(Activity.created_at.desc(), Activity.id.desc())
+        .limit(limit)
+        .all()
+    )
+    rows.reverse()
+    return [serialize_activity(row) for row in rows]
+
+
+@router.post("/{house_id}/chat", response_model=ActivityOut)
+def post_house_chat(
+    house_id: int,
+    payload: HouseMessageIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    clean = " ".join(payload.message.split()).strip()
+    if not clean:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    activity = log_activity(
+        db,
+        house_id=house_id,
+        user=user,
+        action="house_message",
+        message=clean[:1200],
+        entity_type="house_chat",
+    )
+    db.commit()
+    db.refresh(activity)
+    activity = db.query(Activity).options(joinedload(Activity.user)).filter(Activity.id == activity.id).first()
+    return serialize_activity(activity)
+
+
+@router.delete("/{house_id}/chat/{message_id}")
+def delete_house_chat(
+    house_id: int,
+    message_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    membership = require_house_member(house_id, user, db)
+    activity = db.query(Activity).filter(Activity.id == message_id, Activity.house_id == house_id, Activity.action == "house_message").first()
+    if not activity:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if activity.user_id != user.id and membership.role not in {HouseRole.owner, HouseRole.admin}:
+        raise HTTPException(status_code=403, detail="You can only delete your own messages")
+    db.delete(activity)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/{house_id}/invite", response_model=InviteOut)

@@ -1,28 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export type AppTheme = 'light' | 'dark';
-const STORAGE_KEY = 'ghm_theme';
-const LEGACY_KEY = 'ghm_theme_v87';
+export type AppearanceMode = 'system' | 'light' | 'dark';
+export type VisualStyle = 'classic' | 'calm' | 'vibrant';
 
-export function getSavedTheme(): AppTheme {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
-    if (saved === 'dark' || saved === 'light') return saved;
-    if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
-  } catch {
-    // Ignore storage/privacy mode failures.
-  }
-  return 'light';
+const THEME_KEY = 'ghm_theme';
+const LEGACY_KEY = 'ghm_theme_v87';
+const APPEARANCE_KEY = 'ghm_appearance_v105';
+const STYLE_KEY = 'ghm_visual_style_v105';
+
+function systemTheme(): AppTheme {
+  try { return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+  catch { return 'light'; }
 }
 
-export function applyTheme(theme: AppTheme) {
+export function getSavedAppearanceMode(): AppearanceMode {
+  try {
+    const saved = localStorage.getItem(APPEARANCE_KEY);
+    if (saved === 'system' || saved === 'light' || saved === 'dark') return saved;
+    const legacy = localStorage.getItem(THEME_KEY) || localStorage.getItem(LEGACY_KEY);
+    if (legacy === 'light' || legacy === 'dark') return legacy;
+  } catch { /* privacy mode */ }
+  return 'system';
+}
+
+export function getSavedVisualStyle(): VisualStyle {
+  try {
+    const saved = localStorage.getItem(STYLE_KEY);
+    if (saved === 'classic' || saved === 'calm' || saved === 'vibrant') return saved;
+  } catch { /* privacy mode */ }
+  return 'classic';
+}
+
+export function resolveAppearance(mode: AppearanceMode): AppTheme {
+  return mode === 'system' ? systemTheme() : mode;
+}
+
+function applyResolvedTheme(theme: AppTheme) {
   document.documentElement.dataset.ghmTheme = theme;
-  // Keep the legacy theme attribute in sync too. Several historical GHM screens
-  // still use html[data-theme=...] selectors; setting both prevents mixed-theme
-  // islands where a dark page accidentally keeps a light/green surface.
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
-  const themeColor = theme === 'dark' ? '#071321' : '#f7f0e5';
+  const themeColor = theme === 'dark' ? '#081521' : '#f7f0e5';
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement('meta');
@@ -30,40 +48,92 @@ export function applyTheme(theme: AppTheme) {
     document.head.appendChild(meta);
   }
   meta.content = themeColor;
+}
+
+export function applyVisualStyle(style: VisualStyle) {
+  document.documentElement.dataset.ghmStyle = style;
+  try { localStorage.setItem(STYLE_KEY, style); } catch { /* no-op */ }
+  window.dispatchEvent(new CustomEvent('ghm:visual-style', { detail: { style } }));
+}
+
+export function applyAppearance(mode: AppearanceMode) {
+  const theme = resolveAppearance(mode);
+  document.documentElement.dataset.ghmAppearance = mode;
+  applyResolvedTheme(theme);
   try {
-    localStorage.setItem(STORAGE_KEY, theme);
+    localStorage.setItem(APPEARANCE_KEY, mode);
+    localStorage.setItem(THEME_KEY, theme);
     localStorage.setItem(LEGACY_KEY, theme);
-  } catch {
-    // Ignore storage/privacy mode failures.
-  }
+  } catch { /* no-op */ }
+  window.dispatchEvent(new CustomEvent('ghm:appearance', { detail: { mode, theme } }));
   window.dispatchEvent(new CustomEvent('ghm:theme', { detail: { theme } }));
 }
 
+export function initializeThemePreferences() {
+  const mode = getSavedAppearanceMode();
+  const style = getSavedVisualStyle();
+  applyVisualStyle(style);
+  applyAppearance(mode);
+}
+
+// Backward-compatible APIs used by historical GHM components.
+export function getSavedTheme(): AppTheme { return resolveAppearance(getSavedAppearanceMode()); }
+export function applyTheme(theme: AppTheme) { applyAppearance(theme); }
+
 export function useThemePreference() {
-  const [theme, setTheme] = useState<AppTheme>(() => getSavedTheme());
+  const [appearance, setAppearanceState] = useState<AppearanceMode>(() => getSavedAppearanceMode());
+  const [style, setStyleState] = useState<VisualStyle>(() => getSavedVisualStyle());
+  const [theme, setThemeState] = useState<AppTheme>(() => resolveAppearance(getSavedAppearanceMode()));
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyAppearance(appearance);
+    setThemeState(resolveAppearance(appearance));
+  }, [appearance]);
+
+  useEffect(() => { applyVisualStyle(style); }, [style]);
 
   useEffect(() => {
-    const sync = (event: Event) => {
-      const next = (event as CustomEvent<{ theme?: AppTheme }>).detail?.theme;
-      if (next && next !== theme) setTheme(next);
+    const onAppearance = (event: Event) => {
+      const detail = (event as CustomEvent<{ mode?: AppearanceMode; theme?: AppTheme }>).detail;
+      if (detail?.mode) setAppearanceState(detail.mode);
+      if (detail?.theme) setThemeState(detail.theme);
     };
-    window.addEventListener('ghm:theme', sync);
-    return () => window.removeEventListener('ghm:theme', sync);
-  }, [theme]);
+    const onStyle = (event: Event) => {
+      const next = (event as CustomEvent<{ style?: VisualStyle }>).detail?.style;
+      if (next) setStyleState(next);
+    };
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const onSystem = () => {
+      if (getSavedAppearanceMode() !== 'system') return;
+      const next = systemTheme();
+      applyResolvedTheme(next);
+      setThemeState(next);
+      window.dispatchEvent(new CustomEvent('ghm:theme', { detail: { theme: next } }));
+    };
+    window.addEventListener('ghm:appearance', onAppearance);
+    window.addEventListener('ghm:visual-style', onStyle);
+    media?.addEventListener?.('change', onSystem);
+    return () => {
+      window.removeEventListener('ghm:appearance', onAppearance);
+      window.removeEventListener('ghm:visual-style', onStyle);
+      media?.removeEventListener?.('change', onSystem);
+    };
+  }, []);
 
-  return {
+  const api = useMemo(() => ({
     theme,
-    setTheme,
-    toggleTheme: () => setTheme((value) => value === 'dark' ? 'light' : 'dark'),
-  };
+    appearance,
+    style,
+    setAppearance: (next: AppearanceMode) => setAppearanceState(next),
+    setStyle: (next: VisualStyle) => setStyleState(next),
+    setTheme: (next: AppTheme) => setAppearanceState(next),
+    toggleTheme: () => setAppearanceState(theme === 'dark' ? 'light' : 'dark'),
+  }), [theme, appearance, style]);
+  return api;
 }
 
 export function ThemeToggle({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
-  const { theme, toggleTheme } = useThemePreference();
+  const { theme, toggleTheme, appearance } = useThemePreference();
   const dark = theme === 'dark';
   return (
     <button
@@ -71,10 +141,10 @@ export function ThemeToggle({ compact = false, className = '' }: { compact?: boo
       className={`theme-toggle-v88 ${compact ? 'compact' : ''} ${className}`.trim()}
       onClick={toggleTheme}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-      title={dark ? 'Light mode' : 'Dark mode'}
+      title={appearance === 'system' ? `System appearance · currently ${theme}` : (dark ? 'Light mode' : 'Dark mode')}
     >
       <span className="theme-toggle-icon-v88" aria-hidden="true">{dark ? '☀' : '☾'}</span>
-      {!compact && <strong>{dark ? 'Light mode' : 'Dark mode'}</strong>}
+      {!compact && <strong>{appearance === 'system' ? `System · ${dark ? 'Dark' : 'Light'}` : (dark ? 'Light mode' : 'Dark mode')}</strong>}
     </button>
   );
 }

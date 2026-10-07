@@ -146,6 +146,11 @@ class ActivityOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+
+
+class HouseMessageIn(BaseModel):
+    message: str = Field(min_length=1, max_length=1200)
+
 class InviteOut(BaseModel):
     token: str
     join_url: str

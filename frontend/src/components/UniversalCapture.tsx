@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { HouseholdAgentResponse } from '../types';
@@ -23,6 +23,12 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
   const [error, setError] = useState('');
   const [suggestedAction, setSuggestedAction] = useState<SuggestedAction>(null);
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    const openCapture = () => { setOpen(true); setError(''); };
+    window.addEventListener('ghm:capture-open', openCapture);
+    return () => window.removeEventListener('ghm:capture-open', openCapture);
+  }, []);
 
   function close() {
     recognitionRef.current?.stop?.();
@@ -162,10 +168,13 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
               <button className="icon-button" onClick={close} aria-label="Close" data-dialog-close="true">×</button>
             </header>
 
-            <div className="ghm-capture-shortcuts">
-              <button type="button" onClick={startVoice}><span>{listening ? '◉' : '🎙️'}</span><strong>{listening ? 'Listening…' : 'Say it'}</strong><small>“We want Indian food tonight.”</small></button>
-              <button type="button" onClick={() => go(`/houses/${houseId}/scan`)}><span>🧾</span><strong>Scan receipt</strong><small>One scan can update multiple systems.</small></button>
-              <button type="button" onClick={() => go(`/houses/${houseId}/kitchen`)}><span>👁️</span><strong>Scan kitchen</strong><small>Quick-check a fridge, pantry or cupboard.</small></button>
+            <div className="ghm-capture-shortcuts v105-quick-capture-grid">
+              <button type="button" onClick={startVoice}><span>{listening ? '◉' : '🎙️'}</span><strong>{listening ? 'Listening…' : 'Say it'}</strong><small>Tell GHM what changed.</small></button>
+              <button type="button" onClick={() => go(`/houses/${houseId}/inventory`)}><span>📦</span><strong>Inventory</strong><small>Add or update what you own.</small></button>
+              <button type="button" onClick={() => go(`/houses/${houseId}/shopping`)}><span>🛒</span><strong>Shopping</strong><small>Add what the house needs.</small></button>
+              <button type="button" onClick={() => go(`/houses/${houseId}/scan`)}><span>🧾</span><strong>Scan receipt</strong><small>Inventory, prices and expenses.</small></button>
+              <button type="button" onClick={() => go(`/houses/${houseId}/expenses`)}><span>💸</span><strong>Expense</strong><small>Split a household cost.</small></button>
+              <button type="button" onClick={() => go(`/houses/${houseId}/meals`)}><span>🍲</span><strong>Meal</strong><small>Cook from what you own.</small></button>
             </div>
 
             <label className="ghm-capture-input">

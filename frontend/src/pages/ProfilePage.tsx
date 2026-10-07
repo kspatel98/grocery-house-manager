@@ -328,6 +328,12 @@ export default function ProfilePage() {
       {pageError && <div className="error">{pageError}</div>}
       {profileRefreshing && profile && <div className="hint">Refreshing your account details...</div>}
 
+      <section className="profile-appearance-card-v105">
+        <div className="profile-appearance-art-v105" aria-hidden="true"><span>☀</span><b>◐</b><i>☾</i></div>
+        <div><p className="eyebrow">APPEARANCE</p><h2>Light, dark or follow your device.</h2><p>Choose your appearance and GHM visual style from one dedicated screen. Dark mode uses its own contrast-safe surfaces instead of simply inverting light mode.</p></div>
+        <Link className="primary center-link" to="/appearance">Choose appearance</Link>
+      </section>
+
       {isLoadingProfile && (
         <section className="panel profile-panel">
           <p className="eyebrow">Account</p>

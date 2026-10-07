@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
-import type { AccountBootstrap, House, Product, Receipt, SavingsLedger, SavingsSummary } from '../types';
+import type { AccountBootstrap, Activity, ExpenseSummary, House, Product, Receipt, SavingsLedger, SavingsSummary, ShoppingList } from '../types';
 
 function csvEscape(value: unknown) {
   const text = String(value ?? '');
@@ -30,6 +30,10 @@ export default function ReportsPage() {
   const [error, setError] = useState('');
   const [savings, setSavings] = useState<SavingsSummary | null>(null);
   const [ledger, setLedger] = useState<SavingsLedger | null>(null);
+  const [expenses, setExpenses] = useState<ExpenseSummary | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [chatMessages, setChatMessages] = useState<Activity[]>([]);
+  const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
 
   async function loadHouses() {
     try {
@@ -44,16 +48,24 @@ export default function ReportsPage() {
   async function loadHouseReport(houseId: number) {
     try {
       setBusy(true);
-      const [productsRes, receiptsRes, savingsRes, ledgerRes] = await Promise.all([
+      const [productsRes, receiptsRes, savingsRes, ledgerRes, expenseRes, activityRes, chatRes, shoppingRes] = await Promise.all([
         api.get<Product[]>(`/houses/${houseId}/products`, { params: { sort_by: 'name' } }),
         api.get<Receipt[]>(`/houses/${houseId}/receipts`),
         api.get<SavingsSummary>(`/insights/houses/${houseId}/savings`, { params: { t: Date.now() } }),
         api.get<SavingsLedger>(`/insights/houses/${houseId}/savings-ledger`, { params: { t: Date.now() } }),
+        api.get<ExpenseSummary>(`/houses/${houseId}/expenses`),
+        api.get<Activity[]>(`/houses/${houseId}/activities`, { params: { limit: 100 } }),
+        api.get<Activity[]>(`/houses/${houseId}/chat`, { params: { limit: 100 } }),
+        api.get<ShoppingList[]>(`/houses/${houseId}/shopping-lists`, { params: { include_done: true } }),
       ]);
       setProducts(productsRes.data);
       setReceipts(receiptsRes.data);
       setSavings(savingsRes.data);
       setLedger(ledgerRes.data);
+      setExpenses(expenseRes.data);
+      setActivities(activityRes.data);
+      setChatMessages(chatRes.data);
+      setShoppingLists(shoppingRes.data);
       setError('');
     } catch (err) {
       setError(errorMessage(err));
@@ -94,6 +106,14 @@ export default function ReportsPage() {
   const expiring = products.filter((product) => product.is_expiring_soon).length;
   const trackedSpend = receipts.reduce((sum, receipt) => sum + (receipt.total_amount || 0), 0);
   const selectedHouse = houses.find((house) => house.id === Number(selectedHouseId));
+  const weekStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - 6); return d; }, []);
+  const receiptsThisWeek = receipts.filter((r) => new Date(r.receipt_date || r.created_at) >= weekStart);
+  const spendThisWeek = receiptsThisWeek.reduce((sum, r) => sum + (r.total_amount || 0), 0);
+  const expensesThisWeek = (expenses?.expenses || []).filter((x) => new Date(x.expense_date || x.created_at) >= weekStart);
+  const expenseSpendThisWeek = expensesThisWeek.reduce((sum, x) => sum + x.amount, 0);
+  const completedTripsThisWeek = shoppingLists.filter((list) => Boolean(list.is_done && list.completed_at && new Date(list.completed_at) >= weekStart)).length;
+  const activityThisWeek = activities.filter((x) => new Date(x.created_at) >= weekStart);
+  const chatThisWeek = chatMessages.filter((x) => new Date(x.created_at) >= weekStart);
 
   function exportBestPrices() {
     const rows = [
@@ -160,6 +180,18 @@ export default function ReportsPage() {
           <div className="guided-empty-actions"><Link to={`/houses/${selectedHouseId}/scan`} className="primary center-link">Scan a receipt</Link><Link to={`/houses/${selectedHouseId}/inventory`} className="secondary center-link">Add groceries instead</Link></div>
         </section>
       ) : null}
+
+      <section className="weekly-household-report-v105">
+        <header><div><p className="eyebrow">YOUR LAST 7 DAYS</p><h2>Weekly household report</h2><p>A calm summary of what GHM already helped your household capture — no extra setup.</p></div><span>✨</span></header>
+        <div className="weekly-report-grid-v105">
+          <article><span>🧾</span><small>Receipts scanned</small><strong>{receiptsThisWeek.length}</strong><p>{money(spendThisWeek)} captured from reviewed receipts</p></article>
+          <article><span>💸</span><small>Household expenses</small><strong>{money(expenseSpendThisWeek)}</strong><p>{expensesThisWeek.length} expense{expensesThisWeek.length === 1 ? '' : 's'} recorded</p></article>
+          <article><span>🛒</span><small>Shopping trips</small><strong>{completedTripsThisWeek}</strong><p>Completed lists in the last 7 days</p></article>
+          <article><span>🥛</span><small>Needs attention</small><strong>{lowStock + expiring}</strong><p>{lowStock} low stock · {expiring} use soon</p></article>
+          <article><span>💬</span><small>House chat</small><strong>{chatThisWeek.length}</strong><p>{activityThisWeek.length} other household update{activityThisWeek.length === 1 ? '' : 's'} recorded</p></article>
+          <article className="savings"><span>🏷️</span><small>Estimated monthly savings</small><strong>{money(savings?.estimated_savings || 0, savings?.currency_code)}</strong><p>Evidence stays separate from open opportunities</p></article>
+        </div>
+      </section>
 
       <section className="stats-grid four">
         <div className="stat-card"><strong>{products.length}</strong><span>Products</span></div>

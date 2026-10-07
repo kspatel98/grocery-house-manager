@@ -230,6 +230,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       { to: `/houses/${contextHouseId}/meals`, label: 'Meals', icon: '🍲', group: 'household', description: 'Recipes, servings and cook-from-home' },
       { to: `/houses/${contextHouseId}/food`, label: 'Food tonight', icon: '🍽️', group: 'household', description: 'Nearby food ideas when you do not want to cook' },
       { to: `/houses/${contextHouseId}/templates`, label: 'Templates', icon: '▤', group: 'household', description: 'Reusable household lists and routines' },
+      { to: `/houses/${contextHouseId}/chat`, label: 'House Chat', icon: '💬', group: 'household', description: 'Coordinate groceries, meals and household updates' },
       { to: `/houses/${contextHouseId}/scan`, label: 'Scan receipt', icon: '🧾', group: 'money', description: 'OCR, inventory, prices and expenses' },
       { to: `/houses/${contextHouseId}/receipts`, label: 'Receipts', icon: '🗂️', group: 'money', description: 'History, images and saved evidence' },
       { to: `/houses/${contextHouseId}/expenses`, label: 'Money', icon: '$', group: 'money', description: 'Expenses, monthly books and reimbursements' },
@@ -239,6 +240,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     { to: '/premium-try', label: 'Try Premium Free', icon: '✨', group: 'account', description: 'Choose one premium feature and use it once for free' },
     { to: '/pricing', label: t('plans'), icon: '✨', group: 'account', description: 'Plans, premium tools and extra scans' },
     { to: '/learn', label: 'How GHM helps', icon: '✦', group: 'learn', description: 'The problem each smart feature is designed to solve' },
+    { to: '/appearance', label: 'Appearance', icon: '🎨', group: 'account', description: 'System, light, dark and GHM visual styles' },
     { to: '/support', label: t('support'), icon: '💬', group: 'account', description: 'Get help with GHM' },
     { to: '/privacy', label: 'Privacy', icon: '◌', group: 'account', description: 'Privacy and data information' },
     { to: '/terms', label: 'Terms', icon: '§', group: 'account', description: 'Terms of service' },
@@ -513,9 +515,11 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               <small>GROCERY HOUSE MANAGER</small>
               <h1>{pageTitle}</h1>
             </div>
-            <div className="desktop-topbar-actions-v86">
+            <div className="desktop-topbar-actions-v86 v105-desktop-actions">
+              {contextHouseId ? <button type="button" className="desktop-topbar-pill-v86 v105-quick-add" onClick={() => window.dispatchEvent(new Event('ghm:capture-open'))}>＋ Quick add</button> : null}
               {contextHouseId ? <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="desktop-topbar-pill-v86">Ask GHM</Link> : null}
               {contextHouseId ? <Link to={`/houses/${contextHouseId}/scan`} className="desktop-topbar-pill-v86 alt">Scan receipt</Link> : <Link to="/support" className="desktop-topbar-pill-v86 alt">{t('support')}</Link>}
+              <Link to="/appearance" className="desktop-topbar-icon-v105" aria-label="Appearance" title="Appearance">◐</Link>
             </div>
           </div>
 
@@ -593,12 +597,12 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                 <Link className="v101-more-discover" to="/learn" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">✦</span><div><strong>Discover what GHM can do</strong><small>See the problem each smart feature solves and when to use it.</small></div><b aria-hidden="true">→</b></Link>
 
                 <section className="v100-more-preferences">
-                  <ThemeToggle className="mobile-more-theme-v87 v100-more-pref-card" />
+                  <Link className="v100-more-pref-card" to="/appearance" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">🎨</span><div><strong>Appearance</strong><small>System, light, dark & visual style</small></div></Link>
                   <div className="mobile-more-language-card-v88 v100-more-pref-card"><span aria-hidden="true">🌐</span><div><strong>Language</strong><LanguagePicker compact /></div></div>
                   <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
                 </section>
 
-                <div className="v104-build-badge" aria-label="Current app build">GHM design build V104</div>
+                <div className="v104-build-badge" aria-label="Current app build">GHM design build V105</div>
 
                 {mobileMoreGroups.map((group) => {
                   const items = extraNavItems.filter((item) => item.group === group.key);

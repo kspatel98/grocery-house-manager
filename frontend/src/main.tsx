@@ -10,11 +10,12 @@ import './theme-v100.css';
 import './theme-v101.css';
 import './theme-v102.css';
 import './theme-v104.css';
+import './theme-v105.css';
 import { LanguageProvider } from './i18n';
 import DialogFocusManager from './components/DialogFocusManager';
-import { applyTheme, getSavedTheme } from './theme';
+import { initializeThemePreferences } from './theme';
 
-applyTheme(getSavedTheme());
+initializeThemePreferences();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
