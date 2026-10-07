@@ -13,12 +13,14 @@ from app.db.dev_migrations import ensure_dev_schema
 import asyncio
 import logging
 from sqlalchemy import text
+from sqlalchemy.exc import InterfaceError, OperationalError
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name)
 app.state.db_ready = False
 app.state.db_error = None
 app.state.schema_warnings = []
+app.state.db_retry_task = None
 
 
 def _initialize_database() -> list[str]:
@@ -46,28 +48,47 @@ def _initialize_database() -> list[str]:
 
 async def _database_retry_loop() -> None:
     delay = 3
-    while not app.state.db_ready:
-        try:
-            warnings = await asyncio.to_thread(_initialize_database)
-            app.state.db_ready = True
-            app.state.db_error = None
-            app.state.schema_warnings = warnings
-            if warnings:
-                logger.warning("GHM database is ready with %s compatibility warning(s)", len(warnings))
-            else:
-                logger.info("GHM database is ready")
-            return
-        except Exception as exc:
-            app.state.db_ready = False
-            app.state.db_error = str(exc)[:500]
-            logger.exception("GHM database initialization failed; retrying in %ss", delay)
-            await asyncio.sleep(delay)
-            delay = min(delay * 2, 30)
+    try:
+        while not app.state.db_ready:
+            try:
+                warnings = await asyncio.to_thread(_initialize_database)
+                app.state.db_ready = True
+                app.state.db_error = None
+                app.state.schema_warnings = warnings
+                if warnings:
+                    logger.warning("GHM database is ready with %s compatibility warning(s)", len(warnings))
+                else:
+                    logger.info("GHM database is ready")
+                return
+            except Exception as exc:
+                app.state.db_ready = False
+                app.state.db_error = str(exc)[:500]
+                # Drop the local SQLAlchemy connections so the next attempt
+                # establishes fresh PgBouncer/TCP sessions.
+                engine.dispose()
+                logger.exception("GHM database initialization failed; retrying in %ss", delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30)
+    finally:
+        app.state.db_retry_task = None
+
+
+def _ensure_database_retry_task() -> None:
+    task = getattr(app.state, "db_retry_task", None)
+    if task is None or task.done():
+        app.state.db_retry_task = asyncio.create_task(_database_retry_loop())
+
+
+def _mark_database_unready(exc: Exception) -> None:
+    app.state.db_ready = False
+    app.state.db_error = str(exc)[:500]
+    # Invalid/stale DBAPI connections must not remain in SQLAlchemy's pool.
+    engine.dispose()
 
 
 @app.on_event("startup")
 async def start_database_guard() -> None:
-    asyncio.create_task(_database_retry_loop())
+    _ensure_database_retry_task()
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
@@ -136,9 +157,50 @@ def health_live():
 @app.get("/health/ready")
 def health_ready():
     from fastapi.responses import JSONResponse
-    if app.state.db_ready:
-        return {"status": "ready", "database": "connected", "schema_warnings": len(getattr(app.state, "schema_warnings", []) or [])}
+
+    # This is a live database probe, not only a startup flag. It catches a
+    # PgBouncer/database interruption that happens after the app has started.
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        app.state.db_ready = True
+        app.state.db_error = None
+        return {
+            "status": "ready",
+            "database": "connected",
+            "schema_warnings": len(getattr(app.state, "schema_warnings", []) or []),
+        }
+    except Exception as exc:
+        _mark_database_unready(exc)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "reconnecting",
+                "database": "not_ready",
+                "detail": "Database connection is temporarily unavailable. GHM will retry automatically.",
+            },
+            headers={"Retry-After": "3"},
+        )
+
+
+async def _database_connection_error_handler(request, exc):
+    from fastapi.responses import JSONResponse
+
+    _mark_database_unready(exc)
+    _ensure_database_retry_task()
+    logger.warning("Transient database connection error on %s: %s", request.url.path, exc)
     return JSONResponse(
         status_code=503,
-        content={"status": "starting", "database": "not_ready", "detail": app.state.db_error or "Database initialization is still in progress."},
+        content={
+            "detail": "GHM temporarily lost its database connection and is reconnecting. Your data has not been deleted. Please retry in a moment.",
+            "code": "database_reconnecting",
+        },
+        headers={"Retry-After": "3"},
     )
+
+
+# Turn transient PostgreSQL/PgBouncer disconnects into a retryable 503 instead
+# of exposing a generic 500 to the frontend. The frontend already retries safe
+# GET requests automatically.
+app.add_exception_handler(OperationalError, _database_connection_error_handler)
+app.add_exception_handler(InterfaceError, _database_connection_error_handler)

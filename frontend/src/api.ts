@@ -30,7 +30,7 @@ export function logoutToLogin() {
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 12000,
+  timeout: 15000,
   headers: {
     "Cache-Control": "no-cache",
     Pragma: "no-cache",

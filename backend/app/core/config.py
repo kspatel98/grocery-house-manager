@@ -11,6 +11,19 @@ class Settings(BaseSettings):
     secret_key: str
     access_token_expire_minutes: int = 60 * 24
 
+    # PostgreSQL / PgBouncer reliability. GHM uses a small SQLAlchemy client
+    # pool in front of the DigitalOcean PgBouncer transaction pool. With the
+    # recommended PgBouncer pool size of 8, 5 + 3 overflow keeps one backend
+    # process bounded to at most 8 simultaneous database client connections.
+    db_pool_size: int = 5
+    db_max_overflow: int = 3
+    db_pool_timeout_seconds: int = 10
+    db_pool_recycle_seconds: int = 300
+    db_connect_timeout_seconds: int = 8
+    db_keepalives_idle_seconds: int = 30
+    db_keepalives_interval_seconds: int = 10
+    db_keepalives_count: int = 3
+
     # Keep this as a string so .env can use a simple value like:
     # BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     backend_cors_origins: str = "http://localhost:5173"
