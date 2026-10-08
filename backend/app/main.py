@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from sqlalchemy.exc import TimeoutError as SQLAlchemyPoolTimeout
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, houses, products, sections, shopping, live, billing, account, admin, market, reviews, offers, insights, expenses, recipes_external, community_recipes, ai, templates, analytics, food
 from app.core.config import settings
@@ -150,6 +151,22 @@ app.add_middleware(
     expose_headers=["Content-Length"],
     max_age=0,
 )
+
+@app.exception_handler(SQLAlchemyPoolTimeout)
+async def sqlalchemy_pool_timeout_handler(request, exc):
+    """Return a recoverable 503 instead of an ASGI traceback when the local pool is busy."""
+    from fastapi.responses import JSONResponse
+
+    logger.error("Database connection pool exhausted on %s: %s | %s", request.url.path, exc, engine.pool.status())
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "GHM is briefly busy connecting to household data. Please retry in a moment.",
+            "code": "database_pool_busy",
+        },
+        headers={"Retry-After": "2"},
+    )
+
 
 app.include_router(auth.router)
 app.include_router(houses.router)

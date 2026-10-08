@@ -1,5 +1,5 @@
 {
-  "build": "V110",
+  "build": "V111",
   "release": "contrast-mobile-db-polish",
-  "serviceWorkerCache": "ghm-shell-v110"
+  "serviceWorkerCache": "ghm-shell-v111"
 }

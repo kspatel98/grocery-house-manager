@@ -60,7 +60,7 @@ export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Pro
 
       socket.onclose = () => {
         socket = null;
-        if (stopped) return;
+        if (stopped || document.hidden || !navigator.onLine) return;
         reconnectAttempt += 1;
         const delay = Math.min(2000 * Math.pow(2, Math.min(reconnectAttempt - 1, 4)), 30000);
         reconnectTimer = window.setTimeout(connect, delay);
@@ -89,7 +89,18 @@ export function useHouseLiveRefresh(houseId: number, onRefresh: () => void | Pro
       scheduleRefresh(1000);
     };
     const onVisibility = () => {
-      if (!document.hidden && (!socket || socket.readyState === WebSocket.CLOSED)) connect();
+      if (document.hidden) {
+        // Background tabs do not need a live household socket. Closing it saves
+        // server work and prevents many sleeping tabs/devices from polling forever.
+        if (reconnectTimer) window.clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+        if (socket && socket.readyState <= WebSocket.OPEN) {
+          socket.close(1000, 'page hidden');
+        }
+        socket = null;
+        return;
+      }
+      if (!socket || socket.readyState === WebSocket.CLOSED) connect();
     };
 
     window.addEventListener('focus', onFocus);
