@@ -1,5 +1,5 @@
 {
-  "build": "V109",
-  "release": "ui-system-db-resilience",
-  "serviceWorkerCache": "ghm-shell-v109"
+  "build": "V110",
+  "release": "contrast-mobile-db-polish",
+  "serviceWorkerCache": "ghm-shell-v110"
 }

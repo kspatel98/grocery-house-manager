@@ -118,20 +118,19 @@ export function errorMessage(error: unknown): string {
 
 
 export async function probeApiHealth(): Promise<{ live: boolean; ready: boolean; detail?: string }> {
+  // This browser-facing probe answers only one question: is the GHM web/API
+  // process reachable?  Database readiness is deliberately NOT used for a
+  // global UI banner. A short PgBouncer probe delay used to surface as
+  // "timeout of 5000ms exceeded" even while the app server and cached
+  // household data were healthy. Individual API calls already retry and show
+  // scoped errors if the database itself is temporarily unavailable.
   try {
-    const live = await axios.get(`${API_URL}/health/live`, { timeout: 5000, headers: { "Cache-Control": "no-cache" } });
-    if (live.status < 200 || live.status >= 300) return { live: false, ready: false, detail: "GHM service is not responding." };
-  } catch (error) {
-    return { live: false, ready: false, detail: axios.isAxiosError(error) ? error.message : "GHM service is not responding." };
-  }
-  try {
-    const ready = await axios.get(`${API_URL}/health/ready`, { timeout: 5000, headers: { "Cache-Control": "no-cache" } });
-    return { live: true, ready: ready.status >= 200 && ready.status < 300 };
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const detail = error.response?.data?.detail;
-      return { live: true, ready: false, detail: typeof detail === "string" ? detail : "GHM is reconnecting to your household data." };
+    const live = await axios.get(`${API_URL}/health/live`, { timeout: 8000, headers: { "Cache-Control": "no-cache" } });
+    if (live.status < 200 || live.status >= 300) {
+      return { live: false, ready: false, detail: "GHM service is temporarily unreachable." };
     }
-    return { live: true, ready: false, detail: "GHM is reconnecting to your household data." };
+    return { live: true, ready: true };
+  } catch {
+    return { live: false, ready: false, detail: "GHM service is temporarily unreachable. Your saved household data has not been deleted." };
   }
 }

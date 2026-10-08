@@ -628,8 +628,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
                 </section>
 
-                <div className="v104-build-badge" aria-label="Current app build">GHM design build V109</div>
-
                 {mobileMoreGroups.map((group) => {
                   const items = extraNavItems.filter((item) => item.group === group.key);
                   if (!items.length) return null;

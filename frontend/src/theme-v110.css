@@ -1,0 +1,298 @@
+/* ========================================================================== 
+   GHM V110 — final contrast + responsive surface polish + mobile More repair
+   Imported last.  This file intentionally normalizes legacy V31–V109 UI.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Geometry: one calm family of cards, panels and controls
+   -------------------------------------------------------------------------- */
+:root{
+  --ghm-radius-xl:28px;
+  --ghm-radius-lg:22px;
+  --ghm-radius-md:16px;
+  --ghm-control-height:44px;
+}
+
+.app-main-content :where(
+  .v85-page-titlebar,.receipt-v85-topbar,.receipt-v85-workbench,.receipt-v85-upload-zone,.receipt-v85-scan-settings,.receipt-v85-result-preview,
+  .quick-create-product-card,.guided-inline-empty,.weekly-flyer-panel,.flyer-local-filter-panel,.flyer-local-filer-panel,
+  .billing-cycle-switch,.premium-try-faq-v102 article,.premium-try-confirm-v102,.premium-try-invite-v102,
+  .support-hero,.support-email,.support-social-link,.v95-house-access,
+  .recipe-detail-modal,.ingredient-table,.recipe-step-list li,.recipe-community-meta-v89,
+  .market-access-panel,.market-tool-card,.shopping-page-layout>*,.shopping-main-column>*,.shopping-side-column>*
+){border-radius:var(--ghm-radius-lg)!important}
+
+.app-main-content :where(button,.primary,.secondary,.danger-button,.orange-button,.center-link){min-height:var(--ghm-control-height)}
+
+/* Leave/delete is a deliberate destructive action, not an unstyled text button. */
+.v95-house-access .danger-button{
+  border-radius:999px!important;
+  padding:10px 16px!important;
+  border:1px solid color-mix(in srgb,var(--ghm-danger) 46%,var(--ghm-border))!important;
+  background:var(--ghm-danger-soft)!important;
+  color:var(--ghm-danger)!important;
+  font-weight:900!important;
+  box-shadow:none!important;
+}
+.v95-house-access .danger-button:hover{filter:brightness(.98);transform:translateY(-1px)}
+
+/* --------------------------------------------------------------------------
+   2. Receipt Scan: same surface language as the rest of GHM
+   -------------------------------------------------------------------------- */
+.v85-receipt-page .v85-page-titlebar{
+  padding:clamp(20px,2vw,28px)!important;
+  border:1px solid var(--ghm-border)!important;
+  background:var(--ghm-card-gradient)!important;
+  color:var(--ghm-text)!important;
+  box-shadow:var(--ghm-shadow)!important;
+  overflow:hidden!important;
+}
+.v85-receipt-page .v85-page-titlebar :where(h1,h2,strong){color:var(--ghm-text-strong)!important}
+.v85-receipt-page .v85-page-titlebar :where(p,.breadcrumb,.eyebrow){color:var(--ghm-muted)!important;opacity:1!important}
+.v85-receipt-page .v85-page-titlebar nav a{
+  border-radius:999px!important;
+  border:1px solid var(--ghm-border)!important;
+  background:var(--ghm-surface-elevated)!important;
+  color:var(--ghm-text-strong)!important;
+  font-weight:850!important;
+}
+.v85-receipt-page .v85-page-titlebar nav a:hover{border-color:var(--ghm-primary)!important;background:var(--ghm-primary-soft)!important}
+.v85-receipt-page .feature-purpose-card-v101,
+.v85-receipt-page .skeleton-panel{
+  border-radius:22px!important;
+  border:1px solid var(--ghm-border)!important;
+  background:var(--ghm-surface-elevated)!important;
+  color:var(--ghm-text)!important;
+}
+.v85-receipt-page .feature-purpose-card-v101 :where(strong,h2,h3){color:var(--ghm-text-strong)!important}
+.v85-receipt-page .feature-purpose-card-v101 :where(p,small){color:var(--ghm-muted)!important;opacity:1!important}
+
+/* Receipt studio's old hard-coded whites/greens must not survive dark mode. */
+html[data-ghm-theme="dark"] .receipt-v85-workbench,
+html[data-theme="dark"] .receipt-v85-workbench{
+  background:var(--ghm-surface)!important;border-color:var(--ghm-border)!important;
+}
+html[data-ghm-theme="dark"] :where(.receipt-v85-upload-zone,.receipt-v85-scan-settings,.receipt-v85-result-preview,.receipt-studio-v85 .receipt-review-studio,.receipt-studio-v85 .receipt-meta-grid,.receipt-studio-v85 .receipt-manual-block,.receipt-studio-v85 .receipt-history-shortcut),
+html[data-theme="dark"] :where(.receipt-v85-upload-zone,.receipt-v85-scan-settings,.receipt-v85-result-preview,.receipt-studio-v85 .receipt-review-studio,.receipt-studio-v85 .receipt-meta-grid,.receipt-studio-v85 .receipt-manual-block,.receipt-studio-v85 .receipt-history-shortcut){
+  background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important;
+}
+html[data-ghm-theme="dark"] .receipt-v85-dropzone,
+html[data-theme="dark"] .receipt-v85-dropzone{
+  background:var(--ghm-surface-soft)!important;border-color:var(--ghm-border-strong)!important;color:var(--ghm-text)!important;
+}
+html[data-ghm-theme="dark"] .receipt-v85-dropzone :where(strong,span),
+html[data-theme="dark"] .receipt-v85-dropzone :where(strong,span){color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .receipt-v85-dropzone small,
+html[data-theme="dark"] .receipt-v85-dropzone small{color:var(--ghm-muted)!important}
+
+/* --------------------------------------------------------------------------
+   3. Meals / Recipes: chips and method cards always meet the dark palette
+   -------------------------------------------------------------------------- */
+html[data-ghm-theme="dark"] :where(.recipe-detail-modal,.focus-dialog-scroll),
+html[data-theme="dark"] :where(.recipe-detail-modal,.focus-dialog-scroll){background:var(--ghm-canvas)!important;color:var(--ghm-text)!important}
+html[data-ghm-theme="dark"] .recipe-modal-title,
+html[data-theme="dark"] .recipe-modal-title{background:var(--ghm-surface)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .recipe-modal-title :where(h2,.eyebrow),
+html[data-theme="dark"] .recipe-modal-title :where(h2,.eyebrow){color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .diet-chips span,
+html[data-theme="dark"] .diet-chips span,
+html[data-ghm-theme="dark"] .community-card-tags-v89 em,
+html[data-theme="dark"] .community-card-tags-v89 em{
+  background:var(--ghm-primary-soft)!important;
+  border:1px solid color-mix(in srgb,var(--ghm-primary) 32%,var(--ghm-border))!important;
+  color:var(--ghm-text-strong)!important;
+  opacity:1!important;
+}
+html[data-ghm-theme="dark"] .ingredient-table,
+html[data-theme="dark"] .ingredient-table{background:var(--ghm-surface)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .ingredient-row,
+html[data-theme="dark"] .ingredient-row{background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important}
+html[data-ghm-theme="dark"] .ingredient-row.head,
+html[data-theme="dark"] .ingredient-row.head{background:var(--ghm-surface-strong)!important;color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .ingredient-row :where(strong,em),
+html[data-theme="dark"] .ingredient-row :where(strong,em){color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .ingredient-row small,
+html[data-theme="dark"] .ingredient-row small{background:var(--ghm-surface-soft)!important;color:var(--ghm-muted)!important}
+html[data-ghm-theme="dark"] .ingredient-row mark,
+html[data-theme="dark"] .ingredient-row mark{background:#60491e!important;color:#ffe6a8!important}
+html[data-ghm-theme="dark"] .recipe-step-list li,
+html[data-theme="dark"] .recipe-step-list li{
+  background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important;
+}
+html[data-ghm-theme="dark"] .recipe-step-list p,
+html[data-theme="dark"] .recipe-step-list p{color:var(--ghm-text)!important;opacity:1!important}
+html[data-ghm-theme="dark"] .recipe-step-list strong,
+html[data-theme="dark"] .recipe-step-list strong{color:var(--ghm-primary-bright)!important}
+html[data-ghm-theme="dark"] .recipe-method-intro,
+html[data-theme="dark"] .recipe-method-intro{color:var(--ghm-muted)!important}
+html[data-ghm-theme="dark"] .recipe-ready-score,
+html[data-theme="dark"] .recipe-ready-score{background:var(--ghm-surface-strong)!important;color:var(--ghm-text-strong)!important;border:1px solid var(--ghm-border)!important}
+
+/* --------------------------------------------------------------------------
+   4. Shopping: manual item entry must fit its actual column
+   -------------------------------------------------------------------------- */
+.quick-create-product-card{min-width:0!important;overflow:hidden!important;padding:18px!important}
+.quick-create-grid{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)!important;
+  gap:10px!important;
+  min-width:0!important;
+}
+.quick-create-grid>*{min-width:0!important;width:100%!important;max-width:100%!important}
+.quick-create-grid>input:first-child{grid-column:1/-1!important}
+.quick-create-grid>button{grid-column:1/-1!important;width:100%!important}
+.shopping-main-column .product-picker-wrap,.shopping-main-column .product-picker,.shopping-main-column .quick-create-product-card{max-width:100%!important;min-width:0!important}
+
+/* --------------------------------------------------------------------------
+   5. Market/Flyers/Pricing/Support: eliminate pale-on-pale dark-mode islands
+   -------------------------------------------------------------------------- */
+html[data-ghm-theme="dark"] :where(
+  .guided-inline-empty,.flyer-local-filter-panel,.flyer-local-filer-panel,.flyer-location-panel,.flyer-detail-image,
+  .billing-cycle-switch,.premium-try-faq-v102 article,.premium-try-confirm-v102,.premium-try-used-v102,
+  .support-email,.support-social-link,.location-note
+),
+html[data-theme="dark"] :where(
+  .guided-inline-empty,.flyer-local-filter-panel,.flyer-local-filer-panel,.flyer-location-panel,.flyer-detail-image,
+  .billing-cycle-switch,.premium-try-faq-v102 article,.premium-try-confirm-v102,.premium-try-used-v102,
+  .support-email,.support-social-link,.location-note
+){
+  background:var(--ghm-surface-elevated)!important;
+  border-color:var(--ghm-border)!important;
+  color:var(--ghm-text)!important;
+}
+html[data-ghm-theme="dark"] :where(.guided-inline-empty,.flyer-local-filter-panel,.flyer-local-filer-panel,.billing-cycle-switch,.premium-try-faq-v102 article,.premium-try-confirm-v102,.support-email,.support-social-link) :where(strong,b,h2,h3),
+html[data-theme="dark"] :where(.guided-inline-empty,.flyer-local-filter-panel,.flyer-local-filer-panel,.billing-cycle-switch,.premium-try-faq-v102 article,.premium-try-confirm-v102,.support-email,.support-social-link) :where(strong,b,h2,h3){color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] :where(.guided-inline-empty,.flyer-local-filter-panel,.flyer-local-filer-panel,.billing-cycle-switch,.premium-try-faq-v102 article,.premium-try-confirm-v102,.support-email,.support-social-link,.location-note) :where(p,small,span,em),
+html[data-theme="dark"] :where(.guided-inline-empty,.flyer-local-filter-panel,.flyer-local-filer-panel,.billing-cycle-switch,.premium-try-faq-v102 article,.premium-try-confirm-v102,.support-email,.support-social-link,.location-note) :where(p,small,span,em){color:var(--ghm-muted)!important;opacity:1!important}
+html[data-ghm-theme="dark"] .guided-inline-empty>span,
+html[data-theme="dark"] .guided-inline-empty>span{background:var(--ghm-surface-soft)!important;color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .billing-cycle-buttons,
+html[data-theme="dark"] .billing-cycle-buttons{background:var(--ghm-surface-soft)!important;border-radius:16px!important}
+html[data-ghm-theme="dark"] .billing-cycle-buttons button,
+html[data-theme="dark"] .billing-cycle-buttons button{color:var(--ghm-muted)!important}
+html[data-ghm-theme="dark"] .billing-cycle-buttons button.active,
+html[data-theme="dark"] .billing-cycle-buttons button.active{background:var(--ghm-primary-deep)!important;color:#fff!important}
+
+html[data-ghm-theme="dark"] .premium-try-rule-row-v102 span,
+html[data-theme="dark"] .premium-try-rule-row-v102 span{
+  background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important;
+}
+html[data-ghm-theme="dark"] .premium-try-rule-row-v102 small,
+html[data-theme="dark"] .premium-try-rule-row-v102 small{color:var(--ghm-text-strong)!important;opacity:1!important}
+
+/* Tables in legacy tools were still carrying a white header into dark mode. */
+html[data-ghm-theme="dark"] .app-main-content table,
+html[data-theme="dark"] .app-main-content table{background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important}
+html[data-ghm-theme="dark"] .app-main-content thead,
+html[data-theme="dark"] .app-main-content thead,
+html[data-ghm-theme="dark"] .app-main-content th,
+html[data-theme="dark"] .app-main-content th{background:var(--ghm-surface-strong)!important;color:var(--ghm-text-strong)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .app-main-content td,
+html[data-theme="dark"] .app-main-content td{background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;border-color:var(--ghm-border)!important}
+
+/* --------------------------------------------------------------------------
+   6. Mobile More: full viewport, one vertical scroll, no pull-and-hold issue
+   -------------------------------------------------------------------------- */
+@media(max-width:900px){
+  .mobile-more-backdrop{
+    position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;
+    overflow:hidden!important;background:var(--ghm-bg)!important;backdrop-filter:none!important;
+  }
+  .mobile-more-sheet{
+    position:fixed!important;inset:0!important;
+    width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;
+    margin:0!important;padding:calc(10px + env(safe-area-inset-top)) 14px calc(104px + env(safe-area-inset-bottom))!important;
+    border-radius:0!important;border:0!important;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch!important;
+    background:var(--ghm-bg)!important;color:var(--ghm-text)!important;
+  }
+  .mobile-more-handle{display:none!important}
+  .mobile-more-head{
+    position:sticky!important;top:0!important;z-index:8!important;
+    margin:0 0 12px!important;padding:8px 0 12px!important;
+    background:color-mix(in srgb,var(--ghm-bg) 94%,transparent)!important;
+    border-bottom:1px solid var(--ghm-divider)!important;
+    backdrop-filter:blur(14px)!important;
+  }
+  .mobile-more-head h2{color:var(--ghm-text-strong)!important}
+  .mobile-more-head :where(p,small){color:var(--ghm-muted)!important}
+  .mobile-more-head button{border-radius:50%!important;background:var(--ghm-surface-elevated)!important;color:var(--ghm-text-strong)!important;border:1px solid var(--ghm-border)!important}
+  .v100-more-scroll{overflow:visible!important;min-width:0!important;width:100%!important;padding:0!important;gap:14px!important}
+  .v100-more-scroll>*{min-width:0!important;max-width:100%!important}
+  .v100-more-spotlight{grid-template-columns:1fr!important;min-height:0!important;padding:16px!important}
+  .v100-more-spotlight-art{display:none!important}
+  .v100-more-preferences{grid-template-columns:1fr!important;gap:8px!important}
+  .v100-more-pref-card{min-height:64px!important}
+  .v100-more-feature-grid{grid-template-columns:1fr!important;gap:8px!important}
+  .v100-more-feature-card{min-height:72px!important;display:grid!important;grid-template-columns:42px minmax(0,1fr) auto!important;align-items:center!important}
+  .v100-more-feature-card .v100-more-feature-icon{grid-column:auto!important}
+  .v100-more-feature-card div{grid-column:auto!important}
+  .v100-more-feature-card small{display:block!important}
+  .v100-more-feature-card>b{position:static!important}
+  .mobile-bottom-nav{z-index:4100!important}
+}
+
+/* --------------------------------------------------------------------------
+   7. Mobile content: never force desktop widths into narrow views
+   -------------------------------------------------------------------------- */
+@media(max-width:760px){
+  .v85-receipt-page .v85-page-titlebar{padding:16px!important}
+  .v85-receipt-page .v85-page-titlebar nav{grid-template-columns:1fr!important;gap:8px!important}
+  .v85-receipt-page .v85-page-titlebar nav a{width:100%!important;padding:10px 12px!important}
+  .quick-create-grid{grid-template-columns:1fr!important}
+  .quick-create-grid>*{grid-column:1!important}
+  .recipe-detail-image{max-height:260px!important;object-fit:cover!important}
+  .diet-chips{gap:7px!important}
+  .diet-chips span{font-size:.68rem!important;padding:6px 9px!important}
+  .ingredient-row{min-width:610px!important}
+  .v95-house-access{display:grid!important;grid-template-columns:1fr!important;gap:12px!important}
+  .v95-house-access .danger-button{width:100%!important}
+  .support-contact-stack{display:grid!important;grid-template-columns:1fr!important}
+  .support-email,.support-social-link{max-width:100%!important;overflow-wrap:anywhere!important;text-align:center!important}
+}
+
+/* --------------------------------------------------------------------------
+   8. Final overflow guard: horizontal page scrolling is never a feature
+   -------------------------------------------------------------------------- */
+.app-frame,.desktop-main-v86,.app-main-content,.app-main-content>.page{max-width:100%!important;overflow-x:clip!important}
+.app-main-content :where(.panel,.topbar,.page-hero,.shopping-page-layout,.shopping-main-column,.shopping-side-column,.market-tool-card,.weekly-flyer-panel){min-width:0!important;max-width:100%!important}
+
+/* Market/source status pills keep semantic color without sacrificing contrast. */
+html[data-ghm-theme="dark"] .market-status-pill.connected,
+html[data-theme="dark"] .market-status-pill.connected{
+  background:var(--ghm-primary-soft)!important;color:var(--ghm-primary-bright)!important;border-color:var(--ghm-border)!important;
+}
+html[data-ghm-theme="dark"] .market-status-pill.offline,
+html[data-theme="dark"] .market-status-pill.offline{
+  background:var(--ghm-warning-soft)!important;color:var(--ghm-warning)!important;border-color:color-mix(in srgb,var(--ghm-warning) 38%,var(--ghm-border))!important;
+}
+html[data-ghm-theme="dark"] :where(.source-badge,.confidence-pill),
+html[data-theme="dark"] :where(.source-badge,.confidence-pill){
+  background:var(--ghm-surface-soft)!important;color:var(--ghm-text-strong)!important;border-color:var(--ghm-border)!important;
+}
+
+@media(max-width:760px){
+  /* Recipe ingredients become compact cards instead of a desktop-width table. */
+  .recipe-detail-modal .ingredient-table{overflow:visible!important;border:0!important;background:transparent!important}
+  .recipe-detail-modal .ingredient-row.head{display:none!important}
+  .recipe-detail-modal .ingredient-row:not(.head){
+    min-width:0!important;
+    grid-template-columns:28px minmax(0,1fr) auto!important;
+    grid-template-rows:auto auto auto!important;
+    gap:8px 10px!important;
+    margin:0 0 10px!important;
+    padding:12px!important;
+    border:1px solid var(--ghm-border)!important;
+    border-radius:16px!important;
+    overflow:hidden!important;
+  }
+  .recipe-detail-modal .ingredient-row:not(.head)>span:nth-child(1){grid-column:1;grid-row:1/4;align-self:start;padding-top:3px}
+  .recipe-detail-modal .ingredient-row:not(.head)>span:nth-child(2){grid-column:2;grid-row:1}
+  .recipe-detail-modal .ingredient-row:not(.head)>span:nth-child(3){grid-column:2;grid-row:2;display:grid!important;grid-template-columns:minmax(0,120px) auto!important;justify-content:start;align-items:center;gap:6px!important}
+  .recipe-detail-modal .ingredient-row:not(.head)>span:nth-child(3)::before{content:"Required";grid-column:1/-1;font-size:.62rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--ghm-muted)}
+  .recipe-detail-modal .ingredient-row:not(.head)>span:nth-child(4){grid-column:2;grid-row:3;font-size:.78rem;color:var(--ghm-muted)!important}
+  .recipe-detail-modal .ingredient-row:not(.head)>span:nth-child(4)::before{content:"In stock: ";font-weight:850;color:var(--ghm-text)!important}
+  .recipe-detail-modal .ingredient-row:not(.head)>span:nth-child(5){grid-column:3;grid-row:1/4;align-self:center;text-align:right}
+  .recipe-detail-modal .required-edit input{width:100%!important;min-width:0!important}
+}

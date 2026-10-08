@@ -27,21 +27,28 @@ export default function ServiceStatusBanner() {
     }
 
     consecutiveFailures.current += 1;
-    const sustained = consecutiveFailures.current >= 2;
+    const sustained = consecutiveFailures.current >= 3;
     if (!sustained && !forceVisible) {
       // Keep the UI calm while GHM silently retries short-lived network/DB blips.
       if (status !== 'checking') setStatus('ready');
       return;
     }
 
-    setStatus(result.live ? 'degraded' : 'offline');
-    setDetail(result.detail || (result.live ? 'Household data is reconnecting.' : 'The server is temporarily unreachable.'));
+    // A live API process never triggers a global banner. Database/PgBouncer
+    // issues are handled by the affected request, while cached screens remain usable.
+    if (result.live) {
+      setStatus('ready');
+      setDetail('');
+      return;
+    }
+    setStatus('offline');
+    setDetail(result.detail || 'The server is temporarily unreachable.');
   }
 
   useEffect(() => {
     mounted.current = true;
     void check();
-    const timer = window.setInterval(() => void check(), status === 'checking' ? 5000 : status === 'ready' ? 45000 : 10000);
+    const timer = window.setInterval(() => void check(), status === 'checking' ? 8000 : status === 'ready' ? 60000 : 15000);
     const onOnline = () => void check(true);
     window.addEventListener('online', onOnline);
     return () => {
@@ -56,7 +63,7 @@ export default function ServiceStatusBanner() {
     <div className={`ghm-service-status ${status}`} role="status" aria-live="polite">
       <span className="ghm-service-pulse" />
       <div>
-        <strong>{status === 'offline' ? 'Connection interrupted' : 'Reconnecting household data'}</strong>
+        <strong>Connection unavailable</strong>
         <small>{detail}</small>
       </div>
       <button type="button" onClick={() => void check(true)}>Retry</button>

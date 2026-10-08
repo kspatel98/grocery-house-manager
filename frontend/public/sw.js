@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ghm-shell-v109';
+const CACHE_NAME = 'ghm-shell-v110';
 const CORE = [
   '/',
   '/site.webmanifest',
