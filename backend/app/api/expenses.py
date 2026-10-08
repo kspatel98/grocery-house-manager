@@ -22,7 +22,7 @@ from app.models import (
     Receipt,
     User,
 )
-from app.services.expense_math import suggest_transfer_cents
+from app.services.expense_math import allocate_equal_split_cents, settlement_plan_is_valid, suggest_transfer_cents
 from app.schemas import (
     ExpenseBalanceOut,
     ExpenseBalanceBreakdownOut,
@@ -242,6 +242,35 @@ def _settlement_out(row: ExpenseSettlement) -> ExpenseSettlementOut:
     )
 
 
+def _normalized_currency(value: str | None) -> str:
+    return (value or "CAD").strip().upper() or "CAD"
+
+
+def _account_currencies(db: Session, house_id: int, expense_month: str, *, exclude_expense_id: int | None = None) -> set[str]:
+    currencies: set[str] = set()
+    expense_rows = db.query(HouseExpense).filter(HouseExpense.house_id == house_id).all()
+    for row in expense_rows:
+        if exclude_expense_id is not None and row.id == exclude_expense_id:
+            continue
+        if _expense_month_key(row) == expense_month:
+            currencies.add(_normalized_currency(row.currency))
+    settlement_rows = db.query(ExpenseSettlement).filter(ExpenseSettlement.house_id == house_id).all()
+    for row in settlement_rows:
+        row_month = _normalize_month_key(getattr(row, "expense_month", None), row.created_at.date() if row.created_at else date.today())
+        if row_month == expense_month and _settlement_status(row) != "cancelled":
+            currencies.add(_normalized_currency(row.currency))
+    return currencies
+
+
+def _ensure_account_currency(db: Session, house_id: int, expense_month: str, currency: str, *, exclude_expense_id: int | None = None) -> str:
+    requested = _normalized_currency(currency)
+    existing = _account_currencies(db, house_id, expense_month, exclude_expense_id=exclude_expense_id)
+    if existing and (len(existing) > 1 or requested not in existing):
+        label = ", ".join(sorted(existing))
+        raise HTTPException(status_code=400, detail=f"This money account already uses {label}. Keep one currency per account so balances cannot be combined incorrectly.")
+    return requested
+
+
 def _summary(db: Session, house_id: int, expense_month: str | None = None) -> ExpenseSummaryOut:
     members = _members(db, house_id)
     user_by_id = {m.user_id: m.user for m in members}
@@ -280,7 +309,9 @@ def _summary(db: Session, house_id: int, expense_month: str | None = None) -> Ex
         "pending_sent": 0, "pending_received": 0,
     } for uid in scoped_member_ids}
 
-    source_data_valid = True
+    scoped_currencies = {_normalized_currency(x.currency) for x in expenses}
+    scoped_currencies.update(_normalized_currency(x.currency) for x in settlements)
+    source_data_valid = len(scoped_currencies) <= 1
     for expense in expenses:
         ledger.setdefault(expense.paid_by_user_id, {"paid": 0, "share": 0, "sent": 0, "received": 0, "pending_sent": 0, "pending_received": 0})
         expense_cents = _cents(expense.amount)
@@ -332,8 +363,14 @@ def _summary(db: Session, house_id: int, expense_month: str | None = None) -> Ex
     balance_is_valid = source_data_valid and sum(actual_balances.values()) == 0
 
     # Suggestions use the pending-adjusted plan balances, not the raw actual balances.
+    # Never propose money movement if source data is inconsistent, currencies are mixed,
+    # or the transfer plan fails an exact integer-cent reconciliation check.
     suggestions: list[ExpenseSuggestedPaymentOut] = []
-    for debtor_id, creditor_id, amount in suggest_transfer_cents(plan_balances):
+    transfer_plan = suggest_transfer_cents(plan_balances) if balance_is_valid else []
+    if transfer_plan and not settlement_plan_is_valid(plan_balances, transfer_plan):
+        transfer_plan = []
+        balance_is_valid = False
+    for debtor_id, creditor_id, amount in transfer_plan:
         suggestions.append(ExpenseSuggestedPaymentOut(
             from_user_id=debtor_id,
             from_user_name=_name(user_by_id.get(debtor_id)),
@@ -428,17 +465,11 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
         ).first()
         if existing_receipt_expense:
             raise HTTPException(status_code=409, detail="This receipt is already linked to a shared expense.")
+    currency = _ensure_account_currency(db, house_id, expense_month, payload.currency)
     shares = payload.shares
     if not shares:
-        each = round(float(payload.amount) / max(len(account_member_ids), 1), 2)
-        shares = []
-        ordered = sorted(account_member_ids)
-        remaining = round(float(payload.amount), 2)
         from app.schemas import ExpenseShareIn
-        for i, uid in enumerate(ordered):
-            amount = remaining if i == len(ordered) - 1 else each
-            shares.append(ExpenseShareIn(user_id=uid, share_amount=amount))
-            remaining = round(remaining - amount, 2)
+        shares = [ExpenseShareIn(user_id=uid, share_amount=_dollars(amount)) for uid, amount in allocate_equal_split_cents(_cents(payload.amount), account_member_ids)]
     if any(s.user_id not in account_member_ids for s in shares):
         raise HTTPException(status_code=400, detail="Every split participant must be included in this expense account.")
     if len({s.user_id for s in shares}) != len(shares):
@@ -446,7 +477,7 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
     if sum(_cents(s.share_amount) for s in shares) != _cents(payload.amount):
         raise HTTPException(status_code=400, detail="Split amounts must add up exactly to the total expense.")
     row = HouseExpense(
-        house_id=house_id, title=payload.title.strip(), amount=float(payload.amount), currency=payload.currency.upper(),
+        house_id=house_id, title=payload.title.strip(), amount=float(payload.amount), currency=currency,
         category=payload.category.strip() or "Groceries", paid_by_user_id=payload.paid_by_user_id,
         created_by_user_id=user.id, receipt_id=payload.receipt_id, expense_date=expense_date, expense_month=expense_month, notes=payload.notes,
     )
@@ -499,15 +530,14 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
         if existing_receipt_expense:
             raise HTTPException(status_code=409, detail="This receipt is already linked to another shared expense.")
 
+    currency = _ensure_account_currency(db, house_id, next_month, payload.currency, exclude_expense_id=expense_id)
     shares = payload.shares
     if not shares:
-        ordered = sorted(account_member_ids or allowed_member_ids)
-        if not ordered:
+        participants = account_member_ids or allowed_member_ids
+        if not participants:
             raise HTTPException(status_code=400, detail="This house has no members.")
-        total_cents = _cents(payload.amount)
-        base, remainder = divmod(total_cents, len(ordered))
         from app.schemas import ExpenseShareIn
-        shares = [ExpenseShareIn(user_id=uid, share_amount=_dollars(base + (1 if i < remainder else 0))) for i, uid in enumerate(ordered)]
+        shares = [ExpenseShareIn(user_id=uid, share_amount=_dollars(amount)) for uid, amount in allocate_equal_split_cents(_cents(payload.amount), participants)]
 
     if any(s.user_id not in allowed_member_ids for s in shares):
         raise HTTPException(status_code=400, detail="Every split participant must be included in this expense account.")
@@ -518,7 +548,7 @@ def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db:
 
     row.title = payload.title.strip()
     row.amount = float(payload.amount)
-    row.currency = payload.currency.upper()
+    row.currency = currency
     row.category = payload.category.strip() or "Groceries"
     row.paid_by_user_id = payload.paid_by_user_id
     row.expense_date = next_date
@@ -704,13 +734,14 @@ def _record_reimbursement(house_id: int, payload: ExpenseSettlementIn, db: Sessi
     suggestion = _current_suggestion(before, payload.from_user_id, payload.to_user_id)
     if not suggestion:
         raise HTTPException(status_code=409, detail="This reimbursement is no longer needed in this account. Refresh the account balances.")
+    currency = _ensure_account_currency(db, house_id, expense_month, payload.currency)
     amount_cents = _cents(payload.amount)
     if amount_cents <= 0 or amount_cents > _cents(suggestion.amount):
         raise HTTPException(status_code=400, detail=f"Amount cannot exceed the current suggested reimbursement of ${suggestion.amount:.2f}.")
 
     row = ExpenseSettlement(
         house_id=house_id, expense_month=expense_month, from_user_id=payload.from_user_id, to_user_id=payload.to_user_id,
-        amount=_dollars(amount_cents), currency=payload.currency.upper(), notes=payload.notes,
+        amount=_dollars(amount_cents), currency=currency, notes=payload.notes,
         status="pending", created_by_user_id=user.id,
     )
     db.add(row)

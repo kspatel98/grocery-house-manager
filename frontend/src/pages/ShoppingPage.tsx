@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import type { Activity, BasketComparison, House, HouseMember, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
@@ -14,7 +14,9 @@ const SHOPPING_PRODUCT_LIMIT = 80;
 
 export default function ShoppingPage() {
   const { houseId } = useParams();
+  const [searchParams] = useSearchParams();
   const id = Number(houseId);
+  const requestedListId = Number(searchParams.get('list') || 0);
   const [house, setHouse] = useState<House | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -67,6 +69,9 @@ export default function ShoppingPage() {
       if (!listsRes.data.length) {
         setCreatingNew(true);
         setSelectedListId(null);
+      } else if (requestedListId && listsRes.data.some((list) => list.id === requestedListId)) {
+        setCreatingNew(false);
+        setSelectedListId(requestedListId);
       } else if (!creatingNew && (!selectedListId || !listsRes.data.some((list) => list.id === selectedListId))) {
         setSelectedListId(listsRes.data[0].id);
       }
@@ -237,6 +242,10 @@ export default function ShoppingPage() {
               setSelectedListId(list.id);
             }}
             onProductSearch={loadProducts}
+            onCancelCreate={() => {
+              setCreatingNew(false);
+              setSelectedListId(activeLists[0]?.id || null);
+            }}
           />
         </section>
         <aside className="shopping-side-column">

@@ -32,6 +32,18 @@ def ensure_dev_schema(engine: Engine) -> list[str]:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end TIMESTAMP WITH TIME ZONE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
 
+        # V113: richer house chat. Additive only; existing activity rows stay valid.
+        "ALTER TABLE activities ADD COLUMN IF NOT EXISTS reply_to_id INTEGER",
+        "ALTER TABLE activities ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(40)",
+        "ALTER TABLE activities ADD COLUMN IF NOT EXISTS attachment_title VARCHAR(180)",
+        "ALTER TABLE activities ADD COLUMN IF NOT EXISTS attachment_subtitle TEXT",
+        "ALTER TABLE activities ADD COLUMN IF NOT EXISTS attachment_url TEXT",
+        "CREATE INDEX IF NOT EXISTS ix_activities_reply_to_id ON activities(reply_to_id)",
+        "CREATE TABLE IF NOT EXISTS house_message_reactions (id SERIAL PRIMARY KEY, activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, emoji VARCHAR(16) NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), CONSTRAINT uq_house_message_reaction UNIQUE (activity_id, user_id, emoji))",
+        "CREATE INDEX IF NOT EXISTS ix_house_message_reactions_activity_id ON house_message_reactions(activity_id)",
+        "CREATE INDEX IF NOT EXISTS ix_house_message_reactions_user_id ON house_message_reactions(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_house_message_reactions_created_at ON house_message_reactions(created_at)",
+
         "ALTER TABLE houses ADD COLUMN IF NOT EXISTS contribute_community_prices BOOLEAN DEFAULT FALSE",
         "ALTER TABLE houses ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
         "ALTER TABLE houses ADD COLUMN IF NOT EXISTS autopilot_strategy VARCHAR(24) DEFAULT 'balanced'",

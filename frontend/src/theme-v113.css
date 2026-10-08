@@ -1,0 +1,148 @@
+/* ========================================================================== 
+   GHM V113 — navigation, chat, money safety and final light/dark readability
+   This file is imported last on purpose. Keep legacy features; normalize them.
+   ========================================================================== */
+
+/* 1. Public site: real gutters and readable closed-loop/value proof ---------- */
+.v96-public-home .shell.wide,
+.v96-public-home>.shell.wide,
+.v96-loop-section>.shell.wide{
+  width:min(1180px,calc(100% - 64px))!important;
+  max-width:1180px!important;
+  margin-inline:auto!important;
+  box-sizing:border-box!important;
+}
+.v96-loop-section{padding-inline:0!important}
+.v96-loop-inner{gap:clamp(28px,5vw,68px)!important;padding-block:clamp(42px,6vw,76px)!important}
+.v96-loop-node{
+  border:1px solid var(--ghm-border)!important;border-radius:20px!important;
+  background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;
+  box-shadow:0 10px 26px rgba(31,66,78,.06)!important;padding:16px 18px!important;
+}
+.v96-loop-node>span{background:var(--ghm-primary-soft)!important;color:var(--ghm-primary-deep)!important;border-radius:14px!important}
+.v96-loop-node strong{color:var(--ghm-text-strong)!important;opacity:1!important}
+.v96-loop-node small{color:var(--ghm-muted)!important;opacity:1!important;line-height:1.45!important}
+.v96-loop-node>b{color:var(--ghm-primary)!important;opacity:.72!important}
+.v96-value-card,.v96-trust-card{background:var(--ghm-card-gradient)!important;border:1px solid var(--ghm-border)!important;color:var(--ghm-text)!important}
+.v96-value-card>div>span{background:var(--ghm-surface-elevated)!important;border:1px solid var(--ghm-border)!important;border-radius:16px!important;padding:14px!important}
+.v96-value-card>div small{color:var(--ghm-muted)!important;opacity:1!important}
+.v96-value-card>div strong,.v96-value-card h2,.v96-trust-card h2{color:var(--ghm-text-strong)!important;opacity:1!important}
+.v96-value-card>p,.v96-trust-card>p{color:var(--ghm-text)!important;opacity:1!important}
+html[data-ghm-theme="dark"] :where(.v96-loop-node,.v96-value-card>div>span),html[data-theme="dark"] :where(.v96-loop-node,.v96-value-card>div>span){background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .v96-loop-node :where(strong,small),html[data-theme="dark"] .v96-loop-node :where(strong,small){color:var(--ghm-text-strong)!important;opacity:1!important}
+html[data-ghm-theme="dark"] .v96-loop-node small,html[data-theme="dark"] .v96-loop-node small{color:var(--ghm-muted)!important}
+
+/* 2. House navigation: four local tabs are legible; global Today is gone ----- */
+.v95-house-tabs{gap:8px!important;padding:7px!important;border-radius:22px!important;background:var(--ghm-surface-elevated)!important;border:1px solid var(--ghm-border)!important;box-shadow:var(--ghm-shadow)!important}
+.v95-house-tabs button{border:1px solid transparent!important;border-radius:16px!important;color:var(--ghm-text)!important;background:transparent!important;min-width:0!important}
+.v95-house-tabs button>span{background:var(--ghm-surface-soft)!important;color:var(--ghm-primary-deep)!important}
+.v95-house-tabs button strong{color:var(--ghm-text-strong)!important;font-weight:900!important}
+.v95-house-tabs button small{color:var(--ghm-muted)!important;opacity:1!important}
+.v95-house-tabs button.active{background:var(--ghm-primary-deep)!important;border-color:var(--ghm-primary-deep)!important;color:#fff!important}
+.v95-house-tabs button.active :where(strong,small){color:#fff!important}.v95-house-tabs button.active small{opacity:.82!important}
+.v95-house-tabs button.active>span{background:rgba(255,255,255,.14)!important;color:#fff!important}
+html[data-ghm-theme="dark"] .v95-house-tabs,html[data-theme="dark"] .v95-house-tabs{background:var(--ghm-surface)!important}
+
+/* 3. Inventory: useful density, not giant catalogue tiles -------------------- */
+.products-grid{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important;gap:12px!important}
+.product-card{grid-template-rows:100px auto auto!important;border-radius:20px!important;min-width:0!important}
+.product-card .product-media,.product-card>.product-visual,.product-card .product-visual{min-height:100px!important;height:100px!important}
+.product-card .product-body{padding:13px 14px 8px!important;gap:5px!important}
+.product-card .product-body h3{font-size:1rem!important;line-height:1.25!important;margin:0!important}
+.product-card .product-body p,.product-card .product-body small{font-size:.78rem!important;line-height:1.35!important}
+.product-card .card-actions{padding:8px 12px 12px!important;gap:7px!important}
+.product-card .card-actions button,.product-card .card-actions a{min-height:38px!important;padding:8px 10px!important;font-size:.78rem!important}
+
+/* 4. Meals: inventory percentage, chips, servings and recipe steps ------------ */
+.recipe-image-tile{border-radius:20px!important;overflow:hidden!important;border:1px solid var(--ghm-border)!important;background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important}
+.recipe-image-copy strong{color:var(--ghm-text-strong)!important}.recipe-image-copy small{color:var(--ghm-muted)!important;opacity:1!important}
+.recipe-image-copy em{border:1px solid var(--ghm-border)!important;box-shadow:0 3px 10px rgba(0,0,0,.05)!important}
+.recipe-image-copy em.ready{background:var(--ghm-success-soft)!important;color:var(--ghm-success)!important}
+.recipe-image-copy em.almost{background:var(--ghm-warning-soft)!important;color:var(--ghm-warning)!important}
+.recipe-image-copy em.missing{background:var(--ghm-primary-soft)!important;color:var(--ghm-primary-deep)!important}
+.serving-box{background:var(--ghm-surface-elevated)!important;border:1px solid var(--ghm-border)!important;color:var(--ghm-text)!important;box-shadow:var(--ghm-shadow)!important}
+.serving-box span{color:var(--ghm-text-strong)!important}.serving-box input{background:var(--ghm-surface)!important;color:var(--ghm-text-strong)!important;border-color:var(--ghm-border)!important}
+.recipe-ready-score{background:var(--ghm-primary-deep)!important;border:1px solid var(--ghm-border-strong)!important;color:#fff!important}
+.recipe-ready-score :where(strong,small){color:#fff!important;opacity:1!important}
+.diet-chips span,.community-card-tags-v89 em{background:var(--ghm-primary-soft)!important;color:var(--ghm-primary-deep)!important;border:1px solid var(--ghm-border)!important;opacity:1!important}
+.recipe-share-row-v113{display:flex;justify-content:flex-end;margin:14px 0 4px}.recipe-share-row-v113 button{border-radius:14px!important}
+html[data-ghm-theme="dark"] :where(.recipe-image-tile,.serving-box),html[data-theme="dark"] :where(.recipe-image-tile,.serving-box){background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important}
+html[data-ghm-theme="dark"] .recipe-image-copy em.missing,html[data-theme="dark"] .recipe-image-copy em.missing{background:var(--ghm-surface-strong)!important;color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] :where(.diet-chips span,.community-card-tags-v89 em),html[data-theme="dark"] :where(.diet-chips span,.community-card-tags-v89 em){background:var(--ghm-primary-soft)!important;color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .recipe-step-list li,html[data-theme="dark"] .recipe-step-list li{background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .recipe-step-list li p,html[data-theme="dark"] .recipe-step-list li p{color:var(--ghm-text)!important;opacity:1!important}
+
+/* 5. Kitchen Vision: native file control belongs to the theme ---------------- */
+.kitchen-scan-file-v96{border:1px dashed var(--ghm-border-strong)!important;background:var(--ghm-surface-soft)!important;border-radius:18px!important;padding:14px!important;color:var(--ghm-text)!important}
+.kitchen-scan-file-v96 input[type="file"]{width:100%!important;max-width:100%!important;color:var(--ghm-text)!important;background:transparent!important}
+.kitchen-scan-file-v96 input[type="file"]::file-selector-button{border:1px solid var(--ghm-border)!important;border-radius:12px!important;background:var(--ghm-primary-deep)!important;color:#fff!important;padding:10px 14px!important;margin-right:12px!important;font-weight:850!important;cursor:pointer!important}
+.kitchen-scan-file-v96 small{display:block;margin-top:9px;color:var(--ghm-muted)!important}
+html[data-ghm-theme="dark"] .kitchen-scan-file-v96,html[data-theme="dark"] .kitchen-scan-file-v96{background:var(--ghm-surface)!important;border-color:var(--ghm-border-strong)!important}
+
+/* 6. Receipt scan: medium workspace, consistent surface in BOTH modes -------- */
+.v85-receipt-page{width:min(1180px,calc(100% - 40px))!important;margin-inline:auto!important;padding-inline:0!important;gap:16px!important}
+.v85-receipt-page .v85-page-titlebar{padding:22px 24px!important;border-radius:24px!important;background:var(--ghm-card-gradient)!important;color:var(--ghm-text)!important}
+.v85-receipt-page .v85-page-titlebar :where(h1,h2,strong){color:var(--ghm-text-strong)!important}.v85-receipt-page .v85-page-titlebar :where(p,.breadcrumb,.eyebrow){color:var(--ghm-muted)!important;opacity:1!important}
+.receipt-studio-v85{border-radius:24px!important;overflow:hidden!important;background:var(--ghm-surface-elevated)!important;border:1px solid var(--ghm-border)!important}
+.receipt-v85-topbar{background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;border-color:var(--ghm-border)!important}
+.receipt-v85-topbar :where(strong,span,b){color:var(--ghm-text-strong)!important}.receipt-v85-topbar :where(small,p){color:var(--ghm-muted)!important}
+.receipt-v85-workbench{grid-template-columns:minmax(230px,.9fr) minmax(250px,1fr) minmax(210px,.7fr)!important;gap:14px!important;padding:16px!important;background:var(--ghm-surface)!important;border-color:var(--ghm-border)!important}
+.receipt-v85-upload-zone,.receipt-v85-scan-settings,.receipt-v85-result-preview{min-width:0!important;border:1px solid var(--ghm-border)!important;border-radius:20px!important;background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;padding:16px!important}
+.receipt-v85-upload-zone :where(h2,h3,strong),.receipt-v85-scan-settings :where(h2,h3,strong),.receipt-v85-result-preview :where(h2,h3,strong){color:var(--ghm-text-strong)!important}
+.receipt-v85-upload-zone :where(p,small),.receipt-v85-scan-settings :where(p,small),.receipt-v85-result-preview :where(p,small){color:var(--ghm-muted)!important;opacity:1!important}
+.receipt-v85-dropzone{min-height:250px!important;border-radius:18px!important;background:var(--ghm-surface-soft)!important;border:2px dashed var(--ghm-border-strong)!important;color:var(--ghm-text)!important}
+.receipt-v85-dropzone :where(strong,span){color:var(--ghm-text-strong)!important}.receipt-v85-dropzone small{color:var(--ghm-muted)!important}
+.receipt-v85-result-preview .receipt-preview-paper{background:#fffdf7!important;color:#22333c!important;border:1px solid #e3ddd0!important}
+html[data-ghm-theme="dark"] :where(.receipt-studio-v85,.receipt-v85-topbar,.receipt-v85-upload-zone,.receipt-v85-scan-settings,.receipt-v85-result-preview),html[data-theme="dark"] :where(.receipt-studio-v85,.receipt-v85-topbar,.receipt-v85-upload-zone,.receipt-v85-scan-settings,.receipt-v85-result-preview){background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .receipt-v85-workbench,html[data-theme="dark"] .receipt-v85-workbench{background:var(--ghm-canvas)!important}
+html[data-ghm-theme="dark"] .receipt-v85-dropzone,html[data-theme="dark"] .receipt-v85-dropzone{background:var(--ghm-surface)!important;color:var(--ghm-text)!important}
+html[data-ghm-theme="dark"] .receipt-v85-result-preview .receipt-preview-paper,html[data-theme="dark"] .receipt-v85-result-preview .receipt-preview-paper{background:var(--ghm-surface)!important;color:var(--ghm-text-strong)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .receipt-v85-result-preview .receipt-preview-paper *,html[data-theme="dark"] .receipt-v85-result-preview .receipt-preview-paper *{color:inherit!important;opacity:1!important}
+
+/* 7. Market/flyers: local store chooser cannot disappear --------------------- */
+.flyer-local-filter-panel{background:var(--ghm-surface-soft)!important;border:1px solid var(--ghm-border)!important;border-radius:20px!important;padding:16px!important}
+.flyer-filter-head strong{color:var(--ghm-text-strong)!important;font-size:.98rem!important}.flyer-filter-head small{color:var(--ghm-muted)!important;opacity:1!important;line-height:1.5!important}
+.flyer-retailer-chips .retailer-chip{background:var(--ghm-surface-elevated)!important;border:1px solid var(--ghm-border)!important;color:var(--ghm-text-strong)!important;border-radius:999px!important}
+.flyer-retailer-chips .retailer-chip.active{background:var(--ghm-primary-deep)!important;color:#fff!important;border-color:var(--ghm-primary-deep)!important}
+.flyer-filter-summary{color:var(--ghm-muted)!important}.flyer-filter-summary small{color:inherit!important}
+html[data-ghm-theme="dark"] .flyer-local-filter-panel,html[data-theme="dark"] .flyer-local-filter-panel{background:var(--ghm-surface)!important}
+
+/* 8. House access destructive action is deliberate, not a plain text button -- */
+.v95-house-access .danger-button,.v95-house-access button.danger,.v95-house-access button:last-child{border-radius:14px!important;padding:10px 15px!important;background:var(--ghm-danger-soft)!important;color:var(--ghm-danger)!important;border:1px solid color-mix(in srgb,var(--ghm-danger) 38%,var(--ghm-border))!important;font-weight:900!important;box-shadow:none!important}
+
+/* 9. House Chat: replies, reactions, share cards ------------------------------ */
+.house-chat-page-v113{max-width:1120px!important;margin-inline:auto!important;padding-bottom:110px!important}
+.chat-reply-preview-v113{display:grid;gap:2px;margin-bottom:8px;padding:8px 10px;border-left:3px solid var(--ghm-primary);border-radius:10px;background:var(--ghm-surface-soft)!important;color:var(--ghm-text)!important}
+.chat-reply-preview-v113 small{color:var(--ghm-primary)!important;font-weight:850}.chat-reply-preview-v113 span{color:var(--ghm-muted)!important;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-attachment-v113{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;text-decoration:none;margin:8px 0;padding:11px 12px;border-radius:16px;background:var(--ghm-surface-soft)!important;border:1px solid var(--ghm-border)!important;color:var(--ghm-text)!important}
+.chat-attachment-v113>span{font-size:1.4rem}.chat-attachment-v113 div{min-width:0;display:grid;gap:2px}.chat-attachment-v113 small{font-size:.65rem;color:var(--ghm-primary)!important;font-weight:900}.chat-attachment-v113 strong{color:var(--ghm-text-strong)!important}.chat-attachment-v113 p{margin:0!important;font-size:.78rem!important;color:var(--ghm-muted)!important}.chat-attachment-v113>b{color:var(--ghm-primary)!important;font-size:.78rem;white-space:nowrap}
+.chat-reaction-row-v113{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px}.chat-reaction-row-v113>button{min-height:28px!important;padding:3px 8px!important;border-radius:999px!important;background:var(--ghm-surface-soft)!important;border:1px solid var(--ghm-border)!important;box-shadow:none!important;color:var(--ghm-text)!important}.chat-reaction-row-v113>button.active{border-color:var(--ghm-primary)!important;background:var(--ghm-primary-soft)!important}.chat-reaction-row-v113>button span{font-size:.7rem;color:var(--ghm-muted)!important}
+.chat-reaction-picker-v113{position:relative}.chat-reaction-picker-v113 summary{list-style:none;cursor:pointer;border:1px solid var(--ghm-border);border-radius:999px;padding:3px 7px;background:var(--ghm-surface-soft);font-size:.72rem}.chat-reaction-picker-v113 summary::-webkit-details-marker{display:none}.chat-reaction-picker-v113>div{position:absolute;bottom:34px;left:0;z-index:20;display:flex;gap:4px;padding:7px;border:1px solid var(--ghm-border);border-radius:14px;background:var(--ghm-surface-elevated);box-shadow:var(--ghm-shadow-strong)}.chat-reaction-picker-v113>div button{min-width:34px!important;min-height:34px!important;padding:4px!important;border-radius:10px!important;background:transparent!important;box-shadow:none!important}
+.chat-composer-v113{gap:8px!important}.chat-composer-main-v113{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:end}.chat-composer-main-v113 textarea{min-width:0!important}.chat-attach-button-v113{width:42px!important;height:42px!important;border-radius:14px!important;padding:0!important;background:var(--ghm-surface-soft)!important;color:var(--ghm-primary)!important;border:1px solid var(--ghm-border)!important;font-size:1.35rem!important}.chat-char-count-v113{justify-self:end;color:var(--ghm-muted)!important}.chat-compose-context-v113{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px 11px;border:1px solid var(--ghm-border);border-radius:14px;background:var(--ghm-surface-soft);color:var(--ghm-text)}.chat-compose-context-v113>span{display:grid}.chat-compose-context-v113 small{color:var(--ghm-primary)!important}.chat-compose-context-v113 strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chat-compose-context-v113>button{width:32px!important;height:32px!important;min-height:32px!important;padding:0!important;border-radius:10px!important}.chat-compose-context-v113.attachment{grid-template-columns:auto minmax(0,1fr) auto}.chat-compose-context-v113.attachment>span{font-size:1.4rem}.chat-compose-context-v113.attachment p{margin:2px 0 0;color:var(--ghm-muted)!important;font-size:.78rem}.chat-share-picker-v113{display:grid;gap:10px;padding:12px;border:1px solid var(--ghm-border);border-radius:16px;background:var(--ghm-surface-soft)}.chat-share-picker-v113>div:first-child{display:grid}.chat-share-picker-v113>div:first-child small{color:var(--ghm-muted)!important}.chat-share-options-v113{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.chat-share-options-v113>button{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;text-align:left!important;background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;border:1px solid var(--ghm-border)!important;border-radius:14px!important;box-shadow:none!important}.chat-share-options-v113>button>span{font-size:1.25rem}.chat-share-options-v113>button div{min-width:0;display:grid}.chat-share-options-v113>button strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chat-share-options-v113>button small{color:var(--ghm-muted)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chat-meta-v105 .danger-text{color:var(--ghm-danger)!important}
+
+/* 10. Shopping create workspace: no cut-off and clear cancel ----------------- */
+.shopping-create-workspace-v113,.quick-create-product-card{min-width:0!important;max-width:100%!important}.shopping-create-title-v113{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important}.shopping-create-actions-v113{display:flex!important;justify-content:flex-end!important;gap:8px!important;flex-wrap:wrap!important}.quick-create-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.quick-create-grid>*{min-width:0!important;max-width:100%!important}.list-actions{flex-wrap:wrap!important}
+
+/* 11. General whole-app containment ----------------------------------------- */
+.app-main-content,.page,.panel,.market-tool-card,.shopping-layout,.shopping-main-column,.shopping-side-column{min-width:0!important}
+.page :where(input,select,textarea,button,a){max-width:100%}
+.page :where(.error,.hint,.status-card){overflow-wrap:anywhere;word-break:break-word}
+
+/* Responsive --------------------------------------------------------------- */
+@media(max-width:980px){
+  .receipt-v85-workbench{grid-template-columns:1fr 1fr!important}.receipt-v85-result-preview{grid-column:1/-1!important}
+  .products-grid{grid-template-columns:repeat(auto-fill,minmax(185px,1fr))!important}
+}
+@media(max-width:720px){
+  .v96-public-home .shell.wide,.v96-public-home>.shell.wide,.v96-loop-section>.shell.wide{width:calc(100% - 32px)!important}
+  .v95-house-tabs{position:relative!important;top:auto!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;margin:12px 0 18px!important}
+  .v95-house-tabs button{padding:8px 3px!important}.v95-house-tabs button strong{font-size:.72rem!important}.v95-house-tabs button>span{width:30px!important;height:30px!important}
+  .v85-receipt-page{width:calc(100% - 24px)!important}.receipt-v85-workbench{grid-template-columns:1fr!important;padding:12px!important}.receipt-v85-result-preview{grid-column:auto!important}.receipt-v85-dropzone{min-height:190px!important}
+  .chat-share-options-v113{grid-template-columns:1fr}.chat-composer-main-v113{grid-template-columns:auto minmax(0,1fr)}.chat-composer-main-v113>.primary{grid-column:2;justify-self:end;min-width:92px}.chat-attachment-v113{grid-template-columns:auto minmax(0,1fr)}.chat-attachment-v113>b{grid-column:2}
+  .shopping-create-title-v113{grid-template-columns:1fr!important}.shopping-create-cancel-v113{justify-self:start!important}.quick-create-grid{grid-template-columns:1fr!important}.quick-create-grid>input:first-child,.quick-create-grid>button{grid-column:auto!important}
+  .serving-box{width:auto!important;min-width:0!important;padding:11px 12px!important;display:grid!important;grid-template-columns:1fr 82px!important;align-items:center!important}.serving-box span{margin:0!important}.serving-box input{font-size:1rem!important}
+  .products-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}.product-card{grid-template-rows:84px auto auto!important}.product-card .product-media,.product-card>.product-visual,.product-card .product-visual{height:84px!important;min-height:84px!important}.product-card .product-body{padding:10px 10px 6px!important}.product-card .card-actions{padding:7px 9px 10px!important}
+}
+@media(max-width:430px){
+  .products-grid{grid-template-columns:1fr!important}.product-card{grid-template-columns:92px minmax(0,1fr)!important;grid-template-rows:auto auto!important}.product-card .product-media,.product-card>.product-visual,.product-card .product-visual{grid-row:1/3!important;width:92px!important;height:100%!important;min-height:118px!important}.product-card .card-actions{grid-column:2!important}
+}

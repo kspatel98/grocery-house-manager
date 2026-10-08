@@ -122,7 +122,7 @@ export default function HousesPage() {
     <main className="page shell wide v95-switchboard-page">
       <header className="v104-switchboard-hero">
         <div className="v104-switchboard-copy"><p className="eyebrow">GROCERY HOUSE MANAGER</p><h1>{firstName ? `${greeting}, ${firstName}` : greeting}</h1><p>Your groceries, meals, receipts, shopping and household money — connected in one place.</p><div className="v104-switchboard-actions">{activeHouse ? <Link className="primary center-link" to={`/houses/${activeHouse.id}?tab=home`}>Open {activeHouse.name} →</Link> : null}{activeHouse ? <Link className="secondary center-link" to={`/houses/${activeHouse.id}/scan`}>Scan receipt</Link> : null}</div></div>
-        <div className="v104-switchboard-art" aria-hidden="true"><span>🏡</span><div><i>🥦</i><i>🧾</i><i>🛒</i><i>💸</i></div><small>Build V106</small></div>
+        <div className="v104-switchboard-art" aria-hidden="true"><span>🏡</span><div><i>🥦</i><i>🧾</i><i>🛒</i><i>💸</i></div></div>
       </header>
 
       <FirstRunSetup onStatus={setOnboarding} />

@@ -114,6 +114,13 @@ export type HouseMember = {
   joined_at: string;
 };
 
+export type HouseMessageReaction = {
+  emoji: string;
+  count: number;
+  user_ids: number[];
+  reacted_by_me: boolean;
+};
+
 export type Activity = {
   id: number;
   house_id: number;
@@ -121,6 +128,14 @@ export type Activity = {
   message: string;
   entity_type?: string;
   entity_id?: number;
+  reply_to_id?: number | null;
+  reply_to_message?: string | null;
+  reply_to_user_name?: string | null;
+  attachment_type?: 'shopping_list' | 'recipe' | 'restaurant' | 'receipt' | 'expense' | string | null;
+  attachment_title?: string | null;
+  attachment_subtitle?: string | null;
+  attachment_url?: string | null;
+  reactions?: HouseMessageReaction[];
   created_at: string;
   user?: User;
 };

@@ -7,8 +7,8 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_house_limit, ensure_member_limit, get_house_plan
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Activity, House, HouseMember, HouseRole, Invite, Section, User
-from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseMessageIn, HouseOut, HouseUpdate, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
+from app.models import Activity, House, HouseMember, HouseMessageReaction, HouseRole, Invite, Section, User
+from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseMessageIn, HouseMessageReactionIn, HouseMessageReactionOut, HouseOut, HouseUpdate, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
 
 router = APIRouter(prefix="/houses", tags=["houses"])
 
@@ -46,6 +46,73 @@ def serialize_activity(activity: Activity) -> ActivityOut:
         created_at=activity.created_at,
         user=activity.user,
     )
+
+
+_CHAT_REACTIONS = {"👍", "❤️", "😂", "😮", "😢", "🙏", "🎉"}
+
+
+def serialize_chat_activities(db: Session, activities: list[Activity], viewer_id: int) -> list[ActivityOut]:
+    if not activities:
+        return []
+    reply_ids = {int(row.reply_to_id) for row in activities if getattr(row, "reply_to_id", None)}
+    reply_by_id: dict[int, Activity] = {}
+    if reply_ids:
+        reply_rows = (
+            db.query(Activity)
+            .options(joinedload(Activity.user))
+            .filter(Activity.id.in_(reply_ids), Activity.action == "house_message")
+            .all()
+        )
+        reply_by_id = {row.id: row for row in reply_rows}
+
+    ids = [row.id for row in activities]
+    reaction_rows = (
+        db.query(HouseMessageReaction)
+        .filter(HouseMessageReaction.activity_id.in_(ids))
+        .order_by(HouseMessageReaction.id.asc())
+        .all()
+    )
+    reactions_by_activity: dict[int, dict[str, list[int]]] = {}
+    for row in reaction_rows:
+        reactions_by_activity.setdefault(row.activity_id, {}).setdefault(row.emoji, []).append(row.user_id)
+
+    output: list[ActivityOut] = []
+    for activity in activities:
+        reply_to_id = getattr(activity, "reply_to_id", None)
+        reply = reply_by_id.get(reply_to_id) if reply_to_id else None
+        grouped = reactions_by_activity.get(activity.id, {})
+        reactions = [
+            HouseMessageReactionOut(
+                emoji=emoji,
+                count=len(user_ids),
+                user_ids=user_ids,
+                reacted_by_me=viewer_id in user_ids,
+            )
+            for emoji, user_ids in grouped.items()
+        ]
+        output.append(ActivityOut(
+            id=activity.id,
+            house_id=activity.house_id,
+            action=activity.action,
+            message=activity.message or "",
+            entity_type=activity.entity_type,
+            entity_id=activity.entity_id,
+            reply_to_id=reply_to_id,
+            reply_to_message=((reply.message or reply.attachment_title or "Shared item")[:180] if reply else None),
+            reply_to_user_name=(display_name(reply.user) if reply and reply.user else ("House member" if reply else None)),
+            attachment_type=getattr(activity, "attachment_type", None),
+            attachment_title=getattr(activity, "attachment_title", None),
+            attachment_subtitle=getattr(activity, "attachment_subtitle", None),
+            attachment_url=getattr(activity, "attachment_url", None),
+            reactions=reactions,
+            created_at=activity.created_at,
+            user=activity.user,
+        ))
+    return output
+
+
+def serialize_chat_activity(db: Session, activity: Activity, viewer_id: int) -> ActivityOut:
+    return serialize_chat_activities(db, [activity], viewer_id)[0]
 
 
 def serialize_house(house: House, role: HouseRole | None, db: Session) -> HouseOut:
@@ -212,7 +279,7 @@ def list_house_chat(
         .all()
     )
     rows.reverse()
-    return [serialize_activity(row) for row in rows]
+    return serialize_chat_activities(db, rows, user.id)
 
 
 @router.post("/{house_id}/chat", response_model=ActivityOut)
@@ -223,9 +290,25 @@ def post_house_chat(
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
-    clean = " ".join(payload.message.split()).strip()
-    if not clean:
-        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    clean = " ".join((payload.message or "").split()).strip()
+    attachment_title = " ".join((payload.attachment_title or "").split()).strip()
+    if not clean and not (payload.attachment_type and attachment_title):
+        raise HTTPException(status_code=400, detail="Write a message or attach a GHM item.")
+
+    reply_to = None
+    if payload.reply_to_id is not None:
+        reply_to = db.query(Activity).filter(
+            Activity.id == payload.reply_to_id,
+            Activity.house_id == house_id,
+            Activity.action == "house_message",
+        ).first()
+        if not reply_to:
+            raise HTTPException(status_code=400, detail="The message you are replying to is no longer available.")
+
+    attachment_url = (payload.attachment_url or "").strip() or None
+    if attachment_url and not attachment_url.startswith("/"):
+        raise HTTPException(status_code=400, detail="House chat attachments must link to a GHM page.")
+
     activity = log_activity(
         db,
         house_id=house_id,
@@ -234,10 +317,48 @@ def post_house_chat(
         message=clean[:1200],
         entity_type="house_chat",
     )
+    activity.reply_to_id = reply_to.id if reply_to else None
+    activity.attachment_type = payload.attachment_type
+    activity.attachment_title = attachment_title[:180] if attachment_title else None
+    activity.attachment_subtitle = (payload.attachment_subtitle or "").strip()[:500] or None
+    activity.attachment_url = attachment_url
     db.commit()
     db.refresh(activity)
     activity = db.query(Activity).options(joinedload(Activity.user)).filter(Activity.id == activity.id).first()
-    return serialize_activity(activity)
+    return serialize_chat_activity(db, activity, user.id)
+
+
+@router.post("/{house_id}/chat/{message_id}/reactions", response_model=ActivityOut)
+def toggle_house_chat_reaction(
+    house_id: int,
+    message_id: int,
+    payload: HouseMessageReactionIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    emoji = payload.emoji.strip()
+    if emoji not in _CHAT_REACTIONS:
+        raise HTTPException(status_code=400, detail="Unsupported reaction.")
+    activity = (
+        db.query(Activity)
+        .options(joinedload(Activity.user))
+        .filter(Activity.id == message_id, Activity.house_id == house_id, Activity.action == "house_message")
+        .first()
+    )
+    if not activity:
+        raise HTTPException(status_code=404, detail="Message not found")
+    existing = db.query(HouseMessageReaction).filter(
+        HouseMessageReaction.activity_id == message_id,
+        HouseMessageReaction.user_id == user.id,
+        HouseMessageReaction.emoji == emoji,
+    ).first()
+    if existing:
+        db.delete(existing)
+    else:
+        db.add(HouseMessageReaction(activity_id=message_id, user_id=user.id, emoji=emoji))
+    db.commit()
+    return serialize_chat_activity(db, activity, user.id)
 
 
 @router.delete("/{house_id}/chat/{message_id}")
@@ -247,11 +368,13 @@ def delete_house_chat(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    membership = require_house_member(house_id, user, db)
+    require_house_member(house_id, user, db)
     activity = db.query(Activity).filter(Activity.id == message_id, Activity.house_id == house_id, Activity.action == "house_message").first()
     if not activity:
         raise HTTPException(status_code=404, detail="Message not found")
-    if activity.user_id != user.id and membership.role not in {HouseRole.owner, HouseRole.admin}:
+    # House chat is personal communication: even owners/admins may delete only
+    # their own messages. Administrative moderation belongs in a separate audit flow.
+    if activity.user_id != user.id:
         raise HTTPException(status_code=403, detail="You can only delete your own messages")
     db.delete(activity)
     db.commit()

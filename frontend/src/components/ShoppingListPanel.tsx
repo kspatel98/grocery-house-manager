@@ -25,6 +25,7 @@ type ShoppingListPanelProps = {
   onListCreated?: (list: ShoppingList) => void;
   onListUpdated?: (list: ShoppingList) => void;
   onProductSearch?: (query: string) => void | Promise<void>;
+  onCancelCreate?: () => void;
 };
 
 function formatShortDate(timestamp: number) {
@@ -82,12 +83,13 @@ function stockBadge(product: Product) {
   return null;
 }
 
-export default function ShoppingListPanel({ houseId, products, sections, activeList, onChange, onListCreated, onListUpdated, onProductSearch }: ShoppingListPanelProps) {
+export default function ShoppingListPanel({ houseId, products, sections, activeList, onChange, onListCreated, onListUpdated, onProductSearch, onCancelCreate }: ShoppingListPanelProps) {
   const [selection, setSelection] = useState<Selection>({});
   const [title, setTitle] = useState('Grocery List');
   const [editedTitle, setEditedTitle] = useState(activeList?.title || 'Grocery List');
   const [showAddMore, setShowAddMore] = useState(false);
   const [error, setError] = useState('');
+  const [shareNotice, setShareNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [finishPromptOpen, setFinishPromptOpen] = useState(false);
   const [listView, setListView] = useState<'to_buy' | 'in_cart'>('to_buy');
@@ -238,6 +240,28 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
     }
   }
 
+  async function shareListToChat() {
+    if (!activeList) return;
+    try {
+      setBusy(true);
+      const count = activeList.items.filter((item) => item.status !== 'skipped').length;
+      await api.post(`/houses/${houseId}/chat`, {
+        message: '',
+        attachment_type: 'shopping_list',
+        attachment_title: activeList.title,
+        attachment_subtitle: `${count} item${count === 1 ? '' : 's'} · household shopping list`,
+        attachment_url: `/houses/${houseId}/shopping?list=${activeList.id}`,
+      });
+      setError('');
+      setShareNotice('Shopping list shared to House Chat.');
+      window.setTimeout(() => setShareNotice(''), 3200);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function cancelList() {
     if (!activeList) return;
     if (!confirm('Cancel this grocery list? This will not update inventory.')) return;
@@ -296,15 +320,22 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
         </div>
       </div>
       {error && <div className="error">{error}</div>}
+      {shareNotice && <div className="success compact-message">{shareNotice}</div>}
       {busy && <div className="hint">Saving change...</div>}
 
 
       {!activeList && (
-        <>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="List title" />
+        <div className="shopping-create-workspace-v113">
+          <div className="shopping-create-title-v113">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="List title" />
+            {onCancelCreate ? <button type="button" className="secondary shopping-create-cancel-v113" onClick={() => { setSelection({}); setTitle('Grocery List'); onCancelCreate(); }}>Cancel</button> : null}
+          </div>
           <ProductPicker houseId={houseId} sections={sections} products={products} selection={selection} onToggle={toggleProduct} onUpdate={updateSelection} onSearch={onProductSearch} onCreated={selectProduct} />
-          <button className="primary full" disabled={!selectedItems.length || busy} onClick={createList}>Create grocery list</button>
-        </>
+          <div className="shopping-create-actions-v113">
+            {onCancelCreate ? <button type="button" className="secondary" onClick={() => { setSelection({}); setTitle('Grocery List'); onCancelCreate(); }}>Cancel</button> : null}
+            <button className="primary" disabled={!selectedItems.length || busy} onClick={createList}>Create grocery list</button>
+          </div>
+        </div>
       )}
 
       {activeList && (
@@ -316,6 +347,7 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
 
           <div className="list-actions">
             <button className="secondary" onClick={() => setShowAddMore((value) => !value)}>{showAddMore ? 'Hide add products' : 'Add more products'}</button>
+            <button className="secondary" onClick={() => void shareListToChat()} disabled={busy}>💬 Share to House Chat</button>
             <button className="secondary danger-button" onClick={cancelList}>Cancel list</button>
           </div>
 

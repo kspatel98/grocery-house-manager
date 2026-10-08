@@ -237,10 +237,12 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const contextHouseId = routeHouseId || activeHouseId;
   const navItems = contextHouseId
     ? [
-        { to: `/houses/${contextHouseId}?tab=home`, label: 'Home', icon: '⌂' },
+        // App Home is the household switchboard. After a house is chosen, its
+        // own four tabs (Home / Today / Money / Activity) live inside the house.
+        { to: '/houses', label: 'Home', icon: '⌂' },
         { to: `/assistant?house=${contextHouseId}&view=plan`, label: 'Plan', icon: '◫' },
         { to: `/houses/${contextHouseId}/shopping`, label: 'Shop', icon: '🛒' },
-        { to: `/houses/${contextHouseId}?tab=today`, label: 'Today', icon: '✦' },
+        { to: `/houses/${contextHouseId}/scan`, label: 'Scan', icon: '🧾' },
       ]
     : [
         { to: '/houses', label: t('home'), icon: '⌂' },
@@ -291,7 +293,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return location.pathname === itemPath || location.pathname.startsWith(`${itemPath}/`);
   };
   const extraActive = extraNavItems.some((item) => navActive(item.to));
-  const homeActive = location.pathname === '/houses' || Boolean(contextHouseId && navActive(`/houses/${contextHouseId}?tab=home`));
+  const homeActive = location.pathname === '/houses';
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -361,7 +363,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     ...navItems,
     ...extraNavItems,
     { to: '/profile', label: t('profile'), icon: '👤' },
-  ].find((item) => navActive(item.to))?.label || (homeActive ? 'Today' : 'Grocery House Manager'));
+  ].find((item) => navActive(item.to))?.label || (homeActive ? 'Home' : 'Grocery House Manager'));
 
   return (
     <div className="app-frame desktop-sidebar-layout">
@@ -600,10 +602,10 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       </div>
 
       <nav className="mobile-bottom-nav v95-mobile-nav v104-mobile-nav" aria-label="Mobile app navigation">
-        <Link to={contextHouseId ? `/houses/${contextHouseId}?tab=home` : '/houses'} className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
+        <Link to="/houses" className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
         <Link to={contextHouseId ? `/assistant?house=${contextHouseId}&view=plan` : '/houses'} className={location.pathname === '/assistant' ? 'active' : ''}><span aria-hidden="true">◫</span><small>Plan</small></Link>
         <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>Shop</small></Link>
-        <Link to={contextHouseId ? `/houses/${contextHouseId}?tab=today` : '/houses'} className={Boolean(contextHouseId && navActive(`/houses/${contextHouseId}?tab=today`)) ? 'active' : ''}><span aria-hidden="true">✦</span><small>Today</small></Link>
+        <Link to={contextHouseId ? `/houses/${contextHouseId}/scan` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/scan`) ? 'active' : ''}><span aria-hidden="true">🧾</span><small>Scan</small></Link>
         <button type="button" className={mobileMoreOpen || extraActive || location.pathname.startsWith('/profile') ? 'active' : ''} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>{t('more')}</small></button>
       </nav>
 

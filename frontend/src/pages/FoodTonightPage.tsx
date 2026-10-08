@@ -67,6 +67,7 @@ export default function FoodTonightPage() {
   const [results, setResults] = useState<FoodSuggestions | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [shareNotice, setShareNotice] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationState, setLocationState] = useState<'idle' | 'requesting' | 'ready' | 'denied'>('idle');
   const [guide, setGuide] = useState<FoodMenuGuide | null>(null);
@@ -121,6 +122,24 @@ export default function FoodTonightPage() {
     }
   }
 
+  async function sharePlace(place: FoodPlace) {
+    try {
+      const details = [place.address, place.rating ? `★ ${place.rating.toFixed(1)}` : '', place.open_now == null ? '' : (place.open_now ? 'Open now' : 'Closed now')].filter(Boolean).join(' · ');
+      await api.post(`/houses/${id}/chat`, {
+        message: '',
+        attachment_type: 'restaurant',
+        attachment_title: place.name,
+        attachment_subtitle: details || 'Nearby place from Food tonight',
+        attachment_url: `/houses/${id}/food?mode=${mode}&q=${encodeURIComponent(query || place.name)}`,
+      });
+      setError('');
+      setShareNotice(`${place.name} shared to House Chat.`);
+      window.setTimeout(() => setShareNotice(''), 3200);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
   async function loadGuide(place: FoodPlace) {
     try {
       setGuideBusy(place.place_id);
@@ -171,6 +190,7 @@ export default function FoodTonightPage() {
       </section>
 
       {error && <div className="error">{error}</div>}
+      {shareNotice && <div className="success compact-message">{shareNotice}</div>}
       {results?.caution && <div className="food-safety-note-v98"><strong>Important dietary note</strong><p>{results.caution}</p></div>}
 
       {!busy && results && !results.configured && <section className="panel"><h2>Nearby suggestions need one connection</h2><p>{results.message}</p><p className="muted">GHM does not need Instacart, Uber Eats or DoorDash for this suggestion-only experience.</p></section>}
@@ -185,6 +205,7 @@ export default function FoodTonightPage() {
           <div className="food-place-actions-v98">
             {place.maps_uri && <a className="secondary center-link" href={place.maps_uri} target="_blank" rel="noreferrer">Maps</a>}
             {place.website_uri && <a className="secondary center-link" href={place.website_uri} target="_blank" rel="noreferrer">Official site</a>}
+            <button className="secondary" type="button" onClick={() => void sharePlace(place)}>💬 Share</button>
             {mode === 'restaurant' && dietary !== 'none' && <button className="primary" onClick={() => void loadGuide(place)} disabled={guideBusy === place.place_id}>{guideBusy === place.place_id ? 'Reading official menu…' : 'Prepare my order'}</button>}
           </div>
           {mode === 'restaurant' && dietary === 'none' && <small className="food-card-note-v98">GHM keeps ordering outside the app for now so Food Tonight stays focused on the decision, not checkout complexity.</small>}

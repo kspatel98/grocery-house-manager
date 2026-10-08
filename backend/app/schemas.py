@@ -135,6 +135,13 @@ class HouseMemberOut(BaseModel):
     joined_at: datetime
 
 
+class HouseMessageReactionOut(BaseModel):
+    emoji: str
+    count: int
+    user_ids: list[int] = Field(default_factory=list)
+    reacted_by_me: bool = False
+
+
 class ActivityOut(BaseModel):
     id: int
     house_id: int
@@ -142,16 +149,31 @@ class ActivityOut(BaseModel):
     message: str
     entity_type: str | None = None
     entity_id: int | None = None
+    reply_to_id: int | None = None
+    reply_to_message: str | None = None
+    reply_to_user_name: str | None = None
+    attachment_type: str | None = None
+    attachment_title: str | None = None
+    attachment_subtitle: str | None = None
+    attachment_url: str | None = None
+    reactions: list[HouseMessageReactionOut] = Field(default_factory=list)
     created_at: datetime
     user: UserOut | None = None
 
     model_config = {"from_attributes": True}
 
 
-
-
 class HouseMessageIn(BaseModel):
-    message: str = Field(min_length=1, max_length=1200)
+    message: str = Field(default="", max_length=1200)
+    reply_to_id: int | None = None
+    attachment_type: Literal["shopping_list", "recipe", "restaurant", "receipt", "expense"] | None = None
+    attachment_title: str | None = Field(default=None, max_length=180)
+    attachment_subtitle: str | None = Field(default=None, max_length=500)
+    attachment_url: str | None = Field(default=None, max_length=500)
+
+
+class HouseMessageReactionIn(BaseModel):
+    emoji: str = Field(min_length=1, max_length=16)
 
 class InviteOut(BaseModel):
     token: str
@@ -615,13 +637,13 @@ class ExpenseCategoryOut(BaseModel):
 
 class ExpenseShareIn(BaseModel):
     user_id: int
-    share_amount: float = Field(ge=0)
+    share_amount: float = Field(ge=0, le=100_000_000, allow_inf_nan=False)
 
 
 class ExpenseCreateIn(BaseModel):
     title: str = Field(min_length=1, max_length=180)
-    amount: float = Field(gt=0)
-    currency: str = Field(default="CAD", max_length=12)
+    amount: float = Field(gt=0, le=100_000_000, allow_inf_nan=False)
+    currency: str = Field(default="CAD", min_length=3, max_length=12)
     category: str = Field(default="Groceries", max_length=80)
     paid_by_user_id: int
     expense_date: date | None = None
@@ -688,7 +710,7 @@ class ExpenseSettlementIn(BaseModel):
     from_user_id: int
     to_user_id: int
     expense_month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
-    amount: float = Field(gt=0)
+    amount: float = Field(gt=0, le=100_000_000, allow_inf_nan=False)
     currency: str = Field(default="CAD", max_length=12)
     notes: str | None = None
 

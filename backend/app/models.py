@@ -628,10 +628,28 @@ class Activity(Base):
     message: Mapped[str] = mapped_column(Text)
     entity_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
     entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # V113 house-chat context. These are deliberately lightweight snapshots so a
+    # shared recipe/list/place still makes sense if the source item later changes.
+    reply_to_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    attachment_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    attachment_title: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    attachment_subtitle: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attachment_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
     house: Mapped[House] = relationship(back_populates="activities")
     user: Mapped[User | None] = relationship(back_populates="activities")
+
+
+class HouseMessageReaction(Base):
+    __tablename__ = "house_message_reactions"
+    __table_args__ = (UniqueConstraint("activity_id", "user_id", "emoji", name="uq_house_message_reaction"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey("activities.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    emoji: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
 
 class AdminUserOffer(Base):

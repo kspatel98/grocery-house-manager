@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import type { Product, ShoppingList } from '../types';
@@ -176,6 +176,7 @@ function communityAsRecipe(item:CommunityRecipe):Recipe{
 export default function MealsPage(){
  const {houseId}=useParams();
  const id=Number(houseId);
+ const [searchParams]=useSearchParams();
  const {language}=useLanguage();
  const c=copy[language];
  const [products,setProducts]=useState<Product[]>([]);
@@ -254,6 +255,18 @@ export default function MealsPage(){
    }finally{setCommunityLoading(false);}
  }
  useEffect(()=>{void refreshCommunity();},[]);
+
+ useEffect(()=>{
+   const communityId=Number(searchParams.get('recipe')||0);
+   const builtInId=searchParams.get('dish');
+   if(communityId&&(communityRecipes.length||myRecipes.length)){
+     const item=communityRecipes.find(x=>x.id===communityId)||myRecipes.find(x=>x.id===communityId);
+     if(item){setSelectedCommunity(item);setSelected(communityAsRecipe(item));setDetailOpen(true);}
+   }else if(builtInId){
+     const item=recipes.find(x=>x.id===builtInId);
+     if(item){setSelectedCommunity(null);setSelected(item);setDetailOpen(true);}
+   }
+ },[searchParams,communityRecipes,myRecipes]);
 
  useEffect(()=>{
    if(!editorImage){setEditorImagePreview('');return;}
@@ -382,6 +395,15 @@ export default function MealsPage(){
    }catch(e:any){setEditorError(e?.response?.data?.detail||'Could not save this recipe. Please check the fields and try again.');}
    finally{setEditorBusy(false);}
  }
+ async function shareSelectedRecipe(){
+   if(!id)return;
+   try{
+     const url=selectedCommunity?`/houses/${id}/meals?recipe=${selectedCommunity.id}`:`/houses/${id}/meals?dish=${encodeURIComponent(selected.id)}`;
+     await api.post(`/houses/${id}/chat`,{message:'',attachment_type:'recipe',attachment_title:selected.names[language]||selected.names.en,attachment_subtitle:`${cuisineLabel((selected.cuisine||'International') as Cuisine)} · ${kindLabel(selected.kind)} · ${servings} servings`,attachment_url:url});
+     setNotice('Recipe shared to House Chat.');
+   }catch(e:any){setNotice(e?.response?.data?.detail||'Recipe could not be shared right now.');}
+ }
+
  async function deleteRecipe(item:CommunityRecipe){
    if(!window.confirm(`Delete “${item.name}”? This cannot be undone.`))return;
    try{await api.delete(`/recipes/community/${item.id}`);if(selectedCommunity?.id===item.id){setDetailOpen(false);setSelectedCommunity(null);}await refreshCommunity();}
@@ -429,7 +451,7 @@ export default function MealsPage(){
    {detailOpen && <OverlayPortal><div className="modal-backdrop recipe-detail-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setDetailOpen(false)}}><section className="recipe-card panel recipe-detail-modal focus-dialog" role="dialog" aria-modal="true" aria-label={selected.names[language]}><header className="focus-dialog-titlebar recipe-modal-title"><div><p className="eyebrow">{cuisineLabel((selected.cuisine||'International') as Cuisine).toUpperCase()} · {kindLabel(selected.kind).toUpperCase()}</p><h2>{selected.names[language]}</h2></div><button className="icon-btn" data-dialog-close="true" onClick={()=>setDetailOpen(false)} aria-label="Close recipe">×</button></header><div className="focus-dialog-scroll"><SmartRecipeImage recipe={selected} className="recipe-detail-image"/>{selectedCommunity&&<div className="recipe-community-meta-v89"><div className="recipe-uploader-v89">{selectedCommunity.uploader_avatar_url?<img src={selectedCommunity.uploader_avatar_url} alt=""/>:<b>{selectedCommunity.uploader_name.slice(0,1).toUpperCase()}</b>}<span><small>Recipe by</small><strong>{selectedCommunity.uploader_name}</strong></span></div><div className="community-card-tags-v89">{selectedCommunity.categories.map(tag=><em key={tag}>{tag}</em>)}</div>{selectedCommunity.can_edit&&<button className="secondary" onClick={()=>{setDetailOpen(false);openEditEditor(selectedCommunity)}}>✎ Edit my recipe</button>}</div>}<div className="recipe-card-head"><div><div className="diet-chips">{selected.diets.map(d=><span key={d}>{dietLabel(d)}</span>)}</div></div><div className="recipe-ready-score"><strong>{Math.round(availability(selected)*100)}%</strong><small>{c.inventory}</small></div></div>
     <div className="ingredient-table"><div className="ingredient-row head"><span></span><span>{c.ingredients}</span><span>{c.required}</span><span>{c.inventory}</span><span>{c.shortage}</span></div>{rows.map((row,i)=><div className={`ingredient-row ${row.shortage<=0?'covered':'needed'} ${!row.autoShop?'manual-only-row':''}`} key={`${row.name}-${i}`}><span><input aria-label={`${c.manual}: ${ingName(row.name)}`} type="checkbox" checked={!!manual[String(i)]} onChange={e=>setManual(m=>({...m,[String(i)]:e.target.checked}))}/></span><span><b>{ingName(row.name)}</b><span className="ingredient-badges">{row.optional&&<small>{c.optional}</small>}{!row.autoShop&&<small className="manual-only-badge">{c.manualOnly}</small>}</span></span><span className="required-edit"><input type="number" min="0" step="0.01" value={Number(fmt(row.required))} onChange={e=>setQtyOverrides(o=>({...o,[row.name]:Math.max(0,Number(e.target.value)||0)}))}/><small>{row.unit}</small></span><span>{row.matched&&compatible(row.matched.unit,row.unit)?`${fmt(row.owned)} ${row.unit}`:row.autoShop?'0 '+row.unit:'—'}</span><span>{!row.autoShop?<em className="manual-only-text">{c.manualOnly}</em>:row.shortage>0?<mark>+ {fmt(row.shortage)} {row.unit}</mark>:<em>✓ {c.enough}</em>}</span></div>)}</div>
     {rows.some(r=>!r.autoShop)&&<div className="water-smart-note">💧 {c.waterHelp}</div>}
-    <div className="recipe-action-guide"><button disabled={busy} onClick={()=>add('shortage')}><span className="action-icon">🛒</span><span><strong>{c.addShort}</strong><small>{c.shortHelp}</small></span></button><button className="secondary" disabled={busy} onClick={()=>add('manual')}><span className="action-icon">☑</span><span><strong>{c.manual}</strong><small>{c.manualHelp}</small></span></button><button className="ghost" disabled={busy} onClick={()=>add('full')}><span className="action-icon">＋</span><span><strong>{c.addAll}</strong><small>{c.fullHelp}</small></span></button></div><button className="meal-cooked-trigger-v96" onClick={openCookReview}><span>✓</span><span><strong>I cooked this</strong><small>Review the ingredients you actually used before GHM adjusts inventory. Nothing is deducted automatically.</small></span><em>Review use →</em></button>{notice&&<div className="meal-notice">{notice}</div>}
+    <div className="recipe-share-row-v113"><button className="secondary" type="button" onClick={()=>void shareSelectedRecipe()}>💬 Share recipe to House Chat</button></div><div className="recipe-action-guide"><button disabled={busy} onClick={()=>add('shortage')}><span className="action-icon">🛒</span><span><strong>{c.addShort}</strong><small>{c.shortHelp}</small></span></button><button className="secondary" disabled={busy} onClick={()=>add('manual')}><span className="action-icon">☑</span><span><strong>{c.manual}</strong><small>{c.manualHelp}</small></span></button><button className="ghost" disabled={busy} onClick={()=>add('full')}><span className="action-icon">＋</span><span><strong>{c.addAll}</strong><small>{c.fullHelp}</small></span></button></div><button className="meal-cooked-trigger-v96" onClick={openCookReview}><span>✓</span><span><strong>I cooked this</strong><small>Review the ingredients you actually used before GHM adjusts inventory. Nothing is deducted automatically.</small></span><em>Review use →</em></button>{notice&&<div className="meal-notice">{notice}</div>}
     <div className="recipe-steps"><div className="recipe-steps-head"><div><p className="eyebrow">STEP BY STEP</p><h3>{c.method}</h3></div><span>👥 {servings}</span></div><p className="recipe-method-intro">{c.methodIntro}</p><ol className="recipe-step-list">{selected.steps[language].map((s,i)=><li key={i}><span className="step-number">{i+1}</span><div><strong>Step {i+1}</strong><p>{s}</p></div></li>)}</ol></div>
    </div></section></div></OverlayPortal>}
 

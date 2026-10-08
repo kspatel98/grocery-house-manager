@@ -37,8 +37,10 @@ export default function HousePage() {
   const tab: HouseTab = ['today', 'home', 'money', 'activity'].includes(requestedTab || '') ? (requestedTab as HouseTab) : 'home';
   function chooseTab(next: HouseTab) {
     const nextParams = new URLSearchParams(searchParams);
-    if (next === 'today') nextParams.delete('tab');
-    else nextParams.set('tab', next);
+    // Keep every house workspace explicit. Earlier builds deleted `tab=today`,
+    // while the no-tab default was Home, so the Today button silently bounced
+    // back to Home. Explicit tab URLs are also easier to share/bookmark.
+    nextParams.set('tab', next);
     setSearchParams(nextParams, { replace: true });
   }
 
