@@ -8,9 +8,9 @@ const appearances: { key: AppearanceMode; icon: string; title: string; body: str
 ];
 
 const styles: { key: VisualStyle; title: string; body: string; swatches: string[] }[] = [
-  { key: 'classic', title: 'Classic GHM', body: 'Balanced blue, cream and orange — the signature GHM look.', swatches: ['#1f66a8','#f7f0e5','#f28b2b'] },
-  { key: 'calm', title: 'Calm', body: 'Softer blue and muted orange for a quieter household workspace.', swatches: ['#35647a','#f4f1e9','#d97745'] },
-  { key: 'vibrant', title: 'Vibrant', body: 'Stronger blue and orange accents for a more energetic experience.', swatches: ['#2563eb','#fff7ed','#f97316'] },
+  { key: 'classic', title: 'Lake & Oat', body: 'Calm lake blue, warm oat and apricot — the recommended everyday GHM look.', swatches: ['#356e7e','#f4f0e8','#b85b31'] },
+  { key: 'calm', title: 'Mist & Sage', body: 'Soft teal-sage surfaces with muted clay accents for the quietest workspace.', swatches: ['#3f6d76','#f1f2ed','#9f674f'] },
+  { key: 'vibrant', title: 'Sky & Tangerine', body: 'Richer blue and warm tangerine accents while keeping the same readability rules.', swatches: ['#315fa8','#f7f3ea','#b9562d'] },
 ];
 
 export default function AppearancePage() {

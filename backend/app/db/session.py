@@ -16,6 +16,7 @@ engine = create_engine(
     pool_timeout=max(1, settings.db_pool_timeout_seconds),
     pool_recycle=max(30, settings.db_pool_recycle_seconds),
     pool_use_lifo=True,
+    pool_reset_on_return="rollback",
     connect_args={
         "connect_timeout": max(1, settings.db_connect_timeout_seconds),
         "keepalives": 1,

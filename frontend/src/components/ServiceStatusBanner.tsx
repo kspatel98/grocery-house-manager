@@ -1,32 +1,54 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { probeApiHealth } from '../api';
 
 type Status = 'checking' | 'ready' | 'degraded' | 'offline';
 
+/**
+ * Quiet service health indicator. A single failed probe is not user-facing: it
+ * takes repeated failures before GHM interrupts the interface. This avoids a
+ * large warning banner every time PgBouncer has a brief connection reset.
+ */
 export default function ServiceStatusBanner() {
   const [status, setStatus] = useState<Status>('checking');
   const [detail, setDetail] = useState('');
+  const consecutiveFailures = useRef(0);
+  const mounted = useRef(true);
 
-  async function check() {
+  async function check(forceVisible = false) {
+    if (document.hidden && !forceVisible) return;
     const result = await probeApiHealth();
-    if (!result.live) {
-      setStatus('offline');
-      setDetail(result.detail || 'GHM cannot reach the server right now.');
+    if (!mounted.current) return;
+
+    if (result.live && result.ready) {
+      consecutiveFailures.current = 0;
+      setStatus('ready');
+      setDetail('');
       return;
     }
-    if (!result.ready) {
-      setStatus('degraded');
-      setDetail(result.detail || 'GHM is reconnecting to your household data.');
+
+    consecutiveFailures.current += 1;
+    const sustained = consecutiveFailures.current >= 2;
+    if (!sustained && !forceVisible) {
+      // Keep the UI calm while GHM silently retries short-lived network/DB blips.
+      if (status !== 'checking') setStatus('ready');
       return;
     }
-    setStatus('ready');
-    setDetail('');
+
+    setStatus(result.live ? 'degraded' : 'offline');
+    setDetail(result.detail || (result.live ? 'Household data is reconnecting.' : 'The server is temporarily unreachable.'));
   }
 
   useEffect(() => {
+    mounted.current = true;
     void check();
-    const timer = window.setInterval(() => void check(), status === 'ready' ? 45000 : 5000);
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => void check(), status === 'checking' ? 5000 : status === 'ready' ? 45000 : 10000);
+    const onOnline = () => void check(true);
+    window.addEventListener('online', onOnline);
+    return () => {
+      mounted.current = false;
+      window.clearInterval(timer);
+      window.removeEventListener('online', onOnline);
+    };
   }, [status]);
 
   if (status === 'ready' || status === 'checking') return null;
@@ -34,10 +56,10 @@ export default function ServiceStatusBanner() {
     <div className={`ghm-service-status ${status}`} role="status" aria-live="polite">
       <span className="ghm-service-pulse" />
       <div>
-        <strong>{status === 'offline' ? 'GHM is having trouble reaching the server' : 'Your household data is reconnecting'}</strong>
-        <small>{detail} Existing data remains in the database; GHM will retry automatically.</small>
+        <strong>{status === 'offline' ? 'Connection interrupted' : 'Reconnecting household data'}</strong>
+        <small>{detail}</small>
       </div>
-      <button type="button" onClick={() => void check()}>Retry now</button>
+      <button type="button" onClick={() => void check(true)}>Retry</button>
     </div>
   );
 }

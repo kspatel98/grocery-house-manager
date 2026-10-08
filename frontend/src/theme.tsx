@@ -40,7 +40,7 @@ function applyResolvedTheme(theme: AppTheme) {
   document.documentElement.dataset.ghmTheme = theme;
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
-  const themeColor = theme === 'dark' ? '#081521' : '#f7f0e5';
+  const themeColor = theme === 'dark' ? '#0c1821' : '#f4f0e8';
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement('meta');

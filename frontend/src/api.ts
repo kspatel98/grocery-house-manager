@@ -55,11 +55,14 @@ api.interceptors.response.use(
     const transient = status === 502 || status === 503 || status === 504 || (!error.response && Boolean(error.request));
     const retryableLogin = method === "post" && requestUrl.includes("/auth/login");
     const retryableRequest = method === "get" || retryableLogin;
-    const retryLimit = retryableLogin ? 3 : 2;
+    const retryLimit = retryableLogin ? 3 : 3;
     if (transient && retryableRequest && !requestUrl.includes("/health/") && Number(config?._ghmRetryCount || 0) < retryLimit) {
       config._ghmRetryCount = Number(config._ghmRetryCount || 0) + 1;
-      const baseDelay = retryableLogin ? 700 : 550;
-      await new Promise((resolve) => window.setTimeout(resolve, baseDelay * config._ghmRetryCount));
+      const retryAfter = Number(error.response?.headers?.["retry-after"] || 0);
+      const baseDelay = retryableLogin ? 700 : 650;
+      const exponentialDelay = baseDelay * Math.pow(2, Math.max(0, config._ghmRetryCount - 1));
+      const waitMs = retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : Math.min(exponentialDelay, 5000);
+      await new Promise((resolve) => window.setTimeout(resolve, waitMs));
       return api.request(config);
     }
     const isAuthAttempt = [

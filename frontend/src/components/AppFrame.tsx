@@ -165,7 +165,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('token');
       if (!token || accountRefreshInFlightRef.current) return;
       const now = Date.now();
-      if (!force && now - lastAccountRefreshRef.current < 30000) return;
+      if (!force && now - lastAccountRefreshRef.current < 120000) return;
       accountRefreshInFlightRef.current = true;
       lastAccountRefreshRef.current = now;
       api.get<AccountBootstrap>('/account/bootstrap', { params: { t: now } })
@@ -449,15 +449,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         aria-hidden="true"
       />
 
-      <ServiceStatusBanner />
-      {accountLoadError && (
-        <div className="ghm-account-data-warning" role="status" aria-live="polite">
-          <span aria-hidden="true">↻</span>
-          <div><strong>Your account is signed in, but GHM could not refresh household data.</strong><small>{accountLoadError}</small></div>
-          <button type="button" onClick={() => window.dispatchEvent(new Event('account:refresh'))}>Retry household data</button>
-        </div>
-      )}
-
       <div className={`desktop-shell-v86 ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
         <aside className="desktop-sidebar-v86" aria-label="Desktop navigation">
           <button type="button" className="desktop-sidebar-collapse-v87" aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setSidebarCollapsed((value) => !value)}><span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span></button>
@@ -547,6 +538,17 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             </div>
           </div>
 
+          <div className="ghm-inapp-status-slot-v109">
+            <ServiceStatusBanner />
+            {accountLoadError && !accountReady && (
+              <div className="ghm-account-data-warning" role="status" aria-live="polite">
+                <span aria-hidden="true">↻</span>
+                <div><strong>GHM is reconnecting your household.</strong><small>{accountLoadError}</small></div>
+                <button type="button" onClick={() => window.dispatchEvent(new Event('account:refresh'))}>Retry</button>
+              </div>
+            )}
+          </div>
+
           <div className="app-main-content">{children}</div>
 
           <SetupCoach />
@@ -626,7 +628,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
                 </section>
 
-                <div className="v104-build-badge" aria-label="Current app build">GHM design build V108</div>
+                <div className="v104-build-badge" aria-label="Current app build">GHM design build V109</div>
 
                 {mobileMoreGroups.map((group) => {
                   const items = extraNavItems.filter((item) => item.group === group.key);

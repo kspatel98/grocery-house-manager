@@ -1,0 +1,360 @@
+/* ========================================================================== 
+   GHM V109 — calm visual system + whole-app spacing/contrast + quiet recovery
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Stable palette contract
+   Classic = Lake + Oat + Apricot.  The dark palette is designed separately,
+   not produced by inverting the light palette.
+   -------------------------------------------------------------------------- */
+:root,
+html[data-ghm-theme="light"][data-ghm-style="classic"],
+html[data-theme="light"][data-ghm-style="classic"]{
+  --ghm-bg:#f4f0e8;
+  --ghm-bg-deep:#ebe4d8;
+  --ghm-canvas:#faf8f3;
+  --ghm-surface:#fcfbf8;
+  --ghm-surface-soft:#eef2f1;
+  --ghm-surface-strong:#dfeaed;
+  --ghm-surface-elevated:#ffffff;
+  --ghm-surface-raised:#ffffff;
+  --ghm-primary:#356e7e;
+  --ghm-primary-deep:#244e5c;
+  --ghm-primary-bright:#5a90a0;
+  --ghm-primary-soft:#e2eef1;
+  --ghm-accent:#b85b31;
+  --ghm-gold:#c96f3e;
+  --ghm-gold-soft:#f8e8dc;
+  --ghm-text:#2d4350;
+  --ghm-text-strong:#132a36;
+  --ghm-muted:#687a84;
+  --ghm-muted-soft:#7e8d95;
+  --ghm-border:#d6dee0;
+  --ghm-border-strong:#b9c9ce;
+  --ghm-divider:rgba(19,42,54,.10);
+  --ghm-shadow:0 14px 34px rgba(31,66,78,.08);
+  --ghm-shadow-strong:0 24px 60px rgba(31,66,78,.14);
+  --ghm-focus:0 0 0 4px rgba(53,110,126,.18);
+  --ghm-success:#39755e;
+  --ghm-success-soft:#e5f1eb;
+  --ghm-warning:#9a601f;
+  --ghm-warning-soft:#fbefdc;
+  --ghm-danger:#a64b49;
+  --ghm-danger-soft:#f9e8e7;
+  --ghm-card-gradient:linear-gradient(145deg,#ffffff 0%,#faf8f3 58%,#eef4f5 100%);
+  --ghm-card-gradient-strong:linear-gradient(145deg,#ffffff 0%,#f4f0e8 52%,#e5eff1 100%);
+}
+
+html[data-ghm-style="calm"][data-ghm-theme="light"],
+html[data-ghm-style="calm"][data-theme="light"]{
+  --ghm-bg:#f1f2ed;--ghm-bg-deep:#e7e9e2;--ghm-canvas:#f8f9f5;
+  --ghm-surface:#fbfcf9;--ghm-surface-soft:#e9efec;--ghm-surface-strong:#dce8e3;--ghm-surface-elevated:#ffffff;
+  --ghm-primary:#3f6d76;--ghm-primary-deep:#2c5159;--ghm-primary-bright:#6c969d;--ghm-primary-soft:#e1ecea;
+  --ghm-accent:#9f674f;--ghm-gold:#aa745c;--ghm-gold-soft:#f2e5de;
+  --ghm-text:#30434a;--ghm-text-strong:#162b31;--ghm-muted:#697a7e;--ghm-muted-soft:#849195;
+  --ghm-border:#d3dcda;--ghm-border-strong:#b7c8c4;
+}
+
+html[data-ghm-style="vibrant"][data-ghm-theme="light"],
+html[data-ghm-style="vibrant"][data-theme="light"]{
+  --ghm-bg:#f7f3ea;--ghm-bg-deep:#ece4d6;--ghm-canvas:#fcfaf5;
+  --ghm-surface:#fffdf9;--ghm-surface-soft:#edf2f7;--ghm-surface-strong:#dfe8f4;--ghm-surface-elevated:#ffffff;
+  --ghm-primary:#315fa8;--ghm-primary-deep:#244878;--ghm-primary-bright:#5c87c7;--ghm-primary-soft:#e4edf8;
+  --ghm-accent:#b9562d;--ghm-gold:#cb7137;--ghm-gold-soft:#fae9da;
+  --ghm-text:#293e50;--ghm-text-strong:#10283e;--ghm-muted:#667988;--ghm-muted-soft:#8393a0;
+  --ghm-border:#d4dde4;--ghm-border-strong:#b7c8d6;
+}
+
+html[data-ghm-theme="dark"],html[data-theme="dark"]{
+  --ghm-bg:#0c1821;
+  --ghm-bg-deep:#081119;
+  --ghm-canvas:#10212d;
+  --ghm-surface:#142a39;
+  --ghm-surface-soft:#1e3a4b;
+  --ghm-surface-strong:#25475b;
+  --ghm-surface-elevated:#183444;
+  --ghm-surface-raised:#1d3a4c;
+  --ghm-primary:#80c0cc;
+  --ghm-primary-deep:#4e91a0;
+  --ghm-primary-bright:#9bd2db;
+  --ghm-primary-soft:#1f4650;
+  --ghm-accent:#f0a173;
+  --ghm-gold:#efaa79;
+  --ghm-gold-soft:#493328;
+  --ghm-text:#edf5f8;
+  --ghm-text-strong:#fcfeff;
+  --ghm-muted:#b7c7cf;
+  --ghm-muted-soft:#98adb8;
+  --ghm-border:#365a6d;
+  --ghm-border-strong:#4c7082;
+  --ghm-divider:rgba(237,245,248,.12);
+  --ghm-shadow:0 16px 42px rgba(0,0,0,.24);
+  --ghm-shadow-strong:0 26px 70px rgba(0,0,0,.36);
+  --ghm-focus:0 0 0 4px rgba(128,192,204,.22);
+  --ghm-success:#86c9ad;--ghm-success-soft:#193f35;
+  --ghm-warning:#efbd78;--ghm-warning-soft:#4a3820;
+  --ghm-danger:#f4a5a2;--ghm-danger-soft:#4a292c;
+  --ghm-card-gradient:linear-gradient(145deg,#1b394a 0%,#152e3e 58%,#1d3443 100%);
+  --ghm-card-gradient-strong:linear-gradient(145deg,#21465b 0%,#19394c 60%,#264254 100%);
+}
+html[data-ghm-style="calm"][data-ghm-theme="dark"],html[data-ghm-style="calm"][data-theme="dark"]{
+  --ghm-bg:#101a1d;--ghm-canvas:#142327;--ghm-surface:#193036;--ghm-surface-soft:#213e43;--ghm-surface-elevated:#1d373d;
+  --ghm-primary:#92c1c4;--ghm-primary-deep:#5d9599;--ghm-primary-soft:#234a4d;--ghm-accent:#e3a58c;--ghm-gold:#e3a58c;--ghm-gold-soft:#49342c;
+  --ghm-text:#eef6f5;--ghm-text-strong:#ffffff;--ghm-muted:#bdccca;--ghm-border:#3b5d61;--ghm-border-strong:#55767a;
+}
+html[data-ghm-style="vibrant"][data-ghm-theme="dark"],html[data-ghm-style="vibrant"][data-theme="dark"]{
+  --ghm-bg:#0c1723;--ghm-canvas:#102235;--ghm-surface:#162d43;--ghm-surface-soft:#1d3a56;--ghm-surface-elevated:#1a344d;
+  --ghm-primary:#91b9ee;--ghm-primary-deep:#5b8dc9;--ghm-primary-soft:#203f67;--ghm-accent:#f3a06b;--ghm-gold:#f3a06b;--ghm-gold-soft:#4b3223;
+  --ghm-text:#eff6fd;--ghm-text-strong:#ffffff;--ghm-muted:#bdccda;--ghm-border:#3b5871;--ghm-border-strong:#55738d;
+}
+
+/* --------------------------------------------------------------------------
+   2. One rhythm everywhere: gutters, gaps, radii and readable line lengths
+   -------------------------------------------------------------------------- */
+:root{
+  --ghm-page-gutter:clamp(18px,2.6vw,36px);
+  --ghm-card-pad:clamp(18px,2vw,24px);
+  --ghm-section-gap:20px;
+  --ghm-radius-card:24px;
+  --ghm-radius-soft:18px;
+}
+
+html,body,#root,.app-frame{background:var(--ghm-bg)!important;color:var(--ghm-text)!important}
+body{overflow-x:hidden!important}
+.app-main-content{min-width:0!important;overflow:visible!important}
+.app-main-content>.page,.app-main-content>main.page{
+  width:min(100%,1420px)!important;
+  max-width:1420px!important;
+  margin-inline:auto!important;
+  padding:28px var(--ghm-page-gutter) 110px!important;
+}
+.app-main-content>.page>*+*,.app-main-content>main.page>*+*{margin-top:var(--ghm-section-gap)!important}
+.app-main-content .page>header{margin-block:0!important}
+.app-main-content .shell,.app-main-content .shell.wide{max-width:1420px!important}
+
+/* Signed-in cards should look like one design family. */
+.app-main-content :where(
+  .panel,.stat-card,.product-card,.house-card,.pricing-card,.auth-card,.legal-card,.support-card,.market-tool-card,
+  .page-hero,.topbar,.members-panel,.house-members-bar,.activity-panel,.inventory-control-panel,
+  .list-switcher-panel,.shopping-panel,.polished-shopping-panel,.shopping-category-section,.shopping-finish-bar-v106,
+  .receipt-panel,.receipt-detail-panel,.receipt-library-panel,.receipt-item-card,.receipt-total-card,
+  .expense-month-book-v100,.expense-month-workspace-head-v105,.expense-balance-audit,.pending-reimbursements,
+  .expense-reimbursements,.reimbursement-history-panel,.expense-insights,.expense-account-people-v108,
+  .autopilot-control-card,.autopilot-section,.autopilot-protection-card,.autopilot-trip-choice-card,
+  .food-tonight-hero-v98,.food-tonight-control-v98,.food-location-strip-v98,.food-place-card-v98,.food-context-card-v98,
+  .feature-hero-v96,.feature-scenario-v96,.feature-related-v96,.feature-final-cta-v96,.kitchen-map-hero-v96
+){border-radius:var(--ghm-radius-card)!important;overflow:clip}
+
+.app-main-content :where(.panel,.inventory-control-panel,.members-panel,.activity-panel,.shopping-panel,.polished-shopping-panel){padding:var(--ghm-card-pad)!important}
+.app-main-content :where(.panel,.stat-card,.product-card,.house-card,.pricing-card,.page-hero,.topbar,.members-panel,.house-members-bar,.activity-panel,.inventory-control-panel){
+  border:1px solid var(--ghm-border)!important;
+  background:var(--ghm-surface-elevated)!important;
+  box-shadow:var(--ghm-shadow)!important;
+}
+.app-main-content :where(.page-hero,.topbar){padding:clamp(20px,2.2vw,28px)!important}
+.app-main-content :where(.page-hero,.topbar) h1{font-size:clamp(2rem,3.2vw,3rem)!important;line-height:1.03!important;letter-spacing:-.045em!important}
+.app-main-content :where(.panel-title-row,.inventory-header){gap:16px!important}
+.app-main-content :where(.panel-title-row h2,.inventory-header h2){margin:0 0 6px!important}
+.app-main-content :where(.panel-title-row p,.inventory-header p){margin:0!important;color:var(--ghm-muted)!important}
+
+/* Previously square / edge-touching utility blocks. */
+.stats-ribbon{gap:14px!important}
+.stats-ribbon .stat-card{border-radius:22px!important;padding:18px 20px!important;min-height:116px!important}
+.section-manager,.section-list,.member-list,.activity-list{border-radius:18px!important}
+.section-row,.member-row,.activity-row,.summary-list-card,.add-more-box{border-radius:16px!important}
+.house-members-bar{gap:18px!important;padding:20px 22px!important}
+.compact-activity-panel,.compact-members-panel{min-width:0!important}
+.compact-activity-panel .activity-list,.compact-members-panel .member-list{margin-top:14px!important}
+.shopping-page-layout{gap:22px!important;align-items:start!important}
+.shopping-main-column,.shopping-side-column{display:grid!important;gap:18px!important;min-width:0!important}
+.shopping-page-layout>*,.shopping-main-column>*,.shopping-side-column>*{min-width:0!important}
+.list-tabs{gap:10px!important;padding:4px 0!important}
+.list-tab{border-radius:18px!important}
+.shopping-category-section{margin-top:12px!important}
+
+/* Inputs/buttons follow the same soft geometry without becoming cartoonish. */
+.app-main-content :where(input,select,textarea){border-radius:14px!important}
+.app-main-content :where(.primary,.secondary,.ghost,.ghost-button,.text-button,.danger,.small-button){border-radius:14px!important}
+.app-main-content :where(.icon-btn,.icon-button,.drawer-close,[data-dialog-close="true"]){border-radius:50%!important}
+
+/* Error/status content stays inside the product surface and wraps safely. */
+.app-main-content :where(.error,.warning,.hint,.offline-shopping-banner,.active-plan-lock-banner,.expense-linked-receipt-banner,.ghm-refresh-note-v106){
+  max-width:100%!important;min-width:0!important;overflow-wrap:anywhere!important;word-break:break-word!important;
+  border-radius:17px!important;padding:12px 14px!important;margin:12px 0!important;
+}
+
+/* --------------------------------------------------------------------------
+   3. Quiet connection recovery: never a huge banner floating above the app
+   -------------------------------------------------------------------------- */
+.ghm-inapp-status-slot-v109{width:100%;padding:0 var(--ghm-page-gutter);margin:12px auto 0;display:grid;gap:10px}
+.ghm-inapp-status-slot-v109:empty{display:none}
+.ghm-service-status,.ghm-account-data-warning{
+  position:relative!important;inset:auto!important;z-index:12!important;
+  width:min(100%,760px)!important;margin:0!important;justify-self:end!important;
+  display:grid!important;grid-template-columns:auto minmax(0,1fr) auto!important;gap:11px!important;align-items:center!important;
+  padding:11px 12px!important;border-radius:18px!important;box-shadow:var(--ghm-shadow)!important;
+}
+.ghm-service-status{
+  background:color-mix(in srgb,var(--ghm-warning-soft) 72%,var(--ghm-surface-elevated))!important;
+  color:var(--ghm-text)!important;border:1px solid color-mix(in srgb,var(--ghm-warning) 36%,var(--ghm-border))!important;
+}
+.ghm-service-status.offline{
+  background:color-mix(in srgb,var(--ghm-danger-soft) 78%,var(--ghm-surface-elevated))!important;
+  border-color:color-mix(in srgb,var(--ghm-danger) 42%,var(--ghm-border))!important;
+}
+.ghm-service-status strong,.ghm-service-status small{color:inherit!important;opacity:1!important}
+.ghm-service-status small{color:var(--ghm-muted)!important;line-height:1.4!important}
+.ghm-service-status button,.ghm-account-data-warning button{min-height:38px!important;padding:7px 11px!important;border-radius:999px!important;background:var(--ghm-surface-elevated)!important;color:var(--ghm-text-strong)!important;border:1px solid var(--ghm-border)!important}
+.ghm-account-data-warning{background:var(--ghm-surface-elevated)!important;color:var(--ghm-text)!important;border:1px solid color-mix(in srgb,var(--ghm-warning) 34%,var(--ghm-border))!important}
+
+/* --------------------------------------------------------------------------
+   4. Dark mode: explicitly neutralize old hard-coded white/black islands
+   -------------------------------------------------------------------------- */
+html[data-ghm-theme="dark"] .app-main-content :where(
+  .panel,.stat-card,.product-card,.house-card,.pricing-card,.legal-card,.support-card,.market-tool-card,
+  .page-hero,.topbar,.members-panel,.house-members-bar,.activity-panel,.inventory-control-panel,
+  .list-switcher-panel,.list-tab,.shopping-panel,.polished-shopping-panel,.shopping-list,.shopping-category-section,
+  .receipt-panel,.receipt-detail-panel,.receipt-library-panel,.receipt-item-card,.receipt-total-card,
+  .expense-month-book-v100,.expense-month-workspace-head-v105,.expense-balance-audit,.pending-reimbursements,
+  .expense-reimbursements,.reimbursement-history-panel,.expense-insights,.expense-account-people-v108,
+  .autopilot-control-card,.autopilot-section,.autopilot-protection-card,.autopilot-trip-choice-card,
+  .v95-home-card,.v95-next-grid>a,.v100-home-overview,.v101-discover-strip,.first-run-setup-v71,.install-app-card,.house-context-switcher
+),
+html[data-theme="dark"] .app-main-content :where(
+  .panel,.stat-card,.product-card,.house-card,.pricing-card,.legal-card,.support-card,.market-tool-card,
+  .page-hero,.topbar,.members-panel,.house-members-bar,.activity-panel,.inventory-control-panel,
+  .list-switcher-panel,.list-tab,.shopping-panel,.polished-shopping-panel,.shopping-list,.shopping-category-section,
+  .receipt-panel,.receipt-detail-panel,.receipt-library-panel,.receipt-item-card,.receipt-total-card,
+  .expense-month-book-v100,.expense-month-workspace-head-v105,.expense-balance-audit,.pending-reimbursements,
+  .expense-reimbursements,.reimbursement-history-panel,.expense-insights,.expense-account-people-v108,
+  .autopilot-control-card,.autopilot-section,.autopilot-protection-card,.autopilot-trip-choice-card,
+  .v95-home-card,.v95-next-grid>a,.v100-home-overview,.v101-discover-strip,.first-run-setup-v71,.install-app-card,.house-context-switcher
+){background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important}
+
+html[data-ghm-theme="dark"] .app-main-content :where(.panel,.stat-card,.page-hero,.topbar,.shopping-panel,.food-context-card-v98,.feature-hero-v96) :where(h1,h2,h3,h4,strong,b),
+html[data-theme="dark"] .app-main-content :where(.panel,.stat-card,.page-hero,.topbar,.shopping-panel,.food-context-card-v98,.feature-hero-v96) :where(h1,h2,h3,h4,strong,b){color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .app-main-content :where(.panel,.stat-card,.page-hero,.topbar,.shopping-panel,.food-context-card-v98,.feature-hero-v96) :where(p,small,label,em),
+html[data-theme="dark"] .app-main-content :where(.panel,.stat-card,.page-hero,.topbar,.shopping-panel,.food-context-card-v98,.feature-hero-v96) :where(p,small,label,em){color:var(--ghm-muted)!important;opacity:1!important}
+
+/* Food Tonight follows the calm dark treatment the user preferred in dev tools. */
+html[data-ghm-theme="dark"] .food-tonight-hero-v98,html[data-theme="dark"] .food-tonight-hero-v98{
+  background:linear-gradient(135deg,#29485a 0%,#223d50 58%,#1b3445 100%)!important;border-color:#456a7d!important;color:var(--ghm-text-strong)!important;
+}
+html[data-ghm-theme="dark"] .food-tonight-hero-v98 :where(h1,h2,strong),html[data-theme="dark"] .food-tonight-hero-v98 :where(h1,h2,strong){color:#fff!important}
+html[data-ghm-theme="dark"] .food-tonight-hero-v98 :where(p,.eyebrow,.breadcrumb),html[data-theme="dark"] .food-tonight-hero-v98 :where(p,.eyebrow,.breadcrumb){color:#e4eef3!important}
+html[data-ghm-theme="dark"] :where(.food-tonight-control-v98,.food-location-strip-v98,.food-context-card-v98,.food-place-card-v98),
+html[data-theme="dark"] :where(.food-tonight-control-v98,.food-location-strip-v98,.food-context-card-v98,.food-place-card-v98){background:var(--ghm-surface-elevated)!important;border-color:var(--ghm-border)!important;color:var(--ghm-text)!important}
+html[data-ghm-theme="dark"] .food-context-card-v98 :where(strong,h3),html[data-theme="dark"] .food-context-card-v98 :where(strong,h3){color:#fff!important}
+html[data-ghm-theme="dark"] .food-context-card-v98 :where(p,small),html[data-theme="dark"] .food-context-card-v98 :where(p,small){color:var(--ghm-muted)!important;opacity:1!important}
+
+/* Feature / trust pages get proper app gutters and rounded sections instead of a black rectangle. */
+.feature-landing-v96{display:grid;gap:20px;padding:28px var(--ghm-page-gutter) 110px;background:transparent!important}
+.feature-landing-v96>.shell{width:min(100%,1420px)!important;margin-inline:auto!important}
+.feature-hero-v96,.feature-scenario-v96,.feature-related-v96,.feature-final-cta-v96{border-radius:28px!important;overflow:clip!important}
+.feature-outcomes-v96,.feature-confidence-v96{gap:14px!important}
+.feature-outcomes-v96>article,.feature-flow-v96 article,.feature-confidence-v96>span,.feature-related-v96 nav>a{border-radius:18px!important}
+html[data-ghm-theme="dark"] .feature-landing-v96,html[data-theme="dark"] .feature-landing-v96{background:var(--ghm-bg)!important}
+html[data-ghm-theme="dark"] .feature-hero-v96,html[data-theme="dark"] .feature-hero-v96{background:linear-gradient(135deg,#1b3b4f,#132b3c)!important;border-color:var(--ghm-border)!important}
+html[data-ghm-theme="dark"] .feature-hero-v96 :where(h1,p,.eyebrow),html[data-theme="dark"] .feature-hero-v96 :where(h1,p,.eyebrow){color:var(--ghm-text-strong)!important}
+html[data-ghm-theme="dark"] .feature-hero-v96 aside,html[data-theme="dark"] .feature-hero-v96 aside{background:#214861!important;border-color:#4d7184!important;border-radius:22px!important}
+html[data-ghm-theme="dark"] .feature-hero-v96 aside :where(strong,span,small),html[data-theme="dark"] .feature-hero-v96 aside :where(strong,span,small){color:#f8fcfe!important}
+
+/* Home hierarchy: less billboard, more useful overview. */
+.v104-home-hero-copy h1{font-size:clamp(2rem,3vw,2.85rem)!important;line-height:1.02!important}
+.v104-home-control{gap:4px 14px!important;padding:13px 16px!important;border-radius:18px!important}
+.v104-home-control small{line-height:1.2!important}.v104-home-control strong{line-height:1!important}.v104-home-control span{line-height:1.25!important}
+
+/* Keep floating helpers usable without covering the final content. */
+.app-main-content>main,.app-main-content>.page{scroll-padding-bottom:120px}
+.ghm-house-chat-fab-v108,.ghm-capture-fab{box-shadow:0 12px 28px rgba(8,27,38,.20)!important}
+
+/* --------------------------------------------------------------------------
+   5. Mobile is composed independently, not compressed desktop
+   -------------------------------------------------------------------------- */
+@media(max-width:980px){
+  .app-main-content>.page,.app-main-content>main.page{padding:18px 16px calc(124px + env(safe-area-inset-bottom))!important}
+  .app-main-content>.page>*+*,.app-main-content>main.page>*+*{margin-top:16px!important}
+  .ghm-inapp-status-slot-v109{padding:0 16px;margin-top:10px}
+  .ghm-service-status,.ghm-account-data-warning{width:100%!important;justify-self:stretch!important}
+  .feature-landing-v96{padding:18px 16px calc(124px + env(safe-area-inset-bottom))!important;gap:16px!important}
+  .feature-hero-v96{grid-template-columns:1fr!important;padding:20px!important}
+}
+
+@media(max-width:700px){
+  :root{--ghm-page-gutter:14px;--ghm-section-gap:14px;--ghm-card-pad:15px;--ghm-radius-card:20px}
+  .app-main-content>.page,.app-main-content>main.page{padding-inline:14px!important}
+  .app-main-content :where(.page-hero,.topbar){padding:17px!important;border-radius:21px!important}
+  .app-main-content :where(.page-hero,.topbar) h1{font-size:clamp(1.8rem,9vw,2.2rem)!important;line-height:1.06!important}
+  .app-main-content :where(.panel,.inventory-control-panel,.members-panel,.activity-panel,.shopping-panel,.polished-shopping-panel){padding:15px!important;border-radius:20px!important}
+  .stats-ribbon{grid-template-columns:1fr 1fr!important;gap:9px!important}
+  .stats-ribbon .stat-card{min-height:94px!important;padding:13px!important;border-radius:18px!important}
+  .stats-ribbon .stat-card strong{font-size:1.55rem!important}
+  .house-members-bar{display:grid!important;grid-template-columns:1fr!important;padding:15px!important;gap:12px!important}
+  .house-members-bar .member-avatar-stack{justify-content:flex-start!important}
+  .house-members-bar>button{width:100%!important}
+  .shopping-page-layout{grid-template-columns:1fr!important;gap:14px!important}
+  .shopping-main-column,.shopping-side-column{gap:14px!important}
+  .shopping-topbar-actions{display:flex!important;overflow-x:auto!important;gap:8px!important;padding-bottom:4px!important;scrollbar-width:none}
+  .shopping-topbar-actions::-webkit-scrollbar{display:none}
+  .shopping-topbar-actions>*{flex:0 0 auto!important}
+  .food-tonight-hero-v98{grid-template-columns:1fr!important;padding:18px!important;border-radius:22px!important}
+  .food-tonight-control-v98{grid-template-columns:1fr!important;padding:14px!important;border-radius:20px!important;gap:12px!important}
+  .food-location-strip-v98{display:grid!important;grid-template-columns:1fr!important;padding:14px!important}
+  .food-location-strip-v98>button{width:100%!important}
+  .food-context-card-v98{grid-template-columns:42px minmax(0,1fr)!important;padding:14px!important;gap:10px!important}
+  .food-context-card-v98>span{width:42px!important;height:42px!important}
+  .food-context-card-v98>a{grid-column:1/-1!important;width:100%!important}
+  .v104-home-control{grid-template-columns:minmax(0,1fr) auto!important;padding:11px 12px!important}
+  .v104-home-control strong{font-size:1.1rem!important}.v104-home-control small{font-size:.58rem!important}.v104-home-control span{font-size:.72rem!important}
+  .ghm-service-status,.ghm-account-data-warning{grid-template-columns:auto minmax(0,1fr)!important;padding:10px 11px!important}
+  .ghm-service-status button,.ghm-account-data-warning button{grid-column:1/-1!important;width:100%!important}
+  .ghm-house-chat-fab-v108{right:136px!important}
+}
+
+@media(max-width:430px){
+  .stats-ribbon{grid-template-columns:1fr 1fr!important}
+  .feature-outcomes-v96{grid-template-columns:1fr!important}
+  .feature-confidence-v96{grid-template-columns:1fr 1fr!important}
+  .v104-home-hero-copy h1{font-size:2rem!important}
+}
+
+/* Broad geometry safety net for legacy feature surfaces.  This intentionally
+   changes radius/spacing only; it does not erase feature-specific artwork. */
+.app-main-content :where(
+  [class*="-card"]:not([class*="-grid"]):not([class*="-copy"]):not([class*="-title"]):not([class*="-head"]):not([class*="-icon"]):not([class*="-actions"]),
+  [class*="-panel"]:not([class*="-title"]),
+  [class*="-strip"],
+  [class*="-workspace"]:not([class*="-actions"])
+){border-radius:var(--ghm-radius-soft)!important}
+
+html[data-ghm-theme="dark"] .app-main-content :where(
+  [class*="-card"]:not([class*="-grid"]):not([class*="-copy"]):not([class*="-title"]):not([class*="-head"]):not([class*="-icon"]):not([class*="-actions"]):not(.v95-value-card):not(.premium-panel):not(.offer-banner),
+  [class*="-panel"]:not([class*="-title"]):not(.premium-panel)
+),
+html[data-theme="dark"] .app-main-content :where(
+  [class*="-card"]:not([class*="-grid"]):not([class*="-copy"]):not([class*="-title"]):not([class*="-head"]):not([class*="-icon"]):not([class*="-actions"]):not(.v95-value-card):not(.premium-panel):not(.offer-banner),
+  [class*="-panel"]:not([class*="-title"]):not(.premium-panel)
+){border-color:var(--ghm-border)!important}
+
+html[data-ghm-theme="dark"] .app-main-content :where(
+  [class*="-card"]:not([class*="-grid"]):not([class*="-copy"]):not([class*="-title"]):not([class*="-head"]):not([class*="-icon"]):not([class*="-actions"])
+) :where(h1,h2,h3,h4,strong,b),
+html[data-theme="dark"] .app-main-content :where(
+  [class*="-card"]:not([class*="-grid"]):not([class*="-copy"]):not([class*="-title"]):not([class*="-head"]):not([class*="-icon"]):not([class*="-actions"])
+) :where(h1,h2,h3,h4,strong,b){color:var(--ghm-text-strong)!important}
+
+html[data-ghm-theme="dark"] .app-main-content :where(
+  [class*="-card"]:not([class*="-grid"]):not([class*="-copy"]):not([class*="-title"]):not([class*="-head"]):not([class*="-icon"]):not([class*="-actions"])
+) :where(p,small,label,em),
+html[data-theme="dark"] .app-main-content :where(
+  [class*="-card"]:not([class*="-grid"]):not([class*="-copy"]):not([class*="-title"]):not([class*="-head"]):not([class*="-icon"]):not([class*="-actions"])
+) :where(p,small,label,em){color:var(--ghm-muted)!important;opacity:1!important}
+
+/* Sidebar/topbar use the same palette instead of feeling like a separate app. */
+@media(min-width:981px){
+  .desktop-sidebar-v86{background:linear-gradient(180deg,var(--ghm-surface-elevated),var(--ghm-surface))!important;border-right:1px solid var(--ghm-border)!important}
+  .desktop-topbar-v86{background:color-mix(in srgb,var(--ghm-bg) 88%,transparent)!important;border-bottom-color:var(--ghm-divider)!important}
+  .desktop-sidebar-nav-v86 a,.v95-tools-toggle{border-radius:15px!important}
+  .desktop-sidebar-nav-v86 a.active{background:var(--ghm-primary-soft)!important;color:var(--ghm-text-strong)!important;border-color:color-mix(in srgb,var(--ghm-primary) 45%,var(--ghm-border))!important}
+  .desktop-sidebar-premium-v86{border-radius:20px!important}
+}
