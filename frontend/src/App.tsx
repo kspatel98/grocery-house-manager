@@ -33,6 +33,7 @@ const LearnGhmPage = lazy(() => import('./pages/LearnGhmPage'));
 const PremiumTryPage = lazy(() => import('./pages/PremiumTryPage'));
 const AppearancePage = lazy(() => import('./pages/AppearancePage'));
 const HouseChatPage = lazy(() => import('./pages/HouseChatPage'));
+const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
 
 function RouteFallback() {
   return <div className="route-fallback-v95" role="status" aria-live="polite"><span>✦</span><strong>Opening GHM…</strong></div>;
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/terms" element={<PublicRoute><TermsPage /></PublicRoute>} />
         <Route path="/refund-policy" element={<PublicRoute><RefundPolicyPage /></PublicRoute>} />
         <Route path="/support" element={<PublicRoute><SupportPage /></PublicRoute>} />
+        <Route path="/reviews" element={<PublicRoute><ReviewsPage /></PublicRoute>} />
         <Route path="/how-it-works" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
         <Route path="/trust" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
         <Route path="/autopilot" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />

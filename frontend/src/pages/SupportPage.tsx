@@ -76,6 +76,7 @@ export default function SupportPage() {
         <div className="support-actions">
           <Link to={loggedIn ? '/profile' : '/login'} className="primary center-link">{loggedIn ? 'Open profile' : 'Login'}</Link>
           <Link to="/pricing" className="secondary center-link">View plans</Link>
+          <Link to="/reviews" className="secondary center-link">Reviews & feedback</Link>
         </div>
       </section>
 

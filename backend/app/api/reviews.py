@@ -48,6 +48,25 @@ def current_review_for_user(db: Session, user: User) -> SiteReview | None:
     )
 
 
+
+
+@router.get("/public", response_model=list[SiteReviewOut])
+def public_reviews(db: Session = Depends(get_db)):
+    """Public, read-only review feed used for social proof on the site.
+
+    Editing still requires the signed-in /reviews endpoints, so this route never
+    exposes private reviews or edit permissions.
+    """
+    reviews = (
+        db.query(SiteReview)
+        .filter(SiteReview.is_public == True)  # noqa: E712
+        .order_by(desc(SiteReview.created_at))
+        .limit(24)
+        .all()
+    )
+    return [review_out(review) for review in reviews]
+
+
 @router.get("", response_model=list[SiteReviewOut])
 def list_reviews(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     reviews = (

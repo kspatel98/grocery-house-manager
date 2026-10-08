@@ -334,6 +334,12 @@ export default function ProfilePage() {
         <Link className="primary center-link" to="/appearance">Choose appearance</Link>
       </section>
 
+      <section className="profile-review-card-v112">
+        <div className="profile-review-icon-v112" aria-hidden="true">★</div>
+        <div><p className="eyebrow">REVIEWS & FEEDBACK</p><h2>Your experience matters.</h2><p>Rate GHM inside the app, update your review later, or read what other households have shared.</p></div>
+        <Link className="secondary center-link" to="/reviews">Open reviews</Link>
+      </section>
+
       {isLoadingProfile && (
         <section className="panel profile-panel">
           <p className="eyebrow">Account</p>

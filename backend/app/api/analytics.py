@@ -23,10 +23,12 @@ _ALLOWED_EVENTS = {
     "meal_cooked",
     "kitchen_vision_applied",
     "review_submitted",
+    "quick_feedback_positive",
+    "quick_feedback_negative",
     "template_applied",
     "household_created",
 }
-_SUCCESS_EVENTS = _ALLOWED_EVENTS - {"page_view"}
+_SUCCESS_EVENTS = {"shopping_completed", "receipt_saved", "meal_plan_built", "meal_cooked", "kitchen_vision_applied", "template_applied", "household_created"}
 
 
 def _require_admin(user: User = Depends(get_current_user)) -> User:

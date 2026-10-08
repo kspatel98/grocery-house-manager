@@ -125,7 +125,7 @@ export default function HomePage() {
         <article className="v96-value-card"><p className="eyebrow">WHY PAY MONTHLY?</p><h2>See what the system actually handled.</h2><div><span><small>Verified savings</small><strong>Evidence-backed</strong></span><span><small>Manual work</small><strong>Reduced</strong></span><span><small>Household decisions</small><strong>Prepared</strong></span></div><p>GHM's value proof is designed to show supported outcomes—not invented ROI.</p><Link to="/savings">See Savings & value proof →</Link></article>
       </section>
 
-      {community && community.review_count > 0 ? <section className="v96-community-proof shell wide"><div><p className="eyebrow">HOUSEHOLD FEEDBACK</p><h2>{community.average_rating.toFixed(1)} / 5 from {community.review_count} review{community.review_count === 1 ? '' : 's'}</h2></div>{community.best_positive_comment ? <blockquote>“{community.best_positive_comment}”{community.best_reviewer_name ? <cite>— {community.best_reviewer_name}</cite> : null}</blockquote> : null}</section> : null}
+      {community && community.review_count > 0 ? <section className="v96-community-proof shell wide"><div><p className="eyebrow">HOUSEHOLD FEEDBACK</p><h2>{community.average_rating.toFixed(1)} / 5 from {community.review_count} review{community.review_count === 1 ? '' : 's'}</h2><Link to="/reviews">Read reviews →</Link></div>{community.best_positive_comment ? <blockquote>“{community.best_positive_comment}”{community.best_reviewer_name ? <cite>— {community.best_reviewer_name}</cite> : null}</blockquote> : null}</section> : null}
 
       <section className="v96-final-cta shell wide">
         <img src="/brand/grocery-house-manager-icon.png" alt="" />

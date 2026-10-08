@@ -58,6 +58,7 @@ const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanNa
   { title: 'Product lookup + private price memory', description: 'Barcode/name lookup plus household-specific store price history from the groceries you review and save.', minPlan: 'basic' },
   { title: 'GHM Autopilot Weekly Planner + Budget Rescue', description: 'Plan days at home, servings and an optional budget. Autopilot prioritizes inventory and food approaching its expiry date, then creates only the missing grocery list.', minPlan: 'family' },
   { title: 'Automatic Trip Check', description: 'Compare whole-list saved prices plus supported Canadian current-price/flyer signals before you spend.', minPlan: 'family' },
+  { title: 'Weekly Flyer Intelligence', description: 'Load postal-code-aware flyer deals from the configured provider and match them to household shopping needs when live flyer data is connected.', minPlan: 'family' },
   { title: 'Smart stock-up intelligence', description: 'Uses your household price and purchase history to identify unusually strong prices and recommend a conservative quantity instead of treating every sale as a deal.', minPlan: 'family' },
   { title: 'Savings Ledger', description: 'Separates evidence-backed savings from open opportunities so the value of your household routine remains auditable.', minPlan: 'free' },
   { title: 'Household expenses + reimbursements', description: 'Track shared grocery spending, personal share, balances and suggested reimbursements.', minPlan: 'family' },

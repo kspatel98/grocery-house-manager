@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
           <li>Receipt information uploaded by users, including receipt JPG/PNG images, extracted text, store names, item rows, discounts, taxes, totals, prices, and dates.</li>
           <li>Subscription and billing status from Stripe. Card numbers and full payment details are handled by Stripe and are not stored by Grocery House Manager.</li>
           <li>Basic technical information required to keep the app secure and working, such as authentication tokens, request metadata, and local browser storage.</li>
-          <li>Privacy-light product usage events, such as page views and successful actions (for example, completing a shopping trip or meal plan). These events are used for product activation and retention metrics and do not store message contents, receipt contents, or the contents of a household list.</li>
+          <li>Privacy-light product usage events, such as page views, successful actions (for example, completing a shopping trip or meal plan), and optional one-tap thumbs-up/thumbs-down feedback. These events are used for product quality, activation, and retention metrics and do not store message contents, receipt contents, or the contents of a household list. Public star reviews are submitted separately and only become public when the user explicitly publishes them.</li>
         </ul>
 
         <h2>How we use information</h2>

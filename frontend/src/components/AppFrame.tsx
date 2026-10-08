@@ -266,6 +266,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     { to: '/learn', label: 'How GHM helps', icon: '✦', group: 'learn', description: 'The problem each smart feature is designed to solve' },
     { to: '/appearance', label: 'Appearance', icon: '🎨', group: 'account', description: 'System, light, dark and GHM visual styles' },
     { to: '/support', label: t('support'), icon: '💬', group: 'account', description: 'Get help with GHM' },
+    { to: '/reviews', label: 'Reviews & feedback', icon: '★', group: 'account', description: 'Rate GHM, update your review and read household feedback' },
     { to: '/privacy', label: 'Privacy', icon: '◌', group: 'account', description: 'Privacy and data information' },
     { to: '/terms', label: 'Terms', icon: '§', group: 'account', description: 'Terms of service' },
     ...(isAdmin ? [{ to: '/admin', label: t('admin'), icon: '🛡️', group: 'account', description: 'Admin controls and offers' }] : []),
