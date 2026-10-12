@@ -12,6 +12,7 @@ import SmartReviewPrompt from './SmartReviewPrompt';
 import { ThemeToggle } from '../theme';
 import ServiceStatusBanner from './ServiceStatusBanner';
 import UniversalCapture from './UniversalCapture';
+import NotificationCenter from './NotificationCenter';
 
 function EmailIcon() {
   return (
@@ -424,6 +425,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               </div>
             </nav>
             <LanguagePicker compact />
+            <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} compact />
             <Link
               to="/profile"
               className={`profile-orb-link ${showPremiumCrown ? 'premium-crowned' : ''} ${location.pathname.startsWith('/profile') ? 'active' : ''}`}
@@ -537,6 +539,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               {contextHouseId ? <button type="button" className="desktop-topbar-pill-v86 v105-quick-add" onClick={() => window.dispatchEvent(new Event('ghm:capture-open'))}>＋ Quick add</button> : null}
               {contextHouseId ? <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="desktop-topbar-pill-v86">Ask GHM</Link> : null}
               {contextHouseId ? <Link to={`/houses/${contextHouseId}/scan`} className="desktop-topbar-pill-v86 alt">Scan receipt</Link> : <Link to="/support" className="desktop-topbar-pill-v86 alt">{t('support')}</Link>}
+              <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} />
               <Link to="/appearance" className="desktop-topbar-icon-v105" aria-label="Appearance" title="Appearance">◐</Link>
             </div>
           </div>

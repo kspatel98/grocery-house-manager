@@ -169,7 +169,6 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
             </header>
 
             <div className="ghm-capture-shortcuts v105-quick-capture-grid">
-              <button type="button" onClick={startVoice}><span>{listening ? '◉' : '🎙️'}</span><strong>{listening ? 'Listening…' : 'Say it'}</strong><small>Tell GHM what changed.</small></button>
               <button type="button" onClick={() => go(`/houses/${houseId}/inventory`)}><span>📦</span><strong>Inventory</strong><small>Add or update what you own.</small></button>
               <button type="button" onClick={() => go(`/houses/${houseId}/shopping`)}><span>🛒</span><strong>Shopping</strong><small>Add what the house needs.</small></button>
               <button type="button" onClick={() => go(`/houses/${houseId}/scan`)}><span>🧾</span><strong>Scan receipt</strong><small>Inventory, prices and expenses.</small></button>
@@ -179,16 +178,28 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
 
             <label className="ghm-capture-input">
               <span>What changed or what do you need?</span>
-              <textarea
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void submit();
-                }}
-                placeholder="Try: We have guests Friday, find Swaminarayan food tonight, or we’re almost out of milk."
-                rows={4}
-                autoFocus
-              />
+              <div className={`ghm-capture-message-box-v115 ${listening ? 'is-listening' : ''}`}>
+                <textarea
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void submit();
+                  }}
+                  placeholder="Try: We have guests Friday, find Swaminarayan food tonight, or we’re almost out of milk."
+                  rows={4}
+                  autoFocus
+                />
+                <button
+                  className="ghm-capture-mic-v115"
+                  type="button"
+                  onClick={startVoice}
+                  aria-label={listening ? 'Listening for your voice' : 'Speak to GHM'}
+                  title={listening ? 'Listening…' : 'Speak to GHM'}
+                >
+                  <span aria-hidden="true">{listening ? '◉' : '🎙'}</span>
+                </button>
+              </div>
+              <small className="ghm-capture-voice-hint-v115">{listening ? 'Listening… speak naturally.' : 'Tap the mic to speak instead of typing.'}</small>
             </label>
 
             {error && <div className="error">{error}</div>}

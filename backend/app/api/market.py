@@ -19,6 +19,7 @@ from app.utils.location import common_grocery_chains, currency_for_country, norm
 from app.utils.flyer_data import discover_weekly_flyer_merchants, get_weekly_flyer_deals
 from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores, store_lookup_search_status
 from app.utils.external_providers import create_instacart_shopping_list_link, geoapify_find_store, geoapify_nearby_stores, geoapify_reverse_postal, instacart_is_configured, instacart_nearby_retailers, lookup_upcdatabase, upcdatabase_is_configured
+from app.utils.product_identity import lookup_serper_product_identity, rank_and_merge_identity_results
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -504,25 +505,54 @@ def product_lookup(
             results=results,
         )))
 
-    results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)
-    source_note = "Open Food Facts"
-    if not results and upcdatabase_is_configured():
-        results = lookup_upcdatabase(barcode=barcode, query=query, limit=8)
-        source_note = "UPCDatabase"
-    if not results:
+    # V115 identity pipeline: do not stop at the first source. A weak Open Food
+    # Facts result is corroborated with UPCDatabase, then a barcode-only Serper
+    # fallback can supply additional candidates. The ranked response exposes
+    # confidence and evidence instead of pretending every match is exact.
+    off_results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)
+    combined_results = list(off_results)
+    ranked = rank_and_merge_identity_results(combined_results, barcode=barcode, query=query, limit=8)
+    top_confidence = ranked[0].identity_confidence if ranked else 0
+
+    if upcdatabase_is_configured() and (not ranked or (top_confidence or 0) < 90):
+        combined_results.extend(lookup_upcdatabase(barcode=barcode, query=query, limit=8))
+        ranked = rank_and_merge_identity_results(combined_results, barcode=barcode, query=query, limit=8)
+        top_confidence = ranked[0].identity_confidence if ranked else 0
+
+    if barcode and settings.serper_api_key and (not ranked or (top_confidence or 0) < 75):
+        combined_results.extend(lookup_serper_product_identity(barcode, limit=5))
+        ranked = rank_and_merge_identity_results(combined_results, barcode=barcode, query=query, limit=8)
+        top_confidence = ranked[0].identity_confidence if ranked else 0
+
+    if not ranked:
         return _write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
             premium_required=False,
             configured=True,
             store_filter=None,
-            message="No matching product details were found in the available universal product sources. You can still add the product manually.",
+            lookup_status="Identity not confirmed",
+            message="No matching product identity was found. Add it manually rather than saving an uncertain match.",
             results=[],
         ))
+
+    top = ranked[0]
+    evidence_labels = {
+        "open_food_facts": "Open Food Facts",
+        "upcdatabase": "UPCDatabase",
+        "serper_identity": "indexed web evidence",
+    }
+    source_note = ", ".join(evidence_labels.get(source, source.replace("_", " ")) for source in (top.evidence_sources or [top.source]))
+    confidence_text = f"{top.identity_confidence}% {top.identity_label or 'confidence'}" if top.identity_confidence is not None else "identity ranked"
     return finish_lookup(_write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
         premium_required=False,
         configured=True,
         store_filter=None,
-        message=f"Product details found from {source_note}. Please review brand and package size before saving to inventory.",
-        results=results,
+        lookup_status=f"{top.identity_label or 'Identity candidate'} · {top.identity_confidence or 0}%",
+        lookup_details=[
+            f"Evidence: {source_note}",
+            "GHM normalizes brand/name/package size and only marks a result Verified when independent sources corroborate it.",
+        ],
+        message=f"Best product identity is {confidence_text}, based on {source_note}. Review any Possible or Unconfirmed match before saving.",
+        results=ranked,
     )))
 
 

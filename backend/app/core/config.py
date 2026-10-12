@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     apify_price_cache_hours: int = 24
     apify_price_force_refresh_min_minutes: int = 30
     product_lookup_store_cache_hours: int = 24
-    product_lookup_universal_cache_hours: int = 720
+    product_lookup_universal_cache_hours: int = 8760
     apify_price_timeout_seconds: int = 90
     market_max_compare_items: int = 12
 

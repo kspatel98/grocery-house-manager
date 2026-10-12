@@ -1299,6 +1299,11 @@ class ProductLookupResultOut(BaseModel):
     product_url: str | None = None
     price: float | None = None
     lookup_note: str | None = None
+    normalized_name: str | None = None
+    normalized_quantity: str | None = None
+    identity_confidence: int | None = Field(default=None, ge=0, le=100)
+    identity_label: str | None = None
+    evidence_sources: list[str] = Field(default_factory=list)
     found: bool = True
 
 

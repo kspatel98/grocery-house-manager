@@ -2,19 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, BasketComparison, House, HouseMember, MarketCapabilities, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
+import type { BasketComparison, House, HouseMember, MarketCapabilities, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
-import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
+import { HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
 import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
+import OverlayPortal from '../components/OverlayPortal';
 
 const SHOPPING_PRODUCT_LIMIT = 80;
 
 export default function ShoppingPage() {
   const { houseId } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const id = Number(houseId);
   const requestedListId = Number(searchParams.get('list') || 0);
   const [house, setHouse] = useState<House | null>(null);
@@ -24,7 +25,7 @@ export default function ShoppingPage() {
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [members, setMembers] = useState<HouseMember[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [listWorkspaceOpen, setListWorkspaceOpen] = useState(Boolean(requestedListId));
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [housePlan, setHousePlan] = useState<Plan | null>(null);
   const [sortBy, setSortBy] = useState('store_name');
@@ -41,13 +42,12 @@ export default function ShoppingPage() {
 
   async function loadAll() {
     try {
-      const [houseRes, sectionsRes, productsRes, listsRes, membersRes, activitiesRes, subscriptionRes, housePlanRes] = await Promise.all([
+      const [houseRes, sectionsRes, productsRes, listsRes, membersRes, subscriptionRes, housePlanRes] = await Promise.all([
         api.get<House>(`/houses/${id}`),
         api.get<Section[]>(`/houses/${id}/sections`),
         api.get<Product[]>(`/houses/${id}/products`, { params: { sort_by: sortBy, direction, limit: SHOPPING_PRODUCT_LIMIT } }),
         api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`),
         api.get<HouseMember[]>(`/houses/${id}/members`),
-        api.get<Activity[]>(`/houses/${id}/activities`, { params: { limit: 20 } }),
         api.get<Subscription>('/billing/me'),
         api.get<Plan>(`/houses/${id}/plan`),
       ]);
@@ -56,7 +56,6 @@ export default function ShoppingPage() {
       setProducts(productsRes.data);
       setActiveLists(listsRes.data);
       setMembers(membersRes.data);
-      setActivities(activitiesRes.data);
       setSubscription(subscriptionRes.data);
       setHousePlan(housePlanRes.data);
       setOfflineFallback(false);
@@ -70,11 +69,21 @@ export default function ShoppingPage() {
       setError('');
 
       if (!listsRes.data.length) {
-        setCreatingNew(true);
+        setCreatingNew(false);
         setSelectedListId(null);
+        setListWorkspaceOpen(false);
+        if (requestedListId) setSearchParams({}, { replace: true });
       } else if (requestedListId && listsRes.data.some((list) => list.id === requestedListId)) {
         setCreatingNew(false);
         setSelectedListId(requestedListId);
+        setListWorkspaceOpen(true);
+      } else if (requestedListId) {
+        // A completed/cancelled list may disappear while its focused screen is open.
+        // Return to the Shop library instead of silently switching the user to another list.
+        setCreatingNew(false);
+        setSelectedListId(listsRes.data[0].id);
+        setListWorkspaceOpen(false);
+        setSearchParams({}, { replace: true });
       } else if (!creatingNew && (!selectedListId || !listsRes.data.some((list) => list.id === selectedListId))) {
         setSelectedListId(listsRes.data[0].id);
       }
@@ -131,14 +140,23 @@ export default function ShoppingPage() {
     setSections([]);
     setActiveLists([]);
     setMembers([]);
-    setActivities([]);
     setCreatingNew(false);
     setSelectedListId(null);
+    setListWorkspaceOpen(false);
     setInitialLoading(true);
     setOfflineFallback(false);
     setError('');
   }, [id]);
   useEffect(() => { loadAll(); }, [id, sortBy, direction]);
+  useEffect(() => {
+    if (requestedListId && activeLists.some((list) => list.id === requestedListId)) {
+      setSelectedListId(requestedListId);
+      setCreatingNew(false);
+      setListWorkspaceOpen(true);
+    } else if (!requestedListId && !creatingNew) {
+      setListWorkspaceOpen(false);
+    }
+  }, [requestedListId, activeLists, creatingNew]);
   useEffect(() => {
     let active = true;
     api.get<MarketCapabilities>('/market/capabilities').then(({ data }) => { if (active) setMarketCapabilities(data); }).catch(() => {});
@@ -185,6 +203,28 @@ export default function ShoppingPage() {
     setSelectedListId(nextList.id);
   }
 
+  function openList(listId: number) {
+    setCreatingNew(false);
+    setSelectedListId(listId);
+    setListWorkspaceOpen(true);
+    setSearchParams({ list: String(listId) }, { replace: true });
+  }
+
+  function openNewList() {
+    if (!canCreateMore) return;
+    setCreatingNew(true);
+    setSelectedListId(null);
+    setListWorkspaceOpen(true);
+    setSearchParams({}, { replace: true });
+  }
+
+  function closeListWorkspace() {
+    setListWorkspaceOpen(false);
+    setCreatingNew(false);
+    if (!selectedListId && activeLists[0]) setSelectedListId(activeLists[0].id);
+    setSearchParams({}, { replace: true });
+  }
+
   return (
     <main className="page shell wide">
       <header className="topbar">
@@ -223,78 +263,97 @@ export default function ShoppingPage() {
       <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
       {offlineFallback && <div className="offline-shopping-banner">Offline mode: showing the latest shopping list saved on this device. Changes require a connection.</div>}
 
-      {!creatingNew && selectedList ? <WholeListComparison houseId={id} selectedList={selectedList} premiumTry={subscription?.premium_try || null} /> : null}
-
-      <div className="shopping-page-layout">
-        <section className="shopping-main-column">
-          <section className="panel list-switcher-panel">
-            <div className="panel-title-row">
-              <div>
-                <h2>Active shopping lists</h2>
-                <p>
-                  {activeLists.length} active list{activeLists.length === 1 ? '' : 's'}
-                  {housePlan ? ` / ${housePlan.limits.active_lists_per_house} allowed by owner plan (${housePlan.name})` : ''}
-                </p>
-              </div>
-              <button
-                className="primary"
-                disabled={!canCreateMore}
-                onClick={() => { setCreatingNew(true); setSelectedListId(null); }}
-              >
-                New list
-              </button>
-            </div>
-            {!canCreateMore && <div className="hint">This house reached the owner plan's active shopping-list limit. Finish/cancel one, or ask the owner to upgrade.</div>}
-            <div className="list-tabs">
-              {activeLists.map((list) => (
-                <button
-                  key={list.id}
-                  className={!creatingNew && (selectedListId === list.id || (!selectedListId && selectedList?.id === list.id)) ? 'list-tab active' : 'list-tab'}
-                  onClick={() => { setCreatingNew(false); setSelectedListId(list.id); }}
-                >
+      <section className="panel list-switcher-panel shopping-list-library-panel-v115">
+        <div className="panel-title-row">
+          <div>
+            <p className="eyebrow">SHOPPING WORKSPACES</p>
+            <h2>Your grocery lists</h2>
+            <p>Open one list at a time in its own focused screen. Your Shop page stays clean and easy to scan.</p>
+          </div>
+          <button className="primary" disabled={!canCreateMore} onClick={openNewList}>New list</button>
+        </div>
+        {!canCreateMore && <div className="hint">This house reached the owner plan's active shopping-list limit. Finish or cancel one list before creating another.</div>}
+        {activeLists.length ? (
+          <div className="shopping-list-library-v115">
+            {activeLists.map((list) => (
+              <button key={list.id} type="button" className="shopping-list-card-v115" onClick={() => openList(list.id)}>
+                <span className="shopping-list-card-icon-v115" aria-hidden="true">🛒</span>
+                <span className="shopping-list-card-copy-v115">
+                  <small>GROCERY LIST</small>
                   <strong>{list.title}</strong>
-                  <small>{list.items.length} item{list.items.length === 1 ? '' : 's'}</small>
-                </button>
-              ))}
-              {creatingNew && <button className="list-tab active"><strong>New grocery list</strong><small>Select products below</small></button>}
-            </div>
-          </section>
+                  <span>{list.items.length} item{list.items.length === 1 ? '' : 's'} · created {new Date(list.created_at).toLocaleDateString()}</span>
+                </span>
+                <b>Open →</b>
+              </button>
+            ))}
+          </div>
+        ) : !initialLoading ? (
+          <div className="shopping-list-empty-v115">
+            <span aria-hidden="true">📝</span>
+            <div><strong>No active grocery lists yet.</strong><p>Create a focused list for your next trip.</p></div>
+            <button className="primary" type="button" onClick={openNewList}>Create your first list</button>
+          </div>
+        ) : null}
+      </section>
 
-          {marketCapabilities?.instacart_configured && selectedList && !creatingNew ? (
-            <section className="panel instacart-shopping-card-v114">
-              <div>
-                <p className="eyebrow">Optional checkout partner</p>
-                <h3>Shop this list with Instacart</h3>
-                <p>Send the current GHM list to Instacart, choose a nearby retailer there, confirm live price/package availability, and check out without retyping the list.</p>
+      {listWorkspaceOpen ? (
+        <OverlayPortal>
+          <div className="shopping-list-workspace-backdrop-v115" onMouseDown={(event) => { if (event.target === event.currentTarget) closeListWorkspace(); }}>
+            <section className="shopping-list-workspace-v115" role="dialog" aria-modal="true" aria-label={creatingNew ? 'Create grocery list' : selectedList?.title || 'Grocery list'}>
+              <header className="shopping-list-workspace-head-v115">
+                <div>
+                  <small>{creatingNew ? 'NEW GROCERY LIST' : 'GROCERY LIST'}</small>
+                  <h2>{creatingNew ? 'Build a new list' : selectedList?.title || 'Grocery list'}</h2>
+                  <p>{creatingNew ? 'Choose what the house needs, then save the list.' : `${selectedList?.items.length || 0} items · shop with one focused screen.`}</p>
+                </div>
+                <button type="button" className="icon-button shopping-list-workspace-close-v115" onClick={closeListWorkspace} aria-label="Close grocery list">×</button>
+              </header>
+
+              <div className="shopping-list-workspace-scroll-v115">
+                {!creatingNew && selectedList ? <WholeListComparison houseId={id} selectedList={selectedList} premiumTry={subscription?.premium_try || null} /> : null}
+
+                {marketCapabilities?.instacart_configured && selectedList && !creatingNew ? (
+                  <section className="panel instacart-shopping-card-v114">
+                    <div>
+                      <p className="eyebrow">Optional checkout partner</p>
+                      <h3>Shop this list with Instacart</h3>
+                      <p>Send this GHM list to Instacart, choose a nearby retailer, then confirm live package and price availability before checkout.</p>
+                    </div>
+                    <button className="primary" type="button" disabled={instacartBusy} onClick={() => void openInstacartList()}>{instacartBusy ? 'Preparing…' : 'Open on Instacart →'}</button>
+                    {instacartMessage ? <small className="small-muted">{instacartMessage}</small> : null}
+                  </section>
+                ) : null}
+
+                <div className="shopping-list-workspace-grid-v115">
+                  <div className="shopping-list-workspace-main-v115">
+                    <ShoppingListPanel
+                      houseId={id}
+                      products={products}
+                      sections={sections}
+                      activeList={activeListForPanel}
+                      onChange={loadAll}
+                      onListUpdated={replaceActiveList}
+                      onListCreated={(list) => {
+                        setCreatingNew(false);
+                        setSelectedListId(list.id);
+                        setListWorkspaceOpen(true);
+                        setSearchParams({ list: String(list.id) }, { replace: true });
+                      }}
+                      onProductSearch={loadProducts}
+                      onCancelCreate={closeListWorkspace}
+                    />
+                  </div>
+                  {!creatingNew && selectedList ? (
+                    <aside className="shopping-list-workspace-side-v115">
+                      <SmartShoppingSuggestions houseId={id} selectedList={selectedList} premiumTry={subscription?.premium_try || null} />
+                    </aside>
+                  ) : null}
+                </div>
               </div>
-              <button className="primary" type="button" disabled={instacartBusy} onClick={() => void openInstacartList()}>{instacartBusy ? 'Preparing…' : 'Open on Instacart →'}</button>
-              {instacartMessage ? <small className="small-muted">{instacartMessage}</small> : null}
             </section>
-          ) : null}
-
-          <ShoppingListPanel
-            houseId={id}
-            products={products}
-            sections={sections}
-            activeList={activeListForPanel}
-            onChange={loadAll}
-            onListUpdated={replaceActiveList}
-            onListCreated={(list) => {
-              setCreatingNew(false);
-              setSelectedListId(list.id);
-            }}
-            onProductSearch={loadProducts}
-            onCancelCreate={() => {
-              setCreatingNew(false);
-              setSelectedListId(activeLists[0]?.id || null);
-            }}
-          />
-        </section>
-        <aside className="shopping-side-column">
-          <SmartShoppingSuggestions houseId={id} selectedList={selectedList} premiumTry={subscription?.premium_try || null} />
-          <ActivityFeed activities={activities} onRefresh={loadAll} />
-        </aside>
-      </div>
+          </div>
+        </OverlayPortal>
+      ) : null}
 
       <MembersDrawer
         open={membersOpen}

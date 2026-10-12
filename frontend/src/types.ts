@@ -550,6 +550,11 @@ export type ProductLookupResult = {
   product_url?: string | null;
   price?: number | null;
   lookup_note?: string | null;
+  normalized_name?: string | null;
+  normalized_quantity?: string | null;
+  identity_confidence?: number | null;
+  identity_label?: string | null;
+  evidence_sources?: string[];
   found: boolean;
 };
 

@@ -26,7 +26,9 @@ function statusLabel(connected: boolean) {
 function storeSourceLabel(source: string) {
   if (source === 'walmart_ca') return 'Walmart Canada';
   if (source.includes('internet')) return 'Official web result';
-  if (source === 'open_food_facts') return 'Universal product database';
+  if (source === 'open_food_facts') return 'Open Food Facts';
+  if (source === 'upcdatabase') return 'UPCDatabase';
+  if (source === 'serper_identity') return 'Web identity evidence';
   if (source.endsWith('_website')) {
     return source.replace('_website', '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
@@ -205,6 +207,7 @@ export default function MarketPage() {
 
   async function addLookupToInventory(item: ProductLookupResult) {
     if (!selectedHouseId) return;
+    if ((item.identity_confidence ?? 100) < 60 && !window.confirm(`GHM is not confident this is the exact product (${item.identity_confidence ?? 0}%). Add it only if you have checked the brand and package size. Continue?`)) return;
     if (!sections.length) {
       setAddFeedback('Create at least one inventory section first, then add this product.');
       return;
@@ -540,6 +543,7 @@ export default function MarketPage() {
                       <div className="lookup-badges">
                         <span className="source-badge product-source">{storeSourceLabel(item.source)}</span>
                         {item.store_name && <span className="source-badge store-source">{item.store_name}</span>}
+                        {item.identity_confidence != null && <span className={`source-badge identity-confidence-v115 ${item.identity_confidence >= 90 ? 'verified' : item.identity_confidence >= 75 ? 'high' : item.identity_confidence >= 60 ? 'possible' : 'unconfirmed'}`}>{item.identity_confidence}% · {item.identity_label || 'Identity'}</span>}
                       </div>
                       <strong>{item.name}</strong>
                       <small>{[item.brand, item.quantity, item.barcode].filter(Boolean).join(' • ') || 'Review details before saving'}</small>
@@ -552,7 +556,7 @@ export default function MarketPage() {
                           <span className="hint tiny-hint">Confirm details on the store page first.</span>
                         ) : (
                           <button className="primary" type="button" disabled={addBusyKey === key || !selectedHouseId} onClick={() => addLookupToInventory(item)}>
-                            {addBusyKey === key ? 'Adding...' : 'Add to inventory'}
+                            {addBusyKey === key ? 'Adding...' : (item.identity_confidence ?? 100) < 60 ? 'Review & add' : 'Add to inventory'}
                           </button>
                         )}
                       </div>
