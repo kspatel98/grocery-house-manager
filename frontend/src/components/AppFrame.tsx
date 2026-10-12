@@ -102,6 +102,20 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const lastAccountRefreshRef = useRef(0);
 
   useEffect(() => {
+    document.documentElement.classList.add('ghm-auth-shell-active');
+    document.body.classList.add('ghm-auth-shell-active');
+    return () => {
+      document.documentElement.classList.remove('ghm-auth-shell-active');
+      document.body.classList.remove('ghm-auth-shell-active');
+    };
+  }, []);
+
+  useEffect(() => {
+    const main = document.querySelector<HTMLElement>('.desktop-main-v86');
+    if (main && window.matchMedia('(min-width: 981px)').matches) {
+      main.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
 
@@ -476,37 +490,39 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          <div className="desktop-sidebar-navblock-v86">
-            <small className="desktop-sidebar-label-v86">Main</small>
-            <nav className="desktop-sidebar-nav-v86">
-              {navItems.map((item) => {
-                const itemPath = item.to.split('?')[0];
-                const active = navActive(item.to);
-                return (
-                  <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
-                    <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+          <div className="desktop-sidebar-scroll-v116">
+            <div className="desktop-sidebar-navblock-v86">
+              <small className="desktop-sidebar-label-v86">Main</small>
+              <nav className="desktop-sidebar-nav-v86">
+                {navItems.map((item) => {
+                  const itemPath = item.to.split('?')[0];
+                  const active = navActive(item.to);
+                  return (
+                    <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
+                      <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
 
-          <div className={`desktop-sidebar-navblock-v86 secondary v95-tools-nav ${toolsOpen || extraActive ? 'open' : ''}`}>
-            <button type="button" className="v95-tools-toggle" onClick={() => setToolsOpen((value) => !value)} aria-expanded={toolsOpen || extraActive}>
-              <span className="desktop-sidebar-icon-v86" aria-hidden="true">◇</span><span>Tools</span><b aria-hidden="true">{toolsOpen || extraActive ? '−' : '+'}</b>
-            </button>
-            {(toolsOpen || extraActive) && <nav className="desktop-sidebar-nav-v86 secondary">
-              {extraNavItems.map((item) => {
-                const active = navActive(item.to);
-                return (
-                  <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
-                    <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>}
+            <div className={`desktop-sidebar-navblock-v86 secondary v95-tools-nav ${toolsOpen || extraActive ? 'open' : ''}`}>
+              <button type="button" className="v95-tools-toggle" onClick={() => setToolsOpen((value) => !value)} aria-expanded={toolsOpen || extraActive}>
+                <span className="desktop-sidebar-icon-v86" aria-hidden="true">◇</span><span>Tools</span><b aria-hidden="true">{toolsOpen || extraActive ? '−' : '+'}</b>
+              </button>
+              {(toolsOpen || extraActive) && <nav className="desktop-sidebar-nav-v86 secondary v116-tools-list">
+                {extraNavItems.map((item) => {
+                  const active = navActive(item.to);
+                  return (
+                    <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
+                      <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>}
+            </div>
           </div>
 
           <div className="desktop-sidebar-footer-v86">

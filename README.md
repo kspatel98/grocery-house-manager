@@ -1,8 +1,8 @@
 # Grocery House Manager
 
-## Current release: V100 — Graphical Home + Rich More + Flexible Expense Books
+## Current release: V116 — Landing Scroll + Contained Tools + Clear AI Roles
 
-V100 keeps the detailed GHM feature pages from V99, adds the richer graphical **Home** and grouped mobile **More** experience, and introduces user-selectable expense accounting months with **house-owner month locking**. See `V100_GRAPHICAL_HOME_MORE_EXPENSE_BOOKS.md` for the new behavior and deployment notes. The V99 blue/cream/orange stability work remains included underneath this release.
+V116 builds on the V115 focused-workspace and graphite-dark release. It restores full scrolling on the public landing site, keeps authenticated desktop sidebar/main scrolling independent, contains the expandable **Tools** menu inside its own sidebar navigation scroller, and clearly separates **Tell GHM (Quick Capture)** from **Ask GHM → Household Intelligence**. See `V116_SCROLL_TOOLS_INTELLIGENCE_FIX.md` for the newest fixes. V115 product-identity confidence, OFF/UPCDatabase/Serper corroboration, notifications, focused grocery-list workspaces and graphite dark mode remain included.
 
 
 ## V96 — Household Intelligence & Kitchen Map

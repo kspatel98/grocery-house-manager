@@ -73,6 +73,10 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
       go(`/houses/${houseId}/expenses`);
       return true;
     }
+    if (/why\b|analy[sz]e|explain|forecast|what should we buy|what should i buy|should we|use first|spending.*(up|increase|higher)|usual store|household intelligence/.test(q)) {
+      go(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(value)}`);
+      return true;
+    }
     if (/inventory|what.*have|what.*home|stock at home/.test(q)) {
       go(`/houses/${houseId}?tab=home`);
       return true;
@@ -161,9 +165,9 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
           <section className="ghm-capture-sheet" role="dialog" aria-modal="true" aria-label="Tell GHM">
             <header>
               <div>
-                <p className="eyebrow">UNIVERSAL CAPTURE</p>
-                <h2>Tell GHM once.</h2>
-                <p>Say it, type it or scan it. GHM opens the household workflow that fits what you need.</p>
+                <p className="eyebrow">QUICK CAPTURE</p>
+                <h2>Tell GHM what changed.</h2>
+                <p>Use this for quick actions and updates. For deeper questions, GHM opens Household Intelligence with your request ready.</p>
               </div>
               <button className="icon-button" onClick={close} aria-label="Close" data-dialog-close="true">×</button>
             </header>
@@ -203,7 +207,7 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
             </label>
 
             {error && <div className="error">{error}</div>}
-            {answer && <div className="ghm-capture-answer"><small>GHM HOUSEHOLD INTELLIGENCE</small><p>{answer}</p></div>}
+            {answer && <div className="ghm-capture-answer"><small>GHM QUICK GUIDANCE</small><p>{answer}</p><button className="secondary" type="button" onClick={() => go(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(text)}`)}>Open Household Intelligence →</button></div>}
             {suggestedAction && <div className="ghm-capture-fallback"><span>GHM can still take you somewhere useful.</span><button className="secondary" type="button" onClick={() => go(suggestedAction.path)}>{suggestedAction.label} →</button></div>}
 
             <div className="ghm-capture-actions">

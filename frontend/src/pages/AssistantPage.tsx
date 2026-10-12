@@ -35,6 +35,7 @@ function nextDayNames(count: number) {
 export default function AssistantPage() {
   const [params, setParams] = useSearchParams();
   const requestedView = params.get('view') as AutopilotView | null;
+  const sharedQuestion = params.get('q') || '';
   const workspace: AutopilotView = ['today', 'intelligence', 'plan', 'spend', 'protect'].includes(requestedView || '') ? (requestedView as AutopilotView) : 'today';
   const [houses, setHouses] = useState<House[]>([]);
   const [premiumTry, setPremiumTry] = useState<PremiumTryStatus | null>(null);
@@ -68,7 +69,7 @@ export default function AssistantPage() {
   const [kitchenApplyBusy, setKitchenApplyBusy] = useState(false);
   const [kitchenAutoRestock, setKitchenAutoRestock] = useState(false);
   const [digitalTwin, setDigitalTwin] = useState<HouseholdDigitalTwin | null>(null);
-  const [agentPrompt, setAgentPrompt] = useState('');
+  const [agentPrompt, setAgentPrompt] = useState(() => sharedQuestion);
   const [agentAnswer, setAgentAnswer] = useState<HouseholdAgentResponse | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
   const [communityPriceBusy, setCommunityPriceBusy] = useState(false);
@@ -77,6 +78,10 @@ export default function AssistantPage() {
   const [decisionBusy, setDecisionBusy] = useState('');
   const kitchenInputRef = useRef<HTMLInputElement | null>(null);
   const [reminderPermission, setReminderPermission] = useState<'unsupported' | NotificationPermission>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
+
+  useEffect(() => {
+    if (sharedQuestion) setAgentPrompt(sharedQuestion);
+  }, [sharedQuestion]);
 
   async function loadHouses() {
     try {
@@ -596,7 +601,7 @@ export default function AssistantPage() {
           </article>
         </div>
         <article className="v93-agent-card">
-          <div className="v93-agent-icon">✦</div><div><p className="eyebrow">GHM HOUSEHOLD INTELLIGENCE</p><h3>Ask using your live household context</h3><p>Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Should I choose the cheaper trip or our usual store?”</p></div>
+          <div className="v93-agent-icon">✦</div><div><p className="eyebrow">GHM HOUSEHOLD INTELLIGENCE</p><h3>Ask a deeper question about your household</h3><p>Household Intelligence explains, compares and forecasts using live household context. Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Why did our grocery spending increase?”</p></div>
           <div className="v93-agent-input"><textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Ask Autopilot about this household…" /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : 'Ask GHM'}</button></div>
           {agentAnswer ? <div className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
         </article>

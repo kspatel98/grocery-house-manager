@@ -1,0 +1,234 @@
+/* ========================================================================== 
+   GHM V116 — landing scroll recovery + contained sidebar tools
+   ========================================================================== */
+
+/* V115 intentionally locked the authenticated desktop shell so its sidebar and
+   main canvas could scroll independently. The lock must never apply to the
+   public/marketing site. AppFrame adds ghm-auth-shell-active only while the
+   authenticated shell is mounted. */
+@media (min-width: 981px) {
+  html:not(.ghm-auth-shell-active),
+  html:not(.ghm-auth-shell-active) body,
+  html:not(.ghm-auth-shell-active) #root {
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  html.ghm-auth-shell-active,
+  html.ghm-auth-shell-active body,
+  html.ghm-auth-shell-active #root {
+    width: 100%;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  html.ghm-auth-shell-active .desktop-sidebar-layout.app-frame,
+  html.ghm-auth-shell-active .desktop-shell-v86 {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  html.ghm-auth-shell-active .desktop-shell-v86 {
+    display: grid !important;
+    grid-template-columns: 272px minmax(0, 1fr) !important;
+    align-items: stretch !important;
+  }
+  html.ghm-auth-shell-active .desktop-shell-v86.is-collapsed {
+    grid-template-columns: 84px minmax(0, 1fr) !important;
+  }
+
+  /* Three deliberate zones: brand, independently scrolling navigation, and a
+     stable account/footer area. Expanding Tools therefore grows inside the nav
+     scroll area and can never cover the controls underneath it. */
+  html.ghm-auth-shell-active .desktop-sidebar-v86 {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-content: stretch !important;
+    gap: 12px !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    padding: 16px 12px 14px !important;
+  }
+
+  .desktop-sidebar-brand-v86 {
+    min-width: 0;
+    margin: 0 !important;
+    padding: 4px 30px 13px 4px !important;
+  }
+
+  .desktop-sidebar-scroll-v116 {
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding: 0 3px 10px 1px;
+  }
+
+  .desktop-sidebar-scroll-v116 > .desktop-sidebar-navblock-v86:first-child {
+    margin-top: 0 !important;
+  }
+
+  .desktop-sidebar-scroll-v116 .desktop-sidebar-navblock-v86,
+  .desktop-sidebar-scroll-v116 .desktop-sidebar-nav-v86,
+  .desktop-sidebar-scroll-v116 .v95-tools-nav,
+  .desktop-sidebar-scroll-v116 .v95-tools-toggle,
+  .desktop-sidebar-scroll-v116 .desktop-sidebar-nav-v86 a {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .desktop-sidebar-scroll-v116 .v95-tools-nav {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    overflow: visible !important;
+    margin: 12px 0 0 !important;
+    padding: 8px 0 0 !important;
+    border-top: 1px solid var(--ghm-divider);
+  }
+
+  .desktop-sidebar-scroll-v116 .v95-tools-toggle {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 9px 10px !important;
+    overflow: hidden;
+    border: 1px solid transparent !important;
+  }
+
+  .desktop-sidebar-scroll-v116 .v95-tools-toggle > span:nth-child(2) {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .desktop-sidebar-scroll-v116 .v95-tools-toggle > b {
+    flex: 0 0 auto;
+    width: 22px;
+    text-align: center;
+  }
+
+  .v116-tools-list {
+    position: static !important;
+    width: 100% !important;
+    margin: 7px 0 0 !important;
+    padding: 8px 0 2px !important;
+    border-top: 1px solid var(--ghm-divider) !important;
+    overflow: visible !important;
+  }
+
+  .v116-tools-list a {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .desktop-sidebar-footer-v86 {
+    position: relative !important;
+    z-index: 2;
+    min-width: 0;
+    margin: 0 !important;
+    padding-top: 11px !important;
+    border-top: 1px solid var(--ghm-divider);
+    background: inherit;
+  }
+
+  /* Keep the collapse affordance inside the sidebar. The old negative right
+     offset could be clipped once the sidebar became an independent scroller. */
+  .desktop-sidebar-collapse-v87 {
+    top: 14px !important;
+    right: 10px !important;
+    width: 30px !important;
+    height: 30px !important;
+    box-shadow: 0 6px 16px rgba(20, 28, 24, .14) !important;
+  }
+
+  /* Collapsed mode remains intentionally compact; Tools no longer leaves text
+     or the +/- control hanging outside the narrow rail. */
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-brand-v86 {
+    padding: 4px 0 12px !important;
+  }
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-scroll-v116 {
+    padding-inline: 0 !important;
+  }
+  .desktop-shell-v86.is-collapsed .v95-tools-toggle {
+    display: grid !important;
+    place-items: center;
+    padding: 7px !important;
+  }
+  .desktop-shell-v86.is-collapsed .v95-tools-toggle > span:nth-child(2),
+  .desktop-shell-v86.is-collapsed .v95-tools-toggle > b {
+    display: none !important;
+  }
+  .desktop-shell-v86.is-collapsed .v95-tools-toggle .desktop-sidebar-icon-v86,
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-nav-v86 a .desktop-sidebar-icon-v86 {
+    margin: 0 auto !important;
+  }
+  .desktop-shell-v86.is-collapsed .v116-tools-list a,
+  .desktop-shell-v86.is-collapsed .desktop-sidebar-nav-v86 a {
+    grid-template-columns: 1fr !important;
+    justify-items: center;
+    padding-inline: 7px !important;
+  }
+
+  /* Main content remains its own scroll region and its header never leaves the
+     top of that region. */
+  html.ghm-auth-shell-active .desktop-main-v86 {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  html.ghm-auth-shell-active .desktop-topbar-v86 {
+    display: flex !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
+  }
+}
+
+/* Make the distinction between quick capture and deeper intelligence visible
+   in the capture response without adding another competing primary button. */
+.ghm-capture-answer {
+  display: grid;
+  gap: 9px;
+}
+.ghm-capture-answer > .secondary {
+  justify-self: start;
+  width: auto;
+}
+
+@media (max-width: 980px) {
+  html.ghm-auth-shell-active,
+  html.ghm-auth-shell-active body,
+  html.ghm-auth-shell-active #root {
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+}
+
+@media (min-width: 981px) {
+  html:not(.ghm-auth-shell-active):has(body.dialog-open),
+  html:not(.ghm-auth-shell-active) body.dialog-open {
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+}
