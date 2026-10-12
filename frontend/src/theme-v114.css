@@ -1,0 +1,48 @@
+/* V114 — provider stack integration.  Keep partner CTAs helpful but visually secondary. */
+.instacart-shopping-card-v114 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px 22px;
+  padding: 20px 22px;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.instacart-shopping-card-v114 > div { min-width: 0; }
+.instacart-shopping-card-v114 h3 { margin: 2px 0 6px; }
+.instacart-shopping-card-v114 p:not(.eyebrow) {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--text-secondary, #5d7180);
+  line-height: 1.55;
+}
+.instacart-shopping-card-v114 .primary {
+  min-height: 44px;
+  white-space: nowrap;
+  border-radius: 14px;
+}
+.instacart-shopping-card-v114 .small-muted {
+  grid-column: 1 / -1;
+  margin-top: -6px;
+}
+
+[data-theme='dark'] .instacart-shopping-card-v114,
+.dark .instacart-shopping-card-v114 {
+  background: var(--surface-elevated, #1e3a4b);
+  border-color: var(--border, #365a6d);
+}
+[data-theme='dark'] .instacart-shopping-card-v114 p:not(.eyebrow),
+.dark .instacart-shopping-card-v114 p:not(.eyebrow) {
+  color: var(--text-secondary, #b7c7cf);
+}
+
+@media (max-width: 720px) {
+  .instacart-shopping-card-v114 {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 14px;
+    border-radius: 18px;
+  }
+  .instacart-shopping-card-v114 .primary { width: 100%; }
+}

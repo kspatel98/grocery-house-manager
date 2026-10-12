@@ -74,10 +74,33 @@ class Settings(BaseSettings):
     bing_web_search_api_key: str | None = None
     google_search_api_key: str | None = None
     google_search_cx: str | None = None
-    # Recommended backup for store item-number search when Google Custom Search returns 403
-    # or Bing does not index a store item page. Serper returns normal Google-style web results.
-    # Optional LLM-friendly web search provider. Needs a Jina Reader/Search API key.
-    # Optional Brave Search API provider.
+    # Recommended production fallback for official retailer/product page discovery.
+    serper_api_key: str | None = None
+    # Optional alternative web-search providers.
+    jina_api_key: str | None = None
+    brave_search_api_key: str | None = None
+
+    # Universal product identity fallback. Open Food Facts remains first because it is free;
+    # UPCDatabase is used when OFF has no confident barcode/name match.
+    upcdatabase_api_key: str | None = None
+    upcdatabase_base_url: str = "https://api.upcdatabase.org"
+    upcdatabase_timeout_seconds: int = 12
+
+    # Nearby-store provider. Geoapify is the low-cost default/backup for exact place results.
+    # Google Places remains supported and, when configured, is tried first.
+    geoapify_api_key: str | None = None
+    geoapify_base_url: str = "https://api.geoapify.com"
+    geoapify_radius_meters: int = 8000
+    geoapify_max_results: int = 12
+    geoapify_timeout_seconds: int = 10
+
+    # Instacart Developer Platform. GHM uses it for nearby retailer banners and for
+    # generating a hosted shopping-list page. Development and production keys are
+    # separate; production access requires Instacart approval.
+    instacart_api_key: str | None = None
+    instacart_environment: str = "development"
+    instacart_timeout_seconds: int = 15
+    instacart_country_code: str = "CA"
 
     # Apify Canadian grocery price comparison actor. Uses HTTPS 443, not SMTP.
     # Actor docs currently support input like:
@@ -112,6 +135,10 @@ class Settings(BaseSettings):
     # Tabscanner accepts JPG/JPEG and PNG receipt images. PDFs are intentionally blocked
     # in the UI and backend because this provider does not support them.
     receipt_ocr_provider: str = "tabscanner"
+    # Optional second provider used only when the primary provider fails or returns no usable
+    # line items. Set to aws_textract after configuring AWS credentials. Leave blank to disable.
+    receipt_ocr_fallback_provider: str | None = None
+    receipt_ocr_fallback_on_empty: bool = True
     receipt_scan_review_required: bool = True
     receipt_upload_max_mb: int = 20
     # Current Tabscanner account allowance. Set to 0 to disable the global safety cap.
@@ -132,6 +159,14 @@ class Settings(BaseSettings):
     veryfi_api_key: str | None = None
     veryfi_api_url: str = "https://api.veryfi.com/api/v8/partner/documents"
     veryfi_timeout_seconds: int = 60
+
+    # AWS Textract AnalyzeExpense receipt fallback / benchmark provider.
+    aws_textract_enabled: bool = False
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_session_token: str | None = None
+    aws_region: str = "ca-central-1"
+    aws_textract_timeout_seconds: int = 30
 
 
     # DigitalOcean Inference / Agent Platform (V93 Kitchen Vision + Household Agent).

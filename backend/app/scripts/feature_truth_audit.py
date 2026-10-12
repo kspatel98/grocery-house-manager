@@ -18,13 +18,13 @@ class FeatureCheck:
 
 FEATURES: tuple[FeatureCheck, ...] = (
     FeatureCheck("smart_receipt_scan", "Smart Receipt Scan", "Basic Home", "POST", "/houses/{house_id}/receipts/upload", "Receipt OCR provider; JPG/JPEG/PNG supported"),
-    FeatureCheck("product_lookup", "Product Lookup", "Basic Home", "GET", "/market/houses/{house_id}/product-lookup", "Universal lookup plus supported store-web search"),
+    FeatureCheck("product_lookup", "Product Lookup", "Basic Home", "GET", "/market/houses/{house_id}/product-lookup", "Open Food Facts first; UPCDatabase fallback; official retailer pages via Serper/Google when configured"),
     FeatureCheck("whole_list_compare", "Whole-List Comparison", "Family Plus", "GET", "/insights/houses/{house_id}/shopping-lists/{list_id}/basket-comparison", "Uses saved/current evidence; missing basket prices are not invented"),
     FeatureCheck("live_price_compare", "Live Grocery Price Compare", "Family Plus", "POST", "/market/houses/{house_id}/price-compare", "Live provider requires APIFY_API_TOKEN; saved-price fallback may remain available"),
     FeatureCheck("weekly_flyers", "Weekly Flyer Intelligence", "Family Plus", "GET", "/market/houses/{house_id}/flyers", "Requires APIFY_API_TOKEN and a valid Canadian postal code"),
     FeatureCheck("autopilot_planner", "GHM Autopilot Planner", "Family Plus", "POST", "/insights/houses/{house_id}/household-plan", "Uses household inventory/list/expiry inputs and optional budget"),
     FeatureCheck("smart_stock_up", "Smart Stock-Up", "Family Plus", "GET", "/insights/houses/{house_id}/stock-up", "Useful recommendations require actual household price/purchase history"),
-    FeatureCheck("nearby_store_suggestions", "Smart Nearby Stores", "Household Pro", "GET", "/market/houses/{house_id}/shopping-lists/{list_id}/suggestions", "Exact nearby results use GOOGLE_PLACES_API_KEY; safe fallback chains may be shown"),
+    FeatureCheck("nearby_store_suggestions", "Smart Nearby Stores", "Household Pro", "GET", "/market/houses/{house_id}/shopping-lists/{list_id}/suggestions", "Exact nearby results can use Google Places or Geoapify; Instacart can add nearby retailer banners by postal code"),
     FeatureCheck("kitchen_vision", "Kitchen Vision", "Household Pro", "POST", "/ai/houses/{house_id}/kitchen-vision", "Full AI analysis requires a configured AI provider; uncertain changes remain review-first"),
 )
 
@@ -63,16 +63,31 @@ def env_present(name: str) -> bool:
 def provider_status(key: str) -> str:
     if key == "smart_receipt_scan":
         provider = (os.getenv("RECEIPT_OCR_PROVIDER") or "tabscanner").strip().lower()
+        fallback = (os.getenv("RECEIPT_OCR_FALLBACK_PROVIDER") or "").strip().lower()
         if provider == "tabscanner":
-            return "configured" if env_present("TABSCANNER_API_KEY") else "NOT CONFIGURED (TABSCANNER_API_KEY missing)"
-        if provider == "veryfi":
+            primary = "configured" if env_present("TABSCANNER_API_KEY") else "NOT CONFIGURED (TABSCANNER_API_KEY missing)"
+        elif provider == "veryfi":
             ok = all(env_present(name) for name in ("VERYFI_CLIENT_ID", "VERYFI_USERNAME", "VERYFI_API_KEY"))
-            return "configured" if ok else "NOT CONFIGURED (Veryfi credentials missing)"
-        return "local provider"
+            primary = "configured" if ok else "NOT CONFIGURED (Veryfi credentials missing)"
+        elif provider == "aws_textract":
+            enabled = (os.getenv("AWS_TEXTRACT_ENABLED") or "").lower() in {"1", "true", "yes", "on"}
+            primary = "configured" if enabled else "NOT CONFIGURED (AWS_TEXTRACT_ENABLED=false)"
+        else:
+            primary = "local provider"
+        return f"primary={provider}:{primary}" + (f"; fallback={fallback}" if fallback else "")
     if key in {"live_price_compare", "weekly_flyers"}:
         return "configured" if env_present("APIFY_API_TOKEN") else "NOT CONFIGURED (APIFY_API_TOKEN missing)"
+    if key == "product_lookup":
+        bits = ["Open Food Facts"]
+        if env_present("UPCDATABASE_API_KEY"): bits.append("UPCDatabase")
+        if env_present("SERPER_API_KEY"): bits.append("Serper")
+        return " + ".join(bits)
     if key == "nearby_store_suggestions":
-        return "configured" if env_present("GOOGLE_PLACES_API_KEY") else "fallback-only (GOOGLE_PLACES_API_KEY missing)"
+        if env_present("GOOGLE_PLACES_API_KEY"):
+            return "configured (Google Places)"
+        if env_present("GEOAPIFY_API_KEY"):
+            return "configured (Geoapify)"
+        return "fallback-only (GOOGLE_PLACES_API_KEY and GEOAPIFY_API_KEY missing)"
     if key == "kitchen_vision":
         enabled = (os.getenv("DIGITALOCEAN_AGENT_ENABLED") or "").lower() in {"1", "true", "yes", "on"}
         ok = enabled and env_present("DIGITALOCEAN_AGENT_URL") and env_present("DIGITALOCEAN_AGENT_ACCESS_KEY")

@@ -16,3 +16,4 @@ stripe==11.4.1
 Pillow==10.4.0
 
 pytesseract==0.3.13
+boto3==1.35.95

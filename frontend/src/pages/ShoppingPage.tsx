@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, BasketComparison, House, HouseMember, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
+import type { Activity, BasketComparison, House, HouseMember, MarketCapabilities, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import { ActivityFeed, HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
@@ -34,6 +34,9 @@ export default function ShoppingPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [inviteUrl, setInviteUrl] = useState('');
   const [offlineFallback, setOfflineFallback] = useState(false);
+  const [marketCapabilities, setMarketCapabilities] = useState<MarketCapabilities | null>(null);
+  const [instacartBusy, setInstacartBusy] = useState(false);
+  const [instacartMessage, setInstacartMessage] = useState('');
   const currentUser: User | null = JSON.parse(localStorage.getItem('user') || 'null');
 
   async function loadAll() {
@@ -136,7 +139,34 @@ export default function ShoppingPage() {
     setError('');
   }, [id]);
   useEffect(() => { loadAll(); }, [id, sortBy, direction]);
+  useEffect(() => {
+    let active = true;
+    api.get<MarketCapabilities>('/market/capabilities').then(({ data }) => { if (active) setMarketCapabilities(data); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   useHouseLiveRefresh(id, loadAll);
+
+  async function openInstacartList() {
+    if (!selectedList) return;
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
+    try {
+      setInstacartBusy(true);
+      setInstacartMessage('');
+      const { data } = await api.post<{ configured: boolean; url?: string | null; message: string }>(`/market/houses/${id}/shopping-lists/${selectedList.id}/instacart-link`);
+      setInstacartMessage(data.message || '');
+      if (data.url) {
+        if (popup) popup.location.href = data.url;
+        else window.location.href = data.url;
+      } else if (popup) {
+        popup.close();
+      }
+    } catch (err) {
+      if (popup) popup.close();
+      setInstacartMessage(errorMessage(err));
+    } finally {
+      setInstacartBusy(false);
+    }
+  }
 
   const selectedList = useMemo(
     () => activeLists.find((list) => list.id === selectedListId) || activeLists[0] || null,
@@ -229,6 +259,18 @@ export default function ShoppingPage() {
               {creatingNew && <button className="list-tab active"><strong>New grocery list</strong><small>Select products below</small></button>}
             </div>
           </section>
+
+          {marketCapabilities?.instacart_configured && selectedList && !creatingNew ? (
+            <section className="panel instacart-shopping-card-v114">
+              <div>
+                <p className="eyebrow">Optional checkout partner</p>
+                <h3>Shop this list with Instacart</h3>
+                <p>Send the current GHM list to Instacart, choose a nearby retailer there, confirm live price/package availability, and check out without retyping the list.</p>
+              </div>
+              <button className="primary" type="button" disabled={instacartBusy} onClick={() => void openInstacartList()}>{instacartBusy ? 'Preparing…' : 'Open on Instacart →'}</button>
+              {instacartMessage ? <small className="small-muted">{instacartMessage}</small> : null}
+            </section>
+          ) : null}
 
           <ShoppingListPanel
             houseId={id}

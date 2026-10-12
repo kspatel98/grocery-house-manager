@@ -469,6 +469,10 @@ export type MarketCapabilities = {
   weekly_flyers_available?: boolean;
   apify_configured: boolean;
   flyer_configured?: boolean;
+  geoapify_configured?: boolean;
+  upcdatabase_configured?: boolean;
+  serper_configured?: boolean;
+  instacart_configured?: boolean;
   live_price_status?: 'connected' | 'not_connected' | string;
   supported_retailers: string[];
   message: string;

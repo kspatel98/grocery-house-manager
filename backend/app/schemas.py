@@ -1429,8 +1429,18 @@ class MarketCapabilitiesOut(BaseModel):
     weekly_flyers_available: bool = False
     apify_configured: bool
     flyer_configured: bool = False
+    geoapify_configured: bool = False
+    upcdatabase_configured: bool = False
+    serper_configured: bool = False
+    instacart_configured: bool = False
     live_price_status: str = "not_connected"
     supported_retailers: list[str] = Field(default_factory=list)
+    message: str
+
+
+class InstacartShoppingLinkOut(BaseModel):
+    configured: bool = False
+    url: str | None = None
     message: str
 
 class SiteReviewCreateIn(BaseModel):

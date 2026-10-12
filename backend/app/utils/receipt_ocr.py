@@ -488,10 +488,151 @@ def veryfi_receipt_scan(path: Path, filename: str, manual_text: str | None = Non
     }
 
 
+
+
+def aws_textract_is_configured() -> bool:
+    return bool(settings.aws_textract_enabled)
+
+
+def _textract_field_map(fields: list[dict[str, Any]] | None) -> dict[str, tuple[str, float | None]]:
+    result: dict[str, tuple[str, float | None]] = {}
+    for field in fields or []:
+        if not isinstance(field, dict):
+            continue
+        kind = str(((field.get("Type") or {}).get("Text") if isinstance(field.get("Type"), dict) else "") or "").strip().upper()
+        value = field.get("ValueDetection") if isinstance(field.get("ValueDetection"), dict) else {}
+        text = str(value.get("Text") or "").strip()
+        confidence = _as_float(value.get("Confidence"))
+        if kind and text:
+            result[kind] = (text, confidence / 100.0 if confidence is not None and confidence > 1 else confidence)
+    return result
+
+
+def aws_textract_receipt_scan(path: Path, filename: str, manual_text: str | None = None) -> dict[str, Any]:
+    if not aws_textract_is_configured():
+        return local_receipt_scan(path, manual_text)
+    if path.suffix.lower() not in SUPPORTED_RECEIPT_IMAGE_SUFFIXES:
+        fallback = local_receipt_scan(path, manual_text)
+        fallback["status"] = "unsupported_file"
+        fallback["message"] = "AWS Textract receipt analysis supports the uploaded receipt as an image in this GHM workflow. Please use JPG or PNG."
+        return fallback
+    try:
+        import boto3
+        from botocore.config import Config
+        kwargs: dict[str, Any] = {
+            "region_name": settings.aws_region or "ca-central-1",
+            "config": Config(
+                connect_timeout=max(3, int(settings.aws_textract_timeout_seconds or 30)),
+                read_timeout=max(5, int(settings.aws_textract_timeout_seconds or 30)),
+                retries={"max_attempts": 2, "mode": "standard"},
+            ),
+        }
+        if settings.aws_access_key_id and settings.aws_secret_access_key:
+            kwargs["aws_access_key_id"] = settings.aws_access_key_id
+            kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+            if settings.aws_session_token:
+                kwargs["aws_session_token"] = settings.aws_session_token
+        client = boto3.client("textract", **kwargs)
+        payload = client.analyze_expense(Document={"Bytes": path.read_bytes()})
+    except Exception as error:
+        logger.exception("AWS Textract receipt scan failed: %s", error)
+        fallback = local_receipt_scan(path, manual_text)
+        fallback["status"] = "scan_failed"
+        fallback["message"] = "Receipt uploaded, but AWS Textract could not process it right now. You can still review/edit items manually."
+        return fallback
+
+    documents = payload.get("ExpenseDocuments") if isinstance(payload, dict) else []
+    document = documents[0] if documents else {}
+    summary = _textract_field_map(document.get("SummaryFields") if isinstance(document, dict) else [])
+    normalized_lines: list[dict[str, Any]] = []
+    raw_parts: list[str] = []
+    for group in (document.get("LineItemGroups") or []) if isinstance(document, dict) else []:
+        for index, line in enumerate(group.get("LineItems") or []):
+            fields = _textract_field_map(line.get("LineItemExpenseFields") or [])
+            name = (fields.get("ITEM") or fields.get("EXPENSE_ROW") or fields.get("DESCRIPTION") or ("", None))[0]
+            if not name:
+                continue
+            quantity = (fields.get("QUANTITY") or (None, None))[0]
+            unit_price = (fields.get("UNIT_PRICE") or fields.get("PRICE") or (None, None))[0]
+            total = (fields.get("PRICE") or fields.get("TOTAL") or (None, None))[0]
+            product_code = (fields.get("PRODUCT_CODE") or fields.get("SKU") or (None, None))[0]
+            confidences = [v[1] for v in fields.values() if v[1] is not None]
+            line_conf = sum(confidences) / len(confidences) if confidences else None
+            row = {
+                "description": name,
+                "quantity": quantity,
+                "unitPrice": unit_price,
+                "total": total,
+                "productCode": product_code,
+                "confidence": line_conf,
+            }
+            normalized_lines.append(_normalize_line(row, index))
+            raw_parts.append(" | ".join(str(v[0]) for v in fields.values() if v[0]))
+
+    def summary_value(*keys: str) -> str | None:
+        for key in keys:
+            if key in summary and summary[key][0]:
+                return summary[key][0]
+        return None
+
+    summary_confidences = [value[1] for value in summary.values() if value[1] is not None]
+    confidence = round(sum(summary_confidences) / len(summary_confidences), 3) if summary_confidences else None
+    store = summary_value("VENDOR_NAME", "RECEIVER_NAME")
+    date_value = summary_value("INVOICE_RECEIPT_DATE", "TRANSACTION_DATE")
+    raw_parts = [f"{key}: {value[0]}" for key, value in summary.items()] + raw_parts
+    return {
+        "provider": "aws_textract",
+        "status": "review_ready" if normalized_lines else "needs_manual_review",
+        "store_name": store,
+        "receipt_date": _as_date(date_value),
+        "currency": "CAD",
+        "subtotal_amount": _as_float(summary_value("SUBTOTAL")),
+        "tax_amount": _as_float(summary_value("TAX")),
+        "discount_amount": _as_float(summary_value("DISCOUNT")),
+        "total_amount": _as_float(summary_value("TOTAL", "AMOUNT_DUE")),
+        "receipt_number": summary_value("INVOICE_RECEIPT_ID"),
+        "payment_method": summary_value("PAYMENT_TERMS", "PAYMENT_METHOD"),
+        "confidence": confidence,
+        "raw_text": "\n".join(raw_parts)[:120000],
+        "raw_json": json.dumps(payload, default=str)[:250000],
+        "line_items": normalized_lines[:150],
+        "message": "Receipt analyzed with AWS Textract. Review product descriptions, quantities, prices, tax and total before saving.",
+    }
+
+
 def scan_receipt(path: Path, filename: str, manual_text: str | None = None) -> dict[str, Any]:
     provider = _provider()
     if provider == "tabscanner":
-        return tabscanner_receipt_scan(path, filename, manual_text)
-    if provider == "veryfi":
-        return veryfi_receipt_scan(path, filename, manual_text)
-    return local_receipt_scan(path, manual_text)
+        result = tabscanner_receipt_scan(path, filename, manual_text)
+    elif provider == "veryfi":
+        result = veryfi_receipt_scan(path, filename, manual_text)
+    elif provider == "aws_textract":
+        result = aws_textract_receipt_scan(path, filename, manual_text)
+    else:
+        result = local_receipt_scan(path, manual_text)
+
+    fallback_provider = (settings.receipt_ocr_fallback_provider or "").strip().lower()
+    should_fallback = (
+        bool(fallback_provider)
+        and fallback_provider != provider
+        and (
+            result.get("status") in {"scan_failed", "unsupported_file"}
+            or (settings.receipt_ocr_fallback_on_empty and not result.get("line_items"))
+        )
+    )
+    if not should_fallback:
+        return result
+
+    if fallback_provider == "aws_textract" and aws_textract_is_configured():
+        fallback = aws_textract_receipt_scan(path, filename, manual_text)
+    elif fallback_provider == "tabscanner" and settings.tabscanner_api_key:
+        fallback = tabscanner_receipt_scan(path, filename, manual_text)
+    elif fallback_provider == "veryfi" and settings.veryfi_client_id and settings.veryfi_username and settings.veryfi_api_key:
+        fallback = veryfi_receipt_scan(path, filename, manual_text)
+    else:
+        return result
+
+    if fallback.get("provider") == fallback_provider and (fallback.get("line_items") or fallback.get("total_amount") is not None):
+        fallback["message"] = f"{fallback.get('message', '')} GHM used {fallback_provider.replace('_', ' ')} because the primary {provider} result was unavailable or incomplete.".strip()
+        return fallback
+    return result

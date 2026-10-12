@@ -552,15 +552,17 @@ def store_lookup_search_status() -> list[str]:
     details: list[str] = []
     if not settings.store_lookup_web_search_enabled:
         details.append("Store web lookup is turned off. Turn it on to search official store pages.")
+    if settings.serper_api_key:
+        details.append("Serper store search is connected and used as the preferred paid web-search fallback.")
+    else:
+        details.append("Serper store search is not connected. Add SERPER_API_KEY for more reliable official store-page discovery.")
     if settings.google_search_api_key and settings.google_search_cx:
-        details.append("Google store search is connected.")
+        details.append("Google Custom Search is also connected.")
     elif settings.google_search_api_key and not settings.google_search_cx:
         details.append("Google API key is saved, but the Search Engine ID is missing.")
     elif settings.google_search_cx and not settings.google_search_api_key:
         details.append("Google Search Engine ID is saved, but the API key is missing.")
-    else:
-        details.append("Google store search is not connected yet. Add both GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX.")
-    details.append("For store products, the Google Search Engine must be allowed to search store domains such as costco.ca and walmart.ca.")
+    details.append("Official store pages are always filtered to supported retailer domains before GHM presents them as store results.")
     return details
 
 def _store_web_search_queries(profile: dict[str, Any], term: str) -> list[str]:
@@ -917,9 +919,11 @@ def _web_search_store_product_pages(profile: dict[str, Any], term: str, limit: i
     hits: list[dict[str, str]] = []
     seen_urls: set[str] = set()
     provider_stats: dict[str, dict[str, Any]] = {}
-    # Google-only setup: first use Google Custom Search JSON API, then a limited
-    # Google search-page fallback. Other paid search APIs are intentionally not used.
+    # Prefer keyed APIs over scraping search-result HTML. Serper is inexpensive and
+    # typically more reliable for official retailer page discovery; Google CSE remains
+    # supported for existing deployments, with HTML search only as a last resort.
     providers = (
+        _search_with_serper_api,
         _search_with_google_cse,
         _search_with_google_html,
     )
@@ -956,7 +960,7 @@ def _web_search_store_product_pages(profile: dict[str, Any], term: str, limit: i
                     return hits
             stats["official"] += official_count
             # Stop early once a strong provider returns official links. The next step parses pages/snippets.
-            if hits and provider in (_search_with_google_cse,):
+            if hits and provider in (_search_with_serper_api, _search_with_google_cse):
                 break
         if hits:
             break

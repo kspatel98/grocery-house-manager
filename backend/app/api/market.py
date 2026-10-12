@@ -14,10 +14,11 @@ from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, hous
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import ExternalPriceCache, Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
-from app.schemas import FlyerDealsOut, FlyerMerchantOut, FlyerMerchantsOut, MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
+from app.schemas import FlyerDealsOut, FlyerMerchantOut, FlyerMerchantsOut, InstacartShoppingLinkOut, MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
 from app.utils.flyer_data import discover_weekly_flyer_merchants, get_weekly_flyer_deals
 from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores, store_lookup_search_status
+from app.utils.external_providers import create_instacart_shopping_list_link, geoapify_find_store, geoapify_nearby_stores, geoapify_reverse_postal, instacart_is_configured, instacart_nearby_retailers, lookup_upcdatabase, upcdatabase_is_configured
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -126,7 +127,8 @@ def resolve_flyer_store_location(db: Session, merchant: str, postal_code: str) -
             except Exception:
                 pass
     if not settings.google_places_api_key:
-        return fallback
+        geo = geoapify_find_store(merchant, postal_code)
+        return geo or fallback
     payload = {
         "textQuery": f"{merchant} near {postal_code}, Canada",
         "maxResultCount": 3,
@@ -178,14 +180,34 @@ def _apply_flyer_store_locations(db: Session, postal_code: str, deals):
         deal.store_location_source = location.source
     return deals
 
-def get_nearby_store_results(user: User, city: str | None, country: str | None, lat: float | None, lng: float | None) -> tuple[str, list[NearbyStoreOut]]:
+def get_nearby_store_results(user: User, city: str | None, country: str | None, lat: float | None, lng: float | None, postal_code: str | None = None) -> tuple[str, list[NearbyStoreOut]]:
     city = normalize_country(city) or user.city
     country = normalize_country(country) or user.country
-    label = ", ".join(part for part in [city, country] if part) or "your area"
+    label = ", ".join(part for part in [city, country] if part) or (postal_code or "your area")
+
+    # Prefer exact place/location providers. Google Places remains supported for existing
+    # deployments; Geoapify is the lower-cost fallback. Instacart contributes nearby
+    # retailer banners when a Canadian postal code is available, but not branch addresses.
     stores = google_places_text_search(city, country, lat, lng)
     if not stores:
+        stores = geoapify_nearby_stores(city=city, country=country, lat=lat, lng=lng)
+
+    clean_postal = normalize_canadian_postal_code(postal_code)
+    if clean_postal and instacart_is_configured():
+        try:
+            banners = instacart_nearby_retailers(clean_postal, "CA")
+        except Exception:
+            banners = []
+        existing_names = {store.name.casefold() for store in stores}
+        for banner in banners:
+            name = (banner.get("name") or "").strip()
+            if name and name.casefold() not in existing_names:
+                stores.append(NearbyStoreOut(name=name, address=f"Available near {clean_postal}", source="instacart_marketplace"))
+                existing_names.add(name.casefold())
+
+    if not stores:
         stores = fallback_stores(city, country)
-    return label, stores
+    return label, stores[:12]
 
 
 def _product_lookup_cache_key(store_name: str | None, barcode: str | None, query: str | None) -> str:
@@ -260,15 +282,26 @@ def _write_product_lookup_cache(
 @router.get("/capabilities", response_model=MarketCapabilitiesOut)
 def market_capabilities(user: User = Depends(get_current_user)):
     connected = bool(settings.apify_api_token)
+    provider_bits = [
+        f"Apify={'connected' if connected else 'not connected'}",
+        f"Geoapify={'connected' if settings.geoapify_api_key else 'not connected'}",
+        f"UPCDatabase={'connected' if settings.upcdatabase_api_key else 'not connected'}",
+        f"Serper={'connected' if settings.serper_api_key else 'not connected'}",
+        f"Instacart={'connected' if settings.instacart_api_key else 'not connected'}",
+    ]
     return MarketCapabilitiesOut(
         product_lookup_available=True,
         live_price_compare_available=connected,
         weekly_flyers_available=connected,
         apify_configured=connected,
         flyer_configured=connected,
+        geoapify_configured=bool(settings.geoapify_api_key),
+        upcdatabase_configured=bool(settings.upcdatabase_api_key),
+        serper_configured=bool(settings.serper_api_key),
+        instacart_configured=bool(settings.instacart_api_key),
         live_price_status="connected" if connected else "not_connected",
         supported_retailers=SUPPORTED_CANADA_RETAILERS,
-        message=f"Product lookup is available by plan. Weekly flyers and Canadian price comparison use the configured Apify connection. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. {' '.join(store_lookup_search_status())}",
+        message=f"Provider stack: {', '.join(provider_bits)}. Store-specific lookup supports: {', '.join(supported_product_lookup_stores())}. {' '.join(store_lookup_search_status())}",
     )
 
 
@@ -472,26 +505,32 @@ def product_lookup(
         )))
 
     results = lookup_open_food_facts(barcode=barcode, query=query, limit=8)
+    source_note = "Open Food Facts"
+    if not results and upcdatabase_is_configured():
+        results = lookup_upcdatabase(barcode=barcode, query=query, limit=8)
+        source_note = "UPCDatabase"
     if not results:
         return _write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
             premium_required=False,
             configured=True,
             store_filter=None,
-            message="No matching product details were found. You can still add the product manually.",
+            message="No matching product details were found in the available universal product sources. You can still add the product manually.",
             results=[],
         ))
     return finish_lookup(_write_product_lookup_cache(db, store_name=None, barcode=barcode, query=query, result=ProductLookupOut(
         premium_required=False,
         configured=True,
         store_filter=None,
-        message="Product details found from the universal database. Please review before saving to inventory.",
+        message=f"Product details found from {source_note}. Please review brand and package size before saving to inventory.",
         results=results,
     )))
 
 
 def _reverse_geocode_postal_code(lat: float | None, lng: float | None) -> tuple[str | None, str | None, str | None]:
-    if lat is None or lng is None or not settings.google_places_api_key:
+    if lat is None or lng is None:
         return None, None, None
+    if not settings.google_places_api_key:
+        return geoapify_reverse_postal(lat, lng)
     try:
         response = requests.get(
             "https://maps.googleapis.com/maps/api/geocode/json",
@@ -513,8 +552,8 @@ def _reverse_geocode_postal_code(lat: float | None, lng: float | None) -> tuple[
             if postal:
                 return normalize_canadian_postal_code(postal), city, province
     except Exception:
-        return None, None, None
-    return None, None, None
+        return geoapify_reverse_postal(lat, lng)
+    return geoapify_reverse_postal(lat, lng)
 
 
 def _profile_location_label(user: User, city: str | None = None, province: str | None = None) -> str:
@@ -696,15 +735,93 @@ def price_compare(
         results=fallback_rows,
     )
 
+@router.post("/houses/{house_id}/shopping-lists/{list_id}/instacart-link", response_model=InstacartShoppingLinkOut)
+def instacart_shopping_link(
+    house_id: int,
+    list_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    if not instacart_is_configured():
+        return InstacartShoppingLinkOut(configured=False, message="Instacart shopping is not connected yet.")
+    shopping_list = (
+        db.query(ShoppingList)
+        .options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product))
+        .filter(ShoppingList.id == list_id, ShoppingList.house_id == house_id)
+        .first()
+    )
+    if not shopping_list:
+        return InstacartShoppingLinkOut(configured=True, message="Shopping list not found.")
+    rows = []
+    for item in shopping_list.items:
+        if item.status == ShoppingItemStatus.skipped or not item.product:
+            continue
+        rows.append({
+            "name": item.product.name,
+            "quantity": item.requested_quantity or 1,
+            "unit": item.product.unit or "pcs",
+            "display_text": f"{item.requested_quantity:g} {item.product.unit or 'pcs'} {item.product.name}",
+            "barcode": item.product.barcode,
+            "brand": item.product.brand,
+        })
+    if not rows:
+        return InstacartShoppingLinkOut(configured=True, message="Add at least one item before creating an Instacart shopping page.")
+
+    # Instacart recommends caching generated shopping-list URLs.  Include the list
+    # content in the key so any item/quantity change automatically invalidates it.
+    fingerprint = json.dumps({"title": shopping_list.title or "GHM Grocery List", "items": rows}, sort_keys=True, default=str)
+    cache_key = "instacart_list:" + hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:40]
+    now = datetime.now(timezone.utc)
+    cached = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == cache_key).first()
+    if cached:
+        expires = cached.expires_at if cached.expires_at.tzinfo else cached.expires_at.replace(tzinfo=timezone.utc)
+        if expires > now:
+            try:
+                payload = json.loads(cached.payload_json)
+                cached_url = str(payload.get("url") or "").strip()
+                if cached_url:
+                    return InstacartShoppingLinkOut(configured=True, url=cached_url, message="Shopping page ready on Instacart (reused for this unchanged list). Confirm retailer, package size, price, and availability before checkout.")
+            except Exception:
+                pass
+
+    linkback = f"{settings.frontend_url.rstrip('/')}/houses/{house_id}/shopping?list={list_id}"
+    try:
+        url = create_instacart_shopping_list_link(title=shopping_list.title or "GHM Grocery List", items=rows, linkback_url=linkback)
+    except Exception as exc:
+        return InstacartShoppingLinkOut(configured=True, message=f"Instacart could not create the shopping page right now: {str(exc)[:160]}")
+    if not url:
+        return InstacartShoppingLinkOut(configured=True, message="Instacart did not return a shopping page URL.")
+
+    expires_at = now + timedelta(days=30)
+    payload_json = json.dumps({"url": url}, default=str)
+    if cached:
+        cached.source = "instacart_shopping_list"
+        cached.query = shopping_list.title or "GHM Grocery List"
+        cached.location = None
+        cached.retailers = None
+        cached.payload_json = payload_json
+        cached.fetched_at = now
+        cached.expires_at = expires_at
+    else:
+        db.add(ExternalPriceCache(
+            cache_key=cache_key, source="instacart_shopping_list", query=shopping_list.title or "GHM Grocery List",
+            location=None, retailers=None, payload_json=payload_json, fetched_at=now, expires_at=expires_at,
+        ))
+    db.commit()
+    return InstacartShoppingLinkOut(configured=True, url=url, message="Shopping page ready on Instacart. Confirm retailer, package size, price, and availability before checkout.")
+
+
 @router.get("/nearby-stores", response_model=ShoppingSuggestionsOut)
 def nearby_stores(
     city: str | None = Query(default=None, max_length=120),
     country: str | None = Query(default=None, max_length=120),
+    postal_code: str | None = Query(default=None, max_length=20),
     lat: float | None = None,
     lng: float | None = None,
     user: User = Depends(get_current_user),
 ):
-    location_label, stores = get_nearby_store_results(user, city, country, lat, lng)
+    location_label, stores = get_nearby_store_results(user, city, country, lat, lng, postal_code)
     return ShoppingSuggestionsOut(
         currency_code=currency_for_country(country or user.country),
         location_label=location_label,
@@ -768,7 +885,7 @@ def shopping_suggestions(
             item_suggestions=[],
         )
 
-    location_label, stores = get_nearby_store_results(user, city, country, lat, lng)
+    location_label, stores = get_nearby_store_results(user, city, country, lat, lng, postal_code)
     flyer_deals = []
     clean_postal = normalize_canadian_postal_code(postal_code)
     if clean_postal and len(clean_postal.replace(" ", "")) == 6 and settings.apify_api_token:
