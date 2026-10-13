@@ -6,6 +6,7 @@ import type { AccountBootstrap, FlyerDeal, FlyerDealsResponse, FlyerMerchantDire
 import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
+import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 
 const retailerLabels: Record<string, string> = {
   loblaws: 'Loblaws',
@@ -63,6 +64,12 @@ export default function MarketPage() {
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
   const [selectedFlyerMerchants, setSelectedFlyerMerchants] = useState<string[]>([]);
   const [compare, setCompare] = useState<LivePriceCompareResponse | null>(null);
+  useEffect(() => {
+    const taskId = new URLSearchParams(window.location.search).get('bgTask');
+    if (!taskId) return;
+    const result = getBackgroundTaskResult<LivePriceCompareResponse>(taskId);
+    if (result) setCompare(result);
+  }, []);
   const [compareBusy, setCompareBusy] = useState(false);
   const [error, setError] = useState('');
   const compareResultsRef = useRef<HTMLDivElement | null>(null);
@@ -257,16 +264,26 @@ export default function MarketPage() {
       setCompare(null);
       setError('');
       const usingPremiumTry = premiumTryReady('live_price_compare');
-      const { data } = await api.post<LivePriceCompareResponse>(`/market/houses/${selectedHouseId}/price-compare`, {
-        items,
-        postal_code: params.postal || undefined,
-        lat: params.lat,
-        lng: params.lng,
-        city: params.city,
-        province: params.country === 'Canada' ? undefined : params.country,
-        retailers: selectedRetailers,
-        force_refresh: params.forceRefresh || false,
-      }, { headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'live_price_compare' } : undefined });
+      const taskId = makeBackgroundTaskId(`price-compare-${selectedHouseId}`);
+      const href = `/market?house=${selectedHouseId}&bgTask=${encodeURIComponent(taskId)}`;
+      setLocationNote('Live price comparison can take longer than 45–50 seconds when several retailers are checked. You can leave this page and keep using GHM; we’ll notify you when the result is ready.');
+      const data = await runBackgroundCapableTask<LivePriceCompareResponse>({
+        id: taskId,
+        kind: 'live-price-compare',
+        title: 'Live price comparison',
+        message: 'GHM is checking supported grocery sources. You can continue using the app.',
+        href,
+        task: async () => (await api.post<LivePriceCompareResponse>(`/market/houses/${selectedHouseId}/price-compare`, {
+          items,
+          postal_code: params.postal || undefined,
+          lat: params.lat,
+          lng: params.lng,
+          city: params.city,
+          province: params.country === 'Canada' ? undefined : params.country,
+          retailers: selectedRetailers,
+          force_refresh: params.forceRefresh || false,
+        }, { headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'live_price_compare' } : undefined, timeout: 120000 })).data,
+      });
       setCompare(data);
       if (usingPremiumTry && !data.premium_required && data.results.length) void refreshPremiumTry();
     } catch (err) {

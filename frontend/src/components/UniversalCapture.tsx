@@ -24,6 +24,9 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const [suggestedAction, setSuggestedAction] = useState<SuggestedAction>(null);
+  const [deepPrompt, setDeepPrompt] = useState('');
+  const [redirectingDeep, setRedirectingDeep] = useState(false);
+  const [alwaysRedirectDeep, setAlwaysRedirectDeep] = useState(() => localStorage.getItem('ghm_auto_redirect_deep_v120') === '1');
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
@@ -36,6 +39,8 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
     recognitionRef.current?.stop?.();
     setListening(false);
     setOpen(false);
+    setDeepPrompt('');
+    setRedirectingDeep(false);
   }
 
   function go(path: string) {
@@ -75,10 +80,6 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
       go(`/houses/${houseId}/expenses`);
       return true;
     }
-    if (/why\b|analy[sz]e|explain|forecast|what should we buy|what should i buy|should we|use first|spending.*(up|increase|higher)|usual store|household intelligence/.test(q)) {
-      go(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(value)}`);
-      return true;
-    }
     if (/inventory|what.*have|what.*home|stock at home/.test(q)) {
       go(`/houses/${houseId}?tab=home`);
       return true;
@@ -88,6 +89,33 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
       return true;
     }
     return false;
+  }
+
+  function isDeepQuestion(value: string) {
+    const q = value.toLowerCase();
+    return /why\b|analy[sz]e|explain|forecast|predict|recommend|what should we buy|what should i buy|should we|use first|spending.*(up|increase|higher)|usual store|best option|compare.*option|household intelligence|what do you think|help me decide/.test(q);
+  }
+
+  function setDeepRedirectPreference(enabled: boolean) {
+    setAlwaysRedirectDeep(enabled);
+    if (enabled) localStorage.setItem('ghm_auto_redirect_deep_v120', '1');
+    else localStorage.removeItem('ghm_auto_redirect_deep_v120');
+  }
+
+  function redirectDeepQuestion(value: string, remember = alwaysRedirectDeep) {
+    if (!houseId || !value.trim()) return;
+    if (remember) setDeepRedirectPreference(true);
+    setRedirectingDeep(true);
+    setDeepPrompt('');
+    setAnswer('');
+    setSuggestedAction(null);
+    const prompt = value.trim();
+    window.setTimeout(() => {
+      setText('');
+      setRedirectingDeep(false);
+      setOpen(false);
+      navigate(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(prompt)}&from=tell-ghm`);
+    }, 1500);
   }
 
   function fallbackAction(value: string): SuggestedAction {
@@ -104,6 +132,11 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
     setError('');
     setAnswer('');
     setSuggestedAction(null);
+    if (isDeepQuestion(clean)) {
+      if (alwaysRedirectDeep) redirectDeepQuestion(clean, true);
+      else setDeepPrompt(clean);
+      return;
+    }
     if (routeKnownIntent(clean)) return;
     try {
       setBusy(true);
@@ -208,13 +241,25 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
               <small className="ghm-capture-voice-hint-v115">{listening ? 'Listening… speak naturally.' : 'Tap the mic to speak instead of typing.'}</small>
             </label>
 
+            {alwaysRedirectDeep ? <div className="ghm-deep-redirect-pref-v120"><span>Deep questions auto-redirect to Household Intelligence.</span><button type="button" className="text-button" onClick={() => setDeepRedirectPreference(false)}>Turn off</button></div> : null}
+
+            {deepPrompt ? <div className="ghm-deep-redirect-card-v120">
+              <span className="ghm-deep-redirect-icon-v120" aria-hidden="true">✦</span>
+              <div><small>DEEPER HOUSEHOLD QUESTION</small><strong>Household Intelligence is the right place for this.</strong><p>Tell GHM is for quick actions. I can carry your exact question into Ask GHM so it can use the full household context without wasting time answering here first.</p>
+                <label className="ghm-deep-redirect-check-v120"><input type="checkbox" checked={alwaysRedirectDeep} onChange={(event) => setDeepRedirectPreference(event.target.checked)} /><span>Always redirect deep questions automatically on this device</span></label>
+              </div>
+              <button type="button" className="primary" onClick={() => redirectDeepQuestion(deepPrompt, alwaysRedirectDeep)}>Redirect to Ask GHM →</button>
+            </div> : null}
+
+            {redirectingDeep ? <div className="ghm-redirecting-overlay-v120" role="status" aria-live="polite"><div><span aria-hidden="true">✦</span><strong>Redirecting to Household Intelligence…</strong><small>Your question is being carried over exactly as written.</small></div></div> : null}
+
             {error && <div className="error">{error}</div>}
             {answer && <div className="ghm-capture-answer"><small>GHM QUICK GUIDANCE</small><p>{answer}</p><button className="secondary" type="button" onClick={() => go(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(text)}`)}>Open Household Intelligence →</button></div>}
             {suggestedAction && <div className="ghm-capture-fallback"><span>GHM can still take you somewhere useful.</span><button className="secondary" type="button" onClick={() => go(suggestedAction.path)}>{suggestedAction.label} →</button></div>}
 
             <div className="ghm-capture-actions">
               <button className="primary" type="button" onClick={() => void submit()} disabled={!text.trim() || busy}>{busy ? 'Thinking with your household…' : 'Continue'}</button>
-              <button className="secondary" type="button" onClick={() => { setText(''); setAnswer(''); setError(''); setSuggestedAction(null); }}>Clear</button>
+              <button className="secondary" type="button" onClick={() => { setText(''); setAnswer(''); setError(''); setSuggestedAction(null); setDeepPrompt(''); }}>Clear</button>
             </div>
           </section>
         </div>

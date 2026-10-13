@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import type { House, KitchenVisionApplyResponse, KitchenVisionDetection, KitchenVisionResult, KitchenVisionReviewItem, KitchenZone, PremiumTryStatus } from '../types';
+import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 
 const ZONE_TYPES = [
   ['fridge', '🥛', 'Fridge'],
@@ -89,6 +90,14 @@ export default function KitchenVisionPage() {
   }
 
   useEffect(() => { void load(); }, [id]);
+  useEffect(() => {
+    const taskId = new URLSearchParams(window.location.search).get('bgTask');
+    if (!taskId) return;
+    const restored = getBackgroundTaskResult<KitchenVisionResult>(taskId);
+    if (!restored?.detections) return;
+    setResult(restored);
+    prepareReview(restored);
+  }, [id]);
   useHouseLiveRefresh(id, load);
 
   const selectedZone = zones.find((zone) => zone.id === selectedZoneId) || null;
@@ -135,7 +144,17 @@ export default function KitchenVisionPage() {
       form.append('scan_mode', scanMode);
       const usingPremiumTry = Boolean(premiumTry?.available && premiumTry.selected_feature === 'kitchen_vision');
       if (usingPremiumTry && !window.confirm('Use Kitchen Vision as your one free Premium Try? The free try is only used after GHM successfully analyzes the scan.')) return;
-      const { data } = await api.post<KitchenVisionResult>(`/ai/houses/${id}/kitchen-vision`, form, { headers: { 'Content-Type': 'multipart/form-data', ...(usingPremiumTry ? { 'X-GHM-Premium-Try': 'kitchen_vision' } : {}) } });
+      const taskId = makeBackgroundTaskId(`kitchen-vision-${id}`);
+      const href = `/houses/${id}/kitchen?bgTask=${encodeURIComponent(taskId)}`;
+      setMessage('Kitchen Vision can take longer than 45–50 seconds for several images or video. You can leave this page and keep using GHM; we’ll notify you when the review is ready.');
+      const data = await runBackgroundCapableTask<KitchenVisionResult>({
+        id: taskId,
+        kind: 'kitchen-vision',
+        title: `${selectedZone.name} Kitchen Vision`,
+        message: 'GHM is analyzing your kitchen media. You can continue using the app.',
+        href,
+        task: async () => (await api.post<KitchenVisionResult>(`/ai/houses/${id}/kitchen-vision`, form, { headers: { 'Content-Type': 'multipart/form-data', ...(usingPremiumTry ? { 'X-GHM-Premium-Try': 'kitchen_vision' } : {}) }, timeout: 120000 })).data,
+      });
       setResult(data);
       if (usingPremiumTry) {
         const refreshed = await api.get<PremiumTryStatus>('/billing/premium-try', { params: { t: Date.now() } }).catch(() => null);

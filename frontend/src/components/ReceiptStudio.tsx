@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import OverlayPortal from './OverlayPortal';
+import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 import type { Product, Receipt, ReceiptLineItem, ReceiptScanUsage, ReceiptUploadResult, Section, ShoppingList } from '../types';
 
 type ReviewLine = {
@@ -108,6 +109,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
   const [uploadBusy, setUploadBusy] = useState(false);
   const [saveScanBusy, setSaveScanBusy] = useState(false);
   const [error, setError] = useState('');
+  const [backgroundNote, setBackgroundNote] = useState('');
   const [linkedShoppingListId, setLinkedShoppingListId] = useState<number | ''>(initialShoppingListId || '');
   const [missingDecisions, setMissingDecisions] = useState<Record<number, 'bought' | 'not_bought'>>({});
   const [extraDecisions, setExtraDecisions] = useState<Record<number, 'add' | 'receipt_only'>>({});
@@ -168,6 +170,16 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
     setExtraDecisions({});
   }
 
+  useEffect(() => {
+    const taskId = new URLSearchParams(window.location.search).get('bgTask');
+    if (!taskId) return;
+    const result = getBackgroundTaskResult<ReceiptUploadResult>(taskId);
+    if (!result?.receipt) return;
+    setUploadResult(result);
+    if (result.usage) setScanUsage(result.usage);
+    hydrateScan(result);
+  }, [houseId, shoppingLists]);
+
   async function uploadReceipt() {
     if (!receiptFile) {
       setError('Choose a JPG or PNG receipt image first.');
@@ -196,11 +208,22 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
       setUploadBusy(true);
       setUploadResult(null);
       setReviewLines([]);
-      const { data } = await api.post<ReceiptUploadResult>(`/houses/${houseId}/receipts/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          ...(scanUsage?.premium_try_available ? { 'X-GHM-Premium-Try': 'smart_receipt_scan' } : {}),
-        },
+      const taskId = makeBackgroundTaskId(`receipt-scan-${houseId}`);
+      const href = `/houses/${houseId}/scan?bgTask=${encodeURIComponent(taskId)}${linkedShoppingListId ? `&shoppingListId=${linkedShoppingListId}` : ''}`;
+      setBackgroundNote('This scan can take longer than 45–50 seconds for difficult receipts. You can leave this section and keep using GHM; we’ll notify you when the reviewed scan is ready.');
+      const data = await runBackgroundCapableTask<ReceiptUploadResult>({
+        id: taskId,
+        kind: 'receipt-scan',
+        title: 'Receipt scan',
+        message: 'GHM is reading your receipt. You can continue using the app.',
+        href,
+        task: async () => (await api.post<ReceiptUploadResult>(`/houses/${houseId}/receipts/upload`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            ...(scanUsage?.premium_try_available ? { 'X-GHM-Premium-Try': 'smart_receipt_scan' } : {}),
+          },
+          timeout: 120000,
+        })).data,
       });
       setUploadResult(data);
       if (data.usage) setScanUsage(data.usage);
@@ -371,6 +394,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
         <span className="active">1 · Upload & scan</span><span className={uploadResult ? 'active' : ''}>2 · Review</span><span>3 · Update inventory</span><span>4 · Add to expenses</span>
       </div>
 
+      {backgroundNote && uploadBusy ? <div className="v120-background-work-note"><span>↻</span><div><strong>Working in the background</strong><small>{backgroundNote}</small></div></div> : null}
       {error && <div className="error">{error}</div>}
       {uploadResult && <div className="success compact-message">{uploadResult.message}</div>}
 

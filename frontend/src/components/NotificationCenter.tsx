@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { AdminUserOffer, PremiumTryStatus } from '../types';
+import { backgroundTasks } from '../backgroundTasks';
 
 type NotificationItem = {
   key: string;
@@ -24,6 +25,7 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(() => seenKeys());
+  const [taskVersion, setTaskVersion] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,6 +45,19 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
     load();
     window.addEventListener('account:refresh', load);
     return () => { active = false; window.removeEventListener('account:refresh', load); };
+  }, []);
+
+
+  useEffect(() => {
+    const refresh = () => setTaskVersion((value) => value + 1);
+    window.addEventListener('ghm:background-tasks-changed', refresh);
+    window.addEventListener('ghm:background-task-ready', refresh);
+    window.addEventListener('ghm:background-task-failed', refresh);
+    return () => {
+      window.removeEventListener('ghm:background-tasks-changed', refresh);
+      window.removeEventListener('ghm:background-task-ready', refresh);
+      window.removeEventListener('ghm:background-task-failed', refresh);
+    };
   }, []);
 
   const items = useMemo<NotificationItem[]>(() => {
@@ -65,8 +80,15 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
         eyebrow: 'PREMIUM TRY',
       });
     }
-    return next.slice(0, 8);
-  }, [offers, premiumTry, houseId]);
+    const taskItems = backgroundTasks().filter((task) => task.status === 'ready' || task.status === 'failed').slice(0, 5).map((task) => ({
+      key: `background:${task.id}:${task.status}`,
+      title: task.status === 'ready' ? `${task.title} is ready` : `${task.title} needs attention`,
+      message: task.status === 'ready' ? 'Your result finished in the background. Open it from anywhere in GHM.' : task.message,
+      href: task.href,
+      eyebrow: task.status === 'ready' ? 'RESULT READY' : 'BACKGROUND TASK',
+    }));
+    return [...taskItems, ...next].slice(0, 10);
+  }, [offers, premiumTry, houseId, taskVersion]);
 
   const unread = items.filter((item) => !seen.has(item.key)).length;
 

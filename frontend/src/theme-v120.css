@@ -1,0 +1,237 @@
+/* ========================================================================== 
+   GHM V120 — sidebar fit + deep-question handoff + background work UX
+   ========================================================================== */
+
+/* ---------- Keep all five desktop destinations visible ---------- */
+@media (min-width: 981px) {
+  html.ghm-auth-shell-active .desktop-sidebar-v86 {
+    grid-template-rows: auto minmax(0, 1fr) auto !important;
+    gap: 9px !important;
+    padding: 10px 10px 10px !important;
+  }
+
+  .desktop-sidebar-brand-v86 {
+    display: grid !important;
+    gap: 7px !important;
+    padding: 0 24px 7px 0 !important;
+  }
+  .desktop-sidebar-logo-v86 {
+    min-height: 76px !important;
+    padding: 9px 10px !important;
+    gap: 10px !important;
+    border-radius: 20px !important;
+  }
+  .desktop-sidebar-logo-v86 img {
+    width: 52px !important;
+    height: 52px !important;
+    flex: 0 0 52px !important;
+    border-radius: 13px !important;
+  }
+  .desktop-sidebar-logo-v86 span {
+    min-width: 0 !important;
+  }
+  .desktop-sidebar-logo-v86 strong {
+    font-size: .98rem !important;
+    line-height: 1.02 !important;
+    letter-spacing: -.02em !important;
+  }
+  .desktop-sidebar-logo-v86 small {
+    margin-top: 4px !important;
+    font-size: .66rem !important;
+    line-height: 1.15 !important;
+  }
+  .desktop-sidebar-premium-v86 {
+    min-height: 43px !important;
+    padding: 6px 9px !important;
+    gap: 8px !important;
+    border-radius: 16px !important;
+  }
+  .desktop-sidebar-premium-v86 > span {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    font-size: .9rem !important;
+  }
+  .desktop-sidebar-premium-v86 strong {
+    font-size: .78rem !important;
+    line-height: 1 !important;
+  }
+  .desktop-sidebar-premium-v86 small {
+    margin-top: 2px !important;
+    font-size: .61rem !important;
+    line-height: 1 !important;
+  }
+
+  .desktop-sidebar-scroll-v116 {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: thin;
+    scrollbar-gutter: auto !important;
+    padding: 0 2px !important;
+  }
+  .desktop-sidebar-scroll-v116::-webkit-scrollbar { width: 5px; }
+  .desktop-sidebar-scroll-v116::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--ghm-muted) 30%, transparent);
+    border-radius: 999px;
+  }
+  .desktop-sidebar-label-v86 {
+    margin: 0 8px 5px !important;
+    font-size: .67rem !important;
+  }
+  .desktop-sidebar-nav-v86 {
+    gap: 5px !important;
+  }
+  .desktop-sidebar-nav-v86 a {
+    min-height: 44px !important;
+    padding: 8px 10px !important;
+    border-radius: 14px !important;
+  }
+  .desktop-sidebar-icon-v86 {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+  }
+  .desktop-sidebar-footer-v86 {
+    padding-top: 6px !important;
+  }
+  .desktop-sidebar-account-v86 {
+    min-height: 55px !important;
+    padding: 8px 10px !important;
+    border-radius: 17px !important;
+  }
+
+  /* If the browser viewport is unusually short, compact instead of hiding More. */
+  @media (max-height: 700px) {
+    .desktop-sidebar-logo-v86 { min-height: 68px !important; padding: 7px 8px !important; }
+    .desktop-sidebar-logo-v86 img { width: 46px !important; height: 46px !important; flex-basis: 46px !important; }
+    .desktop-sidebar-logo-v86 small { display: none !important; }
+    .desktop-sidebar-premium-v86 { min-height: 38px !important; padding-block: 4px !important; }
+    .desktop-sidebar-nav-v86 a { min-height: 40px !important; padding-block: 6px !important; }
+    .desktop-sidebar-icon-v86 { width: 34px !important; height: 34px !important; min-width: 34px !important; }
+    .desktop-sidebar-account-v86 { min-height: 50px !important; }
+  }
+}
+
+/* ---------- Tell GHM deep-question handoff ---------- */
+.ghm-capture-sheet { position: relative; }
+.ghm-deep-redirect-card-v120 {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: center;
+  padding: 15px;
+  border: 1px solid color-mix(in srgb, var(--ghm-primary) 38%, var(--ghm-border));
+  border-radius: 18px;
+  background: var(--ghm-primary-soft);
+}
+.ghm-deep-redirect-icon-v120 {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--ghm-primary);
+  color: white;
+  font-weight: 950;
+}
+.ghm-deep-redirect-card-v120 small,
+.ghm-deep-redirect-card-v120 strong,
+.ghm-deep-redirect-card-v120 p { display: block; }
+.ghm-deep-redirect-card-v120 strong { margin: 2px 0 4px; color: var(--ghm-text-strong); }
+.ghm-deep-redirect-card-v120 p { margin: 0; color: var(--ghm-muted); line-height: 1.42; }
+.ghm-deep-redirect-check-v120 {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--ghm-text);
+  font-size: .78rem;
+  font-weight: 750;
+}
+.ghm-deep-redirect-check-v120 input { width: 17px; height: 17px; margin-top: 1px; }
+.ghm-deep-redirect-pref-v120 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--ghm-border);
+  border-radius: 13px;
+  background: var(--ghm-surface-soft);
+  color: var(--ghm-muted);
+  font-size: .75rem;
+}
+.ghm-redirecting-overlay-v120 {
+  position: absolute;
+  inset: 18% 8%;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ghm-border);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--ghm-surface-elevated) 95%, transparent);
+  box-shadow: 0 26px 80px rgba(0,0,0,.28);
+  backdrop-filter: blur(18px);
+}
+.ghm-redirecting-overlay-v120 > div {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  text-align: center;
+  padding: 26px;
+}
+.ghm-redirecting-overlay-v120 > div > span {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: var(--ghm-primary-soft);
+  color: var(--ghm-primary);
+  font-size: 1.45rem;
+  animation: v120Pulse 1s ease-in-out infinite alternate;
+}
+.ghm-redirecting-overlay-v120 strong { font-size: 1.08rem; color: var(--ghm-text-strong); }
+.ghm-redirecting-overlay-v120 small { color: var(--ghm-muted); }
+@keyframes v120Pulse { to { transform: scale(1.08); opacity: .8; } }
+
+/* ---------- Long-running workflow notice ---------- */
+.v120-background-work-note {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--ghm-primary) 34%, var(--ghm-border));
+  border-radius: 15px;
+  background: var(--ghm-primary-soft);
+}
+.v120-background-work-note > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--ghm-surface-elevated);
+  color: var(--ghm-primary);
+  font-weight: 950;
+  animation: v120Spin 1.25s linear infinite;
+}
+.v120-background-work-note strong,
+.v120-background-work-note small { display: block; }
+.v120-background-work-note strong { color: var(--ghm-text-strong); }
+.v120-background-work-note small { margin-top: 2px; color: var(--ghm-muted); line-height: 1.4; }
+@keyframes v120Spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 700px) {
+  .ghm-deep-redirect-card-v120 {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ghm-deep-redirect-card-v120 > .primary {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .ghm-redirecting-overlay-v120 { inset: 14% 12px; }
+}

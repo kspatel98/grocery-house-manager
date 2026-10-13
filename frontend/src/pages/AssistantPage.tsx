@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import { useLanguage } from '../i18n';
+import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 import type {
   AccountBootstrap,
   AutopilotControls,
@@ -90,6 +91,36 @@ export default function AssistantPage() {
   useEffect(() => {
     if (sharedQuestion) setAgentPrompt(sharedQuestion);
   }, [sharedQuestion]);
+
+
+  useEffect(() => {
+    if (!sharedQuestion || workspace !== 'intelligence') return;
+    const timer = window.setTimeout(() => {
+      const input = document.querySelector<HTMLTextAreaElement>('.v93-agent-input textarea');
+      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input?.focus({ preventScroll: true });
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [sharedQuestion, workspace]);
+
+  useEffect(() => {
+    const taskId = params.get('bgTask');
+    if (!taskId) return;
+    const result = getBackgroundTaskResult<HouseholdAgentResponse | HouseholdPlan | KitchenVisionResult>(taskId);
+    if (!result) return;
+    if ('answer' in result) setAgentAnswer(result as HouseholdAgentResponse);
+    else if ('days_requested' in result) setPlan(result as HouseholdPlan);
+    else if ('detections' in result) {
+      const vision = result as KitchenVisionResult;
+      setKitchenVision(vision);
+      const next: Record<string, KitchenVisionReviewItem> = {};
+      vision.detections.forEach((detection) => {
+        const suggested = detection.suggested_action === 'update' || detection.suggested_action === 'add' ? detection.suggested_action : 'ignore';
+        next[detection.detection_id] = { detection_id: detection.detection_id, action: suggested, product_id: detection.matched_product_id || null, name: detection.matched_product_name || detection.detected_name, quantity: detection.estimated_quantity ?? detection.current_quantity ?? 1, unit: detection.unit || detection.current_unit || 'pcs' };
+      });
+      setKitchenReview(next);
+    }
+  }, [params]);
 
   async function loadHouses() {
     try {
@@ -321,13 +352,23 @@ export default function AssistantPage() {
       setError('');
       const usingPremiumTry = Boolean(premiumTry?.available && premiumTry.selected_feature === 'autopilot_planner');
       if (usingPremiumTry && !window.confirm('Use GHM Autopilot Planner as your one free Premium Try? The try is used only after GHM successfully builds the household plan.')) return;
-      const { data } = await api.post<HouseholdPlan>(`/insights/houses/${houseId}/household-plan`, {
-        days: planDays,
-        default_servings: defaultServings,
-        skip_days: skipDays,
-        guest_servings: servingOverrides,
-        budget: budget.trim() ? Number(budget) : null,
-      }, { headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'autopilot_planner' } : undefined });
+      const taskId = makeBackgroundTaskId(`household-plan-${houseId}`);
+      const href = `/assistant?house=${houseId}&view=plan&bgTask=${encodeURIComponent(taskId)}`;
+      setMessage('This plan can take longer than 45–50 seconds. You can leave this section and keep using GHM; we’ll notify you when it is ready.');
+      const data = await runBackgroundCapableTask<HouseholdPlan>({
+        id: taskId,
+        kind: 'household-plan',
+        title: 'Household plan',
+        message: 'GHM is building your plan from household data. You can keep using the app.',
+        href,
+        task: async () => (await api.post<HouseholdPlan>(`/insights/houses/${houseId}/household-plan`, {
+          days: planDays,
+          default_servings: defaultServings,
+          skip_days: skipDays,
+          guest_servings: servingOverrides,
+          budget: budget.trim() ? Number(budget) : null,
+        }, { headers: usingPremiumTry ? { 'X-GHM-Premium-Try': 'autopilot_planner' } : undefined, timeout: 120000 })).data,
+      });
       setPlan(data);
       if (usingPremiumTry) {
         const refreshed = await api.get<PremiumTryStatus>('/billing/premium-try', { params: { t: Date.now() } }).catch(() => null);
@@ -425,7 +466,17 @@ export default function AssistantPage() {
       setMessage('');
       const form = new FormData();
       files.slice(0, 6).forEach((file) => form.append('media', file));
-      const { data } = await api.post<KitchenVisionResult>(`/ai/houses/${houseId}/kitchen-vision`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const taskId = makeBackgroundTaskId(`kitchen-vision-${houseId}`);
+      const href = `/assistant?house=${houseId}&view=intelligence&bgTask=${encodeURIComponent(taskId)}`;
+      setMessage('Kitchen Vision can take longer than 45–50 seconds for several images or video. You can leave this section and keep using GHM; we’ll notify you when the review is ready.');
+      const data = await runBackgroundCapableTask<KitchenVisionResult>({
+        id: taskId,
+        kind: 'kitchen-vision',
+        title: 'Kitchen Vision review',
+        message: 'GHM is analyzing your kitchen media. You can continue using the app.',
+        href,
+        task: async () => (await api.post<KitchenVisionResult>(`/ai/houses/${houseId}/kitchen-vision`, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })).data,
+      });
       setKitchenVision(data);
       const review: Record<string, KitchenVisionReviewItem> = {};
       data.detections.forEach((detection) => {
@@ -480,7 +531,18 @@ export default function AssistantPage() {
     try {
       setAgentBusy(true);
       setError('');
-      const { data } = await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt: agentPrompt.trim(), language });
+      const prompt = agentPrompt.trim();
+      const taskId = makeBackgroundTaskId(`household-intelligence-${houseId}`);
+      const href = `/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(prompt)}&bgTask=${encodeURIComponent(taskId)}`;
+      setMessage('This deeper analysis can take longer than 45–50 seconds. You can leave this section and continue using GHM; we’ll notify you when the answer is ready.');
+      const data = await runBackgroundCapableTask<HouseholdAgentResponse>({
+        id: taskId,
+        kind: 'household-intelligence',
+        title: 'Household Intelligence answer',
+        message: 'GHM is analyzing your household context. You can continue using the app.',
+        href,
+        task: async () => (await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt, language }, { timeout: 120000 })).data,
+      });
       setAgentAnswer(data);
     } catch (err) {
       setError(errorMessage(err));
@@ -635,7 +697,7 @@ export default function AssistantPage() {
               })}
             </div>
             <button type="button" className="primary full autopilot-build-plan" onClick={buildHouseholdPlan} disabled={planBusy}>{planBusy ? 'Building from your household data…' : premiumTry?.available && premiumTry.selected_feature === 'autopilot_planner' ? '✨ Use free Premium Try — build my week' : '✨ Build my week'}</button>
-            {planBusy ? <div className="v98-background-work-note"><span>✦</span><div><strong>You can keep using the rest of GHM.</strong><small>This plan is being prepared from your household data. Stay on this screen for the result in this version; other long-running workflows are being designed to become resumable background jobs.</small></div></div> : null}
+            {planBusy ? <div className="v98-background-work-note"><span>✦</span><div><strong>You can keep using the rest of GHM.</strong><small>This plan is being prepared in the background. You can leave this section and continue using GHM; the notification bell will tell you when the result is ready.</small></div></div> : null}
             <p className="autopilot-trust-note">No fake grocery prices: if an ingredient has no reliable saved price, it stays clearly marked as unpriced.</p>
           </div>
 

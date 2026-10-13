@@ -10,6 +10,7 @@ import { money } from '../currency';
 import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import OverlayPortal from '../components/OverlayPortal';
+import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 
 const SHOPPING_PRODUCT_LIMIT = 80;
 
@@ -374,6 +375,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
   const [comparison, setComparison] = useState<BasketComparison | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [backgroundNote, setBackgroundNote] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [postalCode, setPostalCode] = useState(() => localStorage.getItem('ghm_price_postal') || '');
   const listSignature = selectedList.items.map((item) => `${item.id}:${item.product_id}:${item.requested_quantity}:${item.status}:${item.product.updated_at || ''}`).join('|');
@@ -388,14 +390,25 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       setError('');
       const normalizedPostal = postal.trim().toUpperCase();
       if (normalizedPostal) localStorage.setItem('ghm_price_postal', normalizedPostal);
-      const { data } = await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, {
-        params: {
-          t: Date.now(),
-          live: true,
-          force_refresh: forceRefresh || undefined,
-          postal_code: normalizedPostal || undefined,
-        },
-        headers: usePremiumTry ? { 'X-GHM-Premium-Try': 'whole_list_compare' } : undefined,
+      const taskId = makeBackgroundTaskId(`basket-compare-${houseId}-${selectedList.id}`);
+      const href = `/houses/${houseId}/shopping?list=${selectedList.id}&bgTask=${encodeURIComponent(taskId)}`;
+      setBackgroundNote('A full basket check can take longer than 45–50 seconds when GHM checks several live sources. You can leave this list and keep using GHM; we’ll notify you when it is ready.');
+      const data = await runBackgroundCapableTask<BasketComparison>({
+        id: taskId,
+        kind: 'basket-comparison',
+        title: `Price comparison for ${selectedList.title}`,
+        message: 'GHM is checking live, flyer and household price sources. You can continue using the app.',
+        href,
+        task: async () => (await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, {
+          params: {
+            t: Date.now(),
+            live: true,
+            force_refresh: forceRefresh || undefined,
+            postal_code: normalizedPostal || undefined,
+          },
+          headers: usePremiumTry ? { 'X-GHM-Premium-Try': 'whole_list_compare' } : undefined,
+          timeout: 120000,
+        })).data,
       });
       if (usePremiumTry && !data.premium_required) window.dispatchEvent(new Event('account:refresh'));
       setComparison(data);
@@ -408,6 +421,14 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
   }
 
   useEffect(() => {
+    const taskId = new URLSearchParams(window.location.search).get('bgTask');
+    const restored = taskId ? getBackgroundTaskResult<BasketComparison>(taskId) : null;
+    if (restored) {
+      setComparison(restored);
+      setDetailsOpen(Boolean(restored.store_options.length));
+      setError('');
+      return;
+    }
     setComparison(null);
     setDetailsOpen(false);
     setError('');
@@ -460,6 +481,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
           <button className="primary" type="button" onClick={() => compare(false)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : 'Refresh prices'}</button>
           {comparison?.store_options.length ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : 'View store details'}</button> : null}
         </div>
+        {backgroundNote && busy ? <div className="v120-background-work-note"><span>↻</span><div><strong>Working in the background</strong><small>{backgroundNote}</small></div></div> : null}
         {error && <div className="error compact-message">{error}</div>}
       </div>
 
