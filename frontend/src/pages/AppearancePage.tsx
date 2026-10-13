@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useThemePreference, type AppearanceMode, type VisualStyle } from '../theme';
+import { useAppSounds } from '../appSounds';
 
 const appearances: { key: AppearanceMode; icon: string; title: string; body: string }[] = [
   { key: 'system', icon: '◐', title: 'System', body: 'Follow your phone or computer automatically.' },
@@ -15,6 +16,7 @@ const styles: { key: VisualStyle; title: string; body: string; swatches: string[
 
 export default function AppearancePage() {
   const { appearance, style, theme, setAppearance, setStyle } = useThemePreference();
+  const { enabled: soundsEnabled, setEnabled: setSoundsEnabled } = useAppSounds();
   return <main className="page shell appearance-page-v105">
     <header className="page-hero appearance-hero-v105">
       <div><Link to="/profile" className="breadcrumb">← Profile</Link><p className="eyebrow">APPEARANCE</p><h1>Make GHM feel right for you.</h1><p>Choose how GHM follows your device and how strong you want the brand styling to feel. Readability stays protected in every theme.</p></div>
@@ -38,6 +40,16 @@ export default function AppearancePage() {
           <div><strong>{item.title}</strong><small>{item.body}</small></div><i>{style === item.key ? '✓ Selected' : 'Choose'}</i>
         </button>)}
       </div>
+    </section>
+
+
+    <section className="panel appearance-section-v105 v121-sound-settings">
+      <div className="section-title-v105"><div><p className="eyebrow">SOUNDS & ATTENTION</p><h2>GHM sounds</h2><p>Use sound for results that finish in the background and important successful actions. You can also mute or turn sounds back on from the speaker icon in the header.</p></div></div>
+      <button type="button" className={`appearance-choice-v105 v121-sound-choice ${soundsEnabled ? 'active' : ''}`} onClick={() => setSoundsEnabled(!soundsEnabled)}>
+        <span aria-hidden="true">{soundsEnabled ? '🔊' : '🔇'}</span>
+        <div><strong>{soundsEnabled ? 'Sounds are on' : 'Sounds are muted'}</strong><small>{soundsEnabled ? 'GHM will play a short sound for ready results and selected important actions.' : 'Notifications still appear visually, but GHM will stay silent.'}</small></div>
+        <i>{soundsEnabled ? '✓ On' : 'Off'}</i>
+      </button>
     </section>
 
     <section className="appearance-readability-v105"><span>◉</span><div><strong>Readability is part of the theme, not an afterthought.</strong><p>Cards, text, borders, fields, modals and navigation use semantic contrast tokens so dark mode does not inherit unreadable light-mode colors.</p></div></section>

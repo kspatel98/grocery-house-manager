@@ -1,0 +1,166 @@
+/* ========================================================================== 
+   GHM V121 — background attention, persistent result return, app sounds
+   ========================================================================== */
+
+/* Centered long-task notice: impossible to miss, but easy to dismiss. */
+.v121-background-notice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(6, 10, 9, .58);
+  backdrop-filter: blur(8px);
+}
+.v121-background-notice {
+  width: min(560px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 16px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid var(--ghm-border);
+  background: var(--ghm-surface-elevated);
+  color: var(--ghm-text);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .34);
+}
+.v121-background-notice h2 { margin: 2px 0 8px; color: var(--ghm-text-strong); }
+.v121-background-notice p { margin: 5px 0; color: var(--ghm-muted); line-height: 1.55; }
+.v121-background-notice strong { color: var(--ghm-text-strong); }
+.v121-background-notice-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--ghm-primary-soft);
+  color: var(--ghm-primary);
+  font-size: 1.6rem;
+}
+.v121-background-notice-icon span { animation: v121-spin 1.2s linear infinite; }
+.v121-background-notice-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 2px;
+}
+@keyframes v121-spin { to { transform: rotate(360deg); } }
+
+/* Header sound control */
+.ghm-sound-toggle-v121 {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 !important;
+  border-radius: 14px;
+  border: 1px solid var(--ghm-border) !important;
+  background: var(--ghm-surface-elevated) !important;
+  color: var(--ghm-text-strong) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.ghm-sound-toggle-v121:hover { border-color: var(--ghm-primary) !important; }
+.ghm-sound-toggle-v121 span { font-size: 1rem; line-height: 1; }
+
+/* Notification unread should survive merely opening the bell. */
+.ghm-notification-item-v115.is-unread-v121 {
+  position: relative;
+  border-color: color-mix(in srgb, var(--ghm-primary) 55%, var(--ghm-border)) !important;
+  background: color-mix(in srgb, var(--ghm-primary-soft) 58%, var(--ghm-surface-elevated)) !important;
+}
+.ghm-notification-item-v115.is-unread-v121::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 18px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ghm-primary);
+}
+.ghm-notification-item-v115.is-unread-v121 { padding-left: 24px !important; }
+
+/* Give restored result a brief visual focus so the user knows exactly where they landed. */
+[data-ghm-background-result="true"]:focus {
+  outline: 3px solid color-mix(in srgb, var(--ghm-primary) 62%, transparent) !important;
+  outline-offset: 5px;
+  scroll-margin-top: 110px;
+  animation: v121-result-focus 1.6s ease-out;
+}
+@keyframes v121-result-focus {
+  0% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--ghm-primary) 22%, transparent); }
+  100% { box-shadow: inherit; }
+}
+
+/* Sound preference card in Settings / Appearance. */
+.v121-sound-settings .v121-sound-choice {
+  width: 100%;
+  max-width: 720px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+.v121-sound-choice > span {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--ghm-primary-soft);
+}
+.v121-sound-choice > div { min-width: 0; display: grid; gap: 3px; }
+.v121-sound-choice > div strong { color: var(--ghm-text-strong); }
+.v121-sound-choice > div small { color: var(--ghm-muted); }
+
+@media (max-width: 980px) {
+  .site-nav-wrap .ghm-sound-toggle-v121 {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    border-radius: 12px;
+  }
+  .v121-background-notice {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 13px;
+    padding: 18px;
+    border-radius: 20px;
+  }
+  .v121-background-notice-icon { width: 48px; height: 48px; border-radius: 15px; }
+  .v121-background-notice-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .v121-background-notice-actions button { width: 100%; }
+  .v121-sound-settings .v121-sound-choice { grid-template-columns: 42px minmax(0, 1fr); }
+  .v121-sound-choice > i { grid-column: 2; }
+}
+
+@media (max-width: 520px) {
+  /* Keep the mobile header usable even with language, sound, theme and notification icons. */
+  .site-nav-wrap { gap: 5px !important; }
+  .site-nav-wrap .language-picker.compact,
+  .site-nav-wrap .theme-toggle-v88.compact,
+  .site-nav-wrap .ghm-notification-trigger-v115,
+  .site-nav-wrap .ghm-sound-toggle-v121,
+  .mobile-ask-ghm-v119 {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    border-radius: 11px !important;
+  }
+  .v121-background-notice-backdrop { padding: 10px; }
+  .v121-background-notice {
+    width: calc(100vw - 20px);
+    grid-template-columns: 1fr;
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+  }
+  .v121-background-notice-icon { width: 44px; height: 44px; }
+  .v121-background-notice-actions { grid-column: 1; }
+}

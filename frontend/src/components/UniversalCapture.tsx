@@ -106,6 +106,7 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
     if (!houseId || !value.trim()) return;
     if (remember) setDeepRedirectPreference(true);
     setRedirectingDeep(true);
+    window.dispatchEvent(new Event('ghm:navigate-feedback'));
     setDeepPrompt('');
     setAnswer('');
     setSuggestedAction(null);

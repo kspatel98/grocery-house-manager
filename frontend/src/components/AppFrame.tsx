@@ -13,6 +13,9 @@ import { ThemeToggle } from '../theme';
 import ServiceStatusBanner from './ServiceStatusBanner';
 import UniversalCapture from './UniversalCapture';
 import NotificationCenter from './NotificationCenter';
+import BackgroundTaskNotice from './BackgroundTaskNotice';
+import BackgroundResultFocus from './BackgroundResultFocus';
+import { AppSoundBridge, SoundToggle } from '../appSounds';
 
 function EmailIcon() {
   return (
@@ -442,6 +445,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             </nav>
             {contextHouseId ? <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="mobile-ask-ghm-v119" aria-label="Ask GHM" title="Ask GHM"><span aria-hidden="true">✦</span></Link> : null}
             <LanguagePicker compact iconOnly />
+            <SoundToggle className="header-sound-toggle-v121" />
             <ThemeToggle compact className="header-theme-toggle-v117" />
             <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} compact />
             <Link
@@ -553,6 +557,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               ) : <Link to="/support" className="desktop-topbar-pill-v86 alt v117-action-pill"><span className="v117-action-icon" aria-hidden="true">?</span><span className="v117-action-label">{t('support')}</span></Link>}
               <LanguagePicker compact iconOnly />
               <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} />
+              <SoundToggle className="desktop-topbar-icon-v105 v121-topbar-sound" />
               <ThemeToggle compact className="desktop-topbar-icon-v105 v117-topbar-theme" />
             </div>
           </div>
@@ -664,6 +669,9 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         </OverlayPortal>
       )}
 
+      <AppSoundBridge />
+      <BackgroundResultFocus />
+      <BackgroundTaskNotice houseId={contextHouseId} />
       <SmartReviewPrompt />
       {contextHouseId ? <Link className="ghm-house-chat-fab-v108" to={`/houses/${contextHouseId}/chat`} aria-label="Open house chat" title="House Chat"><span aria-hidden="true">💬</span><strong>Chat</strong></Link> : null}
       <UniversalCapture houseId={contextHouseId} />

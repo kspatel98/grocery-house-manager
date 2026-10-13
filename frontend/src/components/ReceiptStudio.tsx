@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import OverlayPortal from './OverlayPortal';
-import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
+import { announceBackgroundResultHydrated, getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 import type { Product, Receipt, ReceiptLineItem, ReceiptScanUsage, ReceiptUploadResult, Section, ShoppingList } from '../types';
 
 type ReviewLine = {
@@ -88,6 +88,7 @@ function confidenceLabel(value?: number | null) {
 
 export default function ReceiptStudio({ houseId, products, sections, receipts, shoppingLists = [], initialShoppingListId = null, onChange }: { houseId: number; products: Product[]; sections: Section[]; receipts: Receipt[]; shoppingLists?: ShoppingList[]; initialShoppingListId?: number | null; onChange: () => void | Promise<void> }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [storeName, setStoreName] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [notes, setNotes] = useState('');
@@ -171,14 +172,15 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
   }
 
   useEffect(() => {
-    const taskId = new URLSearchParams(window.location.search).get('bgTask');
+    const taskId = new URLSearchParams(location.search).get('bgTask');
     if (!taskId) return;
     const result = getBackgroundTaskResult<ReceiptUploadResult>(taskId);
     if (!result?.receipt) return;
     setUploadResult(result);
     if (result.usage) setScanUsage(result.usage);
     hydrateScan(result);
-  }, [houseId, shoppingLists]);
+    window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0);
+  }, [houseId, shoppingLists, location.search]);
 
   async function uploadReceipt() {
     if (!receiptFile) {
@@ -447,7 +449,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
       )}
 
       {uploadResult ? (
-        <div className="receipt-review-studio">
+        <div className="receipt-review-studio" data-ghm-background-result="true">
           <div className="receipt-review-header">
             <div>
               <p className="eyebrow">Review before saving</p>

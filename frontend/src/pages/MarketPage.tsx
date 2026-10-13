@@ -6,7 +6,7 @@ import type { AccountBootstrap, FlyerDeal, FlyerDealsResponse, FlyerMerchantDire
 import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
 import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
-import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
+import { announceBackgroundResultHydrated, getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 
 const retailerLabels: Record<string, string> = {
   loblaws: 'Loblaws',
@@ -68,8 +68,8 @@ export default function MarketPage() {
     const taskId = new URLSearchParams(window.location.search).get('bgTask');
     if (!taskId) return;
     const result = getBackgroundTaskResult<LivePriceCompareResponse>(taskId);
-    if (result) setCompare(result);
-  }, []);
+    if (result) { setCompare(result); window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0); }
+  }, [searchParams]);
   const [compareBusy, setCompareBusy] = useState(false);
   const [error, setError] = useState('');
   const compareResultsRef = useRef<HTMLDivElement | null>(null);
@@ -610,7 +610,7 @@ export default function MarketPage() {
           </div>
           {premiumTry?.available && premiumTry.selected_feature !== 'live_price_compare' ? <Link className="premium-try-invite-v102 compact" to={`/premium-try?feature=live_price_compare&house=${selectedHouseId || ''}`}><span aria-hidden="true">✨</span><div><strong>Try live grocery price comparison once for free</strong><small>Use a real list and see the result before choosing Family Plus.</small></div><b aria-hidden="true">→</b></Link> : null}
           {compare && (
-            <div ref={compareResultsRef} className={compare.premium_required || (!compare.configured && !compare.results.length) ? 'hint' : 'market-results'}>
+            <div ref={compareResultsRef} data-ghm-background-result="true" className={compare.premium_required || (!compare.configured && !compare.results.length) ? 'hint' : 'market-results'}>
               <div className="compare-summary-card">
                 <span className={compare.connection_status === 'connected' ? 'market-status-pill connected' : 'market-status-pill offline'}>
                   <span className="status-dot" /> {compare.connection_status === 'connected' ? 'Connected' : 'Not connected'}

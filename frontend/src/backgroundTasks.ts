@@ -10,6 +10,7 @@ export type BackgroundTaskRecord = {
   startedAt: number;
   finishedAt?: number;
   error?: string;
+  openedAt?: number;
 };
 
 const TASKS_KEY = 'ghm_background_tasks_v120';
@@ -39,6 +40,22 @@ export function backgroundTasks(): BackgroundTaskRecord[] {
   return readTasks().sort((a, b) => b.startedAt - a.startedAt);
 }
 
+
+export function getBackgroundTask(id: string): BackgroundTaskRecord | null {
+  return readTasks().find((row) => row.id === id) || null;
+}
+
+export function markBackgroundTaskOpened(id: string) {
+  const tasks = readTasks();
+  const next = tasks.map((row) => row.id === id ? { ...row, openedAt: row.openedAt || Date.now() } : row);
+  writeTasks(next);
+}
+
+
+export function announceBackgroundResultHydrated(id: string) {
+  window.dispatchEvent(new CustomEvent('ghm:background-result-hydrated', { detail: { id } }));
+}
+
 export function makeBackgroundTaskId(kind: string) {
   return `${kind}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -46,7 +63,7 @@ export function makeBackgroundTaskId(kind: string) {
 export function getBackgroundTaskResult<T>(id: string): T | null {
   if (runtimeResults.has(id)) return runtimeResults.get(id) as T;
   try {
-    const raw = localStorage.getItem(`${RESULT_PREFIX}${id}`);
+    const raw = localStorage.getItem(`${RESULT_PREFIX}${id}`) || sessionStorage.getItem(`${RESULT_PREFIX}${id}`);
     return raw ? JSON.parse(raw) as T : null;
   } catch { return null; }
 }
@@ -58,7 +75,7 @@ function removeTaskRecord(id: string) {
 export function clearBackgroundTask(id: string) {
   const tasks = readTasks().filter((row) => row.id !== id);
   runtimeResults.delete(id);
-  try { localStorage.removeItem(`${RESULT_PREFIX}${id}`); } catch { /* noop */ }
+  try { localStorage.removeItem(`${RESULT_PREFIX}${id}`); sessionStorage.removeItem(`${RESULT_PREFIX}${id}`); } catch { /* noop */ }
   writeTasks(tasks);
 }
 
@@ -88,7 +105,11 @@ export function runBackgroundCapableTask<T>({
   const promise = task()
     .then((result) => {
       runtimeResults.set(id, result);
-      try { localStorage.setItem(`${RESULT_PREFIX}${id}`, JSON.stringify(result)); } catch { /* very large results may not fit */ }
+      try {
+        const serialized = JSON.stringify(result);
+        try { localStorage.setItem(`${RESULT_PREFIX}${id}`, serialized); }
+        catch { sessionStorage.setItem(`${RESULT_PREFIX}${id}`, serialized); }
+      } catch { /* runtime result still remains available for this app session */ }
       const finishedAt = Date.now();
       const currentLocation = `${window.location.pathname}${window.location.search}`;
       const shouldNotify = finishedAt - startedAt >= 45000 || currentLocation !== startLocation;
@@ -97,6 +118,7 @@ export function runBackgroundCapableTask<T>({
         window.dispatchEvent(new CustomEvent('ghm:background-task-ready', { detail: { id, title, href } }));
       } else {
         removeTaskRecord(id);
+        window.dispatchEvent(new CustomEvent('ghm:background-task-completed', { detail: { id, title, href } }));
       }
       return result;
     })

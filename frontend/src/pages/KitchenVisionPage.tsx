@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import type { House, KitchenVisionApplyResponse, KitchenVisionDetection, KitchenVisionResult, KitchenVisionReviewItem, KitchenZone, PremiumTryStatus } from '../types';
-import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
+import { announceBackgroundResultHydrated, getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 
 const ZONE_TYPES = [
   ['fridge', '🥛', 'Fridge'],
@@ -49,6 +49,7 @@ function needsDecision(detection: KitchenVisionDetection) {
 
 export default function KitchenVisionPage() {
   const { houseId } = useParams();
+  const [searchParams] = useSearchParams();
   const id = Number(houseId);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -91,13 +92,14 @@ export default function KitchenVisionPage() {
 
   useEffect(() => { void load(); }, [id]);
   useEffect(() => {
-    const taskId = new URLSearchParams(window.location.search).get('bgTask');
+    const taskId = searchParams.get('bgTask');
     if (!taskId) return;
     const restored = getBackgroundTaskResult<KitchenVisionResult>(taskId);
     if (!restored?.detections) return;
     setResult(restored);
     prepareReview(restored);
-  }, [id]);
+    window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0);
+  }, [id, searchParams]);
   useHouseLiveRefresh(id, load);
 
   const selectedZone = zones.find((zone) => zone.id === selectedZoneId) || null;
@@ -329,7 +331,7 @@ export default function KitchenVisionPage() {
         </aside>
       </section> : null}
 
-      {result ? <section className="kitchen-result-v96">
+      {result ? <section className="kitchen-result-v96" data-ghm-background-result="true">
         <header className="kitchen-result-head-v96">
           <div><p className="eyebrow">{result.zone_name || 'KITCHEN'} · SCAN COMPLETE</p><h2>{actionable.length ? `${actionable.length} thing${actionable.length === 1 ? '' : 's'} worth reviewing` : 'Nothing important needs changing'}</h2><p>{result.scene_summary}</p></div>
           <div className="kitchen-coverage-ring-v96" style={{ ['--coverage' as string]: `${result.coverage_percent}%` }}><strong>{result.coverage_percent}%</strong><small>coverage</small></div>

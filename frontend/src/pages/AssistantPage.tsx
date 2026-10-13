@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import { useLanguage } from '../i18n';
-import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
+import { announceBackgroundResultHydrated, getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 import type {
   AccountBootstrap,
   AutopilotControls,
@@ -120,6 +120,7 @@ export default function AssistantPage() {
       });
       setKitchenReview(next);
     }
+    window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0);
   }, [params]);
 
   async function loadHouses() {
@@ -673,7 +674,7 @@ export default function AssistantPage() {
         <article className="v93-agent-card">
           <div className="v93-agent-icon">✦</div><div><p className="eyebrow">GHM HOUSEHOLD INTELLIGENCE</p><h3>Ask a deeper question about your household</h3><p>Household Intelligence explains, compares and forecasts using live household context. Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Why did our grocery spending increase?”</p></div>
           <div className="v93-agent-input"><textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Ask Autopilot about this household…" /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : 'Ask GHM'}</button></div>
-          {agentAnswer ? <div className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
+          {agentAnswer ? <div data-ghm-background-result="true" className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
         </article>
       </section>
 
@@ -701,7 +702,7 @@ export default function AssistantPage() {
             <p className="autopilot-trust-note">No fake grocery prices: if an ingredient has no reliable saved price, it stays clearly marked as unpriced.</p>
           </div>
 
-          <div className="autopilot-plan-result">
+          <div className="autopilot-plan-result" data-ghm-background-result={plan ? 'true' : undefined}>
             {!plan ? <div className="autopilot-plan-placeholder"><span>🍲</span><h3>Your week will appear here</h3><p>Autopilot will use your real inventory, expiry dates and existing shopping list before asking you to buy more.</p></div> : <>
               <div className="autopilot-plan-summary"><div><small>Planned at home</small><strong>{plan.planned_days}/{plan.days_requested} days</strong></div><div><small>Known grocery cost</small><strong>{money(plan.known_grocery_cost, plan.currency_code)}</strong></div>{plan.budget != null ? <div className={(plan.known_budget_buffer || 0) >= 0 ? 'positive' : 'negative'}><small>Known budget buffer</small><strong>{money(plan.known_budget_buffer || 0, plan.currency_code)}</strong></div> : null}</div>
               <div className="autopilot-plan-days">{plan.days.map((day) => <article key={day.day_name} className={`autopilot-plan-day ${day.status}`}><header><span>{day.day_name.slice(0, 3)}</span><div><strong>{day.status === 'away' ? 'Away / eating out' : day.recipe_name || 'Open meal'}</strong><small>{day.status === 'meal' ? `${day.servings} servings` : day.reason}</small></div></header>{day.use_soon_items.length ? <p className="use-soon">⏳ Use before expiry: {day.use_soon_items.join(', ')}</p> : null}{day.missing_items.length ? <p className="missing">🛒 Need: {day.missing_items.join(', ')}</p> : day.status === 'meal' ? <p className="ready">✓ Required ingredients already covered</p> : null}</article>)}</div>

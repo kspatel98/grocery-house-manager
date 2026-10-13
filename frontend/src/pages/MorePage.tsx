@@ -72,7 +72,7 @@ export default function MorePage() {
       subtitle: 'Plans, preferences, help, learning and account controls.',
       cards: [
         { to: '/profile', icon: '👤', title: 'Profile', description: 'Manage your account, household preferences and subscription details.' },
-        { to: '/appearance', icon: '◐', title: 'Appearance', description: 'Choose system, light or dark mode and your preferred visual style.' },
+        { to: '/appearance', icon: '⚙', title: 'Settings & appearance', description: 'Choose light/dark mode, visual style and turn GHM sounds on or off.' },
         { to: '/premium-try', icon: '✨', title: 'Try Premium Free', description: 'Choose one premium feature and use the real workflow once without a card.' },
         { to: '/pricing', icon: '♛', title: 'Plans', description: 'Compare plans, premium features and extra receipt scan packs.' },
         { to: '/learn', icon: '✦', title: 'How GHM helps', description: 'Learn what each smart feature is for and when it is useful.' },

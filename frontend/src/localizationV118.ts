@@ -6,6 +6,27 @@ export type V118Translation = Record<V118Language, string>;
 // so future releases can migrate screens to key-based i18n without losing
 // compatibility with legacy JSX text.
 export const v118Translations: Record<string, V118Translation> = {
+  // V121 background tasks / sounds
+  'WORKING IN THE BACKGROUND': { gu:'બેકગ્રાઉન્ડમાં કામ ચાલી રહ્યું છે', hi:'बैकग्राउंड में काम चल रहा है', fr:'TRAVAIL EN ARRIÈRE-PLAN' },
+  'This may take longer than 45–50 seconds.': { gu:'આમાં 45–50 સેકન્ડથી વધુ સમય લાગી શકે છે.', hi:'इसमें 45–50 सेकंड से अधिक समय लग सकता है।', fr:'Cela peut prendre plus de 45 à 50 secondes.' },
+  'You can leave this section and continue using GHM. We’ll play a sound and keep a notification waiting when the result is ready.': { gu:'તમે આ વિભાગ છોડીને GHM વાપરતા રહી શકો છો. પરિણામ તૈયાર થશે ત્યારે અમે અવાજ વગાડશું અને નોટિફિકેશન રાખીશું.', hi:'आप यह सेक्शन छोड़कर GHM का उपयोग जारी रख सकते हैं। परिणाम तैयार होने पर हम ध्वनि बजाएँगे और नोटिफिकेशन दिखाएँगे।', fr:'Vous pouvez quitter cette section et continuer à utiliser GHM. Un son sera joué et une notification restera disponible lorsque le résultat sera prêt.' },
+  'Stay here': { gu:'અહીં રહો', hi:'यहीं रहें', fr:'Rester ici' },
+  'Explore GHM': { gu:'GHM જુઓ', hi:'GHM देखें', fr:'Explorer GHM' },
+  'SOUNDS & ATTENTION': { gu:'અવાજ અને ધ્યાન', hi:'ध्वनि और ध्यान', fr:'SONS ET ATTENTION' },
+  'GHM sounds': { gu:'GHM અવાજ', hi:'GHM ध्वनियाँ', fr:'Sons GHM' },
+  'Sounds are on': { gu:'અવાજ ચાલુ છે', hi:'ध्वनियाँ चालू हैं', fr:'Les sons sont activés' },
+  'Sounds are muted': { gu:'અવાજ મ્યૂટ છે', hi:'ध्वनियाँ म्यूट हैं', fr:'Les sons sont coupés' },
+  'GHM will play a short sound for ready results and selected important actions.': { gu:'તૈયાર પરિણામો અને પસંદ કરેલી મહત્વપૂર્ણ ક્રિયાઓ માટે GHM નાનો અવાજ વગાડશે.', hi:'तैयार परिणामों और चुनी हुई महत्वपूर्ण कार्रवाइयों के लिए GHM एक छोटी ध्वनि बजाएगा।', fr:'GHM jouera un bref son pour les résultats prêts et certaines actions importantes.' },
+  'Notifications still appear visually, but GHM will stay silent.': { gu:'નોટિફિકેશન દેખાશે, પરંતુ GHM અવાજ નહીં કરે.', hi:'नोटिफिकेशन दिखाई देंगे, लेकिन GHM शांत रहेगा।', fr:'Les notifications resteront visibles, mais GHM restera silencieux.' },
+  'Mute GHM sounds': { gu:'GHM અવાજ મ્યૂટ કરો', hi:'GHM ध्वनियाँ म्यूट करें', fr:'Couper les sons GHM' },
+  'Turn on GHM sounds': { gu:'GHM અવાજ ચાલુ કરો', hi:'GHM ध्वनियाँ चालू करें', fr:'Activer les sons GHM' },
+
+  'Settings & appearance': { gu:'સેટિંગ્સ અને દેખાવ', hi:'सेटिंग्स और रूप', fr:'Réglages et apparence' },
+  'Choose light/dark mode, visual style and turn GHM sounds on or off.': { gu:'લાઇટ/ડાર્ક મોડ, વિઝ્યુઅલ સ્ટાઇલ પસંદ કરો અને GHM અવાજ ચાલુ કે બંધ કરો.', hi:'लाइट/डार्क मोड, विज़ुअल शैली चुनें और GHM ध्वनियाँ चालू या बंद करें।', fr:'Choisissez le mode clair/sombre, le style visuel et activez ou coupez les sons GHM.' },
+  'Your result finished in the background. Open it from anywhere in GHM.': { gu:'તમારું પરિણામ બેકગ્રાઉન્ડમાં તૈયાર થયું. GHM માં ક્યાંયથી ખોલો.', hi:'आपका परिणाम बैकग्राउंड में तैयार हो गया। इसे GHM में कहीं से भी खोलें।', fr:'Votre résultat est prêt en arrière-plan. Ouvrez-le depuis n’importe où dans GHM.' },
+  'RESULT READY': { gu:'પરિણામ તૈયાર', hi:'परिणाम तैयार', fr:'RÉSULTAT PRÊT' },
+  'BACKGROUND TASK': { gu:'બેકગ્રાઉન્ડ કાર્ય', hi:'बैकग्राउंड कार्य', fr:'TÂCHE EN ARRIÈRE-PLAN' },
+
   // App shell / navigation / capture
   'Close more menu': { gu:'વધુ મેનુ બંધ કરો', hi:'अधिक मेनू बंद करें', fr:'Fermer le menu Plus' },
   'Desktop navigation': { gu:'ડેસ્કટોપ નેવિગેશન', hi:'डेस्कटॉप नेविगेशन', fr:'Navigation bureau' },

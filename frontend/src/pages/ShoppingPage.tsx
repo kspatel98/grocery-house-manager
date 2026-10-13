@@ -10,7 +10,7 @@ import { money } from '../currency';
 import FlyerDealModal, { type FlyerOpenDeal } from '../components/FlyerDealModal';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import OverlayPortal from '../components/OverlayPortal';
-import { getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
+import { announceBackgroundResultHydrated, getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 
 const SHOPPING_PRODUCT_LIMIT = 80;
 
@@ -372,6 +372,7 @@ export default function ShoppingPage() {
 
 
 function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: number; selectedList: ShoppingList; premiumTry?: Subscription['premium_try'] }) {
+  const [comparisonSearchParams] = useSearchParams();
   const [comparison, setComparison] = useState<BasketComparison | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -421,19 +422,24 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
   }
 
   useEffect(() => {
-    const taskId = new URLSearchParams(window.location.search).get('bgTask');
+    const taskId = comparisonSearchParams.get('bgTask');
     const restored = taskId ? getBackgroundTaskResult<BasketComparison>(taskId) : null;
     if (restored) {
       setComparison(restored);
       setDetailsOpen(Boolean(restored.store_options.length));
       setError('');
+      window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0);
+      return;
+    }
+    if (taskId) {
+      setError('Your saved comparison is still being restored. GHM will not start the search again.');
       return;
     }
     setComparison(null);
     setDetailsOpen(false);
     setError('');
     void compare(false, localStorage.getItem('ghm_price_postal') || '');
-  }, [selectedList.id, houseId, listSignature]);
+  }, [selectedList.id, houseId, listSignature, comparisonSearchParams]);
 
   const winner = comparison?.best_single_store || null;
   const incompleteWinner = Boolean(winner && !winner.complete);
@@ -485,7 +491,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
         {error && <div className="error compact-message">{error}</div>}
       </div>
 
-      <div className="whole-list-result-preview">
+      <div className="whole-list-result-preview" data-ghm-background-result={comparison && !busy ? 'true' : undefined}>
         {!comparison || busy ? (
           <><span>AUTOMATIC CHECK</span><strong>{selectedList.items.length}</strong><small>{busy ? 'checking live + flyer + household prices…' : 'items checked together'}</small></>
         ) : comparison.premium_required ? (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { AdminUserOffer, PremiumTryStatus } from '../types';
-import { backgroundTasks } from '../backgroundTasks';
+import { backgroundTasks, markBackgroundTaskOpened } from '../backgroundTasks';
 
 type NotificationItem = {
   key: string;
@@ -10,6 +10,9 @@ type NotificationItem = {
   message: string;
   href: string;
   eyebrow: string;
+  backgroundTaskId?: string;
+  opened?: boolean;
+  backgroundFailed?: boolean;
 };
 
 function seenKeys(): Set<string> {
@@ -86,26 +89,30 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
       message: task.status === 'ready' ? 'Your result finished in the background. Open it from anywhere in GHM.' : task.message,
       href: task.href,
       eyebrow: task.status === 'ready' ? 'RESULT READY' : 'BACKGROUND TASK',
+      backgroundTaskId: task.id,
+      opened: Boolean(task.openedAt),
+      backgroundFailed: task.status === 'failed',
     }));
     return [...taskItems, ...next].slice(0, 10);
   }, [offers, premiumTry, houseId, taskVersion]);
 
-  const unread = items.filter((item) => !seen.has(item.key)).length;
+  const unread = items.filter((item) => item.backgroundTaskId ? !item.opened : !seen.has(item.key)).length;
 
-  function markVisibleSeen() {
+  function markItemSeen(item: NotificationItem) {
+    if (item.backgroundTaskId) {
+      if (item.backgroundFailed) markBackgroundTaskOpened(item.backgroundTaskId);
+      return;
+    }
     const next = new Set(seen);
-    items.forEach((item) => next.add(item.key));
+    next.add(item.key);
     setSeen(next);
     localStorage.setItem('ghm_notification_seen_v115', JSON.stringify(Array.from(next).slice(-80)));
   }
 
   function toggle() {
-    setOpen((value) => {
-      const next = !value;
-      if (next) window.setTimeout(markVisibleSeen, 150);
-      return next;
-    });
+    setOpen((value) => !value);
   }
+
 
   useEffect(() => {
     if (!open) return;
@@ -138,7 +145,7 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
           <header><div><small>GHM UPDATES</small><h3>Notifications</h3></div><span>{items.length ? `${items.length} current` : 'All clear'}</span></header>
           <div className="ghm-notification-list-v115">
             {items.length ? items.map((item) => (
-              <Link key={item.key} to={item.href} onClick={() => setOpen(false)} className="ghm-notification-item-v115">
+              <Link key={item.key} to={item.href} onClick={() => { markItemSeen(item); setOpen(false); }} className={`ghm-notification-item-v115 ${item.backgroundTaskId && !item.opened ? 'is-unread-v121' : ''}`}>
                 <small>{item.eyebrow}</small>
                 <strong>{item.title}</strong>
                 <p>{item.message}</p>
