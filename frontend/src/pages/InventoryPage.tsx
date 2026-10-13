@@ -231,19 +231,25 @@ function ProductVisual({ product }: { product: Product }) {
   const [failed, setFailed] = useState(false);
   const hasImage = Boolean(product.image_url && !failed);
   return (
-    <div className={`product-media ${hasImage ? 'has-image' : 'icon-only'}`}>
-      {hasImage ? (
-        <img
-          src={product.image_url}
-          alt={`${product.name} product image`}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <span className="product-media-emoji" aria-hidden="true">{product.icon || '🛒'}</span>
-      )}
+    <div className={`product-media v124-product-media ${hasImage ? 'has-image' : 'icon-only'}`}>
+      <div className="v124-product-visual-primary">
+        {hasImage ? (
+          <img
+            src={product.image_url}
+            alt={`${product.name} product image`}
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <span className="product-media-emoji" aria-hidden="true">{product.icon || '🛒'}</span>
+        )}
+      </div>
+      <div className="v124-product-brand-mark" aria-hidden="true">
+        <img src="/brand/grocery-house-manager-icon.png" alt="" />
+        <small>GHM</small>
+      </div>
     </div>
   );
 }

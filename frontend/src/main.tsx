@@ -27,6 +27,7 @@ import './theme-v120.css';
 import './theme-v121.css';
 import './theme-v122.css';
 import './theme-v123.css';
+import './theme-v124.css';
 import { LanguageProvider } from './i18n';
 import DialogFocusManager from './components/DialogFocusManager';
 import { initializeThemePreferences } from './theme';

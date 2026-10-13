@@ -1,0 +1,215 @@
+/* ========================================================================== 
+   GHM V124 — assistant composer, MealDB clarity, non-sticky intelligence bar,
+   inventory media branding, and conversation reset confirmation
+   ========================================================================== */
+
+/* Household selector / intelligence refresh should scroll away with the page. */
+.autopilot-toolbar {
+  position: relative !important;
+  top: auto !important;
+  z-index: 2 !important;
+  backdrop-filter: none !important;
+}
+@media (min-width: 981px) {
+  .autopilot-toolbar { top: auto !important; }
+}
+.autopilot-section { scroll-margin-top: 88px !important; }
+
+/* Ask GHM follow-up composer: keep the text area and action button aligned. */
+.v124-agent-input {
+  grid-column: 2 / -1;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+}
+.v124-agent-input textarea {
+  min-height: 62px !important;
+  height: 62px;
+  max-height: 150px;
+  resize: vertical;
+  margin: 0 !important;
+}
+.v124-agent-input > button {
+  min-width: 154px;
+  min-height: 62px;
+  height: 62px;
+  align-self: stretch;
+  margin: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+@media (max-width: 760px) {
+  .v124-agent-input {
+    grid-column: auto;
+    grid-template-columns: minmax(0, 1fr) 118px !important;
+    gap: 8px !important;
+  }
+  .v124-agent-input textarea,
+  .v124-agent-input > button {
+    min-height: 58px !important;
+    height: 58px;
+  }
+  .v124-agent-input > button {
+    min-width: 0;
+    padding-inline: 10px !important;
+    font-size: .82rem !important;
+    line-height: 1.1;
+  }
+}
+@media (max-width: 430px) {
+  .v124-agent-input { grid-template-columns: minmax(0, 1fr) 102px !important; }
+  .v124-agent-input > button { font-size: .76rem !important; }
+}
+
+/* New-conversation confirmation remains a compact centered decision, including mobile. */
+.v124-conversation-confirm-backdrop {
+  place-items: center !important;
+  padding: 16px !important;
+  backdrop-filter: blur(10px);
+  background: rgba(3, 7, 10, .62) !important;
+}
+.v124-conversation-confirm {
+  width: min(560px, calc(100vw - 32px)) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: min(76dvh, 620px) !important;
+  margin: 0 !important;
+  border-radius: 24px !important;
+  overflow: hidden !important;
+}
+.v124-conversation-confirm-copy {
+  min-height: 0;
+  padding: 16px 20px !important;
+}
+.v124-conversation-confirm-copy p { margin: 0; }
+.v124-conversation-confirm-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  padding: 14px 20px 18px !important;
+}
+@media (max-width: 560px) {
+  .v124-conversation-confirm { width: calc(100vw - 28px) !important; border-radius: 22px !important; }
+  .v124-conversation-confirm .focus-dialog-titlebar { padding: 18px 18px 14px !important; }
+  .v124-conversation-confirm-copy { padding: 14px 18px !important; }
+  .v124-conversation-confirm-actions { padding: 12px 18px 18px !important; }
+  .v124-conversation-confirm-actions > button { flex: 1 1 0; min-width: 0; }
+}
+
+/* TheMealDB search should read like the rest of GHM and keep the result count obvious. */
+.external-recipe-search {
+  align-items: stretch !important;
+}
+.external-recipe-search-button-v124 {
+  min-width: 150px;
+  border-radius: 14px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 10px 24px rgba(45, 85, 67, .18);
+}
+.external-search-summary {
+  gap: 10px !important;
+  margin-top: 14px !important;
+  font-weight: 750;
+  color: var(--ghm-text) !important;
+}
+.external-search-summary strong {
+  min-width: 34px !important;
+  height: 34px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: #2f6d54 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 20px rgba(18, 50, 38, .22);
+  font-size: .94rem;
+}
+html[data-ghm-theme="dark"] .external-search-summary,
+html[data-theme="dark"] .external-search-summary {
+  color: #c7d7cf !important;
+}
+html[data-ghm-theme="dark"] .external-search-summary strong,
+html[data-theme="dark"] .external-search-summary strong {
+  background: #3f8065 !important;
+  color: #f8fffb !important;
+  border-color: rgba(205,235,220,.2) !important;
+}
+@media (max-width: 760px) {
+  .external-recipe-search {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .external-recipe-search-button-v124 { width: 100%; min-width: 0; min-height: 50px; }
+}
+
+/* Inventory product imagery uses its spare media width as subtle GHM branding. */
+.v124-product-media {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 72px !important;
+  gap: 10px !important;
+  align-items: stretch !important;
+  place-items: stretch !important;
+}
+.v124-product-visual-primary {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+}
+.v124-product-media.has-image .v124-product-visual-primary > img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  border-radius: 18px !important;
+}
+.v124-product-brand-mark {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(79, 112, 96, .14);
+  background: linear-gradient(160deg, rgba(255,255,255,.74), rgba(229,242,234,.88));
+}
+.v124-product-brand-mark img,
+.v124-product-media.has-image .v124-product-brand-mark img {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  max-width: 46px !important;
+  max-height: 46px !important;
+  object-fit: contain !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+}
+.v124-product-brand-mark small {
+  color: #4d6c5e !important;
+  font-size: .64rem;
+  font-weight: 950;
+  letter-spacing: .1em;
+}
+html[data-ghm-theme="dark"] .v124-product-brand-mark,
+html[data-theme="dark"] .v124-product-brand-mark {
+  background: linear-gradient(160deg, rgba(31,44,39,.96), rgba(20,29,26,.96));
+  border-color: rgba(159,190,174,.16);
+}
+html[data-ghm-theme="dark"] .v124-product-brand-mark small,
+html[data-theme="dark"] .v124-product-brand-mark small {
+  color: #adc8ba !important;
+}
+@media (max-width: 760px) {
+  .v124-product-media { grid-template-columns: minmax(0, 1fr) 64px !important; gap: 8px !important; }
+  .v124-product-brand-mark img,
+  .v124-product-media.has-image .v124-product-brand-mark img { width: 40px !important; height: 40px !important; min-width: 40px !important; max-width: 40px !important; max-height: 40px !important; }
+}

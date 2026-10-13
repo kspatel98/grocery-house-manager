@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import StructuredAiResponse from '../components/StructuredAiResponse';
+import OverlayPortal from '../components/OverlayPortal';
 import { useLanguage } from '../i18n';
 import { announceBackgroundResultHydrated, getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 import type {
@@ -89,6 +90,7 @@ export default function AssistantPage() {
   const [agentAnswer, setAgentAnswer] = useState<HouseholdAgentResponse | null>(null);
   const [agentTurns, setAgentTurns] = useState<AgentConversationTurn[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
+  const [newConversationConfirm, setNewConversationConfirm] = useState(false);
   const [communityPriceBusy, setCommunityPriceBusy] = useState(false);
   const [foodSuggestionsReady, setFoodSuggestionsReady] = useState(false);
   const [controlsBusy, setControlsBusy] = useState(false);
@@ -600,6 +602,18 @@ export default function AssistantPage() {
     }
   }
 
+  function startNewConversation() {
+    setAgentTurns([]);
+    setAgentAnswer(null);
+    setAgentPrompt('');
+    if (houseId) sessionStorage.removeItem(`ghm_agent_conversation_v123:${houseId}`);
+    setNewConversationConfirm(false);
+    window.setTimeout(() => {
+      agentInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      agentInputRef.current?.focus({ preventScroll: true });
+    }, 80);
+  }
+
   async function copyReceiptInquiry(issue: ReceiptGuardianIssue) {
     const store = issue.store_name || 'the store';
     const purchaseDate = issue.receipt_date ? ` on ${issue.receipt_date}` : '';
@@ -721,9 +735,9 @@ export default function AssistantPage() {
         </div>
         <article className="v93-agent-card">
           <div className="v93-agent-icon">✦</div><div><p className="eyebrow">GHM HOUSEHOLD INTELLIGENCE</p><h3>Ask a deeper question about your household</h3><p>Household Intelligence explains, compares and forecasts using live household context. Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Why did our grocery spending increase?”</p></div>
-          {agentTurns.length ? <div className="v123-agent-conversation-head"><div><strong>Conversation</strong><small>Ask follow-up questions in the same box. GHM keeps the recent conversation context for this browser session.</small></div><button type="button" className="secondary" onClick={() => { setAgentTurns([]); setAgentAnswer(null); setAgentPrompt(''); if (houseId) sessionStorage.removeItem(`ghm_agent_conversation_v123:${houseId}`); window.setTimeout(() => agentInputRef.current?.focus(), 0); }}>New conversation</button></div> : null}
+          {agentTurns.length ? <div className="v123-agent-conversation-head"><div><strong>Conversation</strong><small>Ask follow-up questions in the same box. GHM keeps the recent conversation context for this browser session.</small></div><button type="button" className="secondary" onClick={() => setNewConversationConfirm(true)}>New conversation</button></div> : null}
           {agentTurns.length ? <div className="v123-agent-conversation">{agentTurns.map((turn, index) => <article key={turn.id} className="v123-agent-turn"><div className="v123-agent-question"><small>YOU</small><p>{turn.question}</p></div><div data-ghm-background-result={index === agentTurns.length - 1 ? 'true' : undefined} className={`v93-agent-answer ${turn.response.configured ? 'live' : 'setup'}`}><strong>{turn.response.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><StructuredAiResponse text={turn.response.answer} /><small>{turn.response.message}</small></div></article>)}</div> : agentAnswer ? <div data-ghm-background-result="true" className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><StructuredAiResponse text={agentAnswer.answer} /><small>{agentAnswer.message}</small></div> : null}
-          <div className="v93-agent-input"><textarea ref={agentInputRef} value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder={agentTurns.length ? 'Ask a follow-up about this household…' : 'Ask GHM about this household…'} /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : agentTurns.length ? 'Send follow-up' : 'Ask GHM'}</button></div>
+          <div className="v93-agent-input v124-agent-input"><textarea ref={agentInputRef} value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder={agentTurns.length ? 'Ask a follow-up about this household…' : 'Ask GHM about this household…'} /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : agentTurns.length ? 'Send follow-up' : 'Ask GHM'}</button></div>
         </article>
       </section>
 
@@ -861,6 +875,19 @@ export default function AssistantPage() {
       </section>
 
       {selectedHouse ? <p className="autopilot-footer-note">Autopilot for <strong>{selectedHouse.name}</strong> uses household data you have chosen to save in Grocery House Manager. Price, recall and receipt signals are decision support and should be verified when they affect safety, refunds or purchasing decisions.</p> : null}
+
+      {newConversationConfirm ? <OverlayPortal>
+        <div className="modal-backdrop v124-conversation-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewConversationConfirm(false); }}>
+          <section className="compact-dialog focus-dialog v124-conversation-confirm" role="dialog" aria-modal="true" aria-label="Start a new conversation?" onMouseDown={(event) => event.stopPropagation()}>
+            <header className="focus-dialog-titlebar">
+              <div><p className="eyebrow">NEW CONVERSATION</p><h2>Start a new conversation?</h2><p>Your current Ask GHM conversation will be cleared from this browser session.</p></div>
+              <button type="button" className="icon-button" data-dialog-close="true" aria-label="Close" onClick={() => setNewConversationConfirm(false)}>×</button>
+            </header>
+            <div className="focus-dialog-scroll v124-conversation-confirm-copy"><p>Use a new conversation when you want GHM to stop using the current follow-up context.</p></div>
+            <footer className="focus-dialog-actions v124-conversation-confirm-actions"><button type="button" className="secondary" onClick={() => setNewConversationConfirm(false)}>Keep conversation</button><button type="button" className="primary" onClick={startNewConversation}>Start new conversation</button></footer>
+          </section>
+        </div>
+      </OverlayPortal> : null}
     </main>
   );
 }

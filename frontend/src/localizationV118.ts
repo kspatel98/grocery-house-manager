@@ -1920,4 +1920,12 @@ export const v118Translations: Record<string, V118Translation> = {
   "Ask a follow-up about this household…": { gu:"આ ઘર વિશે આગળનો પ્રશ્ન પૂછો…", hi:"इस घर के बारे में आगे का प्रश्न पूछें…", fr:"Posez une question de suivi sur ce foyer…" },
   "Ask GHM about this household…": { gu:"આ ઘર વિશે GHM ને પૂછો…", hi:"इस घर के बारे में GHM से पूछें…", fr:"Demandez à GHM au sujet de ce foyer…" },
   "Send follow-up": { gu:"આગળનો પ્રશ્ન મોકલો", hi:"आगे का प्रश्न भेजें", fr:"Envoyer le suivi" },
+
+  /* V124 assistant reset confirmation */
+  "NEW CONVERSATION": { gu:"નવી વાતચીત", hi:"नई बातचीत", fr:"NOUVELLE CONVERSATION" },
+  "Start a new conversation?": { gu:"નવી વાતચીત શરૂ કરવી છે?", hi:"नई बातचीत शुरू करनी है?", fr:"Démarrer une nouvelle conversation ?" },
+  "Your current Ask GHM conversation will be cleared from this browser session.": { gu:"આ બ્રાઉઝર સેશનમાંથી હાલની Ask GHM વાતચીત સાફ થશે.", hi:"इस ब्राउज़र सत्र से मौजूदा Ask GHM बातचीत साफ़ हो जाएगी।", fr:"La conversation Ask GHM actuelle sera effacée de cette session du navigateur." },
+  "Use a new conversation when you want GHM to stop using the current follow-up context.": { gu:"જ્યારે તમે GHM ને હાલનો ફોલોઅપ સંદર્ભ વાપરવાનું બંધ કરાવવું હોય ત્યારે નવી વાતચીત શરૂ કરો.", hi:"जब आप चाहते हैं कि GHM मौजूदा फॉलो-अप संदर्भ का उपयोग बंद करे, तब नई बातचीत शुरू करें।", fr:"Démarrez une nouvelle conversation lorsque vous souhaitez que GHM cesse d’utiliser le contexte de suivi actuel." },
+  "Keep conversation": { gu:"વાતચીત રાખો", hi:"बातचीत रखें", fr:"Conserver la conversation" },
+  "Start new conversation": { gu:"નવી વાતચીત શરૂ કરો", hi:"नई बातचीत शुरू करें", fr:"Démarrer une nouvelle conversation" },
 };
