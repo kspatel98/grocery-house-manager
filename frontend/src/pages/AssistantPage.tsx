@@ -908,7 +908,7 @@ export default function AssistantPage() {
         <button type="button" className={`secondary v125-insights-toolbar-button ${workspace === 'insights' ? 'active' : ''}`} onClick={() => chooseWorkspace('insights')}>📈 Household insights</button>
         <nav className="v95-autopilot-tabs" aria-label="Autopilot workspaces">
           <button type="button" className={workspace === 'today' ? 'active' : ''} onClick={() => chooseWorkspace('today')}><span>✦</span><strong>Today</strong><small>Next action</small></button>
-          <button type="button" className={workspace === 'intelligence' ? 'active' : ''} onClick={() => chooseWorkspace('intelligence')}><span>✦</span><strong>Ask GHM</strong><small>Household AI</small></button>
+          <button type="button" onClick={() => chooseWorkspace('intelligence')}><span>✦</span><strong>Ask GHM</strong><small>Household AI</small></button>
           <button type="button" className={workspace === 'plan' ? 'active' : ''} onClick={() => chooseWorkspace('plan')}><span>◫</span><strong>Plan</strong><small>Week & meals</small></button>
           <button type="button" className={workspace === 'spend' ? 'active' : ''} onClick={() => chooseWorkspace('spend')}><span>$</span><strong>Shop smarter</strong><small>Prices & value</small></button>
           <button type="button" className={workspace === 'protect' ? 'active' : ''} onClick={() => chooseWorkspace('protect')}><span>🛡</span><strong>Protect</strong><small>Receipts & vision</small></button>
