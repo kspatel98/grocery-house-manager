@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import OverlayPortal from '../components/OverlayPortal';
+import { playAppSound } from '../appSounds';
 import { useHouseLiveRefresh } from '../hooks';
 import type { Activity, House, Receipt, ShoppingList, User } from '../types';
 
@@ -66,8 +68,12 @@ export default function HouseChatPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareOptions, setShareOptions] = useState<ShareOption[]>([]);
   const [selectedShare, setSelectedShare] = useState<ShareOption | null>(null);
+  const [deletePending, setDeletePending] = useState<Activity | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLFormElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const initializedRef = useRef(false);
+  const latestMessageIdRef = useRef<number | null>(null);
 
   async function load({ silent = false } = {}) {
     if (!id) return;
@@ -78,7 +84,11 @@ export default function HouseChatPage() {
         api.get<Activity[]>(`/houses/${id}/chat?limit=150`),
       ]);
       setHouse(houseRes.data);
-      setMessages(chatRes.data || []);
+      const nextMessages = chatRes.data || [];
+      const latest = nextMessages.reduce<Activity | null>((current, row) => (!current || row.id > current.id ? row : current), null);
+      if (latestMessageIdRef.current != null && latest && latest.id > latestMessageIdRef.current && latest.user?.id !== me?.id) playAppSound('message');
+      latestMessageIdRef.current = latest?.id || latestMessageIdRef.current;
+      setMessages(nextMessages);
     } catch (error) {
       if (!silent) setLoadError(errorMessage(error));
     } finally {
@@ -147,6 +157,8 @@ export default function HouseChatPage() {
       setReplyTo(null);
       setSelectedShare(null);
       setShareOpen(false);
+      latestMessageIdRef.current = response.data.id;
+      playAppSound('message');
     } catch (error) {
       setLoadError(errorMessage(error));
     } finally {
@@ -159,7 +171,17 @@ export default function HouseChatPage() {
     try {
       await api.delete(`/houses/${id}/chat/${messageId}`);
       setMessages((current) => current.filter((item) => item.id !== messageId));
+      setDeletePending(null);
+      playAppSound('deleted');
     } catch (error) { setLoadError(errorMessage(error)); }
+  }
+
+  function beginReply(item: Activity) {
+    setReplyTo(item);
+    requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => messageInputRef.current?.focus({ preventScroll: true }), 220);
+    });
   }
 
   async function react(item: Activity, emoji: string) {
@@ -167,6 +189,7 @@ export default function HouseChatPage() {
     try {
       const { data } = await api.post<Activity>(`/houses/${id}/chat/${item.id}/reactions`, { emoji });
       setMessages((current) => current.map((row) => row.id === item.id ? data : row));
+      playAppSound('reaction');
     } catch (error) { setLoadError(errorMessage(error)); }
   }
 
@@ -214,9 +237,9 @@ export default function HouseChatPage() {
                   {item.attachment_title ? <Link className="chat-attachment-v113" to={item.attachment_url || '#'}><span>{attachmentIcon(item.attachment_type)}</span><div><small>{String(item.attachment_type || 'GHM item').replace('_', ' ').toUpperCase()}</small><strong>{item.attachment_title}</strong>{item.attachment_subtitle ? <p>{item.attachment_subtitle}</p> : null}</div><b>Open →</b></Link> : null}
                   <div className="chat-reaction-row-v113">
                     {(item.reactions || []).map((reaction) => <button key={reaction.emoji} className={reaction.reacted_by_me ? 'active' : ''} type="button" onClick={() => void react(item, reaction.emoji)}>{reaction.emoji} <span>{reaction.count}</span></button>)}
-                    <details className="chat-reaction-picker-v113"><summary aria-label="Add reaction">＋😊</summary><div>{REACTIONS.map((emoji) => <button type="button" key={emoji} onClick={() => void react(item, emoji)}>{emoji}</button>)}</div></details>
+                    <details className="chat-reaction-picker-v113 chat-reaction-picker-v122" onToggle={(event) => { const details = event.currentTarget; if (!details.open) return; const rect = details.getBoundingClientRect(); const menuWidth = 250; details.dataset.side = window.innerWidth - rect.right < menuWidth && rect.left > menuWidth ? 'left' : 'right'; }}><summary aria-label="Add reaction">＋😊</summary><div>{REACTIONS.map((emoji) => <button type="button" key={emoji} onClick={(event) => { (event.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open'); void react(item, emoji); }}>{emoji}</button>)}</div></details>
                   </div>
-                  <div className="chat-meta-v105"><time>{timeLabel(item.created_at)}</time><button type="button" onClick={() => setReplyTo(item)}>Reply</button>{mine ? <button type="button" className="danger-text" onClick={() => void removeMessage(item.id)} aria-label="Delete your message">Delete</button> : null}</div>
+                  <div className="chat-meta-v105"><time>{timeLabel(item.created_at)}</time><button type="button" onClick={() => beginReply(item)}>Reply</button>{mine ? <button type="button" className="danger-text" onClick={() => { setDeletePending(item); playAppSound('warning'); }} aria-label="Delete your message">Delete</button> : null}</div>
                 </div>
               </article>
             </div>;
@@ -224,14 +247,16 @@ export default function HouseChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        <form className="chat-composer-v105 chat-composer-v113" onSubmit={send}>
+        <form ref={composerRef} className="chat-composer-v105 chat-composer-v113 chat-composer-v122" onSubmit={send}>
           {replyTo ? <div className="chat-compose-context-v113"><span><small>Replying to {replyTo.user?.full_name || (replyTo.user?.id === me?.id ? 'yourself' : 'house member')}</small><strong>{replyTo.message || replyTo.attachment_title || 'Shared item'}</strong></span><button type="button" onClick={() => setReplyTo(null)}>×</button></div> : null}
           {selectedShare ? <div className="chat-compose-context-v113 attachment"><span>{selectedShare.icon}</span><div><small>ATTACHED GHM ITEM</small><strong>{selectedShare.title}</strong><p>{selectedShare.subtitle}</p></div><button type="button" onClick={() => setSelectedShare(null)}>×</button></div> : null}
           {shareOpen ? <div className="chat-share-picker-v113"><div><strong>Attach from GHM</strong><small>You can also use Share from a recipe or restaurant card.</small></div>{shareOptions.length ? <div className="chat-share-options-v113">{shareOptions.map((option) => <button type="button" key={option.key} onClick={() => { setSelectedShare(option); setShareOpen(false); }}><span>{option.icon}</span><div><strong>{option.title}</strong><small>{option.subtitle}</small></div></button>)}</div> : <p className="muted">No recent shareable lists, receipts or saved recipes yet.</p>}</div> : null}
-          <div className="chat-composer-main-v113"><button className="chat-attach-button-v113" type="button" onClick={() => void openSharePicker()} aria-label="Attach a GHM item">＋</button><textarea value={message} onChange={(event) => setMessage(event.target.value.slice(0, 1200))} placeholder="Message your household…" rows={1} aria-label="Household message" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button className="primary" type="submit" disabled={(!message.trim() && !selectedShare) || sending}>{sending ? 'Sending…' : 'Send'}</button></div>
-          <small className="chat-char-count-v113">{message.length}/1200</small>
+          <div className="chat-composer-main-v113"><button className="chat-attach-button-v113" type="button" onClick={() => void openSharePicker()} aria-label="Attach a GHM item">＋</button><textarea ref={messageInputRef} value={message} onChange={(event) => setMessage(event.target.value.slice(0, 1200))} placeholder="Message your household…" rows={1} aria-label="Household message" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button className="primary" type="submit" disabled={(!message.trim() && !selectedShare) || sending}>{sending ? 'Sending…' : 'Send'}</button></div>
+          {message.length ? <small className="chat-char-count-v113">{message.length}/1200</small> : null}
         </form>
       </section>
+
+      {deletePending ? <OverlayPortal><div className="modal-backdrop chat-delete-confirm-backdrop-v122" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setDeletePending(null); }}><section className="modal focus-dialog chat-delete-confirm-v122" role="dialog" aria-modal="true" aria-label="Delete message?"><header className="focus-dialog-titlebar"><div><p className="eyebrow">CONFIRM DELETE</p><h2>Delete this message?</h2><p>This removes it from the household chat. This action cannot be undone.</p></div><button type="button" data-dialog-close="true" aria-label="Cancel delete" onClick={() => setDeletePending(null)}>×</button></header><div className="chat-delete-preview-v122">{deletePending.message || deletePending.attachment_title || 'Shared household item'}</div><footer className="focus-dialog-actions"><button className="secondary" type="button" onClick={() => setDeletePending(null)}>Cancel</button><button className="danger" type="button" onClick={() => void removeMessage(deletePending.id)}>Delete message</button></footer></section></div></OverlayPortal> : null}
     </main>
   );
 }

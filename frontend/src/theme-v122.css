@@ -1,0 +1,327 @@
+/* ========================================================================== 
+   GHM V122 — premium dark contrast, compact chat, adaptive reactions, mobile header
+   ========================================================================== */
+
+/* ---------- Premium Try: true dark surfaces and readable type ---------- */
+html[data-ghm-theme="dark"] .premium-try-page-v102,
+html[data-theme="dark"] .premium-try-page-v102 {
+  color: var(--ghm-text) !important;
+}
+html[data-ghm-theme="dark"] :where(.premium-try-clarity-v102,.premium-try-house-v102,.premium-try-choice-v102,.premium-try-confirm-v102,.premium-try-faq-v102 article,.premium-try-used-v102),
+html[data-theme="dark"] :where(.premium-try-clarity-v102,.premium-try-house-v102,.premium-try-choice-v102,.premium-try-confirm-v102,.premium-try-faq-v102 article,.premium-try-used-v102) {
+  background: #17201d !important;
+  border-color: rgba(168,198,184,.22) !important;
+  color: #eef6f1 !important;
+  box-shadow: 0 14px 38px rgba(0,0,0,.20) !important;
+}
+html[data-ghm-theme="dark"] .premium-try-clarity-v102,
+html[data-theme="dark"] .premium-try-clarity-v102 {
+  background: linear-gradient(135deg,#18241f,#1d2a26) !important;
+  border-color: rgba(127,190,151,.28) !important;
+}
+html[data-ghm-theme="dark"] .premium-try-clarity-v102 :where(strong,h2,h3),
+html[data-theme="dark"] .premium-try-clarity-v102 :where(strong,h2,h3),
+html[data-ghm-theme="dark"] .premium-try-house-v102 :where(strong,h2,h3),
+html[data-theme="dark"] .premium-try-house-v102 :where(strong,h2,h3),
+html[data-ghm-theme="dark"] .premium-try-choice-v102 strong,
+html[data-theme="dark"] .premium-try-choice-v102 strong,
+html[data-ghm-theme="dark"] .premium-try-picker-v102 :where(h2,h3),
+html[data-theme="dark"] .premium-try-picker-v102 :where(h2,h3) {
+  color: #f4faf6 !important;
+  opacity: 1 !important;
+}
+html[data-ghm-theme="dark"] :where(.premium-try-clarity-v102 p,.premium-try-house-v102 p,.premium-try-choice-v102 p,.premium-try-picker-v102>header p,.premium-try-faq-v102 p,.premium-try-used-v102 p),
+html[data-theme="dark"] :where(.premium-try-clarity-v102 p,.premium-try-house-v102 p,.premium-try-choice-v102 p,.premium-try-picker-v102>header p,.premium-try-faq-v102 p,.premium-try-used-v102 p) {
+  color: #afc3b8 !important;
+  opacity: 1 !important;
+}
+html[data-ghm-theme="dark"] .premium-try-choice-v102 small,
+html[data-theme="dark"] .premium-try-choice-v102 small {
+  color: #9bd2ae !important;
+  opacity: 1 !important;
+}
+html[data-ghm-theme="dark"] .premium-try-choice-v102 em,
+html[data-theme="dark"] .premium-try-choice-v102 em {
+  color: #ff9a52 !important;
+  opacity: 1 !important;
+}
+html[data-ghm-theme="dark"] .premium-try-choice-v102.selected,
+html[data-theme="dark"] .premium-try-choice-v102.selected {
+  background: linear-gradient(145deg,#254132,#1a2922) !important;
+  border-color: #77b98f !important;
+  box-shadow: 0 0 0 2px rgba(119,185,143,.13),0 16px 40px rgba(0,0,0,.22) !important;
+}
+html[data-ghm-theme="dark"] .premium-try-choice-v102.selected em,
+html[data-theme="dark"] .premium-try-choice-v102.selected em { color:#a9ddbb !important; }
+html[data-ghm-theme="dark"] .premium-try-choice-icon-v102,
+html[data-theme="dark"] .premium-try-choice-icon-v102 {
+  background: linear-gradient(145deg,#24322d,#2b2520) !important;
+  border: 1px solid rgba(168,198,184,.14);
+}
+html[data-ghm-theme="dark"] .premium-try-house-v102 select,
+html[data-theme="dark"] .premium-try-house-v102 select {
+  background:#101715 !important;
+  border-color:rgba(168,198,184,.22) !important;
+  color:#f2f8f4 !important;
+}
+html[data-ghm-theme="dark"] .premium-try-rule-row-v102 span,
+html[data-theme="dark"] .premium-try-rule-row-v102 span {
+  background:#17201d !important;
+  border-color:rgba(168,198,184,.20) !important;
+}
+html[data-ghm-theme="dark"] .premium-try-rule-row-v102 small,
+html[data-theme="dark"] .premium-try-rule-row-v102 small { color:#e8f2ec !important; }
+
+/* ---------- House Chat: compact, aligned composer ---------- */
+.house-chat-page-v113 { padding-bottom: 120px !important; }
+.chat-shell-v105 {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+.chat-thread-v105 {
+  flex: 0 1 auto !important;
+  height: clamp(300px, 48dvh, 540px) !important;
+  min-height: 260px !important;
+  max-height: 540px !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.chat-composer-v122 {
+  position: relative;
+  flex: 0 0 auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(0,1fr) auto !important;
+  align-items: center !important;
+  gap: 6px 10px !important;
+  min-height: 0 !important;
+  padding: 10px 12px !important;
+}
+.chat-composer-v122 > :where(.chat-compose-context-v113,.chat-share-picker-v113) {
+  grid-column: 1 / -1 !important;
+}
+.chat-composer-v122 .chat-composer-main-v113 {
+  grid-column: 1 / -1 !important;
+  display: grid !important;
+  grid-template-columns: 42px minmax(0,1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.chat-composer-v122 textarea {
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 96px !important;
+  padding: 11px 13px !important;
+  margin: 0 !important;
+  line-height: 1.3 !important;
+}
+.chat-composer-v122 .chat-attach-button-v113 {
+  width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  align-self: center !important;
+}
+.chat-composer-v122 .chat-composer-main-v113 > .primary {
+  align-self: center !important;
+  min-width: 82px !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 8px 14px !important;
+  margin: 0 !important;
+  border-radius: 13px !important;
+}
+.chat-composer-v122 .chat-char-count-v113 {
+  grid-column: 1 / -1 !important;
+  justify-self: end !important;
+  margin: -1px 2px 0 0 !important;
+  font-size: .68rem !important;
+  line-height: 1 !important;
+}
+
+/* Adaptive reaction picker. JS sets data-side from real viewport space. */
+.chat-reaction-picker-v122 > div {
+  width: max-content;
+  max-width: min(250px, calc(100vw - 28px));
+  flex-wrap: wrap !important;
+}
+.chat-reaction-picker-v122[data-side="left"] > div { left: auto !important; right: 0 !important; }
+.chat-reaction-picker-v122[data-side="right"] > div { left: 0 !important; right: auto !important; }
+.chat-message-v105.mine .chat-reaction-picker-v122:not([data-side]) > div { left:auto !important; right:0 !important; }
+.chat-reaction-picker-v122[open] { z-index: 35; }
+
+/* Delete confirmation is intentionally small and unmistakable. */
+.chat-delete-confirm-v122 { width:min(480px,calc(100vw - 24px)) !important; }
+.chat-delete-preview-v122 {
+  margin: 0 18px 16px;
+  padding: 12px 14px;
+  max-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--ghm-border);
+  border-radius: 14px;
+  background: var(--ghm-surface-soft);
+  color: var(--ghm-text-strong);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-delete-confirm-v122 .danger {
+  background: var(--ghm-danger) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+@media (max-width: 760px) {
+  .house-chat-page-v113 { padding-bottom: 118px !important; }
+  .chat-shell-v105 { margin-inline: 0 !important; border-radius: 20px !important; }
+  .chat-thread-v105 {
+    height: min(43dvh, 390px) !important;
+    min-height: 245px !important;
+    max-height: 390px !important;
+    padding: 12px 10px 8px !important;
+  }
+  .chat-message-v105 { max-width: 91% !important; }
+  .chat-composer-v122 {
+    padding: 9px 10px calc(9px + env(safe-area-inset-bottom)) !important;
+    gap: 6px !important;
+  }
+  .chat-composer-v122 .chat-composer-main-v113 {
+    grid-template-columns: 40px minmax(0,1fr) 72px !important;
+    gap: 7px !important;
+  }
+  .chat-composer-v122 .chat-attach-button-v113 {
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+  .chat-composer-v122 textarea {
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 10px 11px !important;
+    font-size: .92rem !important;
+  }
+  .chat-composer-v122 .chat-composer-main-v113 > .primary {
+    min-width: 72px !important;
+    width: 72px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 6px 8px !important;
+    font-size: .8rem !important;
+  }
+  .chat-compose-context-v113 { padding: 8px 9px !important; }
+  .chat-reaction-picker-v122 > div { max-width: min(238px, calc(100vw - 24px)); }
+}
+
+/* ---------- Mobile header: logo left, full brand name directly beside it ---------- */
+@media (max-width: 980px) {
+  .site-header:not(.public-site-header) .site-header-inner.shell.wide {
+    grid-template-columns: minmax(142px,1fr) auto !important;
+    grid-template-areas: 'brand utilities' 'title title' !important;
+    gap: 6px 7px !important;
+    padding: 8px 9px 9px !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap {
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0,1fr) !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand img {
+    grid-column: 1 !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    margin: 0 !important;
+    border-radius: 10px !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand > span {
+    grid-column: 2 !important;
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    position: static !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand strong {
+    display: block !important;
+    color: var(--ghm-text-strong) !important;
+    font-size: .82rem !important;
+    line-height: 1.04 !important;
+    letter-spacing: -.015em !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    word-break: normal !important;
+  }
+  .site-header:not(.public-site-header) .site-nav-wrap {
+    display: flex !important;
+    width: auto !important;
+    min-width: 0 !important;
+    gap: 4px !important;
+  }
+  .mobile-ask-ghm-v119,
+  .site-header:not(.public-site-header) .site-nav-wrap .language-picker.icon-only-v119,
+  .site-header:not(.public-site-header) .site-nav-wrap .ghm-sound-toggle-v121,
+  .site-header:not(.public-site-header) .site-nav-wrap .theme-toggle-v88.compact,
+  .site-header:not(.public-site-header) .site-nav-wrap .ghm-notification-trigger-v115 {
+    flex: 0 0 33px !important;
+    width: 33px !important;
+    height: 33px !important;
+    min-width: 33px !important;
+    min-height: 33px !important;
+    border-radius: 10px !important;
+  }
+  .mobile-header-title-v88 {
+    margin: 0 !important;
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+  .mobile-header-title-v88 strong { font-size: .84rem !important; line-height: 1.05 !important; }
+  .mobile-header-title-v88 small { font-size: .61rem !important; }
+}
+
+@media (max-width: 410px) {
+  .site-header:not(.public-site-header) .site-header-inner.shell.wide {
+    grid-template-columns: minmax(124px,1fr) auto !important;
+    gap: 5px !important;
+    padding-inline: 7px !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand {
+    grid-template-columns: 31px minmax(0,1fr) !important;
+    gap: 6px !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand img {
+    width: 31px !important;
+    height: 31px !important;
+    min-width: 31px !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand strong {
+    font-size: .72rem !important;
+  }
+  .mobile-ask-ghm-v119,
+  .site-header:not(.public-site-header) .site-nav-wrap .language-picker.icon-only-v119,
+  .site-header:not(.public-site-header) .site-nav-wrap .ghm-sound-toggle-v121,
+  .site-header:not(.public-site-header) .site-nav-wrap .theme-toggle-v88.compact,
+  .site-header:not(.public-site-header) .site-nav-wrap .ghm-notification-trigger-v115 {
+    flex-basis: 30px !important;
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+  }
+}
+
+/* Respect user motion preferences while still retaining sound feedback. */
+@media (prefers-reduced-motion: reduce) {
+  .chat-message-v105,.premium-try-choice-v102 { transition:none !important; }
+}
