@@ -863,7 +863,7 @@ export default function AssistantPage() {
             <div className={`v125-ask-composer ${agentListening ? 'is-listening' : ''}`}>
               <button type="button" className="v125-compose-icon" onClick={() => setAgentAttachOpen((open) => !open)} aria-label="Attach household context" title="Attach household context">＋</button>
               <textarea ref={agentInputRef} rows={1} value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void askHouseholdAgent(); }} placeholder={agentTurns.length ? 'Ask a follow-up…' : 'Ask GHM anything about your household…'} />
-              <button type="button" className="v125-compose-icon mic" onClick={startAgentVoice} aria-label={agentListening ? 'Listening' : 'Speak to Ask GHM'} title={agentListening ? 'Listening…' : 'Speak'}>{agentListening ? '◉' : '🎙'}</button>
+              <button type="button" className="v125-compose-icon mic" onClick={startAgentVoice} aria-label={agentListening ? 'Listening' : 'Speak to Ask GHM'} title={agentListening ? 'Listening…' : 'Speak'}>{agentListening ? <span className="v125-mic-live" aria-hidden="true">◉</span> : <img src="/brand/mic-symbol.png" alt="" className="v125-mic-image" aria-hidden="true" />}</button>
               <button type="button" className="v125-send" onClick={() => void askHouseholdAgent()} disabled={agentBusy || !agentPrompt.trim()} aria-label="Send to Ask GHM">➤</button>
             </div>
             <small className="v125-composer-hint">Continue naturally with follow-up questions. Press Ctrl/⌘ + Enter to send.</small>

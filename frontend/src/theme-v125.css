@@ -168,7 +168,7 @@
   display: grid;
   align-content: start;
   gap: 22px;
-  padding: 26px clamp(18px, 5vw, 64px) 28px;
+  padding: 26px clamp(18px, 5vw, 64px) 168px;
 }
 .v125-ask-empty {
   width: min(760px, 100%);
@@ -328,12 +328,14 @@
 .v125-composer-zone {
   position: sticky;
   bottom: 0;
-  z-index: 8;
+  z-index: 12;
+  margin-top: auto;
   padding: 12px clamp(16px, 4vw, 34px) 16px;
   border-top: 1px solid var(--ghm-divider);
   border-radius: 0 0 30px 30px;
-  background: color-mix(in srgb, var(--ghm-surface) 94%, transparent);
+  background: color-mix(in srgb, var(--ghm-surface) 96%, transparent);
   backdrop-filter: blur(18px);
+  box-shadow: 0 -14px 30px rgba(8, 18, 14, .16);
 }
 .v125-context-summary {
   display: flex;
@@ -447,7 +449,7 @@
   max-height: 145px;
   margin: 0 !important;
   padding: 10px 5px !important;
-  resize: vertical;
+  resize: none;
   border: 0 !important;
   outline: 0 !important;
   background: transparent !important;
@@ -478,6 +480,19 @@
   font-size: 1.05rem;
 }
 .v125-send:disabled { opacity: .42; }
+.v125-mic-image {
+  width: 18px;
+  height: 18px;
+  display: block;
+  object-fit: contain;
+}
+.v125-mic-live {
+  display: inline-grid;
+  place-items: center;
+  font-size: 1.02rem;
+  font-weight: 900;
+  line-height: 1;
+}
 .v125-ask-composer.is-listening .mic {
   border-color: #e49c58 !important;
   background: rgba(228,156,88,.14) !important;
@@ -560,13 +575,15 @@ html[data-theme="dark"] .v125-composer-zone {
   .v125-ask-header-actions > button { grid-column: 1 / -1; min-height: 40px; }
   .v125-agent-mode-strip { padding: 8px 12px; }
   .v125-mode-intro { display:none; }
-  .v125-chat-transcript { padding: 18px 14px 22px; gap: 17px; }
+  .v125-chat-transcript { padding: 18px 14px 176px; gap: 17px; }
   .v125-user-message { width: min(92%, 660px); }
   .v125-ghm-message { width: min(96%, 760px); padding: 15px; }
   .v125-composer-zone {
     bottom: calc(76px + env(safe-area-inset-bottom));
+    z-index: 18;
     padding: 9px 10px 10px;
-    border-radius: 0 0 22px 22px;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -14px 28px rgba(8, 18, 14, .22);
   }
   .v125-context-picker { left:10px; right:10px; }
   .v125-context-picker > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -595,6 +612,7 @@ html[data-theme="dark"] .v125-composer-zone {
   .v125-compose-icon { width:40px; min-width:40px; height:40px; border-radius:12px!important; }
   .v125-send { width:44px; min-width:44px; height:40px; border-radius:12px!important; }
   .v125-ask-composer textarea { min-height:40px!important; padding:8px 3px!important; font-size:.9rem; }
+  .v125-mic-image { width:16px; height:16px; }
   .v125-composer-hint { display:none; }
 }
 
