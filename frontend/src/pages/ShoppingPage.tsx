@@ -424,7 +424,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
   useEffect(() => {
     const taskId = comparisonSearchParams.get('bgTask');
     const restored = taskId ? getBackgroundTaskResult<BasketComparison>(taskId) : null;
-    if (restored) {
+    if (taskId && restored) {
       setComparison(restored);
       setDetailsOpen(Boolean(restored.store_options.length));
       setError('');
