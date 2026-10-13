@@ -24,6 +24,8 @@ from app.db.session import get_db
 from app.models import (
     AutopilotDecision,
     House,
+    HouseExpense,
+    CommunityRecipe,
     KitchenStorageZone,
     KitchenVisionObservation,
     KitchenVisionScan,
@@ -76,6 +78,13 @@ def _confidence_label(value: float) -> str:
 
 def _product_inventory(db: Session, house_id: int) -> list[Product]:
     return db.query(Product).filter(Product.house_id == house_id).order_by(Product.name.asc()).all()
+
+def _safe_json_list(value: str | None) -> list:
+    try:
+        parsed = json.loads(value or "[]")
+        return parsed if isinstance(parsed, list) else []
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
 
 
 def _extract_video_frames(content: bytes, filename: str) -> list[tuple[bytes, str, str]]:
@@ -976,16 +985,31 @@ def household_agent(house_id: int, payload: HouseholdAgentIn, db: Session = Depe
     if not house:
         raise HTTPException(status_code=404, detail="House not found")
     twin = _digital_twin(db, house)
-    inventory = _product_inventory(db, house_id)
-    active_list = db.query(ShoppingList).options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product)).filter(ShoppingList.house_id == house_id, ShoppingList.is_done.is_(False)).order_by(ShoppingList.created_at.desc()).first()
+    requested_sources = set(payload.context_sources or ["inventory", "shopping"])
+    inventory = _product_inventory(db, house_id) if "inventory" in requested_sources else []
+    active_list = None
+    if "shopping" in requested_sources:
+        active_list = db.query(ShoppingList).options(joinedload(ShoppingList.items).joinedload(ShoppingListItem.product)).filter(ShoppingList.house_id == house_id, ShoppingList.is_done.is_(False)).order_by(ShoppingList.created_at.desc()).first()
+    recent_receipts: list[Receipt] = []
+    if "receipts" in requested_sources:
+        recent_receipts = db.query(Receipt).options(joinedload(Receipt.line_items)).filter(Receipt.house_id == house_id).order_by(Receipt.created_at.desc()).limit(8).all()
+    recent_expenses: list[HouseExpense] = []
+    if "expenses" in requested_sources:
+        recent_expenses = db.query(HouseExpense).filter(HouseExpense.house_id == house_id).order_by(HouseExpense.expense_date.desc(), HouseExpense.id.desc()).limit(20).all()
+    saved_recipes: list[CommunityRecipe] = []
+    if "recipes" in requested_sources:
+        saved_recipes = db.query(CommunityRecipe).filter(CommunityRecipe.user_id == user.id).order_by(CommunityRecipe.updated_at.desc()).limit(12).all()
+
     today = date.today()
     safe_inventory = [p for p in inventory if not p.expiry_date or p.expiry_date >= today]
     expired_inventory = [p for p in inventory if p.expiry_date and p.expiry_date < today]
     context = {
         "house": {"id": house.id, "name": house.name, "autopilot_strategy": house.autopilot_strategy, "preferred_stores": house.autopilot_preferred_stores},
+        "requested_mode": payload.mode,
+        "selected_context_sources": sorted(requested_sources),
         "food_safety_rule": "Never recommend eating, cooking with, or using an item whose expiry_date is before today. Expired items are review/discard items only. Items expiring today or soon may be prioritized only before they expire.",
-        "inventory": [{"name": p.name, "quantity": p.quantity, "unit": p.unit, "expiry_date": str(p.expiry_date) if p.expiry_date else None} for p in safe_inventory[:120]],
-        "expired_inventory_do_not_consume": [{"name": p.name, "quantity": p.quantity, "unit": p.unit, "expiry_date": str(p.expiry_date)} for p in expired_inventory[:40]],
+        "inventory": [{"name": p.name, "quantity": p.quantity, "unit": p.unit, "expiry_date": str(p.expiry_date) if p.expiry_date else None} for p in safe_inventory[:120]] if "inventory" in requested_sources else None,
+        "expired_inventory_do_not_consume": [{"name": p.name, "quantity": p.quantity, "unit": p.unit, "expiry_date": str(p.expiry_date)} for p in expired_inventory[:40]] if "inventory" in requested_sources else None,
         "digital_twin": {
             "products_likely_needed_7d": twin.products_likely_needed_7d,
             "decision_pattern": twin.decision_pattern,
@@ -996,6 +1020,29 @@ def household_agent(house_id: int, payload: HouseholdAgentIn, db: Session = Depe
             "title": active_list.title,
             "items": [item.product.name for item in active_list.items if item.product and item.status != ShoppingItemStatus.skipped],
         } if active_list else None,
+        "recent_receipts": [{
+            "id": receipt.id,
+            "store": receipt.store_name,
+            "date": str(receipt.receipt_date or receipt.created_at.date()),
+            "total": receipt.total_amount,
+            "discount": receipt.discount_amount,
+            "items": [line.description for line in receipt.line_items if line.line_type == "product" and line.is_selected][:24],
+        } for receipt in recent_receipts],
+        "recent_expenses": [{
+            "id": expense.id,
+            "title": expense.title,
+            "amount": expense.amount,
+            "currency": expense.currency,
+            "category": expense.category,
+            "date": str(expense.expense_date),
+        } for expense in recent_expenses],
+        "saved_recipes": [{
+            "id": recipe.id,
+            "name": recipe.name,
+            "cuisine": recipe.cuisine,
+            "meal_kind": recipe.meal_kind,
+            "diets": _safe_json_list(recipe.diets_json),
+        } for recipe in saved_recipes],
     }
     if not agent_configured():
         return HouseholdAgentOut(

@@ -1775,6 +1775,10 @@ class HouseholdAgentIn(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     language: str = Field(default="en", pattern="^(en|gu|hi|fr)$")
     history: list[HouseholdAgentHistoryItem] = Field(default_factory=list, max_length=12)
+    mode: Literal["intelligence", "plan", "save", "protect"] = "intelligence"
+    context_sources: list[Literal["inventory", "shopping", "receipts", "expenses", "recipes"]] = Field(
+        default_factory=lambda: ["inventory", "shopping"], max_length=5
+    )
 
 
 class HouseholdAgentOut(BaseModel):

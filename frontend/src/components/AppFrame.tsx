@@ -301,7 +301,12 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const navActive = (to: string) => {
     const [itemPath, query = ''] = to.split('?');
     const queryParams = new URLSearchParams(query);
-    if (itemPath === '/assistant') return location.pathname === '/assistant';
+    if (itemPath === '/assistant') {
+      if (location.pathname !== '/assistant') return false;
+      const currentView = new URLSearchParams(location.search).get('view') || 'today';
+      const desiredView = queryParams.get('view') || 'today';
+      return currentView === desiredView;
+    }
     if (itemPath === '/more') return location.pathname === '/more' || (Boolean(contextHouseId) && extraNavItems.some((item) => { const secondaryPath = item.to.split('?')[0]; return location.pathname === secondaryPath || location.pathname.startsWith(`${secondaryPath}/`); }));
     if (contextHouseId && itemPath === `/houses/${contextHouseId}`) {
       if (location.pathname !== itemPath) return false;
@@ -379,11 +384,14 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [premiumArrival]);
 
-  const pageTitle = location.pathname.includes('/food') ? 'Food tonight' : ([
+  const assistantView = location.pathname === '/assistant' ? (new URLSearchParams(location.search).get('view') || 'today') : null;
+  const assistantTitle = assistantView === 'intelligence' ? 'Ask GHM' : assistantView === 'insights' ? 'Insights' : assistantView === 'plan' ? 'Plan' : assistantView === 'spend' ? 'Shop smarter' : assistantView === 'protect' ? 'Protect' : assistantView === 'today' ? 'Today' : null;
+  const pageTitle = location.pathname.includes('/food') ? 'Food tonight' : (assistantTitle || ([
     ...navItems,
     ...extraNavItems,
     { to: '/profile', label: t('profile'), icon: '👤' },
-  ].find((item) => navActive(item.to))?.label || (homeActive ? 'Home' : 'Grocery House Manager'));
+  ].find((item) => navActive(item.to))?.label || (homeActive ? 'Home' : 'Grocery House Manager')));
+  const askGhmChatActive = location.pathname === '/assistant' && assistantView === 'intelligence';
 
   return (
     <div className="app-frame desktop-sidebar-layout">
@@ -624,7 +632,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
       <nav className="mobile-bottom-nav v95-mobile-nav v104-mobile-nav" aria-label="Mobile app navigation">
         <Link to="/houses" className={homeActive ? 'active' : ''}><span aria-hidden="true">⌂</span><small>Home</small></Link>
-        <Link to={contextHouseId ? `/assistant?house=${contextHouseId}&view=plan` : '/houses'} className={location.pathname === '/assistant' ? 'active' : ''}><span aria-hidden="true">◫</span><small>Plan</small></Link>
+        <Link to={contextHouseId ? `/assistant?house=${contextHouseId}&view=plan` : '/houses'} className={location.pathname === '/assistant' && (new URLSearchParams(location.search).get('view') || 'today') === 'plan' ? 'active' : ''}><span aria-hidden="true">◫</span><small>Plan</small></Link>
         <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>Shop</small></Link>
         <Link to={contextHouseId ? `/houses/${contextHouseId}/scan` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/scan`) ? 'active' : ''}><span aria-hidden="true">🧾</span><small>Scan</small></Link>
         <Link to={contextHouseId ? `/more?house=${contextHouseId}` : '/more'} className={navActive(contextHouseId ? `/more?house=${contextHouseId}` : '/more') ? 'active' : ''}><span aria-hidden="true">•••</span><small>{t('more')}</small></Link>
@@ -673,8 +681,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       <BackgroundResultFocus />
       <BackgroundTaskNotice houseId={contextHouseId} />
       <SmartReviewPrompt />
-      {contextHouseId ? <Link className="ghm-house-chat-fab-v108" to={`/houses/${contextHouseId}/chat`} aria-label="Open house chat" title="House Chat"><span aria-hidden="true">💬</span><strong>Chat</strong></Link> : null}
-      <UniversalCapture houseId={contextHouseId} />
+      {contextHouseId && !askGhmChatActive ? <Link className="ghm-house-chat-fab-v108" to={`/houses/${contextHouseId}/chat`} aria-label="Open house chat" title="House Chat"><span aria-hidden="true">💬</span><strong>Chat</strong></Link> : null}
+      {!askGhmChatActive ? <UniversalCapture houseId={contextHouseId} /> : null}
 
       <PremiumAwardCelebration
         open={celebrationOpen && showPremiumCrown}

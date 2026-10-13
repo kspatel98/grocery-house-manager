@@ -202,13 +202,19 @@ def ask_household_agent(*, prompt: str, context: dict[str, Any], language: str =
         f"Household context:\n{json.dumps(context, ensure_ascii=False)}\n\n"
         f"Response language: {response_language}. Respond entirely in {response_language}, except product/brand names that should remain unchanged.\n\n"
         "Response quality rules:\n"
-        "- Give the direct answer first.\n"
-        "- Organize the answer with short headings and bullets when that improves readability.\n"
+        "- Give the direct answer first in one or two sentences.\n"
+        "- Format the rest as a polished consumer-facing answer: short headings, compact bullets, and numbered steps only when useful.\n"
         "- Use concrete household data from the supplied context and clearly label estimates or unknowns.\n"
+        "- The requested_mode is a UI hint (intelligence, plan, save, protect); follow it when relevant but prioritize the user's actual request.\n"
+        "- selected_context_sources tells you which household records the user chose to bring into this turn. Do not claim to have used data that is absent.\n"
+        "- For meal/cooking questions, clearly separate what is already available, what is missing, and the practical next step.\n"
+        "- For spending/shopping questions, separate evidence, recommendation, and expected trade-off or savings when the data supports it.\n"
+        "- For safety/expiry/recall questions, be conservative and clearly distinguish a signal from a verified safety conclusion.\n"
         "- Do not output raw JSON, internal tool traces, provider metadata, or unformatted dumps.\n"
+        "- Never claim that you changed inventory, shopping, expenses, or other records unless the application actually performed that action.\n"
         "- Keep paragraphs short and action-oriented.\n"
         "- Treat prior conversation turns as context for follow-up questions.\n"
-        "- If a useful next step exists, finish with a short 'Next option' suggestion rather than forcing the user to start a new conversation.\n"
+        "- If a useful next step exists, finish with a short 'Next option' suggestion so the user can answer naturally in the same conversation.\n"
     )
     messages: list[dict[str, str]] = [{"role": "user", "content": instructions}]
     for item in (history or [])[-12:]:
