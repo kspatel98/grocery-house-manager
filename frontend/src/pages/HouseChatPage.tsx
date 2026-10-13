@@ -4,12 +4,12 @@ import { api, errorMessage } from '../api';
 import OverlayPortal from '../components/OverlayPortal';
 import { playAppSound } from '../appSounds';
 import { useHouseLiveRefresh } from '../hooks';
-import type { Activity, House, Receipt, ShoppingList, User } from '../types';
+import type { Activity, ExpenseSummary, House, Receipt, ShoppingList, User } from '../types';
 
 type SharedRecipe = { id: number; name: string; base_servings?: number; cuisine?: string };
 type ShareOption = {
   key: string;
-  type: 'shopping_list' | 'recipe' | 'receipt';
+  type: 'shopping_list' | 'recipe' | 'receipt' | 'expense';
   icon: string;
   title: string;
   subtitle: string;
@@ -67,6 +67,9 @@ export default function HouseChatPage() {
   const [replyTo, setReplyTo] = useState<Activity | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareOptions, setShareOptions] = useState<ShareOption[]>([]);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareQuery, setShareQuery] = useState('');
+  const [shareKind, setShareKind] = useState<'all' | ShareOption['type']>('all');
   const [selectedShare, setSelectedShare] = useState<ShareOption | null>(null);
   const [deletePending, setDeletePending] = useState<Activity | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -98,31 +101,43 @@ export default function HouseChatPage() {
 
   async function loadShareOptions() {
     if (!id) return;
-    const [listsResult, receiptsResult, recipesResult] = await Promise.allSettled([
-      api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`),
-      api.get<Receipt[]>(`/houses/${id}/receipts`),
-      api.get<SharedRecipe[]>('/recipes/community/mine'),
-    ]);
-    const options: ShareOption[] = [];
-    if (listsResult.status === 'fulfilled') {
-      (listsResult.value.data || []).filter((row) => !row.is_done).slice(0, 4).forEach((row) => {
-        const remaining = row.items.filter((item) => item.status !== 'skipped').length;
-        options.push({ key: `list-${row.id}`, type: 'shopping_list', icon: '🛒', title: row.title, subtitle: `${remaining} item${remaining === 1 ? '' : 's'} · active shopping list`, url: `/houses/${id}/shopping?list=${row.id}` });
-      });
+    setShareLoading(true);
+    try {
+      const [listsResult, receiptsResult, recipesResult, expensesResult] = await Promise.allSettled([
+        api.get<ShoppingList[]>(`/houses/${id}/shopping-lists`, { params: { include_done: true } }),
+        api.get<Receipt[]>(`/houses/${id}/receipts`),
+        api.get<SharedRecipe[]>('/recipes/community/mine'),
+        api.get<ExpenseSummary>(`/houses/${id}/expenses`),
+      ]);
+      const options: ShareOption[] = [];
+      if (listsResult.status === 'fulfilled') {
+        (listsResult.value.data || []).slice(0, 30).forEach((row) => {
+          const remaining = row.items.filter((item) => item.status !== 'skipped').length;
+          options.push({ key: `list-${row.id}`, type: 'shopping_list', icon: '🛒', title: row.title, subtitle: `${remaining} item${remaining === 1 ? '' : 's'} · ${row.is_done ? 'completed' : 'active'} shopping list`, url: `/houses/${id}/shopping?list=${row.id}` });
+        });
+      }
+      if (receiptsResult.status === 'fulfilled') {
+        (receiptsResult.value.data || []).slice(0, 30).forEach((row) => {
+          const total = row.total_amount != null ? ` · $${Number(row.total_amount).toFixed(2)}` : '';
+          options.push({ key: `receipt-${row.id}`, type: 'receipt', icon: '🧾', title: row.store_name || 'Grocery receipt', subtitle: `${row.receipt_date || new Date(row.created_at).toLocaleDateString()}${total}`, url: `/houses/${id}/receipts` });
+        });
+      }
+      if (recipesResult.status === 'fulfilled') {
+        (recipesResult.value.data || []).slice(0, 30).forEach((row) => {
+          options.push({ key: `recipe-${row.id}`, type: 'recipe', icon: '🍲', title: row.name, subtitle: `${row.cuisine || 'Recipe'} · ${row.base_servings || 4} servings`, url: `/houses/${id}/meals?recipe=${row.id}` });
+        });
+      }
+      if (expensesResult.status === 'fulfilled') {
+        (expensesResult.value.data?.expenses || []).slice(0, 30).forEach((row) => {
+          options.push({ key: `expense-${row.id}`, type: 'expense', icon: '💸', title: row.title, subtitle: `${row.category} · ${row.currency || 'CAD'} ${Number(row.amount).toFixed(2)} · ${row.expense_date}`, url: `/houses/${id}/expenses/${row.expense_month}` });
+        });
+      }
+      setShareOptions(options);
+    } finally {
+      setShareLoading(false);
     }
-    if (receiptsResult.status === 'fulfilled') {
-      (receiptsResult.value.data || []).slice(0, 3).forEach((row) => {
-        const total = row.total_amount != null ? ` · $${Number(row.total_amount).toFixed(2)}` : '';
-        options.push({ key: `receipt-${row.id}`, type: 'receipt', icon: '🧾', title: row.store_name || 'Grocery receipt', subtitle: `${row.receipt_date || new Date(row.created_at).toLocaleDateString()}${total}`, url: `/houses/${id}/receipts` });
-      });
-    }
-    if (recipesResult.status === 'fulfilled') {
-      (recipesResult.value.data || []).slice(0, 4).forEach((row) => {
-        options.push({ key: `recipe-${row.id}`, type: 'recipe', icon: '🍲', title: row.name, subtitle: `${row.cuisine || 'Recipe'} · ${row.base_servings || 4} servings`, url: `/houses/${id}/meals?recipe=${row.id}` });
-      });
-    }
-    setShareOptions(options);
   }
+
 
   useEffect(() => {
     setLoading(true);
@@ -157,6 +172,7 @@ export default function HouseChatPage() {
       setReplyTo(null);
       setSelectedShare(null);
       setShareOpen(false);
+      if (messageInputRef.current) messageInputRef.current.style.height = '';
       latestMessageIdRef.current = response.data.id;
       playAppSound('message');
     } catch (error) {
@@ -194,9 +210,30 @@ export default function HouseChatPage() {
   }
 
   async function openSharePicker() {
-    const next = !shareOpen;
-    setShareOpen(next);
-    if (next && shareOptions.length === 0) await loadShareOptions();
+    setShareOpen(true);
+    setShareQuery('');
+    setShareKind('all');
+    if (shareOptions.length === 0) await loadShareOptions();
+  }
+
+  const filteredShareOptions = useMemo(() => {
+    const query = shareQuery.trim().toLowerCase();
+    return shareOptions.filter((option) => {
+      if (shareKind !== 'all' && option.type !== shareKind) return false;
+      if (!query) return true;
+      return `${option.title} ${option.subtitle}`.toLowerCase().includes(query);
+    });
+  }, [shareOptions, shareKind, shareQuery]);
+
+  function chooseShare(option: ShareOption) {
+    setSelectedShare(option);
+    setShareOpen(false);
+    window.setTimeout(() => messageInputRef.current?.focus({ preventScroll: true }), 80);
+  }
+
+  function resizeComposerInput(input: HTMLTextAreaElement) {
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(112, Math.max(50, input.scrollHeight))}px`;
   }
 
   let previousDay = '';
@@ -250,11 +287,12 @@ export default function HouseChatPage() {
         <form ref={composerRef} className="chat-composer-v105 chat-composer-v113 chat-composer-v122" onSubmit={send}>
           {replyTo ? <div className="chat-compose-context-v113"><span><small>Replying to {replyTo.user?.full_name || (replyTo.user?.id === me?.id ? 'yourself' : 'house member')}</small><strong>{replyTo.message || replyTo.attachment_title || 'Shared item'}</strong></span><button type="button" onClick={() => setReplyTo(null)}>×</button></div> : null}
           {selectedShare ? <div className="chat-compose-context-v113 attachment"><span>{selectedShare.icon}</span><div><small>ATTACHED GHM ITEM</small><strong>{selectedShare.title}</strong><p>{selectedShare.subtitle}</p></div><button type="button" onClick={() => setSelectedShare(null)}>×</button></div> : null}
-          {shareOpen ? <div className="chat-share-picker-v113"><div><strong>Attach from GHM</strong><small>You can also use Share from a recipe or restaurant card.</small></div>{shareOptions.length ? <div className="chat-share-options-v113">{shareOptions.map((option) => <button type="button" key={option.key} onClick={() => { setSelectedShare(option); setShareOpen(false); }}><span>{option.icon}</span><div><strong>{option.title}</strong><small>{option.subtitle}</small></div></button>)}</div> : <p className="muted">No recent shareable lists, receipts or saved recipes yet.</p>}</div> : null}
-          <div className="chat-composer-main-v113"><button className="chat-attach-button-v113" type="button" onClick={() => void openSharePicker()} aria-label="Attach a GHM item">＋</button><textarea ref={messageInputRef} value={message} onChange={(event) => setMessage(event.target.value.slice(0, 1200))} placeholder="Message your household…" rows={1} aria-label="Household message" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button className="primary" type="submit" disabled={(!message.trim() && !selectedShare) || sending}>{sending ? 'Sending…' : 'Send'}</button></div>
+          <div className="chat-composer-main-v113"><button className="chat-attach-button-v113" type="button" onClick={() => void openSharePicker()} aria-label="Attach a GHM item">＋</button><textarea ref={messageInputRef} value={message} onChange={(event) => { setMessage(event.target.value.slice(0, 1200)); resizeComposerInput(event.currentTarget); }} placeholder="Message your household…" rows={1} aria-label="Household message" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button className="primary" type="submit" disabled={(!message.trim() && !selectedShare) || sending}>{sending ? 'Sending…' : 'Send'}</button></div>
           {message.length ? <small className="chat-char-count-v113">{message.length}/1200</small> : null}
         </form>
       </section>
+
+      {shareOpen ? <OverlayPortal><div className="modal-backdrop chat-attach-backdrop-v123" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setShareOpen(false); }}><section className="chat-attach-picker-v123" role="dialog" aria-modal="true" aria-label="Choose what to attach"><header><div><p className="eyebrow">ATTACH FROM GHM</p><h2>Choose what to share</h2><p>Attach a shopping list, receipt, recipe or household expense to this message.</p></div><button type="button" aria-label="Close attachment picker" onClick={() => setShareOpen(false)}>×</button></header><div className="chat-attach-controls-v123"><input autoFocus value={shareQuery} onChange={(event) => setShareQuery(event.target.value)} placeholder="Search your household items…" aria-label="Search attachments"/><div className="chat-attach-tabs-v123">{([['all','All'],['shopping_list','Lists'],['receipt','Receipts'],['recipe','Recipes'],['expense','Expenses']] as const).map(([key,label]) => <button type="button" key={key} className={shareKind === key ? 'active' : ''} onClick={() => setShareKind(key)}>{label}</button>)}</div></div><div className="chat-attach-list-v123">{shareLoading ? <p className="muted">Loading your shareable GHM items…</p> : filteredShareOptions.length ? filteredShareOptions.map((option) => <button type="button" key={option.key} onClick={() => chooseShare(option)}><span>{option.icon}</span><div><strong>{option.title}</strong><small>{option.subtitle}</small></div><b>Attach</b></button>) : <div className="chat-attach-empty-v123"><span>＋</span><strong>No matching item</strong><small>Try another category or search term.</small></div>}</div></section></div></OverlayPortal> : null}
 
       {deletePending ? <OverlayPortal><div className="modal-backdrop chat-delete-confirm-backdrop-v122" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setDeletePending(null); }}><section className="modal focus-dialog chat-delete-confirm-v122" role="dialog" aria-modal="true" aria-label="Delete message?"><header className="focus-dialog-titlebar"><div><p className="eyebrow">CONFIRM DELETE</p><h2>Delete this message?</h2><p>This removes it from the household chat. This action cannot be undone.</p></div><button type="button" data-dialog-close="true" aria-label="Cancel delete" onClick={() => setDeletePending(null)}>×</button></header><div className="chat-delete-preview-v122">{deletePending.message || deletePending.attachment_title || 'Shared household item'}</div><footer className="focus-dialog-actions"><button className="secondary" type="button" onClick={() => setDeletePending(null)}>Cancel</button><button className="danger" type="button" onClick={() => void removeMessage(deletePending.id)}>Delete message</button></footer></section></div></OverlayPortal> : null}
     </main>

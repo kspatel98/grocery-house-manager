@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { AdminUserOffer, PremiumTryStatus } from '../types';
-import { backgroundTasks, markBackgroundTaskOpened } from '../backgroundTasks';
+import { backgroundTasks, markBackgroundTaskOpened, requestBackgroundResultFocus } from '../backgroundTasks';
 
 type NotificationItem = {
   key: string;
@@ -145,7 +145,7 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
           <header><div><small>GHM UPDATES</small><h3>Notifications</h3></div><span>{items.length ? `${items.length} current` : 'All clear'}</span></header>
           <div className="ghm-notification-list-v115">
             {items.length ? items.map((item) => (
-              <Link key={item.key} to={item.href} onClick={() => { markItemSeen(item); setOpen(false); }} className={`ghm-notification-item-v115 ${item.backgroundTaskId && !item.opened ? 'is-unread-v121' : ''}`}>
+              <Link key={item.key} to={item.href} onClick={() => { if (item.backgroundTaskId && !item.backgroundFailed) requestBackgroundResultFocus(item.backgroundTaskId); markItemSeen(item); setOpen(false); }} className={`ghm-notification-item-v115 ${item.backgroundTaskId && !item.opened ? 'is-unread-v121' : ''}`}>
                 <small>{item.eyebrow}</small>
                 <strong>{item.title}</strong>
                 <p>{item.message}</p>

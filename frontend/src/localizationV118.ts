@@ -1901,7 +1901,23 @@ export const v118Translations: Record<string, V118Translation> = {
   "Delete message": { gu:"સંદેશ કાઢી નાખો", hi:"संदेश हटाएँ", fr:"Supprimer le message" },
   "Cancel delete": { gu:"કાઢી નાખવું રદ કરો", hi:"हटाना रद्द करें", fr:"Annuler la suppression" },
 
-  "Use short sounds for taps, navigation, hover feedback, messages, reactions, completed actions and background results. You can mute or turn sounds back on anytime from the speaker icon in the header.": { gu:"ટૅપ, નેવિગેશન, હોવર ફીડબૅક, સંદેશા, રિએક્શન, પૂર્ણ થયેલી ક્રિયાઓ અને બેકગ્રાઉન્ડ પરિણામો માટે નાનાં અવાજ વાપરો. હેડરના સ્પીકર આઇકનથી ક્યારેય મ્યૂટ અથવા ફરી ચાલુ કરી શકો છો.", hi:"टैप, नेविगेशन, होवर फीडबैक, संदेश, रिएक्शन, पूरी हुई कार्रवाइयों और बैकग्राउंड परिणामों के लिए हल्की ध्वनियाँ उपयोग करें। हेडर के स्पीकर आइकन से कभी भी म्यूट या फिर चालू कर सकते हैं।", fr:"Utilisez de brefs sons pour les appuis, la navigation, le survol, les messages, les réactions, les actions terminées et les résultats en arrière-plan. Vous pouvez les couper ou les réactiver à tout moment depuis l’icône haut-parleur de l’en-tête." },
+  "Use short sounds for taps, navigation, messages, reactions, completed actions and background results. Desktop hover stays silent so browsing does not become distracting.": { gu:"ટૅપ, નેવિગેશન, સંદેશા, રિએક્શન, પૂર્ણ થયેલી ક્રિયાઓ અને બેકગ્રાઉન્ડ પરિણામો માટે નાનાં અવાજ વાપરો. ડેસ્કટોપ પર હોવર શાંત રહેશે જેથી બ્રાઉઝિંગ વિક્ષેપકારક ન બને.", hi:"टैप, नेविगेशन, संदेश, रिएक्शन, पूरी हुई कार्रवाइयों और बैकग्राउंड परिणामों के लिए हल्की ध्वनियाँ उपयोग करें। डेस्कटॉप होवर शांत रहेगा ताकि ब्राउज़िंग परेशान न करे।", fr:"Utilisez de brefs sons pour les appuis, la navigation, les messages, les réactions, les actions terminées et les résultats en arrière-plan. Le survol reste silencieux sur ordinateur pour éviter toute distraction." },
   "GHM will use subtle sounds for interactions, messages, reactions, completed actions and ready results.": { gu:"GHM ઇન્ટરૅક્શન, સંદેશા, રિએક્શન, પૂર્ણ થયેલી ક્રિયાઓ અને તૈયાર પરિણામો માટે નાજુક અવાજ વાપરશે.", hi:"GHM इंटरैक्शन, संदेश, रिएक्शन, पूरी हुई कार्रवाइयों और तैयार परिणामों के लिए हल्की ध्वनियाँ उपयोग करेगा।", fr:"GHM utilisera des sons discrets pour les interactions, messages, réactions, actions terminées et résultats prêts." },
 
+
+  /* V123 chat attachments and conversational Household Intelligence */
+  "ATTACH FROM GHM": { gu:"GHMમાંથી જોડો", hi:"GHM से जोड़ें", fr:"JOINDRE DEPUIS GHM" },
+  "Choose what to share": { gu:"શું શેર કરવું તે પસંદ કરો", hi:"क्या साझा करना है चुनें", fr:"Choisissez quoi partager" },
+  "Attach a shopping list, receipt, recipe or household expense to this message.": { gu:"આ સંદેશ સાથે ખરીદી યાદી, રસીદ, રેસીપી અથવા ઘરેલુ ખર્ચ જોડો.", hi:"इस संदेश में खरीदारी सूची, रसीद, रेसिपी या घरेलू खर्च जोड़ें।", fr:"Joignez à ce message une liste de courses, un reçu, une recette ou une dépense du foyer." },
+  "Search your household items…": { gu:"તમારા ઘરનાં આઇટમ શોધો…", hi:"अपने घरेलू आइटम खोजें…", fr:"Rechercher dans les éléments du foyer…" },
+  "Choose what to attach": { gu:"શું જોડવું તે પસંદ કરો", hi:"क्या जोड़ना है चुनें", fr:"Choisir quoi joindre" },
+  "Loading your shareable GHM items…": { gu:"શેર કરી શકાય તેવી GHM વસ્તુઓ લોડ થઈ રહી છે…", hi:"साझा किए जा सकने वाले GHM आइटम लोड हो रहे हैं…", fr:"Chargement des éléments GHM partageables…" },
+  "No matching item": { gu:"મેળ ખાતી વસ્તુ નથી", hi:"कोई मेल खाता आइटम नहीं", fr:"Aucun élément correspondant" },
+  "Try another category or search term.": { gu:"બીજી કેટેગરી અથવા શોધ શબ્દ અજમાવો.", hi:"दूसरी श्रेणी या खोज शब्द आज़माएँ।", fr:"Essayez une autre catégorie ou un autre terme." },
+  "Conversation": { gu:"વાતચીત", hi:"बातचीत", fr:"Conversation" },
+  "Ask follow-up questions in the same box. GHM keeps the recent conversation context for this browser session.": { gu:"એ જ બોક્સમાં આગળના પ્રશ્નો પૂછો. GHM આ બ્રાઉઝર સેશન માટે તાજેતરની વાતચીત યાદ રાખે છે.", hi:"उसी बॉक्स में आगे के प्रश्न पूछें। GHM इस ब्राउज़र सत्र के लिए हाल की बातचीत याद रखता है।", fr:"Posez vos questions de suivi dans la même zone. GHM conserve le contexte récent pendant cette session du navigateur." },
+  "New conversation": { gu:"નવી વાતચીત", hi:"नई बातचीत", fr:"Nouvelle conversation" },
+  "Ask a follow-up about this household…": { gu:"આ ઘર વિશે આગળનો પ્રશ્ન પૂછો…", hi:"इस घर के बारे में आगे का प्रश्न पूछें…", fr:"Posez une question de suivi sur ce foyer…" },
+  "Ask GHM about this household…": { gu:"આ ઘર વિશે GHM ને પૂછો…", hi:"इस घर के बारे में GHM से पूछें…", fr:"Demandez à GHM au sujet de ce foyer…" },
+  "Send follow-up": { gu:"આગળનો પ્રશ્ન મોકલો", hi:"आगे का प्रश्न भेजें", fr:"Envoyer le suivi" },
 };

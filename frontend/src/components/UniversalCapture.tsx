@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { HouseholdAgentResponse } from '../types';
 import OverlayPortal from './OverlayPortal';
+import StructuredAiResponse from './StructuredAiResponse';
 import { useLanguage } from '../i18n';
 
 declare global {
@@ -115,7 +116,7 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
       setText('');
       setRedirectingDeep(false);
       setOpen(false);
-      navigate(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(prompt)}&from=tell-ghm`);
+      navigate(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(prompt)}&from=tell-ghm&focus=ask`);
     }, 1500);
   }
 
@@ -255,7 +256,7 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
             {redirectingDeep ? <div className="ghm-redirecting-overlay-v120" role="status" aria-live="polite"><div><span aria-hidden="true">✦</span><strong>Redirecting to Household Intelligence…</strong><small>Your question is being carried over exactly as written.</small></div></div> : null}
 
             {error && <div className="error">{error}</div>}
-            {answer && <div className="ghm-capture-answer"><small>GHM QUICK GUIDANCE</small><p>{answer}</p><button className="secondary" type="button" onClick={() => go(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(text)}`)}>Open Household Intelligence →</button></div>}
+            {answer && <div className="ghm-capture-answer"><small>GHM QUICK GUIDANCE</small><StructuredAiResponse text={answer} compact /><button className="secondary" type="button" onClick={() => go(`/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(text)}&focus=ask`)}>Open Household Intelligence →</button></div>}
             {suggestedAction && <div className="ghm-capture-fallback"><span>GHM can still take you somewhere useful.</span><button className="secondary" type="button" onClick={() => go(suggestedAction.path)}>{suggestedAction.label} →</button></div>}
 
             <div className="ghm-capture-actions">

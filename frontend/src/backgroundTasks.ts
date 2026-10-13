@@ -18,6 +18,24 @@ const RESULT_PREFIX = 'ghm_background_result_v120:';
 const runtime = new Map<string, Promise<unknown>>();
 const runtimeResults = new Map<string, unknown>();
 
+const FOCUS_KEY = 'ghm_background_result_focus_v123';
+
+export function requestBackgroundResultFocus(id: string) {
+  try { sessionStorage.setItem(FOCUS_KEY, id); } catch { /* noop */ }
+  window.dispatchEvent(new CustomEvent('ghm:background-focus-requested', { detail: { id } }));
+}
+
+export function pendingBackgroundResultFocus(): string | null {
+  try { return sessionStorage.getItem(FOCUS_KEY); } catch { return null; }
+}
+
+export function clearPendingBackgroundResultFocus(id?: string) {
+  try {
+    const current = sessionStorage.getItem(FOCUS_KEY);
+    if (!id || current === id) sessionStorage.removeItem(FOCUS_KEY);
+  } catch { /* noop */ }
+}
+
 function readTasks(): BackgroundTaskRecord[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');

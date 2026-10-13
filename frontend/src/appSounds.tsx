@@ -49,7 +49,14 @@ function tone(freq: number, start: number, duration: number, gainValue = .05, ty
 export function playAppSound(kind: 'notification' | 'success' | 'start' | 'warning' | 'navigate' | 'click' | 'hover' | 'message' | 'reaction' | 'created' | 'deleted' = 'success') {
   if (!appSoundsEnabled()) return;
   const ctx = getAudioContext();
-  if (!ctx || !armed || ctx.state !== 'running') return;
+  if (!ctx) return;
+  if (!armed || ctx.state !== 'running') {
+    armed = true;
+    void ctx.resume().then(() => {
+      if (ctx.state === 'running') playAppSound(kind);
+    }).catch(() => undefined);
+    return;
+  }
   const now = ctx.currentTime + .01;
   if (kind === 'notification') {
     tone(740, now, .16, .055, 'sine');
@@ -102,8 +109,9 @@ export function SoundToggle({ className = '' }: { className?: string }) {
 export function AppSoundBridge() {
   useEffect(() => {
     const arm = () => armAudio();
-    window.addEventListener('pointerdown', arm, { once: true });
-    window.addEventListener('keydown', arm, { once: true });
+    window.addEventListener('pointerdown', arm, true);
+    window.addEventListener('touchstart', arm, { capture: true, passive: true });
+    window.addEventListener('keydown', arm, true);
 
     const ready = () => playAppSound('notification');
     const failed = () => playAppSound('warning');
@@ -116,28 +124,12 @@ export function AppSoundBridge() {
       if (kind) playAppSound(kind);
     };
 
-    let lastHoverTarget: Element | null = null;
-    let lastHoverAt = 0;
     const actionableSelector = 'button:not(:disabled),a[href],summary,[role="button"],select,input[type="checkbox"],input[type="radio"]';
     const onGlobalClick = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target.closest(actionableSelector) : null;
       if (!target) return;
       playAppSound('click');
       if (navigator.vibrate && appSoundsEnabled()) navigator.vibrate(6);
-    };
-    const onGlobalHover = (event: PointerEvent) => {
-      if (event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen') return;
-      const target = event.target instanceof Element ? event.target.closest(actionableSelector) : null;
-      if (!target || target === lastHoverTarget) return;
-      const now = performance.now();
-      if (now - lastHoverAt < 90) return;
-      lastHoverTarget = target;
-      lastHoverAt = now;
-      playAppSound('hover');
-    };
-    const onGlobalLeave = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target.closest(actionableSelector) : null;
-      if (target && target === lastHoverTarget) lastHoverTarget = null;
     };
 
     window.addEventListener('ghm:background-task-ready', ready);
@@ -148,11 +140,10 @@ export function AppSoundBridge() {
     window.addEventListener('ghm:navigate-feedback', navigate);
     window.addEventListener('ghm:ui-sound', semantic);
     document.addEventListener('click', onGlobalClick, true);
-    document.addEventListener('pointerover', onGlobalHover, true);
-    document.addEventListener('pointerout', onGlobalLeave, true);
     return () => {
-      window.removeEventListener('pointerdown', arm);
-      window.removeEventListener('keydown', arm);
+      window.removeEventListener('pointerdown', arm, true);
+      window.removeEventListener('touchstart', arm, true);
+      window.removeEventListener('keydown', arm, true);
       window.removeEventListener('ghm:background-task-ready', ready);
       window.removeEventListener('ghm:background-task-failed', failed);
       window.removeEventListener('ghm:background-task-started', started);
@@ -161,8 +152,6 @@ export function AppSoundBridge() {
       window.removeEventListener('ghm:navigate-feedback', navigate);
       window.removeEventListener('ghm:ui-sound', semantic);
       document.removeEventListener('click', onGlobalClick, true);
-      document.removeEventListener('pointerover', onGlobalHover, true);
-      document.removeEventListener('pointerout', onGlobalLeave, true);
     };
   }, []);
   return null;

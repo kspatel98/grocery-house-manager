@@ -44,7 +44,7 @@ export default function AppearancePage() {
 
 
     <section className="panel appearance-section-v105 v121-sound-settings">
-      <div className="section-title-v105"><div><p className="eyebrow">SOUNDS & ATTENTION</p><h2>GHM sounds</h2><p>Use short sounds for taps, navigation, hover feedback, messages, reactions, completed actions and background results. You can mute or turn sounds back on anytime from the speaker icon in the header.</p></div></div>
+      <div className="section-title-v105"><div><p className="eyebrow">SOUNDS & ATTENTION</p><h2>GHM sounds</h2><p>Use short sounds for taps, navigation, messages, reactions, completed actions and background results. Desktop hover stays silent so browsing does not become distracting.</p></div></div>
       <button type="button" className={`appearance-choice-v105 v121-sound-choice ${soundsEnabled ? 'active' : ''}`} onClick={() => setSoundsEnabled(!soundsEnabled)}>
         <span aria-hidden="true">{soundsEnabled ? '🔊' : '🔇'}</span>
         <div><strong>{soundsEnabled ? 'Sounds are on' : 'Sounds are muted'}</strong><small>{soundsEnabled ? 'GHM will use subtle sounds for interactions, messages, reactions, completed actions and ready results.' : 'Notifications still appear visually, but GHM will stay silent.'}</small></div>

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
+import StructuredAiResponse from '../components/StructuredAiResponse';
 import { useLanguage } from '../i18n';
 import { announceBackgroundResultHydrated, getBackgroundTaskResult, makeBackgroundTaskId, runBackgroundCapableTask } from '../backgroundTasks';
 import type {
@@ -28,6 +29,12 @@ import type {
 
 const localeByLanguage = { en: 'en-CA', gu: 'gu-IN', hi: 'hi-IN', fr: 'fr-CA' } as const;
 type AutopilotView = 'today' | 'intelligence' | 'plan' | 'spend' | 'protect';
+type AgentConversationTurn = {
+  id: string;
+  question: string;
+  response: HouseholdAgentResponse;
+};
+
 
 function nextDayNames(count: number, locale = 'en-CA') {
   const start = new Date();
@@ -80,12 +87,14 @@ export default function AssistantPage() {
   const [digitalTwin, setDigitalTwin] = useState<HouseholdDigitalTwin | null>(null);
   const [agentPrompt, setAgentPrompt] = useState(() => sharedQuestion);
   const [agentAnswer, setAgentAnswer] = useState<HouseholdAgentResponse | null>(null);
+  const [agentTurns, setAgentTurns] = useState<AgentConversationTurn[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
   const [communityPriceBusy, setCommunityPriceBusy] = useState(false);
   const [foodSuggestionsReady, setFoodSuggestionsReady] = useState(false);
   const [controlsBusy, setControlsBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState('');
   const kitchenInputRef = useRef<HTMLInputElement | null>(null);
+  const agentInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [reminderPermission, setReminderPermission] = useState<'unsupported' | NotificationPermission>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
 
   useEffect(() => {
@@ -94,34 +103,54 @@ export default function AssistantPage() {
 
 
   useEffect(() => {
-    if (!sharedQuestion || workspace !== 'intelligence') return;
-    const timer = window.setTimeout(() => {
-      const input = document.querySelector<HTMLTextAreaElement>('.v93-agent-input textarea');
-      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      input?.focus({ preventScroll: true });
-    }, 450);
+    const shouldFocus = workspace === 'intelligence' && (Boolean(sharedQuestion) || params.get('focus') === 'ask' || params.get('from') === 'tell-ghm');
+    if (!shouldFocus) return;
+    let attempts = 0;
+    let timer = 0;
+    const focusAskBox = () => {
+      const input = agentInputRef.current;
+      if (input) {
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => input.focus({ preventScroll: true }), 260);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 40) timer = window.setTimeout(focusAskBox, 120);
+    };
+    timer = window.setTimeout(focusAskBox, 80);
     return () => window.clearTimeout(timer);
-  }, [sharedQuestion, workspace]);
+  }, [sharedQuestion, workspace, params]);
 
   useEffect(() => {
     const taskId = params.get('bgTask');
-    if (!taskId) return;
+    if (!taskId || !houseId) return;
     const result = getBackgroundTaskResult<HouseholdAgentResponse | HouseholdPlan | KitchenVisionResult>(taskId);
     if (!result) return;
-    if ('answer' in result) setAgentAnswer(result as HouseholdAgentResponse);
-    else if ('days_requested' in result) setPlan(result as HouseholdPlan);
-    else if ('detections' in result) {
-      const vision = result as KitchenVisionResult;
-      setKitchenVision(vision);
-      const next: Record<string, KitchenVisionReviewItem> = {};
-      vision.detections.forEach((detection) => {
-        const suggested = detection.suggested_action === 'update' || detection.suggested_action === 'add' ? detection.suggested_action : 'ignore';
-        next[detection.detection_id] = { detection_id: detection.detection_id, action: suggested, product_id: detection.matched_product_id || null, name: detection.matched_product_name || detection.detected_name, quantity: detection.estimated_quantity ?? detection.current_quantity ?? 1, unit: detection.unit || detection.current_unit || 'pcs' };
-      });
-      setKitchenReview(next);
-    }
-    window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0);
-  }, [params]);
+    const timer = window.setTimeout(() => {
+      if ('answer' in result) {
+        const response = result as HouseholdAgentResponse;
+        setAgentAnswer(response);
+        if (sharedQuestion) {
+          setAgentTurns((current) => current.some((turn) => turn.id === taskId)
+            ? current
+            : [...current, { id: taskId, question: sharedQuestion, response }].slice(-8));
+        }
+      } else if ('days_requested' in result) setPlan(result as HouseholdPlan);
+      else if ('detections' in result) {
+        const vision = result as KitchenVisionResult;
+        setKitchenVision(vision);
+        const next: Record<string, KitchenVisionReviewItem> = {};
+        vision.detections.forEach((detection) => {
+          const suggested = detection.suggested_action === 'update' || detection.suggested_action === 'add' ? detection.suggested_action : 'ignore';
+          next[detection.detection_id] = { detection_id: detection.detection_id, action: suggested, product_id: detection.matched_product_id || null, name: detection.matched_product_name || detection.detected_name, quantity: detection.estimated_quantity ?? detection.current_quantity ?? 1, unit: detection.unit || detection.current_unit || 'pcs' };
+        });
+        setKitchenReview(next);
+      }
+      announceBackgroundResultHydrated(taskId);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [params, houseId, sharedQuestion]);
+
 
   async function loadHouses() {
     try {
@@ -214,14 +243,27 @@ export default function AssistantPage() {
   useEffect(() => { void api.get<{ configured: boolean }>('/food/capabilities').then(({ data }) => setFoodSuggestionsReady(Boolean(data.configured))).catch(() => setFoodSuggestionsReady(false)); }, []);
   useEffect(() => {
     if (!houseId) return;
-    setParams(workspace === 'today' ? { house: String(houseId) } : { house: String(houseId), view: workspace }, { replace: true });
+    const nextParams = new URLSearchParams(params);
+    nextParams.set('house', String(houseId));
+    if (workspace === 'today') nextParams.delete('view');
+    else nextParams.set('view', workspace);
+    setParams(nextParams, { replace: true });
     setPlan(null);
     setKitchenCheck(null);
     setKitchenVision(null);
     setKitchenReview({});
-    setAgentAnswer(null);
+    if (!params.get('bgTask')) setAgentAnswer(null);
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(`ghm_agent_conversation_v123:${houseId}`) || '[]');
+      setAgentTurns(Array.isArray(saved) ? saved.slice(-8) : []);
+    } catch { setAgentTurns([]); }
     loadAutopilot(houseId);
   }, [houseId]);
+
+  useEffect(() => {
+    if (!houseId) return;
+    try { sessionStorage.setItem(`ghm_agent_conversation_v123:${houseId}`, JSON.stringify(agentTurns.slice(-8))); } catch { /* noop */ }
+  }, [houseId, agentTurns]);
 
   async function saveControls() {
     if (!houseId || !controls) return;
@@ -536,15 +578,21 @@ export default function AssistantPage() {
       const taskId = makeBackgroundTaskId(`household-intelligence-${houseId}`);
       const href = `/assistant?house=${houseId}&view=intelligence&q=${encodeURIComponent(prompt)}&bgTask=${encodeURIComponent(taskId)}`;
       setMessage('This deeper analysis can take longer than 45–50 seconds. You can leave this section and continue using GHM; we’ll notify you when the answer is ready.');
+      const history = agentTurns.slice(-6).flatMap((turn) => [
+        { role: 'user' as const, content: turn.question },
+        { role: 'assistant' as const, content: turn.response.answer },
+      ]);
       const data = await runBackgroundCapableTask<HouseholdAgentResponse>({
         id: taskId,
         kind: 'household-intelligence',
         title: 'Household Intelligence answer',
         message: 'GHM is analyzing your household context. You can continue using the app.',
         href,
-        task: async () => (await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt, language }, { timeout: 120000 })).data,
+        task: async () => (await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt, language, history }, { timeout: 120000 })).data,
       });
       setAgentAnswer(data);
+      setAgentTurns((current) => [...current, { id: taskId, question: prompt, response: data }].slice(-8));
+      setAgentPrompt('');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -673,8 +721,9 @@ export default function AssistantPage() {
         </div>
         <article className="v93-agent-card">
           <div className="v93-agent-icon">✦</div><div><p className="eyebrow">GHM HOUSEHOLD INTELLIGENCE</p><h3>Ask a deeper question about your household</h3><p>Household Intelligence explains, compares and forecasts using live household context. Try “What should we buy this week?”, “We are away for four days—what should we use first?”, or “Why did our grocery spending increase?”</p></div>
-          <div className="v93-agent-input"><textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Ask Autopilot about this household…" /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : 'Ask GHM'}</button></div>
-          {agentAnswer ? <div data-ghm-background-result="true" className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><p>{agentAnswer.answer}</p><small>{agentAnswer.message}</small></div> : null}
+          {agentTurns.length ? <div className="v123-agent-conversation-head"><div><strong>Conversation</strong><small>Ask follow-up questions in the same box. GHM keeps the recent conversation context for this browser session.</small></div><button type="button" className="secondary" onClick={() => { setAgentTurns([]); setAgentAnswer(null); setAgentPrompt(''); if (houseId) sessionStorage.removeItem(`ghm_agent_conversation_v123:${houseId}`); window.setTimeout(() => agentInputRef.current?.focus(), 0); }}>New conversation</button></div> : null}
+          {agentTurns.length ? <div className="v123-agent-conversation">{agentTurns.map((turn, index) => <article key={turn.id} className="v123-agent-turn"><div className="v123-agent-question"><small>YOU</small><p>{turn.question}</p></div><div data-ghm-background-result={index === agentTurns.length - 1 ? 'true' : undefined} className={`v93-agent-answer ${turn.response.configured ? 'live' : 'setup'}`}><strong>{turn.response.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><StructuredAiResponse text={turn.response.answer} /><small>{turn.response.message}</small></div></article>)}</div> : agentAnswer ? <div data-ghm-background-result="true" className={`v93-agent-answer ${agentAnswer.configured ? 'live' : 'setup'}`}><strong>{agentAnswer.used_live_agent ? 'GHM Household Intelligence' : 'Agent setup needed'}</strong><StructuredAiResponse text={agentAnswer.answer} /><small>{agentAnswer.message}</small></div> : null}
+          <div className="v93-agent-input"><textarea ref={agentInputRef} value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder={agentTurns.length ? 'Ask a follow-up about this household…' : 'Ask GHM about this household…'} /><button type="button" className="primary" onClick={askHouseholdAgent} disabled={agentBusy || !agentPrompt.trim()}>{agentBusy ? 'Thinking with household context…' : agentTurns.length ? 'Send follow-up' : 'Ask GHM'}</button></div>
         </article>
       </section>
 

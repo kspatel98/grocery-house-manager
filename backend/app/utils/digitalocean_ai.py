@@ -192,24 +192,33 @@ Return this exact structure:
     return parsed
 
 
-def ask_household_agent(*, prompt: str, context: dict[str, Any], language: str = "en") -> dict[str, Any]:
+def ask_household_agent(*, prompt: str, context: dict[str, Any], language: str = "en", history: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     if not agent_configured():
         raise DigitalOceanAIError("GHM Household Intelligence is not configured.")
     endpoint = settings.digitalocean_agent_url.rstrip("/") + "/api/v1/chat/completions"
-    # Managed agent instructions are configured on the provider agent itself.
-    # Sending system/developer messages to the Agent endpoint can be rejected with HTTP 400,
-    # so GHM sends only the live household context and user request as a normal user message.
     language_names = {"en": "English", "gu": "Gujarati", "hi": "Hindi", "fr": "French"}
     response_language = language_names.get(language, "English")
-    user_content = (
+    instructions = (
         f"Household context:\n{json.dumps(context, ensure_ascii=False)}\n\n"
         f"Response language: {response_language}. Respond entirely in {response_language}, except product/brand names that should remain unchanged.\n\n"
-        f"User request:\n{prompt}"
+        "Response quality rules:\n"
+        "- Give the direct answer first.\n"
+        "- Organize the answer with short headings and bullets when that improves readability.\n"
+        "- Use concrete household data from the supplied context and clearly label estimates or unknowns.\n"
+        "- Do not output raw JSON, internal tool traces, provider metadata, or unformatted dumps.\n"
+        "- Keep paragraphs short and action-oriented.\n"
+        "- Treat prior conversation turns as context for follow-up questions.\n"
+        "- If a useful next step exists, finish with a short 'Next option' suggestion rather than forcing the user to start a new conversation.\n"
     )
+    messages: list[dict[str, str]] = [{"role": "user", "content": instructions}]
+    for item in (history or [])[-12:]:
+        role = str(item.get("role") or "").strip().lower()
+        content = str(item.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content[:4000]})
+    messages.append({"role": "user", "content": prompt})
     payload = {
-        "messages": [
-            {"role": "user", "content": user_content},
-        ],
+        "messages": messages,
         "stream": False,
         "include_functions_info": True,
         "include_retrieval_info": True,

@@ -1766,9 +1766,15 @@ class HouseholdDigitalTwinOut(BaseModel):
     message: str
 
 
+class HouseholdAgentHistoryItem(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
 class HouseholdAgentIn(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     language: str = Field(default="en", pattern="^(en|gu|hi|fr)$")
+    history: list[HouseholdAgentHistoryItem] = Field(default_factory=list, max_length=12)
 
 
 class HouseholdAgentOut(BaseModel):
