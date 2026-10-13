@@ -34,6 +34,7 @@ const PremiumTryPage = lazy(() => import('./pages/PremiumTryPage'));
 const AppearancePage = lazy(() => import('./pages/AppearancePage'));
 const HouseChatPage = lazy(() => import('./pages/HouseChatPage'));
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
+const MorePage = lazy(() => import('./pages/MorePage'));
 
 function RouteFallback() {
   return <div className="route-fallback-v95" role="status" aria-live="polite"><span>✦</span><strong>Opening GHM…</strong></div>;
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="/join/:token" element={<RequireAuth><JoinPage /></RequireAuth>} />
         <Route path="/houses" element={<RequireAuth><HousesPage /></RequireAuth>} />
         <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
+        <Route path="/more" element={<RequireAuth><MorePage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/learn" element={<RequireAuth><LearnGhmPage /></RequireAuth>} />
         <Route path="/premium-try" element={<RequireAuth><PremiumTryPage /></RequireAuth>} />

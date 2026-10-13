@@ -258,11 +258,13 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         { to: `/assistant?house=${contextHouseId}&view=plan`, label: 'Plan', icon: '◫' },
         { to: `/houses/${contextHouseId}/shopping`, label: 'Shop', icon: '🛒' },
         { to: `/houses/${contextHouseId}/scan`, label: 'Scan', icon: '🧾' },
+        { to: `/more?house=${contextHouseId}`, label: 'More', icon: '•••' },
       ]
     : [
         { to: '/houses', label: t('home'), icon: '⌂' },
         { to: '/pricing', label: t('plans'), icon: '✦' },
         { to: '/support', label: t('support'), icon: '?' },
+        { to: '/more', label: t('more'), icon: '•••' },
       ];
   const extraNavItems = [
     ...(contextHouseId ? [
@@ -297,6 +299,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     const [itemPath, query = ''] = to.split('?');
     const queryParams = new URLSearchParams(query);
     if (itemPath === '/assistant') return location.pathname === '/assistant';
+    if (itemPath === '/more') return location.pathname === '/more' || (Boolean(contextHouseId) && extraNavItems.some((item) => { const secondaryPath = item.to.split('?')[0]; return location.pathname === secondaryPath || location.pathname.startsWith(`${secondaryPath}/`); }));
     if (contextHouseId && itemPath === `/houses/${contextHouseId}`) {
       if (location.pathname !== itemPath) return false;
       const currentTab = new URLSearchParams(location.search).get('tab') || 'home';
@@ -437,7 +440,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                 )}
               </div>
             </nav>
-            <LanguagePicker compact />
+            {contextHouseId ? <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="mobile-ask-ghm-v119" aria-label="Ask GHM" title="Ask GHM"><span aria-hidden="true">✦</span></Link> : null}
+            <LanguagePicker compact iconOnly />
             <ThemeToggle compact className="header-theme-toggle-v117" />
             <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} compact />
             <Link
@@ -507,22 +511,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               </nav>
             </div>
 
-            <div className={`desktop-sidebar-navblock-v86 secondary v95-tools-nav ${toolsOpen || extraActive ? 'open' : ''}`}>
-              <button type="button" className="v95-tools-toggle" onClick={() => setToolsOpen((value) => !value)} aria-expanded={toolsOpen || extraActive}>
-                <span className="desktop-sidebar-icon-v86" aria-hidden="true">◇</span><span>Tools</span><b aria-hidden="true">{toolsOpen || extraActive ? '−' : '+'}</b>
-              </button>
-              {(toolsOpen || extraActive) && <nav className="desktop-sidebar-nav-v86 secondary v116-tools-list">
-                {extraNavItems.map((item) => {
-                  const active = navActive(item.to);
-                  return (
-                    <Link key={item.to} to={item.to} className={active ? 'active' : ''}>
-                      <span className="desktop-sidebar-icon-v86" aria-hidden="true">{item.icon}</span>
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>}
-            </div>
           </div>
 
           <div className="desktop-sidebar-footer-v86 v117-profile-only-footer">
@@ -563,7 +551,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <span className="v117-action-icon" aria-hidden="true">🧾</span><span className="v117-action-label">Scan receipt</span>
                 </Link>
               ) : <Link to="/support" className="desktop-topbar-pill-v86 alt v117-action-pill"><span className="v117-action-icon" aria-hidden="true">?</span><span className="v117-action-label">{t('support')}</span></Link>}
-              <LanguagePicker compact />
+              <LanguagePicker compact iconOnly />
               <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} />
               <ThemeToggle compact className="desktop-topbar-icon-v105 v117-topbar-theme" />
             </div>
@@ -634,7 +622,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
         <Link to={contextHouseId ? `/assistant?house=${contextHouseId}&view=plan` : '/houses'} className={location.pathname === '/assistant' ? 'active' : ''}><span aria-hidden="true">◫</span><small>Plan</small></Link>
         <Link to={contextHouseId ? `/houses/${contextHouseId}/shopping` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/shopping`) ? 'active' : ''}><span aria-hidden="true">🛒</span><small>Shop</small></Link>
         <Link to={contextHouseId ? `/houses/${contextHouseId}/scan` : '/houses'} className={Boolean(contextHouseId && location.pathname === `/houses/${contextHouseId}/scan`) ? 'active' : ''}><span aria-hidden="true">🧾</span><small>Scan</small></Link>
-        <button type="button" className={mobileMoreOpen || extraActive || location.pathname.startsWith('/profile') ? 'active' : ''} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>{t('more')}</small></button>
+        <Link to={contextHouseId ? `/more?house=${contextHouseId}` : '/more'} className={navActive(contextHouseId ? `/more?house=${contextHouseId}` : '/more') ? 'active' : ''}><span aria-hidden="true">•••</span><small>{t('more')}</small></Link>
       </nav>
 
       {mobileMoreOpen && (

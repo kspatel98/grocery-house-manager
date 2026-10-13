@@ -110,10 +110,10 @@ export function LanguageProvider({children}:{children:React.ReactNode}) {
 }
 export const useLanguage = () => useContext(LanguageContext);
 
-export function LanguagePicker({compact=false}:{compact?:boolean}) {
+export function LanguagePicker({compact=false,iconOnly=false}:{compact?:boolean;iconOnly?:boolean}) {
   const {language,setLanguage,t}=useLanguage();
-  return <label className={`language-picker ${compact?'compact':''}`} title={t('language')} data-i18n-skip="true">
-    <span aria-hidden="true">🌐</span>{!compact && <b>{t('language')}</b>}
+  return <label className={`language-picker ${compact?'compact':''} ${iconOnly?'icon-only-v119':''}`.trim()} title={t('language')} data-i18n-skip="true">
+    <span aria-hidden="true">🌐</span>{!compact && !iconOnly && <b>{t('language')}</b>}
     <select value={language} aria-label={t('language')} onChange={(e)=>setLanguage(e.target.value as AppLanguage)}>
       <option value="en">English</option>
       <option value="gu">ગુજરાતી</option>
