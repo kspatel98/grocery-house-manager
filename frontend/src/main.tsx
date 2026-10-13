@@ -20,6 +20,8 @@ import './theme-v113.css';
 import './theme-v114.css';
 import './theme-v115.css';
 import './theme-v116.css';
+import './theme-v117.css';
+import './theme-v118.css';
 import { LanguageProvider } from './i18n';
 import DialogFocusManager from './components/DialogFocusManager';
 import { initializeThemePreferences } from './theme';

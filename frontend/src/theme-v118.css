@@ -1,0 +1,549 @@
+/* ========================================================================== 
+   GHM V118 — localization/mobile consistency pass
+   Mobile is the primary grocery workflow: safe headers, comfortable spacing,
+   one-column reading order, scroll-safe data, and predictable overlays.
+   ========================================================================== */
+
+/* V117 made the authenticated header sticky. A sticky header occupies layout
+   space, so the legacy fixed-header spacer must not add a second blank header. */
+@media (max-width: 980px) {
+  .ghm-auth-shell-active .site-header-mobile-spacer { display: none !important; height: 0 !important; }
+}
+
+/* ---------- Touch + typography baseline ---------- */
+@media (max-width: 980px) {
+  .ghm-auth-shell-active :where(button, a.primary, a.secondary, .center-link, input, select) {
+    min-height: 44px;
+  }
+  .ghm-auth-shell-active :where(button, a, input, select, textarea) { max-width: 100%; }
+  .ghm-auth-shell-active :where(h1,h2,h3,p,strong,small,label,span) { overflow-wrap: anywhere; }
+  .ghm-auth-shell-active :where(input,select,textarea) { font-size: 16px !important; }
+
+  .ghm-auth-shell-active .app-main-content {
+    min-width: 0;
+    width: 100%;
+    overflow-x: clip;
+  }
+  .ghm-auth-shell-active .page.shell,
+  .ghm-auth-shell-active .page.shell.wide {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-inline: 0 !important;
+    padding: 14px 12px calc(102px + env(safe-area-inset-bottom)) !important;
+    gap: 14px !important;
+    box-sizing: border-box !important;
+  }
+  .ghm-auth-shell-active .page.shell.wide > *,
+  .ghm-auth-shell-active .page.shell > * { min-width: 0; max-width: 100%; }
+
+  .ghm-auth-shell-active :where(.panel,.v95-home-card,.v100-home-overview,.market-access-panel,.weekly-flyer-panel,.receipt-panel,.profile-panel,.support-card,.pricing-card,.reports-card,.template-community-card) {
+    border-radius: 18px !important;
+    padding: 14px !important;
+  }
+
+  .ghm-auth-shell-active :where(.topbar,.v85-page-titlebar,.panel-title-row) {
+    gap: 12px !important;
+  }
+  .ghm-auth-shell-active :where(.topbar,.v85-page-titlebar) {
+    display: grid !important;
+    grid-template-columns: minmax(0,1fr) !important;
+    align-items: start !important;
+    padding: 14px !important;
+  }
+  .ghm-auth-shell-active :where(.topbar h1,.v85-page-titlebar h1,.v104-home-hero h1,.v95-house-hero h1,.autopilot-hero h1,.meals-hero h1) {
+    font-size: clamp(1.65rem, 8vw, 2.25rem) !important;
+    line-height: 1.04 !important;
+    letter-spacing: -.035em !important;
+  }
+  .ghm-auth-shell-active :where(.topbar>div:last-child,.v85-page-titlebar nav,.shopping-topbar-actions,.v104-home-hero-actions,.v95-hero-actions,.inventory-hero-actions-v94,.profile-actions,.market-button-row) {
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .ghm-auth-shell-active :where(.topbar>div:last-child,.v85-page-titlebar nav,.shopping-topbar-actions,.v104-home-hero-actions,.v95-hero-actions,.inventory-hero-actions-v94,.profile-actions,.market-button-row) > * {
+    flex: 1 1 140px;
+  }
+}
+
+/* ---------- Authenticated mobile header ---------- */
+@media (max-width: 760px) {
+  .site-header:not(.public-site-header) {
+    position: sticky !important;
+    top: 0 !important;
+    left: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  .site-header:not(.public-site-header) .site-header-inner.shell.wide {
+    grid-template-columns: minmax(0,1fr) auto !important;
+    grid-template-areas: 'brand utilities' 'title title' !important;
+    padding: 8px 10px 10px !important;
+    gap: 7px !important;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand span {
+    display: block !important;
+    min-width: 0;
+  }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand small { display: none !important; }
+  .site-header:not(.public-site-header) .site-nav-wrap {
+    width: auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    gap: 6px !important;
+  }
+  .site-header:not(.public-site-header) .site-nav-wrap > :where(.language-picker,.theme-toggle-v88,.ghm-notification-center-v115,.profile-orb-link) {
+    flex: 0 0 38px !important;
+  }
+  .site-header:not(.public-site-header) .site-nav-wrap :where(.language-picker.compact,.theme-toggle-v88.compact,.ghm-notification-trigger-v115,.profile-orb-link) {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    min-height: 38px !important;
+    border-radius: 12px !important;
+  }
+  .mobile-header-title-v88 {
+    min-height: 0 !important;
+    padding: 8px 10px !important;
+    border-radius: 13px !important;
+  }
+  .mobile-header-title-v88 strong { font-size: .94rem !important; }
+  .mobile-header-title-v88 small { font-size: .67rem !important; }
+}
+
+@media (max-width: 390px) {
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand strong { font-size: .82rem !important; }
+  .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand img { width: 34px !important; height: 34px !important; }
+  .site-header:not(.public-site-header) .site-nav-wrap { gap: 4px !important; }
+  .site-header:not(.public-site-header) .site-nav-wrap > :where(.language-picker,.theme-toggle-v88,.ghm-notification-center-v115,.profile-orb-link) { flex-basis: 34px !important; }
+  .site-header:not(.public-site-header) .site-nav-wrap :where(.language-picker.compact,.theme-toggle-v88.compact,.ghm-notification-trigger-v115,.profile-orb-link) {
+    width: 34px !important; height: 34px !important; min-width: 34px !important; min-height: 34px !important;
+  }
+}
+
+/* ---------- Mobile bottom navigation ---------- */
+@media (max-width: 760px) {
+  .mobile-bottom-nav {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    min-height: 64px !important;
+    padding: 6px !important;
+    gap: 4px !important;
+    border-radius: 21px !important;
+  }
+  .mobile-bottom-nav a,
+  .mobile-bottom-nav button {
+    min-height: 50px !important;
+    padding: 5px 2px !important;
+    border-radius: 15px !important;
+  }
+  .mobile-bottom-nav small { font-size: .64rem !important; }
+}
+
+/* ---------- Home / House ---------- */
+@media (max-width: 760px) {
+  .v95-house-page :where(.v104-home-hero,.v95-house-hero) {
+    grid-template-columns: 1fr !important;
+    padding: 16px !important;
+    gap: 14px !important;
+    border-radius: 20px !important;
+  }
+  .v104-home-hero-visual,
+  .v95-house-hero-visual { min-height: 150px !important; width: 100% !important; }
+  .v104-home-control { position: static !important; width: 100% !important; }
+  .v95-house-tabs {
+    display: flex !important;
+    gap: 6px !important;
+    padding: 5px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+  .v95-house-tabs::-webkit-scrollbar { display:none; }
+  .v95-house-tabs button { flex: 0 0 auto !important; min-width: 86px !important; }
+  .v100-home-overview,
+  .v95-home-grid,
+  .v95-next-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .v100-home-overview { padding: 14px !important; }
+  .v100-home-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; }
+  .v100-home-stat-grid > * { min-height: 92px !important; padding: 10px !important; }
+  .v101-discover-strip { grid-template-columns: auto minmax(0,1fr) !important; padding: 12px !important; }
+  .v101-discover-strip > a { grid-column: 1 / -1; width: 100%; text-align: center; }
+  .house-members-bar { padding: 14px !important; gap: 12px !important; }
+  .member-avatar-stack { justify-content: flex-start !important; overflow-x: auto; padding-block: 2px; }
+}
+
+/* ---------- Houses / switchboard ---------- */
+@media (max-width: 760px) {
+  .v95-switchboard-page :where(.v104-switchboard-hero,.v95-switchboard-hero) { grid-template-columns: 1fr !important; padding: 16px !important; gap: 14px !important; }
+  .v104-switchboard-art { min-height: 150px !important; }
+  .v95-house-card-grid,.house-card-grid,.v104-house-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+}
+
+/* ---------- Inventory ---------- */
+@media (max-width: 760px) {
+  .inventory-page :where(.inventory-hero,.inventory-toolbar,.inventory-filter-row,.barcode-fast-start-v94) { grid-template-columns: 1fr !important; }
+  .inventory-page :where(.inventory-grid,.product-grid,.inventory-section-grid) { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .inventory-page .barcode-fast-start-v94 { display:grid !important; gap:10px !important; padding:12px !important; }
+  .inventory-page .barcode-fast-start-v94 > span { width:40px !important; height:40px !important; }
+}
+
+/* ---------- Shopping ---------- */
+@media (max-width: 760px) {
+  .shopping-list-library-v115 { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .shopping-list-card-v115 { min-height: 0 !important; padding: 13px !important; }
+  .shopping-list-workspace-backdrop-v115 { padding: 0 !important; align-items: stretch !important; }
+  .shopping-list-workspace-v115 {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+  .shopping-list-workspace-head-v115 {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 8 !important;
+    padding: max(12px,env(safe-area-inset-top)) 12px 10px !important;
+    gap: 10px !important;
+  }
+  .shopping-list-workspace-head-v115 h2 { font-size: 1.35rem !important; }
+  .shopping-list-workspace-scroll-v115 { padding: 12px 12px calc(28px + env(safe-area-inset-bottom)) !important; }
+  .shopping-list-workspace-grid-v115 { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .whole-list-actions { display:grid !important; grid-template-columns:1fr !important; gap:8px !important; }
+  .whole-list-results,.whole-list-result-preview { overflow-x: auto !important; }
+}
+
+/* ---------- Scan / receipt review ---------- */
+@media (max-width: 760px) {
+  .v85-receipt-page { width:100% !important; }
+  .v85-receipt-page .v85-page-titlebar nav { grid-template-columns: 1fr 1fr !important; }
+  .v85-receipt-page .v85-page-titlebar nav a { padding: 9px !important; }
+  .receipt-studio-v85 { border-radius: 18px !important; }
+  .receipt-v85-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+    overflow: hidden !important;
+  }
+  .receipt-v85-tabs > * { min-width:0 !important; padding:10px 4px !important; font-size:.66rem !important; text-align:center; }
+  .receipt-v85-quota { display:flex !important; flex-wrap:wrap !important; gap:8px !important; padding:10px 12px !important; }
+  .receipt-v85-workbench { padding: 10px !important; gap: 10px !important; }
+  .receipt-v85-upload-zone,.receipt-v85-scan-settings,.receipt-v85-result-preview { padding: 13px !important; border-radius: 17px !important; }
+  .receipt-v85-dropzone { min-height: 180px !important; }
+  .receipt-v85-paper { width:min(100%,280px) !important; margin-inline:auto !important; transform:none !important; }
+  .receipt-review-header,.receipt-meta-grid,.reconcile-row { grid-template-columns:1fr !important; }
+  .reconcile-row .segmented { width:100% !important; display:grid !important; grid-template-columns:1fr 1fr !important; }
+  .receipt-expense-prompt .receipt-expense-summary { grid-template-columns:auto minmax(0,1fr) !important; }
+  .receipt-expense-prompt .receipt-expense-summary > b { grid-column:2; justify-self:start; }
+}
+
+/* ---------- Meals ---------- */
+@media (max-width: 760px) {
+  .meals-hero { grid-template-columns:1fr !important; display:grid !important; align-items:start !important; padding:16px !important; }
+  .serving-box { width:100% !important; min-width:0 !important; }
+  .meal-controls { grid-template-columns:1fr !important; padding:10px !important; }
+  .meals-layout { grid-template-columns:1fr !important; gap:12px !important; }
+  .meal-library { position:static !important; max-height:none !important; overflow:visible !important; }
+  .meal-card-grid,.meal-ingredient-grid,.custom-dish-grid { grid-template-columns:1fr !important; }
+}
+
+/* ---------- Assistant / Household Intelligence ---------- */
+@media (max-width: 760px) {
+  .autopilot-hero { grid-template-columns:1fr !important; padding:16px !important; gap:14px !important; }
+  .autopilot-hero-actions,.autopilot-toolbar { width:100% !important; display:grid !important; grid-template-columns:1fr !important; gap:8px !important; }
+  .v95-autopilot-tabs { display:flex !important; overflow-x:auto !important; gap:6px !important; padding:5px !important; scrollbar-width:none; }
+  .v95-autopilot-tabs::-webkit-scrollbar{display:none}
+  .v95-autopilot-tabs button { flex:0 0 auto !important; min-width:104px !important; }
+  .autopilot-metric-grid,.autopilot-command-deck,.autopilot-protection-grid,.autopilot-connected-flow nav { grid-template-columns:1fr !important; display:grid !important; }
+  .autopilot-connected-flow nav>i { transform:rotate(90deg); justify-self:center; }
+  .household-intelligence-grid,.assistant-grid { grid-template-columns:1fr !important; }
+}
+
+/* ---------- Expenses ---------- */
+@media (max-width: 760px) {
+  .expenses-page :where(.expense-hero,.expense-summary-grid,.expense-insight-grid,.expense-form-grid,.expense-month-grid,.expense-ledger-grid) { grid-template-columns:1fr !important; }
+  .expenses-page :where(.expense-tabs,.expense-section-tabs) { display:flex !important; overflow-x:auto !important; gap:6px !important; scrollbar-width:none; }
+  .expenses-page :where(.expense-tabs,.expense-section-tabs)::-webkit-scrollbar { display:none; }
+  .expenses-page :where(.expense-tabs,.expense-section-tabs) button { flex:0 0 auto !important; }
+  .expenses-page table { min-width:620px; }
+  .expenses-page .table-wrap,.expenses-page .expense-table-wrap { overflow-x:auto !important; }
+  .expenses-page .form-row { grid-template-columns:1fr !important; }
+}
+
+/* ---------- Market / prices / flyers ---------- */
+@media (max-width: 760px) {
+  .market-page :where(.market-hero-bar,.flyer-search-grid,.flyer-filter-head,.market-lookup-grid,.compare-form-grid) { grid-template-columns:1fr !important; display:grid !important; }
+  .retailer-chip-grid,.flyer-retailer-chips { display:flex !important; overflow-x:auto !important; flex-wrap:nowrap !important; gap:7px !important; padding-bottom:4px; scrollbar-width:none; }
+  .retailer-chip-grid::-webkit-scrollbar,.flyer-retailer-chips::-webkit-scrollbar{display:none}
+  .retailer-chip { flex:0 0 auto !important; }
+  .flyer-deal-grid,.flyer-store-groups,.market-result-grid { grid-template-columns:1fr !important; }
+  .market-page .market-button-row > * { width:100% !important; }
+}
+
+/* ---------- Reports ---------- */
+@media (max-width: 760px) {
+  .reports-page :where(.reports-grid,.report-grid,.savings-grid,.report-summary-grid) { grid-template-columns:1fr !important; }
+  .reports-page :where(canvas,svg) { max-width:100% !important; }
+  .reports-page table { min-width:620px; }
+  .reports-page :where(.table-wrap,.report-table-wrap) { overflow-x:auto !important; }
+}
+
+/* ---------- Profile / reviews / support / pricing ---------- */
+@media (max-width: 760px) {
+  .profile-header,.plan-summary-card,.profile-details,.billing-date-grid,.profile-form .form-row { grid-template-columns:1fr !important; }
+  .profile-header { display:grid !important; text-align:left !important; }
+  .profile-actions { display:grid !important; grid-template-columns:1fr !important; }
+  .reviews-page-v112 :where(.review-grid,.review-summary-grid),
+  .support-page :where(.support-grid,.support-options),
+  .pricing-page :where(.pricing-grid,.plan-grid) { grid-template-columns:1fr !important; }
+  .pricing-page .billing-toggle { width:100%; }
+}
+
+/* ---------- Kitchen Vision / Food Tonight / Templates / Chat ---------- */
+@media (max-width: 760px) {
+  .kitchen-map-page-v96 :where(.kitchen-grid,.zone-grid,.vision-grid),
+  .food-tonight-page-v98 :where(.food-grid,.food-place-grid,.food-control-grid),
+  .template-community-page :where(.template-community-layout,.template-community-grid,.template-editor-grid) { grid-template-columns:1fr !important; }
+  .template-editor-card { position:static !important; }
+  .house-chat-page-v105 { padding:10px 10px calc(98px + env(safe-area-inset-bottom)) !important; }
+  .house-chat-page-v105 :where(.chat-layout,.house-chat-layout) { grid-template-columns:1fr !important; }
+}
+
+/* ---------- Overlays / drawers: top/close button must never leave viewport ---------- */
+@media (max-width: 760px) {
+  .overlay-backdrop,.modal-backdrop,.side-drawer-backdrop,.mobile-more-backdrop,.shopping-list-workspace-backdrop-v115 {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+  .ghm-capture-sheet,.mobile-more-sheet,.side-drawer,.focus-dialog,.modal.action-focus-panel {
+    width:100% !important;
+    height:100dvh !important;
+    max-height:100dvh !important;
+    margin:0 !important;
+    border-radius:0 !important;
+    padding-bottom:env(safe-area-inset-bottom) !important;
+  }
+  .ghm-capture-sheet>header,.drawer-header,.mobile-more-head,.focus-dialog-titlebar,.modal-title {
+    top:0 !important;
+    padding: max(12px,env(safe-area-inset-top)) 12px 10px !important;
+    min-height:60px;
+    background:var(--ghm-surface-elevated) !important;
+    border-bottom:1px solid var(--ghm-divider) !important;
+  }
+  .ghm-capture-sheet>header > div,
+  .drawer-header > div,
+  .mobile-more-head > div,
+  .focus-dialog-titlebar > div { min-width:0 !important; padding-right:4px; }
+  .ghm-capture-sheet>header :where(h2,p),.drawer-header :where(h2,p),.mobile-more-head :where(h2,p),.focus-dialog-titlebar :where(h2,p) { margin-right:0 !important; }
+  .ghm-capture-shortcuts { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:8px !important; }
+  .ghm-capture-shortcuts button { min-height:94px !important; padding:10px !important; }
+  .ghm-capture-input,.ghm-capture-actions,.ghm-capture-answer,.ghm-capture-fallback { margin-inline:12px !important; }
+  .ghm-capture-actions { display:grid !important; grid-template-columns:1fr 1fr !important; gap:8px !important; padding-bottom:12px; }
+  .drawer-actions { padding-inline:12px !important; }
+  .drawer-member-list { padding:0 12px 20px !important; }
+}
+
+/* ---------- Floating actions: do not overlap each other or bottom nav ---------- */
+@media (max-width: 760px) {
+  .ghm-house-chat-fab-v108,
+  .ghm-capture-fab {
+    bottom: calc(86px + env(safe-area-inset-bottom)) !important;
+    min-height:46px !important;
+  }
+  .ghm-house-chat-fab-v108 { left:12px !important; right:auto !important; }
+  .ghm-capture-fab { right:12px !important; left:auto !important; }
+}
+
+/* ---------- Public mobile pages ---------- */
+@media (max-width: 760px) {
+  .public-frame .marketing-page :where(.shell.wide),
+  .public-frame .feature-landing-v96 :where(.shell.wide) {
+    width:100% !important;
+    max-width:100% !important;
+    padding-inline:14px !important;
+  }
+  .v96-public-hero,.v96-loop-inner,.feature-hero-v96,.feature-scenario-v96,.feature-final-cta-v96 { grid-template-columns:1fr !important; gap:18px !important; }
+  .v96-public-hero { padding-top:24px !important; }
+  .v96-public-hero h1 { font-size:clamp(2.2rem,12vw,3.55rem) !important; line-height:.94 !important; }
+  .v96-outcome-grid,.v96-scenario-grid,.feature-outcomes-v96 { grid-template-columns:1fr !important; }
+  .v96-public-hero-actions,.feature-hero-actions-v96 { display:grid !important; grid-template-columns:1fr !important; }
+  .ghm-world-v97 { min-width:0 !important; overflow:hidden !important; }
+  .ghm-world-stage-v97 { transform:scale(.9); transform-origin:top center; margin-bottom:-36px; }
+  .site-footer-inner { grid-template-columns:1fr !important; gap:18px !important; }
+}
+
+/* ---------- Dark-mode legibility for legacy light cards ---------- */
+html[data-ghm-theme="dark"] :where(.ghm-auth-shell-active .panel,.ghm-auth-shell-active .v95-home-card,.ghm-auth-shell-active .member-row,.ghm-auth-shell-active .shopping-list-card-v115,.ghm-auth-shell-active .template-community-card),
+html[data-theme="dark"] :where(.ghm-auth-shell-active .panel,.ghm-auth-shell-active .v95-home-card,.ghm-auth-shell-active .member-row,.ghm-auth-shell-active .shopping-list-card-v115,.ghm-auth-shell-active .template-community-card) {
+  background:var(--ghm-surface-elevated) !important;
+  color:var(--ghm-text) !important;
+  border-color:var(--ghm-border) !important;
+}
+html[data-ghm-theme="dark"] :where(.ghm-auth-shell-active .panel,.ghm-auth-shell-active .v95-home-card,.ghm-auth-shell-active .member-row,.ghm-auth-shell-active .shopping-list-card-v115) :where(h1,h2,h3,h4,strong,b,label),
+html[data-theme="dark"] :where(.ghm-auth-shell-active .panel,.ghm-auth-shell-active .v95-home-card,.ghm-auth-shell-active .member-row,.ghm-auth-shell-active .shopping-list-card-v115) :where(h1,h2,h3,h4,strong,b,label) { color:var(--ghm-text-strong) !important; }
+html[data-ghm-theme="dark"] :where(.ghm-auth-shell-active .panel,.ghm-auth-shell-active .v95-home-card,.ghm-auth-shell-active .member-row,.ghm-auth-shell-active .shopping-list-card-v115) :where(p,small,em),
+html[data-theme="dark"] :where(.ghm-auth-shell-active .panel,.ghm-auth-shell-active .v95-home-card,.ghm-auth-shell-active .member-row,.ghm-auth-shell-active .shopping-list-card-v115) :where(p,small,em) { color:var(--ghm-muted) !important; opacity:1 !important; }
+
+/* ---------- First-run setup + install card ---------- */
+@media (max-width: 760px) {
+  .first-run-setup,
+  .install-app-card {
+    margin: 0 !important;
+    border-radius: 18px !important;
+    padding: 14px !important;
+  }
+  .first-run-head {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    gap: 12px !important;
+    align-items: start !important;
+  }
+  .first-run-progress-orb {
+    width: 66px !important;
+    height: 66px !important;
+    min-width: 66px !important;
+  }
+  .first-run-current-step {
+    grid-template-columns: auto minmax(0,1fr) !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+  .first-run-current-step > :last-child:not(div) { grid-column: 1 / -1; width: 100%; }
+  .v98-onboarding-capture-choices {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  .first-run-steps { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .first-run-actions { display: grid !important; grid-template-columns: 1fr !important; gap: 8px !important; }
+  .install-app-card {
+    display: grid !important;
+    grid-template-columns: auto minmax(0,1fr) !important;
+    gap: 10px !important;
+    align-items: start !important;
+  }
+  .install-app-card > button { grid-column: 1 / -1; width: 100%; }
+}
+
+/* ---------- Members drawer ---------- */
+@media (max-width: 760px) {
+  .members-drawer .drawer-actions { position: relative !important; }
+  .invite-share-card-v87 { padding: 12px !important; border-radius: 16px !important; }
+  .invite-share-actions-v87 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .invite-share-actions-v87 .ghost-button { grid-column: 1 / -1; }
+  .invite-share-card-v87 code {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 9px !important;
+  }
+  .member-row-with-action { grid-template-columns: auto minmax(0,1fr) !important; align-items: center !important; }
+  .member-row-with-action > button { grid-column: 1 / -1; width: 100%; }
+}
+
+/* ---------- Mobile More ---------- */
+@media (max-width: 760px) {
+  .mobile-more-sheet { display: grid !important; grid-template-rows: auto minmax(0,1fr) !important; }
+  .v100-more-scroll { min-height: 0 !important; overflow-y: auto !important; padding: 10px 12px calc(24px + env(safe-area-inset-bottom)) !important; }
+  .v100-more-spotlight { grid-template-columns: 1fr !important; gap: 10px !important; padding: 13px !important; }
+  .v100-more-spotlight-art { min-height: 100px !important; }
+  .v100-more-feature-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .v100-more-feature-card { min-height: 70px !important; padding: 11px !important; }
+  .v118-profile-preferences-only { grid-template-columns: 1fr !important; }
+}
+
+/* ---------- Secondary pages: mobile-first page-by-page cleanup ---------- */
+@media (max-width: 760px) {
+  /* Authentication */
+  .auth-page-v88 { min-height: 100dvh !important; padding: 10px !important; }
+  .auth-shell-v88 { width: 100% !important; max-width: 100% !important; grid-template-columns: 1fr !important; gap: 12px !important; }
+  .auth-story-v88 { padding: 18px !important; min-height: 0 !important; border-radius: 20px !important; }
+  .auth-story-copy-v88 h1 { font-size: clamp(1.85rem, 9vw, 2.6rem) !important; }
+  .auth-story-features-v88 { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .auth-card-v88 { width: 100% !important; padding: 16px !important; border-radius: 20px !important; }
+  .auth-location-row { grid-template-columns: 1fr !important; }
+  .auth-theme-corner-v88 { top: 10px !important; right: 10px !important; }
+
+  /* Learn GHM */
+  .learn-ghm-hero-v101 { grid-template-columns: 1fr !important; gap: 14px !important; padding: 16px !important; }
+  .learn-ghm-hero-art-v101 { min-height: 150px !important; }
+  .learn-ghm-hero-actions-v101 { display: grid !important; grid-template-columns: 1fr !important; gap: 8px !important; }
+  .learn-ghm-grid-v101 { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .learn-ghm-loop-flow-v101 { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .premium-try-invite-v102.learn-premium-try-v102 { grid-template-columns: auto minmax(0,1fr) !important; gap: 10px !important; padding: 13px !important; }
+  .premium-try-invite-v102.learn-premium-try-v102 > :last-child:not(.premium-try-invite-copy-v102) { grid-column: 1 / -1; width: 100%; }
+
+  /* Premium Try */
+  .premium-try-hero-v102 { grid-template-columns: 1fr !important; padding: 16px !important; gap: 14px !important; }
+  .premium-try-hero-art-v102 { min-height: 150px !important; }
+  .premium-try-grid-v102 { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .premium-try-house-v102,
+  .premium-try-confirm-v102,
+  .premium-try-used-v102 { padding: 14px !important; }
+  .premium-try-actions-v102 { display: grid !important; grid-template-columns: 1fr !important; gap: 8px !important; }
+  .premium-try-faq-v102 { grid-template-columns: 1fr !important; }
+
+  /* Appearance */
+  .appearance-hero-v105 { grid-template-columns: 1fr !important; padding: 15px !important; }
+  .appearance-preview-v105 { min-height: 140px !important; }
+  .appearance-choice-grid-v105,
+  .visual-style-grid-v105 { grid-template-columns: 1fr !important; gap: 9px !important; }
+  .appearance-readability-v105 { grid-template-columns: 1fr !important; }
+
+  /* About / legal / invitations */
+  .about-hero { grid-template-columns: 1fr !important; gap: 14px !important; padding: 16px !important; }
+  .about-logo-card { min-height: 150px !important; }
+  .about-grid,
+  .profile-details,
+  .howto-list { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .legal-page .legal-header { padding: 14px !important; }
+  .legal-page .legal-card { padding: 15px !important; }
+  .invite-confirm-panel { padding: 16px !important; }
+  .invite-confirm-panel .profile-actions { display: grid !important; grid-template-columns: 1fr !important; }
+
+  /* Admin is less common on phones, but it must still be usable. */
+  .admin-page .admin-stats-grid,
+  .admin-page .admin-control-grid,
+  .admin-page .email-status-grid,
+  .admin-page .v93-ai-status-grid,
+  .admin-page .v95-product-analytics-grid { grid-template-columns: 1fr !important; gap: 9px !important; }
+  .admin-page .admin-table-wrap { width: 100%; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .admin-page .admin-table { min-width: 720px; }
+  .admin-page .inline-form,
+  .admin-page .admin-offer-form { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .admin-page .panel-title-row { align-items: start !important; }
+
+  /* Support / reviews / public company pages */
+  .support-page .support-card,
+  .reviews-page-v112 .panel { padding: 14px !important; }
+  .reviews-page-v112 :where(.review-form-grid,.review-cards-stack) { grid-template-columns: 1fr !important; }
+
+  /* Feature marketing pages */
+  .feature-landing-v96 { overflow-x: hidden; }
+  .feature-hero-v96 { padding-block: 24px 14px !important; }
+  .feature-hero-v96 > aside { padding: 14px !important; border-radius: 18px !important; }
+  .feature-flow-v96 > div { grid-template-columns: 1fr !important; gap: 9px !important; }
+  .feature-flow-v96 article { grid-template-columns: auto minmax(0,1fr) !important; gap: 10px !important; padding: 12px !important; }
+  .feature-scenario-v96 { padding-block: 14px !important; }
+  .feature-scenario-v96 ol { margin: 0 !important; padding-left: 22px !important; }
+  .feature-confidence-v96 { display: grid !important; grid-template-columns: 1fr !important; gap: 8px !important; }
+  .feature-related-v96 { overflow-x: auto !important; padding-bottom: 4px; }
+}
+
+/* Tiny phones: remove decorative density before content readability suffers. */
+@media (max-width: 360px) {
+  .ghm-auth-shell-active .page.shell,
+  .ghm-auth-shell-active .page.shell.wide { padding-inline: 9px !important; }
+  .v100-home-stat-grid { grid-template-columns: 1fr !important; }
+  .ghm-capture-shortcuts { grid-template-columns: 1fr !important; }
+  .mobile-bottom-nav small { font-size: .58rem !important; }
+  .mobile-bottom-nav a > span,
+  .mobile-bottom-nav button > span { font-size: 1rem !important; }
+}

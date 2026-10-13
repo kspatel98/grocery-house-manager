@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
+import { useLanguage } from '../i18n';
 import type {
   AccountBootstrap,
   AutopilotControls,
@@ -24,15 +25,22 @@ import type {
   WeeklyAssistantRecipe,
 } from '../types';
 
-const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const localeByLanguage = { en: 'en-CA', gu: 'gu-IN', hi: 'hi-IN', fr: 'fr-CA' } as const;
 type AutopilotView = 'today' | 'intelligence' | 'plan' | 'spend' | 'protect';
 
-function nextDayNames(count: number) {
+function nextDayNames(count: number, locale = 'en-CA') {
   const start = new Date();
-  return Array.from({ length: count }, (_, index) => dayNames[(start.getDay() + index) % 7]);
+  const formatter = new Intl.DateTimeFormat(locale, { weekday: 'long' });
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return formatter.format(date);
+  });
 }
 
 export default function AssistantPage() {
+  const { language } = useLanguage();
+  const appLocale = localeByLanguage[language];
   const [params, setParams] = useSearchParams();
   const requestedView = params.get('view') as AutopilotView | null;
   const sharedQuestion = params.get('q') || '';
@@ -233,7 +241,7 @@ export default function AssistantPage() {
   }
 
   const selectedHouse = houses.find((row) => row.id === houseId) || null;
-  const visiblePlanDays = useMemo(() => nextDayNames(planDays), [planDays]);
+  const visiblePlanDays = useMemo(() => nextDayNames(planDays, appLocale), [planDays, appLocale]);
   const controlPercent = Math.max(0, 100 - (autopilot?.attention_score || 0));
 
   async function addSuggestedItems() {
@@ -293,7 +301,7 @@ export default function AssistantPage() {
   }
 
   function applyHouseholdRoutine(key: 'normal' | 'busy' | 'guests' | 'away') {
-    const days = nextDayNames(key === 'normal' ? 5 : key === 'busy' ? 3 : 5);
+    const days = nextDayNames(key === 'normal' ? 5 : key === 'busy' ? 3 : 5, appLocale);
     if (key === 'normal') {
       setPlanDays(5); setSkipDays([]); setServingOverrides({});
     } else if (key === 'busy') {
@@ -472,7 +480,7 @@ export default function AssistantPage() {
     try {
       setAgentBusy(true);
       setError('');
-      const { data } = await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt: agentPrompt.trim() });
+      const { data } = await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt: agentPrompt.trim(), language });
       setAgentAnswer(data);
     } catch (err) {
       setError(errorMessage(err));

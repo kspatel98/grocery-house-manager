@@ -192,14 +192,20 @@ Return this exact structure:
     return parsed
 
 
-def ask_household_agent(*, prompt: str, context: dict[str, Any]) -> dict[str, Any]:
+def ask_household_agent(*, prompt: str, context: dict[str, Any], language: str = "en") -> dict[str, Any]:
     if not agent_configured():
         raise DigitalOceanAIError("GHM Household Intelligence is not configured.")
     endpoint = settings.digitalocean_agent_url.rstrip("/") + "/api/v1/chat/completions"
     # Managed agent instructions are configured on the provider agent itself.
     # Sending system/developer messages to the Agent endpoint can be rejected with HTTP 400,
     # so GHM sends only the live household context and user request as a normal user message.
-    user_content = f"Household context:\n{json.dumps(context, ensure_ascii=False)}\n\nUser request:\n{prompt}"
+    language_names = {"en": "English", "gu": "Gujarati", "hi": "Hindi", "fr": "French"}
+    response_language = language_names.get(language, "English")
+    user_content = (
+        f"Household context:\n{json.dumps(context, ensure_ascii=False)}\n\n"
+        f"Response language: {response_language}. Respond entirely in {response_language}, except product/brand names that should remain unchanged.\n\n"
+        f"User request:\n{prompt}"
+    )
     payload = {
         "messages": [
             {"role": "user", "content": user_content},

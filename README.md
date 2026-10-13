@@ -1,8 +1,8 @@
 # Grocery House Manager
 
-## Current release: V116 — Landing Scroll + Contained Tools + Clear AI Roles
+## Current release: V118 — Complete Localization + Mobile-First Polish
 
-V116 builds on the V115 focused-workspace and graphite-dark release. It restores full scrolling on the public landing site, keeps authenticated desktop sidebar/main scrolling independent, contains the expandable **Tools** menu inside its own sidebar navigation scroller, and clearly separates **Tell GHM (Quick Capture)** from **Ask GHM → Household Intelligence**. See `V116_SCROLL_TOOLS_INTELLIGENCE_FIX.md` for the newest fixes. V115 product-identity confidence, OFF/UPCDatabase/Serper corroboration, notifications, focused grocery-list workspaces and graphite dark mode remain included.
+V118 builds on the V117/V116 shell and product-intelligence releases. It completes a broad English / ગુજરાતી / हिंदी / Français localization pass, carries the selected language into Tell GHM voice recognition and Household Intelligence responses, and adds a page-by-page mobile layout/spacing pass across the app, public site, focused grocery-list workspace, receipt scan/review, members, dialogs, drawers, mobile header and bottom navigation. See `V118_COMPLETE_LOCALIZATION_MOBILE_FIRST.md` for the full change list. Existing product-identity confidence, OFF/UPCDatabase/Serper corroboration, notifications, reliability work and graphite dark mode remain included.
 
 
 ## V96 — Household Intelligence & Kitchen Map

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { languageDisplayName, translateUiText, type SiteLanguage } from './localizationCatalog';
+import { translateUiText, type SiteLanguage } from './localizationCatalog';
 
 export type AppLanguage = SiteLanguage;
 const labels: Record<AppLanguage, Record<string,string>> = {
@@ -115,10 +115,10 @@ export function LanguagePicker({compact=false}:{compact?:boolean}) {
   return <label className={`language-picker ${compact?'compact':''}`} title={t('language')} data-i18n-skip="true">
     <span aria-hidden="true">🌐</span>{!compact && <b>{t('language')}</b>}
     <select value={language} aria-label={t('language')} onChange={(e)=>setLanguage(e.target.value as AppLanguage)}>
-      <option value="en">{languageDisplayName('en',language)}</option>
-      <option value="gu">{languageDisplayName('gu',language)}</option>
-      <option value="hi">{languageDisplayName('hi',language)}</option>
-      <option value="fr">{languageDisplayName('fr',language)}</option>
+      <option value="en">English</option>
+      <option value="gu">ગુજરાતી</option>
+      <option value="hi">हिंदी</option>
+      <option value="fr">Français</option>
     </select>
   </label>;
 }

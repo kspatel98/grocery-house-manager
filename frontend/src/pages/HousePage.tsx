@@ -288,7 +288,7 @@ export default function HousePage() {
           </div>
         </section>
         <section className="v101-discover-strip"><span aria-hidden="true">✦</span><div><strong>Discover why GHM features exist</strong><small>See the household problem each smart tool solves, with simple examples.</small></div><Link to="/learn">How GHM helps →</Link></section>
-        <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} />
+        <HouseMembersBar members={members} currentUserId={currentUser?.id} onOpen={() => setMembersOpen(true)} onInvite={createInvite} />
         <section className="v95-home-grid">
           <article className="v95-home-card">
             <header><div><p className="eyebrow">INVENTORY HEALTH</p><h2>{stats.totalProducts} tracked products</h2></div><Link to={`/houses/${id}/inventory`}>Open →</Link></header>
@@ -301,7 +301,7 @@ export default function HousePage() {
             <header><div><p className="eyebrow">HOUSEHOLD</p><h2>{members.length} connected member{members.length === 1 ? '' : 's'}</h2></div><button className="link-button" onClick={() => setMembersOpen(true)}>Manage →</button></header>
             <p>Everyone works from the same inventory, shopping list, receipts and expenses. Changes sync across the household.</p>
             <div className="v95-member-preview">{members.slice(0, 5).map((member) => <span key={member.id} title={member.full_name || member.email || 'Household member'}>{(member.full_name || member.email || '?').slice(0, 1).toUpperCase()}</span>)}</div>
-            <button className="secondary full" onClick={createInvite}>🔗 Invite someone</button>
+            <button className="secondary full" onClick={() => setMembersOpen(true)}>Manage members</button>
           </article>
 
           <article className="v95-home-card">

@@ -1768,6 +1768,7 @@ class HouseholdDigitalTwinOut(BaseModel):
 
 class HouseholdAgentIn(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
+    language: str = Field(default="en", pattern="^(en|gu|hi|fr)$")
 
 
 class HouseholdAgentOut(BaseModel):

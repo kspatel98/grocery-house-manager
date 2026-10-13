@@ -281,7 +281,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     { to: '/premium-try', label: 'Try Premium Free', icon: '✨', group: 'account', description: 'Choose one premium feature and use it once for free' },
     { to: '/pricing', label: t('plans'), icon: '✨', group: 'account', description: 'Plans, premium tools and extra scans' },
     { to: '/learn', label: 'How GHM helps', icon: '✦', group: 'learn', description: 'The problem each smart feature is designed to solve' },
-    { to: '/appearance', label: 'Appearance', icon: '🎨', group: 'account', description: 'System, light, dark and GHM visual styles' },
     { to: '/support', label: t('support'), icon: '💬', group: 'account', description: 'Get help with GHM' },
     { to: '/reviews', label: 'Reviews & feedback', icon: '★', group: 'account', description: 'Rate GHM, update your review and read household feedback' },
     { to: '/privacy', label: 'Privacy', icon: '◌', group: 'account', description: 'Privacy and data information' },
@@ -439,6 +438,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               </div>
             </nav>
             <LanguagePicker compact />
+            <ThemeToggle compact className="header-theme-toggle-v117" />
             <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} compact />
             <Link
               to="/profile"
@@ -525,11 +525,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="desktop-sidebar-footer-v86">
-            <div className="desktop-sidebar-language-v86">
-              <LanguagePicker compact />
-            </div>
-            <ThemeToggle className="desktop-theme-toggle-v87" />
+          <div className="desktop-sidebar-footer-v86 v117-profile-only-footer">
             <Link to="/profile" className="desktop-sidebar-account-v86">
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" />
@@ -551,12 +547,25 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               <small>GROCERY HOUSE MANAGER</small>
               <h1>{pageTitle}</h1>
             </div>
-            <div className="desktop-topbar-actions-v86 v105-desktop-actions">
-              {contextHouseId ? <button type="button" className="desktop-topbar-pill-v86 v105-quick-add" onClick={() => window.dispatchEvent(new Event('ghm:capture-open'))}>＋ Quick add</button> : null}
-              {contextHouseId ? <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="desktop-topbar-pill-v86">Ask GHM</Link> : null}
-              {contextHouseId ? <Link to={`/houses/${contextHouseId}/scan`} className="desktop-topbar-pill-v86 alt">Scan receipt</Link> : <Link to="/support" className="desktop-topbar-pill-v86 alt">{t('support')}</Link>}
+            <div className="desktop-topbar-actions-v86 v105-desktop-actions v117-topbar-actions">
+              {contextHouseId ? (
+                <button type="button" className="desktop-topbar-pill-v86 v105-quick-add v117-action-pill" onClick={() => window.dispatchEvent(new Event('ghm:capture-open'))} aria-label="Quick add" title="Quick add">
+                  <span className="v117-action-icon" aria-hidden="true">＋</span><span className="v117-action-label">Quick add</span>
+                </button>
+              ) : null}
+              {contextHouseId ? (
+                <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="desktop-topbar-pill-v86 v117-action-pill" aria-label="Ask GHM" title="Ask GHM">
+                  <span className="v117-action-icon" aria-hidden="true">✦</span><span className="v117-action-label">Ask GHM</span>
+                </Link>
+              ) : null}
+              {contextHouseId ? (
+                <Link to={`/houses/${contextHouseId}/scan`} className="desktop-topbar-pill-v86 alt v117-action-pill" aria-label="Scan receipt" title="Scan receipt">
+                  <span className="v117-action-icon" aria-hidden="true">🧾</span><span className="v117-action-label">Scan receipt</span>
+                </Link>
+              ) : <Link to="/support" className="desktop-topbar-pill-v86 alt v117-action-pill"><span className="v117-action-icon" aria-hidden="true">?</span><span className="v117-action-label">{t('support')}</span></Link>}
+              <LanguagePicker compact />
               <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} />
-              <Link to="/appearance" className="desktop-topbar-icon-v105" aria-label="Appearance" title="Appearance">◐</Link>
+              <ThemeToggle compact className="desktop-topbar-icon-v105 v117-topbar-theme" />
             </div>
           </div>
 
@@ -644,9 +653,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
                 <Link className="v101-more-discover" to="/learn" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">✦</span><div><strong>Discover what GHM can do</strong><small>See the problem each smart feature solves and when to use it.</small></div><b aria-hidden="true">→</b></Link>
 
-                <section className="v100-more-preferences">
-                  <Link className="v100-more-pref-card" to="/appearance" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">🎨</span><div><strong>Appearance</strong><small>System, light, dark & visual style</small></div></Link>
-                  <div className="mobile-more-language-card-v88 v100-more-pref-card"><span aria-hidden="true">🌐</span><div><strong>Language</strong><LanguagePicker compact /></div></div>
+                <section className="v100-more-preferences v118-profile-preferences-only">
                   <Link className="v100-more-pref-card" to="/profile" onClick={() => setMobileMoreOpen(false)}><span aria-hidden="true">👤</span><div><strong>{t('profile')}</strong><small>Account & preferences</small></div></Link>
                 </section>
 

@@ -1,0 +1,446 @@
+/* ========================================================================== 
+   GHM V117 — mobile-first shell refinement, compact preferences, cleaner scan
+   ========================================================================== */
+
+:root {
+  --ghm-mobile-header-gap: 8px;
+}
+
+/* ----- Language + theme controls ----- */
+.language-picker.compact {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 10px !important;
+  border-radius: 14px !important;
+  border: 1px solid var(--ghm-border) !important;
+  background: var(--ghm-surface-elevated) !important;
+  box-shadow: none !important;
+}
+.language-picker.compact > span {
+  font-size: 1rem;
+}
+.language-picker.compact select {
+  min-width: 0;
+  max-width: 112px;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--ghm-text-strong) !important;
+  font-weight: 800;
+  padding: 0 16px 0 0 !important;
+}
+.header-theme-toggle-v117,
+.desktop-topbar-actions-v86 .language-picker.compact,
+.desktop-topbar-actions-v86 .theme-toggle-v88.compact,
+.site-nav-wrap .theme-toggle-v88.compact,
+.site-nav-wrap .language-picker.compact {
+  flex: 0 0 auto;
+}
+.theme-toggle-v88.compact.header-theme-toggle-v117,
+.desktop-topbar-actions-v86 .theme-toggle-v88.compact,
+.site-nav-wrap .theme-toggle-v88.compact {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center;
+  border-radius: 14px !important;
+  border: 1px solid var(--ghm-border) !important;
+  background: var(--ghm-surface-elevated) !important;
+}
+
+/* ----- Desktop sidebar / topbar ----- */
+@media (min-width: 981px) {
+  html.ghm-auth-shell-active .desktop-shell-v86 {
+    grid-template-columns: 292px minmax(0, 1fr) !important;
+  }
+  html.ghm-auth-shell-active .desktop-shell-v86.is-collapsed {
+    grid-template-columns: 88px minmax(0, 1fr) !important;
+  }
+
+  .desktop-sidebar-v86 {
+    gap: 14px !important;
+  }
+  .desktop-sidebar-scroll-v116 {
+    overflow: visible !important;
+    padding-bottom: 4px !important;
+  }
+  .desktop-sidebar-navblock-v86 {
+    margin-bottom: 10px !important;
+  }
+  .desktop-sidebar-nav-v86 {
+    gap: 6px !important;
+  }
+  .desktop-sidebar-nav-v86 a {
+    min-height: 48px !important;
+    padding: 11px 12px !important;
+  }
+  .v95-tools-nav {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+  .v116-tools-list {
+    max-height: min(42vh, 360px);
+    overflow-y: auto !important;
+    padding-right: 4px !important;
+  }
+  .v117-profile-only-footer {
+    padding-top: 8px !important;
+  }
+  .v117-profile-only-footer .desktop-sidebar-account-v86 {
+    min-height: 58px;
+    padding: 10px 12px !important;
+  }
+  .desktop-topbar-v86 {
+    gap: 16px;
+    align-items: center;
+  }
+  .v117-topbar-actions {
+    gap: 10px !important;
+    flex-wrap: wrap;
+  }
+  .v117-action-pill {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+  }
+  .v117-action-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .desktop-topbar-actions-v86 .language-picker.compact select {
+    max-width: 82px;
+  }
+}
+
+/* ----- Mobile header / navigation ----- */
+@media (max-width: 980px) {
+  .site-header:not(.public-site-header) {
+    position: sticky !important;
+    top: 0;
+    z-index: 200;
+    border-radius: 0 0 18px 18px !important;
+    backdrop-filter: blur(18px);
+  }
+  .site-header-inner.shell.wide {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      'brand utilities'
+      'title title' !important;
+    align-items: center !important;
+    gap: var(--ghm-mobile-header-gap) !important;
+    padding: 10px 12px 12px !important;
+  }
+  .site-brand-premium-wrap {
+    grid-area: brand;
+    min-width: 0;
+  }
+  .site-brand-premium-wrap .site-brand {
+    min-width: 0;
+    gap: 10px;
+  }
+  .site-brand-premium-wrap .site-brand img {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+  }
+  .site-brand-premium-wrap .site-brand strong {
+    font-size: .98rem !important;
+    line-height: 1.05;
+  }
+  .site-brand-premium-wrap .site-brand small,
+  .header-premium-badge {
+    display: none !important;
+  }
+  .mobile-header-title-v88 {
+    grid-area: title;
+    display: flex !important;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px !important;
+    min-width: 0;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--ghm-surface-elevated) 92%, transparent);
+    border: 1px solid var(--ghm-border);
+  }
+  .mobile-header-title-v88 strong {
+    display: block;
+    font-size: 1rem;
+    color: var(--ghm-text-strong);
+  }
+  .mobile-header-title-v88 small {
+    display: block;
+    margin-top: 2px;
+    color: var(--ghm-muted);
+    font-size: .72rem;
+  }
+  .site-nav-wrap {
+    grid-area: utilities;
+    width: auto !important;
+    justify-self: end;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px !important;
+    min-width: 0;
+  }
+  .site-nav-wrap .site-nav { display: none !important; }
+  .site-nav-wrap .language-picker.compact,
+  .site-nav-wrap .theme-toggle-v88.compact,
+  .site-nav-wrap .ghm-notification-trigger-v115,
+  .site-nav-wrap .profile-orb-link {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    padding: 0 !important;
+    display: grid !important;
+    place-items: center;
+    border-radius: 14px !important;
+  }
+  .site-nav-wrap .language-picker.compact > span {
+    display: block;
+  }
+  .site-nav-wrap .language-picker.compact select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .site-nav-wrap .ghm-notification-trigger-v115,
+  .site-nav-wrap .theme-toggle-v88.compact,
+  .site-nav-wrap .language-picker.compact,
+  .site-nav-wrap .profile-orb-link {
+    background: var(--ghm-surface-elevated) !important;
+    border: 1px solid var(--ghm-border) !important;
+  }
+  .mobile-bottom-nav {
+    padding: 8px !important;
+    gap: 6px !important;
+  }
+  .mobile-bottom-nav a,
+  .mobile-bottom-nav button {
+    min-height: 52px !important;
+    border-radius: 16px !important;
+    gap: 5px;
+  }
+}
+
+/* ----- More consistent action buttons / dialogs on smaller screens ----- */
+@media (max-width: 980px) {
+  .desktop-topbar-v86 { padding-inline: 14px !important; }
+  .focus-dialog,
+  .mobile-more-sheet,
+  .ghm-capture-sheet,
+  .side-drawer,
+  .modal,
+  .action-focus-panel {
+    width: min(100%, calc(100vw - 16px)) !important;
+    max-width: 100% !important;
+    max-height: min(88dvh, calc(100dvh - 16px)) !important;
+    margin: 8px auto !important;
+    border-radius: 20px !important;
+  }
+  .focus-dialog-titlebar,
+  .drawer-header,
+  .ghm-capture-sheet > header,
+  .mobile-more-head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: inherit;
+    padding-top: max(14px, env(safe-area-inset-top)) !important;
+  }
+  .focus-dialog-scroll,
+  .drawer-member-list,
+  .v100-more-scroll,
+  .ghm-capture-sheet {
+    overscroll-behavior: contain;
+  }
+  .drawer-close,
+  .icon-button,
+  .icon-btn,
+  .mobile-more-head > button,
+  .focus-dialog-titlebar > button {
+    flex: 0 0 auto;
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 12px !important;
+  }
+}
+
+/* ----- Universal capture mic styling ----- */
+.ghm-capture-message-box-v115 {
+  position: relative;
+}
+.ghm-capture-mic-v115 {
+  display: grid !important;
+  place-items: center;
+}
+.ghm-capture-mic-image-v117 {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+html[data-ghm-theme="dark"] .ghm-capture-mic-image-v117,
+html[data-theme="dark"] .ghm-capture-mic-image-v117 {
+  filter: invert(1) brightness(1.15);
+}
+.ghm-capture-mic-live-v117 {
+  color: currentColor;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* ----- Receipt scanner readability ----- */
+.receipt-studio-v85 .receipt-v85-topbar,
+.receipt-studio-v85 .receipt-v85-tabs,
+.receipt-studio-v85 .receipt-v85-quota {
+  background: var(--ghm-surface-elevated) !important;
+  color: var(--ghm-text) !important;
+}
+.receipt-studio-v85 .receipt-v85-tabs button,
+.receipt-studio-v85 .receipt-v85-tabs [role="tab"],
+.receipt-studio-v85 .receipt-v85-tabs span,
+.receipt-studio-v85 .receipt-v85-quota,
+.receipt-studio-v85 .receipt-v85-quota * {
+  color: var(--ghm-text-strong) !important;
+}
+.receipt-studio-v85 .receipt-v85-paper {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ghm-surface-elevated) 92%, white 8%), color-mix(in srgb, var(--ghm-surface) 94%, white 6%)) !important;
+  color: var(--ghm-text-strong) !important;
+  border: 1px solid var(--ghm-border) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.receipt-studio-v85 .receipt-v85-paper :where(strong,small,span,b,i) {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+.receipt-studio-v85 .receipt-v85-paper-logo {
+  color: var(--ghm-primary) !important;
+}
+html[data-ghm-theme="dark"] .receipt-studio-v85 .receipt-v85-paper,
+html[data-theme="dark"] .receipt-studio-v85 .receipt-v85-paper {
+  background: linear-gradient(180deg, rgba(31,40,43,.98), rgba(20,27,29,.98)) !important;
+  color: #edf4ef !important;
+}
+html[data-ghm-theme="dark"] .receipt-studio-v85 .receipt-v85-paper i,
+html[data-theme="dark"] .receipt-studio-v85 .receipt-v85-paper i {
+  color: rgba(237,244,239,.45) !important;
+}
+@media (max-width: 980px) {
+  .receipt-v85-topbar,
+  .receipt-v85-workbench,
+  .receipt-review-studio {
+    border-radius: 18px !important;
+  }
+}
+
+/* ----- Members spacing / structure ----- */
+.house-members-bar,
+.members-panel,
+.members-drawer {
+  border-radius: 22px !important;
+}
+.house-members-bar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  gap: 16px !important;
+  align-items: center !important;
+  padding: 18px !important;
+}
+.house-members-actions-v117 {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.member-row {
+  gap: 12px !important;
+  padding: 12px !important;
+  border-radius: 16px !important;
+}
+.member-main strong { color: var(--ghm-text-strong) !important; }
+.member-main small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--ghm-muted) !important;
+}
+.members-drawer .drawer-actions {
+  gap: 12px !important;
+  padding: 12px 0 16px !important;
+}
+.members-drawer .drawer-member-list {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+@media (max-width: 980px) {
+  .house-members-bar {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+  .house-members-actions-v117 {
+    justify-content: stretch;
+  }
+  .house-members-actions-v117 > * {
+    flex: 1 1 0;
+  }
+}
+
+/* ----- Dark mode polish ----- */
+html[data-ghm-theme="dark"],
+html[data-theme="dark"] {
+  --ghm-canvas: #101514;
+  --ghm-surface: #151d1b;
+  --ghm-surface-elevated: #1b2522;
+  --ghm-surface-soft: #121917;
+  --ghm-text: #d7e4dc;
+  --ghm-text-strong: #f1f7f3;
+  --ghm-muted: #9bb0a4;
+  --ghm-border: rgba(162, 190, 177, 0.18);
+  --ghm-divider: rgba(162, 190, 177, 0.14);
+  --ghm-primary-soft: rgba(112, 171, 133, 0.15);
+}
+html[data-ghm-theme="dark"] .desktop-sidebar-v86,
+html[data-theme="dark"] .desktop-sidebar-v86 {
+  background: linear-gradient(180deg, #121b19, #0f1615) !important;
+  border-right-color: rgba(162,190,177,.12) !important;
+}
+html[data-ghm-theme="dark"] .desktop-topbar-v86,
+html[data-theme="dark"] .desktop-topbar-v86 {
+  background: rgba(15, 21, 20, .88) !important;
+  border-bottom-color: rgba(162,190,177,.12) !important;
+}
+html[data-ghm-theme="dark"] .desktop-sidebar-nav-v86 a.active,
+html[data-theme="dark"] .desktop-sidebar-nav-v86 a.active {
+  background: linear-gradient(135deg, #28513f, #3a6b55) !important;
+  color: #f5fbf7 !important;
+  box-shadow: 0 12px 28px rgba(20, 29, 26, .34) !important;
+}
+
+/* ----- Generic footer / profile cleanup ----- */
+.desktop-sidebar-footer-v86 > :not(.desktop-sidebar-account-v86) {
+  display: none !important;
+}
+
+/* ----- Mobile receipt/chat floating buttons avoid overlap ----- */
+@media (max-width: 980px) {
+  .ghm-house-chat-fab-v108,
+  .ghm-capture-fab {
+    bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+  }
+  .ghm-house-chat-fab-v108 {
+    right: 16px !important;
+  }
+  .ghm-capture-fab {
+    right: 92px !important;
+  }
+}

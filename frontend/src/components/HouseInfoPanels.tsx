@@ -74,7 +74,7 @@ export function MembersPanel({ members, currentUserId, houseRole, onRemoveMember
   );
 }
 
-export function HouseMembersBar({ members, currentUserId, onOpen }: { members: HouseMember[]; currentUserId?: number; onOpen: () => void }) {
+export function HouseMembersBar({ members, currentUserId, onOpen, onInvite }: { members: HouseMember[]; currentUserId?: number; onOpen: () => void; onInvite?: () => void | Promise<void> }) {
   const visibleMembers = members.slice(0, 6);
   const currentUser = members.find((member) => member.user_id === currentUserId);
 
@@ -93,7 +93,10 @@ export function HouseMembersBar({ members, currentUserId, onOpen }: { members: H
         ))}
         {members.length > visibleMembers.length && <span className="stacked-avatar more-avatar">+{members.length - visibleMembers.length}</span>}
       </div>
-      <button className="secondary" onClick={onOpen}>View members</button>
+      <div className="house-members-actions-v117">
+        {onInvite ? <button className="secondary" onClick={() => void onInvite()}>Invite someone</button> : null}
+        <button className="secondary" onClick={onOpen}>View members</button>
+      </div>
     </section>
   );
 }
@@ -151,7 +154,7 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
         </div>
 
         <div className="drawer-actions">
-          {!inviteUrl && onCreateInvite && <button className="primary full" onClick={onCreateInvite}>Create invite link</button>}
+          {!inviteUrl && onCreateInvite && <button className="primary full" onClick={onCreateInvite}>Invite someone</button>}
           {inviteUrl && (
             <div className="invite-share-card-v87">
               <div><span aria-hidden="true">🔗</span><div><strong>House invite ready</strong><small>Valid for 14 days. The recipient can review the house before joining.</small></div></div>

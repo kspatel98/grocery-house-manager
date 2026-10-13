@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import type { HouseholdAgentResponse } from '../types';
 import OverlayPortal from './OverlayPortal';
+import { useLanguage } from '../i18n';
 
 declare global {
   interface Window {
@@ -15,6 +16,7 @@ type SuggestedAction = { label: string; path: string } | null;
 
 export default function UniversalCapture({ houseId }: { houseId: number | null }) {
   const navigate = useNavigate();
+  const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [answer, setAnswer] = useState('');
@@ -105,7 +107,7 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
     if (routeKnownIntent(clean)) return;
     try {
       setBusy(true);
-      const { data } = await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt: clean });
+      const { data } = await api.post<HouseholdAgentResponse>(`/ai/houses/${houseId}/household-agent`, { prompt: clean, language });
       setAnswer(data.answer || data.message);
       if (!data.configured) setSuggestedAction(fallbackAction(clean));
     } catch (err) {
@@ -125,7 +127,7 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
     try {
       recognitionRef.current?.stop?.();
       const recognition = new Recognition();
-      recognition.lang = 'en-CA';
+      recognition.lang = ({ en: 'en-CA', gu: 'gu-IN', hi: 'hi-IN', fr: 'fr-CA' } as const)[language] || 'en-CA';
       recognition.interimResults = false;
       recognition.continuous = false;
       recognition.onstart = () => setListening(true);
@@ -200,7 +202,7 @@ export default function UniversalCapture({ houseId }: { houseId: number | null }
                   aria-label={listening ? 'Listening for your voice' : 'Speak to GHM'}
                   title={listening ? 'Listening…' : 'Speak to GHM'}
                 >
-                  <span aria-hidden="true">{listening ? '◉' : '🎙'}</span>
+                  {listening ? <span className="ghm-capture-mic-live-v117" aria-hidden="true">◉</span> : <img src="/brand/mic-symbol.png" alt="" className="ghm-capture-mic-image-v117" aria-hidden="true" />}
                 </button>
               </div>
               <small className="ghm-capture-voice-hint-v115">{listening ? 'Listening… speak naturally.' : 'Tap the mic to speak instead of typing.'}</small>
