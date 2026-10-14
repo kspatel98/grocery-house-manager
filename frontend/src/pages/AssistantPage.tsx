@@ -394,7 +394,6 @@ export default function AssistantPage() {
     }
   }
 
-  const selectedHouse = houses.find((row) => row.id === houseId) || null;
   const latestAgentQuestion = agentPrompt.trim() || agentTurns[agentTurns.length - 1]?.question || sharedQuestion;
   const inferredAgentMode = detectAgentMode(latestAgentQuestion || '');
   const activeAgentMode = agentModeOverride || inferredAgentMode;
