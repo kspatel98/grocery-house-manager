@@ -237,12 +237,17 @@ export default function PricingPage() {
       </header>
 
       <section className="v96-pricing-guide">
-        <div><p className="eyebrow">CHOOSE BY OUTCOME</p><h2>How much household work should GHM take over?</h2><p>Start free, then upgrade when automation saves enough time or money to earn its place.</p></div>
+        <div><p className="eyebrow">CHOOSE BY OUTCOME</p><h2>Pay for the amount of household work you want GHM to take over.</h2><p>Start free. Upgrade only when the connected workflows are useful enough to earn a place in your routine.</p></div>
+        <div className="v128-plan-positioning">
+          <article><small>FREE STARTER</small><strong>Organize the household</strong><p>Build the shared inventory, shopping and meal routine without a card.</p></article>
+          <article><small>BASIC + FAMILY</small><strong>Automate the household</strong><p>Let receipts, planning, expenses and shopping intelligence remove repeated manual work.</p></article>
+          <article><small>HOUSEHOLD PRO</small><strong>Optimize the household</strong><p>Add visual kitchen intelligence, deeper context and the most advanced household workflows.</p></article>
+        </div>
         <div className="v96-pricing-path">
-          <span><b>Free</b><strong>Build the shared routine</strong><small>Inventory, lists, recall screening and value proof.</small></span>
-          <span><b>Basic</b><strong>Protect the receipt</strong><small>Scanning, Receipt Guardian and private price memory.</small></span>
-          <span><b>Family+</b><strong>Plan the whole week</strong><small>Meals, budget, trip intelligence, expenses and stock-up logic.</small></span>
-          <span><b>Pro</b><strong>Reconcile the physical home</strong><small>Kitchen Map + Vision and deeper household intelligence.</small></span>
+          <span><b>Free</b><strong>Shared basics</strong><small>Inventory, lists, recall screening and value proof.</small></span>
+          <span><b>Basic</b><strong>Receipt automation</strong><small>Scanning, Receipt Guardian and private price memory.</small></span>
+          <span><b>Family+</b><strong>Planning & household money</strong><small>Meals, trips, expenses and stock-up intelligence.</small></span>
+          <span><b>Pro</b><strong>Advanced household intelligence</strong><small>Kitchen Vision, nearby stores and deeper household context.</small></span>
         </div>
       </section>
 

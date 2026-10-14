@@ -7,25 +7,25 @@ import type { SiteReviewSummary } from '../types';
 
 const outcomeCards = [
   {
-    icon: '⌂',
-    title: 'Know what you have',
-    text: 'Receipts, shopping, barcode scans and Kitchen Vision help GHM maintain a useful picture of what is actually at home.',
-    link: '/kitchen-vision',
-    cta: 'See Kitchen Vision',
+    icon: '🧾',
+    title: 'Scan once. Reuse the information.',
+    text: 'A reviewed receipt can feed inventory, household spending, price memory and future shopping decisions without re-entering the same trip.',
+    link: '/receipt-scanner',
+    cta: 'See receipt scanning',
   },
   {
-    icon: '✦',
-    title: 'Know what comes next',
-    text: 'Household Forecast combines stock, purchase cadence, expiry and real household choices to surface the next useful action.',
-    link: '/household-intelligence',
-    cta: 'See household intelligence',
+    icon: '🍲',
+    title: 'Know what you have—and what you can make.',
+    text: 'GHM connects inventory with Cook from Home so meal ideas can reflect what is actually available and what is still missing.',
+    link: '/meal-planning',
+    cta: 'See meals & recipes',
   },
   {
-    icon: '◇',
-    title: 'Spend smarter together',
-    text: 'Plan meals, prepare shared trips, compare supported prices and understand household spending without forcing the cheapest choice.',
+    icon: '🛒',
+    title: 'Know what to buy and what it may cost.',
+    text: 'Shared lists, saved prices, receipts and supported live signals help prepare the next trip without making you compare everything manually.',
     link: '/grocery-price-intelligence',
-    cta: 'See shopping intelligence',
+    cta: 'See smarter shopping',
   },
 ];
 
@@ -80,9 +80,9 @@ export default function HomePage() {
 
       <section className="v96-public-hero shell wide">
         <div className="v96-public-hero-copy">
-          <p className="eyebrow">ONE HOUSEHOLD SYSTEM · LESS MANUAL WORK</p>
-          <h1>Your home already knows what it needs.</h1>
-          <p className="v96-public-hero-lede">GHM connects what comes home, what appears to remain, what your household uses, what you plan to cook and how you prefer to shop—then turns those signals into the next useful decision.</p>
+          <p className="eyebrow">YOUR HOUSEHOLD GROCERIES · ONE CONNECTED PLACE</p>
+          <h1>Know what your home has, needs, buys, cooks and spends.</h1>
+          <p className="v96-public-hero-lede">GHM connects receipts, inventory, shopping, meals and household spending so your normal grocery routine creates less manual work—not more.</p>
           <div className="v96-public-hero-actions">
             <Link className="primary center-link" to={loggedIn ? '/houses' : '/login'}>{loggedIn ? 'Open GHM' : 'Start your household'}</Link>
             <Link className="secondary center-link" to="/how-it-works">See how GHM works</Link>
@@ -94,13 +94,19 @@ export default function HomePage() {
             <span><b>✦</b><small>Prediction</small></span>
             <span><b>?</b><small>Needs review</small></span>
           </div>
+          <div className="v128-simple-loop" aria-label="How GHM works">
+            <span><b>1 · Scan or add</b><small>Give GHM a real household signal.</small></span>
+            <span><b>2 · Know</b><small>See what the household already has.</small></span>
+            <span><b>3 · Plan</b><small>Turn inventory into meals and a useful list.</small></span>
+            <span><b>4 · Save time</b><small>Reuse receipts, prices and household history automatically.</small></span>
+          </div>
         </div>
 
         <HouseholdWorld variant="public" />
       </section>
 
       <section className="v96-outcome-section shell wide">
-        <header className="v96-section-intro"><p className="eyebrow">WHAT GHM DOES FOR THE HOUSEHOLD</p><h2>Three outcomes. One connected system.</h2><p>You should not need to learn a collection of grocery tools before the product becomes useful.</p></header>
+        <header className="v96-section-intro"><p className="eyebrow">WHAT GHM DOES FOR THE HOUSEHOLD</p><h2>Do less grocery administration.</h2><p>Start with a real household action. GHM connects the useful parts behind it instead of making you learn every feature first.</p></header>
         <div className="v96-outcome-grid">
           {outcomeCards.map((card) => <article key={card.title}><span>{card.icon}</span><h3>{card.title}</h3><p>{card.text}</p><Link to={card.link}>{card.cta} <b>→</b></Link></article>)}
         </div>
@@ -129,7 +135,7 @@ export default function HomePage() {
 
       <section className="v96-final-cta shell wide">
         <img src="/brand/grocery-house-manager-icon.png" alt="" />
-        <div><p className="eyebrow">GROCERY HOUSE MANAGER</p><h2>Stop managing groceries. Review what matters.</h2><p>Start simple. GHM reveals deeper intelligence only when your household needs it.</p></div>
+        <div><p className="eyebrow">GROCERY HOUSE MANAGER</p><h2>One place for what your home has, needs, buys, cooks and spends.</h2><p>Start simple. Use the deeper intelligence only when it actually helps.</p></div>
         <Link className="primary center-link" to={loggedIn ? '/houses' : '/login'}>{loggedIn ? 'Open your household' : 'Start free'}</Link>
       </section>
     </main>

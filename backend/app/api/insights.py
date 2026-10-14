@@ -67,6 +67,8 @@ from app.schemas import (
     HouseholdPlanIn,
     HouseholdPlanOut,
     KitchenCheckOut,
+    OnboardingPreferencesIn,
+    OnboardingPreferencesOut,
     OnboardingStatusOut,
     RecallGuardianOut,
     RecallMatchOut,
@@ -142,13 +144,25 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
     receipt_count = 0
     member_count = 0
     household_type = (house.household_type if house else "family") or "family"
+    preferences: OnboardingPreferencesOut | None = None
 
     if house:
         products_count = db.query(Product).filter(Product.house_id == house.id).count()
         active_lists = db.query(ShoppingList).filter(ShoppingList.house_id == house.id, ShoppingList.is_done.is_(False)).count()
         receipt_count = db.query(Receipt).filter(Receipt.house_id == house.id).count()
         member_count = db.query(HouseMember).filter(HouseMember.house_id == house.id).count()
+        if house.onboarding_preferences_json:
+            try:
+                raw_preferences = json.loads(house.onboarding_preferences_json)
+                preferences = OnboardingPreferencesOut.model_validate(raw_preferences)
+            except Exception:
+                preferences = None
 
+    # Do not interrupt established households with a new questionnaire after an upgrade.
+    # Any house that already has meaningful activity is treated as onboarded for the
+    # personalization step; new/empty houses still receive the V128 value-first flow.
+    established_household = bool(has_house and (products_count >= 5 or receipt_count > 0 or active_lists > 0 or member_count > 1))
+    preferences_complete = preferences is not None or established_household
     household_copy = {
         "family": "Start with the groceries your family buys every week. GHM will begin learning expiry, meals and restocking.",
         "roommates": "Start with shared staples or scan a receipt. Personal and shared products can stay clearly separated.",
@@ -157,7 +171,6 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
         "other": "Add a few everyday products or scan a receipt. GHM will learn from how this household actually works.",
     }.get(household_type, "Add a few everyday products or scan a receipt so GHM can start learning your home.")
 
-    # Three deliberate actions only. The product becomes useful before teaching every feature.
     steps = [
         OnboardingStepOut(
             key="house",
@@ -167,8 +180,15 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
             href="/houses",
         ),
         OnboardingStepOut(
+            key="personalize",
+            title="Tell GHM what matters most",
+            description="Choose the outcomes you care about so GHM can keep the first experience focused instead of showing every tool at once.",
+            complete=preferences_complete,
+            href="/houses",
+        ),
+        OnboardingStepOut(
             key="teach_home",
-            title="Teach GHM what is already at home",
+            title="Give GHM one real household signal",
             description=(
                 f"{min(products_count, 5)} of 5 starter products added. {household_copy}"
                 if receipt_count == 0
@@ -179,7 +199,7 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
         ),
         OnboardingStepOut(
             key="first_trip",
-            title="Create your first shared shopping trip",
+            title="Create your first real shopping trip",
             description=(
                 "Create one list. Roommates can then invite others and decide which products are shared or personal."
                 if household_type == "roommates"
@@ -196,8 +216,25 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
         total_steps=len(steps),
         percent=round((completed / len(steps)) * 100) if steps else 0,
         primary_house_id=house.id if house else None,
+        preferences_complete=preferences_complete,
+        preferences=preferences,
         steps=steps,
     )
+
+
+@router.post("/onboarding/preferences", response_model=OnboardingStatusOut)
+def save_onboarding_preferences(
+    payload: OnboardingPreferencesIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    house = _primary_house(db, user)
+    if not house:
+        raise HTTPException(status_code=400, detail="Create or join a Grocery Home before saving onboarding preferences.")
+    house.onboarding_preferences_json = json.dumps(payload.model_dump(), separators=(",", ":"))
+    db.add(house)
+    db.commit()
+    return onboarding_status(db=db, user=user)
 
 
 def _savings_summary(db: Session, house: House, user: User) -> SavingsSummaryOut:

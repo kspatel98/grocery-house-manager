@@ -803,6 +803,25 @@ class AccountBootstrapOut(BaseModel):
     premium_crown_stats: PremiumCrownStatsOut = Field(default_factory=PremiumCrownStatsOut)
     is_admin: bool = False
 
+
+
+class OnboardingPreferencesIn(BaseModel):
+    goals: list[Literal[
+        "save_money", "know_inventory", "remember_shopping", "plan_meals",
+        "reduce_waste", "manage_expenses"
+    ]] = Field(default_factory=list, max_length=3)
+    biggest_friction: Literal[
+        "duplicates", "meal_ideas", "overspending", "expiring_food",
+        "coordination", "tracking_spending", "other"
+    ]
+    cooking_frequency: Literal["daily", "most_days", "few_times_week", "rarely"]
+    receipt_habit: Literal["keep", "discard", "track_manually", "nothing"]
+    recipe_habit: Literal["memory", "social_media", "websites", "notes", "mixed"]
+
+
+class OnboardingPreferencesOut(OnboardingPreferencesIn):
+    pass
+
 class OnboardingStepOut(BaseModel):
     key: str
     title: str
@@ -814,9 +833,11 @@ class OnboardingStepOut(BaseModel):
 class OnboardingStatusOut(BaseModel):
     complete: bool = False
     completed_steps: int = 0
-    total_steps: int = 3
+    total_steps: int = 4
     percent: int = 0
     primary_house_id: int | None = None
+    preferences_complete: bool = False
+    preferences: OnboardingPreferencesOut | None = None
     steps: list[OnboardingStepOut] = Field(default_factory=list)
 
 

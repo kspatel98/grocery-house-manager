@@ -688,12 +688,28 @@ export type OnboardingStep = {
   href?: string | null;
 };
 
+export type OnboardingGoal = 'save_money' | 'know_inventory' | 'remember_shopping' | 'plan_meals' | 'reduce_waste' | 'manage_expenses';
+export type OnboardingFriction = 'duplicates' | 'meal_ideas' | 'overspending' | 'expiring_food' | 'coordination' | 'tracking_spending' | 'other';
+export type OnboardingCookingFrequency = 'daily' | 'most_days' | 'few_times_week' | 'rarely';
+export type OnboardingReceiptHabit = 'keep' | 'discard' | 'track_manually' | 'nothing';
+export type OnboardingRecipeHabit = 'memory' | 'social_media' | 'websites' | 'notes' | 'mixed';
+
+export type OnboardingPreferences = {
+  goals: OnboardingGoal[];
+  biggest_friction: OnboardingFriction;
+  cooking_frequency: OnboardingCookingFrequency;
+  receipt_habit: OnboardingReceiptHabit;
+  recipe_habit: OnboardingRecipeHabit;
+};
+
 export type OnboardingStatus = {
   complete: boolean;
   completed_steps: number;
   total_steps: number;
   percent: number;
   primary_house_id?: number | null;
+  preferences_complete?: boolean;
+  preferences?: OnboardingPreferences | null;
   steps: OnboardingStep[];
 };
 
