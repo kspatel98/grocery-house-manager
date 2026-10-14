@@ -2087,4 +2087,20 @@ export const v118Translations: Record<string, V118Translation> = {
   "Receipt automation": { gu:"રસીદ ઓટોમેશન", hi:"रसीद ऑटोमेशन", fr:"Automatisation des reçus" },
   "Planning & household money": { gu:"પ્લાનિંગ અને ઘરેલુ પૈસા", hi:"योजना और घरेलू पैसा", fr:"Planification et budget du foyer" },
   "Advanced household intelligence": { gu:"અદ્યતન ઘરેલુ ઇન્ટેલિજન્સ", hi:"उन्नत घरेलू इंटेलिजेंस", fr:"Intelligence avancée du foyer" },
+  // V129 entitlement truth / Free Starter onboarding
+  "Ask GHM · Household Intelligence": { gu:"Ask GHM · ઘરેલુ ઇન્ટેલિજન્સ", hi:"Ask GHM · घरेलू इंटेलिजेंस", fr:"Ask GHM · Intelligence du foyer" },
+  "Household-aware AI starts with Family Plus.": { gu:"ઘર-જાગૃત AI Family Plus થી શરૂ થાય છે.", hi:"घर-संदर्भित AI Family Plus से शुरू होता है।", fr:"L’IA tenant compte du foyer commence avec Family Plus." },
+  "Ask GHM can reason across inventory, shopping, receipts, expenses and saved recipes. Free Starter keeps the core household tools free and lets the account owner try one Premium workflow once.": { gu:"Ask GHM ઇન્વેન્ટરી, ખરીદી, રસીદો, ખર્ચ અને સાચવેલી રેસીપી સાથે વિચાર કરી શકે છે. Free Starter મૂળ ઘરેલુ ટૂલ્સ મફત રાખે છે અને એકાઉન્ટ માલિકને એક Premium વર્કફ્લો એકવાર અજમાવવા દે છે.", hi:"Ask GHM इन्वेंटरी, खरीदारी, रसीदों, खर्च और सहेजी गई रेसिपियों के संदर्भ में सोच सकता है। Free Starter मुख्य घरेलू टूल मुफ्त रखता है और खाता मालिक को एक Premium वर्कफ़्लो एक बार आज़माने देता है।", fr:"Ask GHM peut raisonner à partir de l’inventaire, des courses, des reçus, des dépenses et des recettes enregistrées. Free Starter garde les outils de base gratuits et permet au propriétaire du compte d’essayer une fois un flux Premium." },
+  "Try Ask GHM once free →": { gu:"Ask GHM એકવાર મફત અજમાવો →", hi:"Ask GHM एक बार मुफ्त आज़माएँ →", fr:"Essayer Ask GHM une fois gratuitement →" },
+  "See Family Plus →": { gu:"Family Plus જુઓ →", hi:"Family Plus देखें →", fr:"Voir Family Plus →" },
+  "Household expenses and reimbursements start with Family Plus.": { gu:"ઘરેલુ ખર્ચ અને રીઇમ્બર્સમેન્ટ Family Plus થી શરૂ થાય છે.", hi:"घरेलू खर्च और प्रतिपूर्ति Family Plus से शुरू होते हैं।", fr:"Les dépenses et remboursements du foyer commencent avec Family Plus." },
+  "Free Starter keeps inventory, shopping and shared household basics available. Upgrade the house owner when you want shared expense books, balances and reimbursements.": { gu:"Free Starter ઇન્વેન્ટરી, ખરીદી અને શેર ઘરેલુ મૂળ સુવિધાઓ ઉપલબ્ધ રાખે છે. શેર ખર્ચ ખાતા, બેલેન્સ અને રીઇમ્બર્સમેન્ટ માટે ઘર માલિકનો પ્લાન અપગ્રેડ કરો.", hi:"Free Starter इन्वेंटरी, खरीदारी और साझा घरेलू बुनियादी सुविधाएँ उपलब्ध रखता है। साझा खर्च खाते, बैलेंस और प्रतिपूर्ति के लिए घर के मालिक का प्लान अपग्रेड करें।", fr:"Free Starter conserve l’inventaire, les courses et les fonctions partagées de base. Mettez à niveau le forfait du propriétaire pour les comptes de dépenses, soldes et remboursements." },
+  "This is included with Free Starter.": { gu:"આ Free Starter માં સામેલ છે.", hi:"यह Free Starter में शामिल है।", fr:"Ceci est inclus avec Free Starter." },
+  "Explore your shopping list": { gu:"તમારી ખરીદી યાદી જુઓ", hi:"अपनी खरीदारी सूची देखें", fr:"Explorer votre liste de courses" },
+  "See where your first real trip will live. You can create the list now or after adding groceries.": { gu:"તમારી પ્રથમ વાસ્તવિક ખરીદી ક્યાં રહેશે તે જુઓ. તમે યાદી હમણાં અથવા ગ્રોસરી ઉમેર્યા પછી બનાવી શકો છો.", hi:"देखें कि आपकी पहली वास्तविक खरीदारी सूची कहाँ रहेगी। आप इसे अभी या सामान जोड़ने के बाद बना सकते हैं।", fr:"Voyez où se trouvera votre première vraie course. Vous pouvez créer la liste maintenant ou après avoir ajouté des produits." },
+  "Try once free": { gu:"એકવાર મફત અજમાવો", hi:"एक बार मुफ्त आज़माएँ", fr:"Essayer une fois gratuitement" },
+  "Requires Family Plus": { gu:"Family Plus જરૂરી", hi:"Family Plus आवश्यक", fr:"Nécessite Family Plus" },
+  "Requires Household Pro": { gu:"Household Pro જરૂરી", hi:"Household Pro आवश्यक", fr:"Nécessite Household Pro" },
+  "Requires Basic Home": { gu:"Basic Home જરૂરી", hi:"Basic Home आवश्यक", fr:"Nécessite Basic Home" },
+
 };

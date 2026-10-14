@@ -1,0 +1,106 @@
+/* ========================================================================== 
+   GHM V129 — plan entitlement truth + onboarding contrast + notification focus
+   ========================================================================== */
+
+/* ---- Dark-mode setup/onboarding readability ---- */
+html[data-ghm-theme="dark"] :where(.v128-first-value,.v128-onboarding-wizard,.v128-activation-card,.v128-ready-card,.v128-ready-collapsed),
+html[data-theme="dark"] :where(.v128-first-value,.v128-onboarding-wizard,.v128-activation-card,.v128-ready-card,.v128-ready-collapsed) {
+  background:
+    radial-gradient(circle at 92% 2%, rgba(96, 153, 117, .12), transparent 30%),
+    #17201d !important;
+  color: #dce9e1 !important;
+  border-color: rgba(160,190,176,.18) !important;
+  box-shadow: 0 18px 48px rgba(0,0,0,.2) !important;
+}
+html[data-ghm-theme="dark"] :where(.v128-choice-grid>button,.v128-focus-grid article,.v128-value-promise-grid>span,.v128-activation-choices a,.v128-first-trip-cta),
+html[data-theme="dark"] :where(.v128-choice-grid>button,.v128-focus-grid article,.v128-value-promise-grid>span,.v128-activation-choices a,.v128-first-trip-cta) {
+  background: #121917 !important;
+  color: #dce9e1 !important;
+  border-color: rgba(160,190,176,.18) !important;
+}
+html[data-ghm-theme="dark"] .v128-choice-grid>button.selected,
+html[data-theme="dark"] .v128-choice-grid>button.selected {
+  background: #22372d !important;
+  border-color: #5e9873 !important;
+}
+html[data-ghm-theme="dark"] :where(.v128-choice-grid strong,.v128-focus-grid strong,.v128-activation-choices strong,.v128-first-trip-cta strong,.v128-value-promise-grid small,.v128-wizard-head h2,.v128-question-copy h3,.v128-activation-head h2,.v128-ready-copy h2),
+html[data-theme="dark"] :where(.v128-choice-grid strong,.v128-focus-grid strong,.v128-activation-choices strong,.v128-first-trip-cta strong,.v128-value-promise-grid small,.v128-wizard-head h2,.v128-question-copy h3,.v128-activation-head h2,.v128-ready-copy h2) {
+  color: #f2f8f4 !important;
+}
+html[data-ghm-theme="dark"] :where(.v128-choice-grid small,.v128-focus-grid p,.v128-activation-choices small,.v128-first-trip-cta small,.v128-question-copy p,.v128-activation-head p,.v128-ready-copy p),
+html[data-theme="dark"] :where(.v128-choice-grid small,.v128-focus-grid p,.v128-activation-choices small,.v128-first-trip-cta small,.v128-question-copy p,.v128-activation-head p,.v128-ready-copy p) {
+  color: #a9bbb0 !important;
+}
+
+/* The cross-page setup coach previously had hard-coded white/light colors. */
+html[data-ghm-theme="dark"] .setup-coach,
+html[data-theme="dark"] .setup-coach {
+  background: rgba(23,32,29,.98) !important;
+  border-color: rgba(160,190,176,.2) !important;
+  color: #dce9e1 !important;
+  box-shadow: 0 22px 60px rgba(0,0,0,.36) !important;
+}
+html[data-ghm-theme="dark"] .setup-coach-head strong,
+html[data-theme="dark"] .setup-coach-head strong { color:#f3f8f5 !important; }
+html[data-ghm-theme="dark"] .setup-coach-head small,
+html[data-theme="dark"] .setup-coach-head small,
+html[data-ghm-theme="dark"] .setup-coach>p,
+html[data-theme="dark"] .setup-coach>p { color:#a8bbb0 !important; }
+html[data-ghm-theme="dark"] .setup-coach-head button,
+html[data-theme="dark"] .setup-coach-head button {
+  background:#111816 !important;
+  border:1px solid rgba(160,190,176,.18) !important;
+  color:#eef6f1 !important;
+}
+html[data-ghm-theme="dark"] .setup-coach-progress,
+html[data-theme="dark"] .setup-coach-progress { background:#0e1513 !important; }
+html[data-ghm-theme="dark"] .setup-coach-here,
+html[data-theme="dark"] .setup-coach-here {
+  background:#20342b !important;
+  color:#dce9e1 !important;
+}
+
+/* ---- Plan-lock surfaces ---- */
+.v129-feature-lock {
+  width: min(860px, calc(100% - 32px));
+  margin: clamp(24px,6vw,70px) auto;
+  display: grid;
+  grid-template-columns: 64px minmax(0,1fr);
+  gap: 18px;
+  align-items: start;
+  padding: clamp(22px,4vw,34px);
+  border: 1px solid var(--ghm-border);
+  border-radius: 26px;
+  background: var(--ghm-surface-elevated);
+  color: var(--ghm-text);
+  box-shadow: 0 18px 48px rgba(18,36,27,.1);
+}
+.v129-feature-lock.compact { margin:20px 0; width:100%; }
+.v129-feature-lock-icon {
+  width:64px;height:64px;display:grid;place-items:center;border-radius:20px;
+  background:var(--ghm-primary-soft); color:var(--ghm-primary); font-size:1.65rem;
+}
+.v129-feature-lock h1,.v129-feature-lock h2 { margin:4px 0 8px; color:var(--ghm-text-strong); }
+.v129-feature-lock p { margin:0 0 16px; color:var(--ghm-muted); line-height:1.55; }
+.v129-feature-lock small { display:block; margin-top:12px; color:var(--ghm-muted); }
+.v129-feature-lock-actions { display:flex; flex-wrap:wrap; gap:8px; }
+
+.more-tool-card-v119.v129-plan-locked {
+  opacity:.82;
+  border-style:dashed;
+}
+.more-tool-card-v119.v129-plan-locked:hover { opacity:1; }
+.v129-plan-lock-copy {
+  display:block;
+  margin-top:5px;
+  color:#d18b4f !important;
+  font-size:.65rem;
+  font-weight:900;
+}
+.v129-premium-shortcut { position:relative; }
+
+@media (max-width:650px) {
+  .v129-feature-lock { grid-template-columns:1fr; width:calc(100% - 16px); margin:18px auto; border-radius:20px; }
+  .v129-feature-lock-icon { width:52px;height:52px;border-radius:16px; }
+  .v129-feature-lock-actions>* { flex:1 1 100%; }
+}

@@ -21,6 +21,7 @@ import type {
   KitchenVisionResult,
   KitchenVisionReviewItem,
   PremiumTryStatus,
+  PlanName,
   RecipeMissingAddResponse,
   ReceiptGuardianIssue,
   ShoppingList,
@@ -110,6 +111,16 @@ export default function AssistantPage() {
   const [premiumTry, setPremiumTry] = useState<PremiumTryStatus | null>(null);
   const [stockUpTryBusy, setStockUpTryBusy] = useState(false);
   const [houseId, setHouseId] = useState<number | null>(null);
+  const selectedHouse = houses.find((house) => house.id === houseId) || null;
+  const housePlanKey: PlanName = selectedHouse?.owner_plan_name || 'free';
+  const householdIntelligencePaid = housePlanKey === 'family' || housePlanKey === 'pro';
+  const householdIntelligenceTryReady = Boolean(
+    housePlanKey === 'free' &&
+    selectedHouse?.role === 'owner' &&
+    premiumTry?.available &&
+    premiumTry.selected_feature === 'household_intelligence'
+  );
+  const householdIntelligenceUnlocked = householdIntelligencePaid || householdIntelligenceTryReady;
   const chooseWorkspace = (next: AutopilotView) => {
     const nextParams = new URLSearchParams(params);
     nextParams.set('view', next);
@@ -670,12 +681,19 @@ export default function AssistantPage() {
           history,
           mode,
           context_sources: contextSources,
-        }, { timeout: 120000 })).data,
+        }, {
+          timeout: 120000,
+          headers: householdIntelligenceTryReady ? { 'X-GHM-Premium-Try': 'household_intelligence' } : undefined,
+        })).data,
       });
       setAgentAnswer(data);
       setAgentTurns((current) => [...current, { id: taskId, question: prompt, response: data }].slice(-8));
       setAgentPrompt('');
       setAgentModeOverride(null);
+      if (householdIntelligenceTryReady) {
+        await loadHouses();
+        window.dispatchEvent(new Event('account:refresh'));
+      }
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -790,6 +808,26 @@ export default function AssistantPage() {
   }
 
   if (workspace === 'intelligence') {
+    if (!householdIntelligenceUnlocked) {
+      const freeOwner = housePlanKey === 'free' && selectedHouse?.role === 'owner';
+      return (
+        <main className="page shell wide v125-ask-page" data-workspace="intelligence">
+          <section className="v129-feature-lock">
+            <span className="v129-feature-lock-icon" aria-hidden="true">✦</span>
+            <div>
+              <p className="eyebrow">ASK GHM · HOUSEHOLD INTELLIGENCE</p>
+              <h1>Household-aware AI starts with Family Plus.</h1>
+              <p>Ask GHM can reason across inventory, shopping, receipts, expenses and saved recipes. Free Starter keeps the core household tools free and lets the account owner try one Premium workflow once.</p>
+              <div className="v129-feature-lock-actions">
+                {freeOwner && premiumTry?.available ? <Link className="primary center-link" to={`/premium-try?feature=household_intelligence&house=${houseId || ''}`}>Try Ask GHM once free →</Link> : null}
+                <Link className={freeOwner && premiumTry?.available ? 'secondary center-link' : 'primary center-link'} to="/pricing">See Family Plus →</Link>
+              </div>
+              {housePlanKey === 'basic' ? <small>This Grocery Home is on Basic Home. Upgrade the house owner to Family Plus or Household Pro to use Ask GHM.</small> : null}
+            </div>
+          </section>
+        </main>
+      );
+    }
     const suggestedPrompts = [
       'What can we cook tonight with what we already have?',
       'What should we buy this week?',

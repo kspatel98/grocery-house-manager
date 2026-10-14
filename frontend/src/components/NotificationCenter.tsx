@@ -83,7 +83,7 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
         eyebrow: 'PREMIUM TRY',
       });
     }
-    const taskItems = backgroundTasks().filter((task) => task.status === 'ready' || task.status === 'failed').slice(0, 5).map((task) => ({
+    const taskItems = backgroundTasks().filter((task) => (task.status === 'ready' || task.status === 'failed') && !task.openedAt).slice(0, 5).map((task) => ({
       key: `background:${task.id}:${task.status}`,
       title: task.status === 'ready' ? `${task.title} is ready` : `${task.title} needs attention`,
       message: task.status === 'ready' ? 'Your result finished in the background. Open it from anywhere in GHM.' : task.message,

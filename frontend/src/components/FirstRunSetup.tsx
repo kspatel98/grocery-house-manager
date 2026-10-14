@@ -227,10 +227,9 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
         <div className="v128-first-run-progress"><strong>{status.percent}%</strong><span><i style={{ width: `${status.percent}%` }} /></span></div>
       </div>
 
-      {!teachStep?.complete && status.primary_house_id ? <div className="v128-activation-choices">
-        <Link to={`/houses/${status.primary_house_id}/scan`}><span>🧾</span><div><strong>Scan a receipt</strong><small>Turn one real trip into inventory, price memory and future household context.</small></div><b>→</b></Link>
-        <Link to={`/houses/${status.primary_house_id}/inventory`}><span>＋</span><div><strong>Add 5 groceries</strong><small>Teach GHM a few everyday things already in your home.</small></div><b>→</b></Link>
-        <Link to={`/houses/${status.primary_house_id}/kitchen`}><span>👁️</span><div><strong>Show GHM part of the kitchen</strong><small>Use Kitchen Vision if you prefer a visual starting point.</small></div><b>→</b></Link>
+      {!teachStep?.complete && status.primary_house_id ? <div className="v128-activation-choices free-only">
+        <Link to={`/houses/${status.primary_house_id}/inventory`}><span>＋</span><div><strong>Add 5 groceries</strong><small>Start with a few everyday items already in your home. This is included with Free Starter.</small></div><b>→</b></Link>
+        <Link to={`/houses/${status.primary_house_id}/shopping`}><span>🛒</span><div><strong>Explore your shopping list</strong><small>See where your first real trip will live. You can create the list now or after adding groceries.</small></div><b>→</b></Link>
       </div> : null}
 
       {teachStep?.complete && !tripStep?.complete && status.primary_house_id ? <Link className="v128-first-trip-cta" to={`/houses/${status.primary_house_id}/shopping`}><span>🛒</span><div><strong>Create the first shopping list</strong><small>Use a real upcoming trip. GHM can connect shortages, meals and price history around it later.</small></div><b>Start list →</b></Link> : null}

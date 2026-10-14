@@ -165,11 +165,11 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
     preferences_complete = preferences is not None or established_household
     household_copy = {
         "family": "Start with the groceries your family buys every week. GHM will begin learning expiry, meals and restocking.",
-        "roommates": "Start with shared staples or scan a receipt. Personal and shared products can stay clearly separated.",
-        "couple": "Start with a few everyday products or scan a receipt so shared shopping and meal planning become useful quickly.",
-        "solo": "Add a few everyday products or scan a receipt. GHM will keep the setup lightweight and personal.",
-        "other": "Add a few everyday products or scan a receipt. GHM will learn from how this household actually works.",
-    }.get(household_type, "Add a few everyday products or scan a receipt so GHM can start learning your home.")
+        "roommates": "Start with shared staples. Personal and shared products can stay clearly separated.",
+        "couple": "Start with a few everyday products so shared shopping and meal planning become useful quickly.",
+        "solo": "Add a few everyday products. GHM will keep the setup lightweight and personal.",
+        "other": "Add a few everyday products. GHM will learn from how this household actually works.",
+    }.get(household_type, "Add a few everyday products so GHM can start learning your home.")
 
     steps = [
         OnboardingStepOut(
@@ -189,12 +189,8 @@ def onboarding_status(db: Session = Depends(get_db), user: User = Depends(get_cu
         OnboardingStepOut(
             key="teach_home",
             title="Give GHM one real household signal",
-            description=(
-                f"{min(products_count, 5)} of 5 starter products added. {household_copy}"
-                if receipt_count == 0
-                else f"Receipt history started. {household_copy}"
-            ),
-            complete=products_count >= 5 or receipt_count > 0,
+            description=f"{min(products_count, 5)} of 5 starter products added. {household_copy}",
+            complete=products_count >= 5,
             href=f"/houses/{house.id}/inventory" if house else "/houses",
         ),
         OnboardingStepOut(

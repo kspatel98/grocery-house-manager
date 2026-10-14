@@ -82,6 +82,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
             "GHM Autopilot weekly planner + Budget Rescue",
             "History-aware smart stock-up recommendations",
             "Automatic Trip Check + defensible Savings Ledger",
+            "Ask GHM Household Intelligence with household-aware follow-up questions",
             "Monthly household expense and reimbursement intelligence",
             "5 Smart Receipt Scans per month across houses you own",
             "Shared receipt archive with scan review and spending history",
@@ -129,6 +130,13 @@ PREMIUM_TRY_FEATURES: dict[str, dict[str, object]] = {
         "icon": "🔎",
         "min_plan": PlanName.basic,
         "upgrade_label": "Basic Home",
+    },
+    "household_intelligence": {
+        "label": "Ask GHM · Household Intelligence",
+        "description": "Ask one household-aware question using your inventory, shopping, receipts, expenses and saved recipes, then get a structured answer.",
+        "icon": "✦",
+        "min_plan": PlanName.family,
+        "upgrade_label": "Family Plus",
     },
     "whole_list_compare": {
         "label": "Whole-List Comparison",
@@ -517,6 +525,16 @@ def house_plan_has_external_price_comparison(db: Session, house_id: int, user: U
 def house_plan_has_receipt_guardian(db: Session, house_id: int) -> bool:
     """Basic Home and higher unlock automated receipt review signals."""
     return get_house_plan(db, house_id).key in {PlanName.basic, PlanName.family, PlanName.pro}
+
+
+def house_plan_has_household_intelligence(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None) -> bool:
+    """Family Plus+, or one explicitly selected Ask GHM Premium Try."""
+    return house_plan_or_premium_try(db, house_id, user, {PlanName.family, PlanName.pro}, "household_intelligence", requested_feature)
+
+
+def house_plan_has_expenses(db: Session, house_id: int) -> bool:
+    """Shared household expenses and reimbursements unlock with Family Plus+."""
+    return get_house_plan(db, house_id).key in {PlanName.family, PlanName.pro}
 
 
 def house_plan_has_autopilot_planner(db: Session, house_id: int, user: User | None = None, requested_feature: str | None = None) -> bool:

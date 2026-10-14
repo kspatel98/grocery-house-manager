@@ -253,14 +253,23 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   }, [desktopMoreOpen]);
 
   const contextHouseId = routeHouseId || activeHouseId;
+  const contextHousePlan = (cachedBootstrap()?.houses || []).find((house) => house.id === contextHouseId)?.owner_plan_name || profile?.plan_name || 'free';
+  const contextPlanRank = ({ free: 0, basic: 1, family: 2, pro: 3 } as Record<string, number>)[contextHousePlan] ?? 0;
+  const premiumFeatureHref = (feature: string, minimumRank: number, normalHref: string) => {
+    if (contextPlanRank >= minimumRank) return normalHref;
+    if (contextHousePlan === 'free' && premiumTry?.available && premiumTry.selected_feature === feature) return normalHref;
+    if (contextHousePlan === 'free' && premiumTry?.available && contextHouseId) return `/premium-try?feature=${encodeURIComponent(feature)}&house=${contextHouseId}`;
+    return '/pricing';
+  };
+  const askGhmHref = contextHouseId ? premiumFeatureHref('household_intelligence', 2, `/assistant?house=${contextHouseId}&view=intelligence`) : '/support';
   const navItems = contextHouseId
     ? [
         // App Home is the household switchboard. After a house is chosen, its
         // own four tabs (Home / Today / Money / Activity) live inside the house.
         { to: '/houses', label: 'Home', icon: '⌂' },
-        { to: `/assistant?house=${contextHouseId}&view=plan`, label: 'Plan', icon: '◫' },
+        { to: premiumFeatureHref('autopilot_planner', 2, `/assistant?house=${contextHouseId}&view=plan`), label: 'Plan', icon: contextPlanRank >= 2 ? '◫' : '🔒' },
         { to: `/houses/${contextHouseId}/shopping`, label: 'Shop', icon: '🛒' },
-        { to: `/houses/${contextHouseId}/scan`, label: 'Scan', icon: '🧾' },
+        { to: premiumFeatureHref('smart_receipt_scan', 1, `/houses/${contextHouseId}/scan`), label: 'Scan', icon: contextPlanRank >= 1 ? '🧾' : '🔒' },
         { to: `/more?house=${contextHouseId}`, label: 'More', icon: '•••' },
       ]
     : [
@@ -451,7 +460,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                 )}
               </div>
             </nav>
-            {contextHouseId ? <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="mobile-ask-ghm-v119" aria-label="Ask GHM" title="Ask GHM"><span aria-hidden="true">✦</span></Link> : null}
+            {contextHouseId ? <Link to={askGhmHref} className={`mobile-ask-ghm-v119 ${contextPlanRank < 2 ? 'v129-premium-shortcut' : ''}`} aria-label={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'} title={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'}><span aria-hidden="true">{contextPlanRank < 2 ? '🔒' : '✦'}</span></Link> : null}
             <LanguagePicker compact iconOnly />
             <SoundToggle className="header-sound-toggle-v121" />
             <ThemeToggle compact className="header-theme-toggle-v117" />
@@ -554,13 +563,13 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                 </button>
               ) : null}
               {contextHouseId ? (
-                <Link to={`/assistant?house=${contextHouseId}&view=intelligence`} className="desktop-topbar-pill-v86 v117-action-pill" aria-label="Ask GHM" title="Ask GHM">
-                  <span className="v117-action-icon" aria-hidden="true">✦</span><span className="v117-action-label">Ask GHM</span>
+                <Link to={askGhmHref} className={`desktop-topbar-pill-v86 v117-action-pill ${contextPlanRank < 2 ? 'v129-premium-shortcut' : ''}`} aria-label={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'} title={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'}>
+                  <span className="v117-action-icon" aria-hidden="true">{contextPlanRank < 2 ? '🔒' : '✦'}</span><span className="v117-action-label">Ask GHM</span>
                 </Link>
               ) : null}
               {contextHouseId ? (
-                <Link to={`/houses/${contextHouseId}/scan`} className="desktop-topbar-pill-v86 alt v117-action-pill" aria-label="Scan receipt" title="Scan receipt">
-                  <span className="v117-action-icon" aria-hidden="true">🧾</span><span className="v117-action-label">Scan receipt</span>
+                <Link to={premiumFeatureHref('smart_receipt_scan', 1, `/houses/${contextHouseId}/scan`)} className={`desktop-topbar-pill-v86 alt v117-action-pill ${contextPlanRank < 1 ? 'v129-premium-shortcut' : ''}`} aria-label={contextPlanRank < 1 ? 'Scan receipt · Basic Home' : 'Scan receipt'} title={contextPlanRank < 1 ? 'Scan receipt · Basic Home' : 'Scan receipt'}>
+                  <span className="v117-action-icon" aria-hidden="true">{contextPlanRank < 1 ? '🔒' : '🧾'}</span><span className="v117-action-label">Scan receipt</span>
                 </Link>
               ) : <Link to="/support" className="desktop-topbar-pill-v86 alt v117-action-pill"><span className="v117-action-icon" aria-hidden="true">?</span><span className="v117-action-label">{t('support')}</span></Link>}
               <LanguagePicker compact iconOnly />

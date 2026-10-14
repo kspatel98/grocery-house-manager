@@ -24,7 +24,7 @@ export default function BackgroundResultFocus() {
       if (location.pathname === '/assistant') {
         return params.get('view') === 'plan'
           ? '.autopilot-plan-result[data-ghm-background-result="true"]'
-          : '.v93-agent-answer[data-ghm-background-result="true"]';
+          : '.v125-ghm-message[data-ghm-background-result="true"], .v93-agent-answer[data-ghm-background-result="true"]';
       }
       return '[data-ghm-background-result="true"]';
     };

@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { api } from '../api';
+import type { AccountBootstrap, PlanName } from '../types';
 import { useLanguage } from '../i18n';
 
 type ToolCard = {
@@ -7,7 +10,12 @@ type ToolCard = {
   title: string;
   description: string;
   badge?: string;
+  minPlan?: PlanName;
+  premiumTryFeature?: string;
 };
+
+const PLAN_RANK: Record<PlanName, number> = { free: 0, basic: 1, family: 2, pro: 3 };
+const PLAN_LABEL: Record<PlanName, string> = { free: 'Free Starter', basic: 'Basic Home', family: 'Family Plus', pro: 'Household Pro' };
 
 type ToolSection = {
   key: string;
@@ -28,6 +36,21 @@ export default function MorePage() {
     : Number.isFinite(savedHouse) && savedHouse > 0
       ? savedHouse
       : null;
+  const [housePlan, setHousePlan] = useState<PlanName>('free');
+  const [premiumTryAvailable, setPremiumTryAvailable] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } })
+      .then(({ data }) => {
+        if (!active) return;
+        const house = data.houses?.find((row) => row.id === houseId);
+        setHousePlan(house?.owner_plan_name || 'free');
+        setPremiumTryAvailable(Boolean(data.subscription.premium_try?.available));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [houseId]);
 
   const sections: ToolSection[] = [
     ...(houseId ? [{
@@ -37,7 +60,7 @@ export default function MorePage() {
       subtitle: 'Everything that helps the household know what it owns, what to cook, and how to stay coordinated.',
       cards: [
         { to: `/houses/${houseId}/inventory`, icon: '▣', title: 'Inventory', description: 'Track what you own, quantities, sections, low stock and expiry.' },
-        { to: `/houses/${houseId}/kitchen`, icon: '👁️', title: 'Kitchen Vision', description: 'Check fridge, pantry and freezer with visual household intelligence.' },
+        { to: `/houses/${houseId}/kitchen`, icon: '👁️', title: 'Kitchen Vision', description: 'Check fridge, pantry and freezer with visual household intelligence.', minPlan: 'pro', premiumTryFeature: 'kitchen_vision' },
         { to: `/houses/${houseId}/meals`, icon: '🍲', title: 'Meals & Recipes', description: 'Cook from what you own, adjust servings and add shortages to shopping.' },
         { to: `/houses/${houseId}/food`, icon: '🍽️', title: 'Food tonight', description: 'Find nearby meal ideas when cooking at home is not the best option.' },
         { to: `/houses/${houseId}/templates`, icon: '▤', title: 'Templates', description: 'Reuse household shopping lists, routines and repeatable plans.' },
@@ -49,9 +72,9 @@ export default function MorePage() {
       title: 'Capture once. Reuse everywhere.',
       subtitle: 'Receipts, prices and shared expenses stay connected instead of being re-entered.',
       cards: [
-        { to: `/houses/${houseId}/scan`, icon: '🧾', title: 'Scan receipt', description: 'Read a receipt, review it, update inventory and optionally create an expense.', badge: 'OCR' },
+        { to: `/houses/${houseId}/scan`, icon: '🧾', title: 'Scan receipt', description: 'Read a receipt, review it, update inventory and optionally create an expense.', badge: 'OCR', minPlan: 'basic', premiumTryFeature: 'smart_receipt_scan' },
         { to: `/houses/${houseId}/receipts`, icon: '🗂️', title: 'Receipt history', description: 'Review saved receipts, images, totals and product history.' },
-        { to: `/houses/${houseId}/expenses`, icon: '$', title: 'Money', description: 'Track shared expenses, monthly books, balances and reimbursements.' },
+        { to: `/houses/${houseId}/expenses`, icon: '$', title: 'Money', description: 'Track shared expenses, monthly books, balances and reimbursements.', minPlan: 'family' },
       ],
     }, {
       key: 'intelligence',
@@ -59,9 +82,9 @@ export default function MorePage() {
       title: 'Understand and decide',
       subtitle: 'Use GHM for deeper questions, planning, comparisons and household decisions.',
       cards: [
-        { to: `/assistant?house=${houseId}&view=intelligence`, icon: '✦', title: 'Household Intelligence', description: 'Ask why something changed, what to buy, what to use first, or what choice is better.', badge: 'AI' },
-        { to: `/assistant?house=${houseId}&view=plan`, icon: '◫', title: 'Plan', description: 'Build a practical household plan around meals, shopping and what is already at home.' },
-        { to: '/market', icon: '◉', title: 'Prices & flyers', description: 'Compare grocery prices, weekly flyers and shopping opportunities.' },
+        { to: `/assistant?house=${houseId}&view=intelligence`, icon: '✦', title: 'Household Intelligence', description: 'Ask why something changed, what to buy, what to use first, or what choice is better.', badge: 'AI', minPlan: 'family', premiumTryFeature: 'household_intelligence' },
+        { to: `/assistant?house=${houseId}&view=plan`, icon: '◫', title: 'Plan', description: 'Build a practical household plan around meals, shopping and what is already at home.', minPlan: 'family', premiumTryFeature: 'autopilot_planner' },
+        { to: '/market', icon: '◉', title: 'Prices & flyers', description: 'Compare grocery prices, weekly flyers and shopping opportunities.', minPlan: 'family', premiumTryFeature: 'live_price_compare' },
         { to: '/reports', icon: '📈', title: 'Reports', description: 'See spending, savings and household patterns over time.' },
       ],
     }] as ToolSection[] : []),
@@ -112,13 +135,20 @@ export default function MorePage() {
               <div><p className="eyebrow">{tr(section.eyebrow)}</p><h2>{tr(section.title)}</h2><p>{tr(section.subtitle)}</p></div>
             </header>
             <div className="more-card-grid-v119">
-              {section.cards.map((card) => (
-                <Link className="more-tool-card-v119" to={card.to} key={`${section.key}-${card.to}-${card.title}`}>
-                  <span className="more-tool-icon-v119" aria-hidden="true">{card.icon}</span>
-                  <div><strong>{tr(card.title)}</strong><small>{tr(card.description)}</small></div>
-                  {card.badge ? <em>{card.badge}</em> : <b aria-hidden="true">›</b>}
-                </Link>
-              ))}
+              {section.cards.map((card) => {
+                const locked = Boolean(card.minPlan && PLAN_RANK[housePlan] < PLAN_RANK[card.minPlan]);
+                const canTry = locked && housePlan === 'free' && premiumTryAvailable && Boolean(card.premiumTryFeature) && Boolean(houseId);
+                const target = locked
+                  ? (canTry ? `/premium-try?feature=${encodeURIComponent(card.premiumTryFeature || '')}&house=${houseId}` : '/pricing')
+                  : card.to;
+                return (
+                  <Link className={`more-tool-card-v119 ${locked ? 'v129-plan-locked' : ''}`} to={target} key={`${section.key}-${card.to}-${card.title}`}>
+                    <span className="more-tool-icon-v119" aria-hidden="true">{card.icon}</span>
+                    <div><strong>{tr(card.title)}</strong><small>{tr(card.description)}</small>{locked ? <span className="v129-plan-lock-copy">{canTry ? 'Try once free' : `Requires ${PLAN_LABEL[card.minPlan || 'free']}`}</span> : null}</div>
+                    {locked ? <em>🔒</em> : card.badge ? <em>{card.badge}</em> : <b aria-hidden="true">›</b>}
+                  </Link>
+                );
+              })}
             </div>
           </section>
         ))}

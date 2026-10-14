@@ -173,6 +173,8 @@ export default function HousePage() {
   const controlScore = Math.max(0, 100 - (autopilot?.attention_score || Math.min(100, stats.expired * 25 + stats.expiringSoon * 8 + (stats.lowStock + stats.outOfStock) * 4)));
   const latestReceipt = receipts[0];
   const isOwner = house?.role === 'owner';
+  const housePlanKey = house?.owner_plan_name || 'free';
+  const moneyUnlocked = housePlanKey === 'family' || housePlanKey === 'pro';
   const canDelete = isOwner && members.length === 1;
 
   useEffect(() => { void loadAll(); }, [id]);
@@ -219,7 +221,7 @@ export default function HousePage() {
       <nav className="v95-house-tabs" aria-label="Household views">
         <button className={tab === 'today' ? 'active' : ''} onClick={() => chooseTab('today')}><span>✦</span><strong>Today</strong><small>What matters now</small></button>
         <button className={tab === 'home' ? 'active' : ''} onClick={() => chooseTab('home')}><span>⌂</span><strong>Home</strong><small>Stock & people</small></button>
-        <button className={tab === 'money' ? 'active' : ''} onClick={() => chooseTab('money')}><span>$</span><strong>Money</strong><small>Spend & value</small></button>
+        <button className={tab === 'money' ? 'active' : ''} onClick={() => moneyUnlocked ? chooseTab('money') : navigate('/pricing')}><span>{moneyUnlocked ? '$' : '🔒'}</span><strong>Money</strong><small>{moneyUnlocked ? 'Spend & value' : 'Family Plus'}</small></button>
         <button className={tab === 'activity' ? 'active' : ''} onClick={() => chooseTab('activity')}><span>↻</span><strong>Activity</strong><small>What changed</small></button>
       </nav>
 
@@ -318,7 +320,7 @@ export default function HousePage() {
             <Link to={`/houses/${id}/templates`}><span>▤</span><strong>Templates</strong><small>Reusable household lists</small></Link>
             <Link to="/market"><span>◉</span><strong>Prices & flyers</strong><small>Compare current options</small></Link>
             <Link to={`/houses/${id}/receipts`}><span>🗂️</span><strong>Receipts</strong><small>History & evidence</small></Link>
-            <Link to={`/houses/${id}/expenses`}><span>$</span><strong>Expenses</strong><small>Split & settle</small></Link>
+            <Link to={moneyUnlocked ? `/houses/${id}/expenses` : '/pricing'} className={!moneyUnlocked ? 'v129-plan-locked' : ''}><span>{moneyUnlocked ? '$' : '🔒'}</span><strong>Expenses</strong><small>{moneyUnlocked ? 'Split & settle' : 'Family Plus'}</small></Link>
             <Link to="/reports"><span>📈</span><strong>Reports</strong><small>Savings & household insight</small></Link>
           </div>
         </details>
@@ -329,7 +331,7 @@ export default function HousePage() {
         </section>
       </>}
 
-      {tab === 'money' && <>
+      {tab === 'money' && (moneyUnlocked ? <>
         <section className="v95-money-hero">
           <div><p className="eyebrow">THIS MONTH</p><h2>{money(expenseSnapshot.houseTotal)}</h2><p>{expenseSnapshot.count} household expense{expenseSnapshot.count === 1 ? '' : 's'} recorded.</p></div>
           <div className="v95-money-position"><small>YOUR POSITION</small><strong className={expenseSnapshot.myBalance >= 0 ? 'positive' : 'negative'}>{expenseSnapshot.myBalance >= 0 ? 'Owed ' : 'Owe '}{money(Math.abs(expenseSnapshot.myBalance))}</strong><span>You paid {money(expenseSnapshot.myPaid)} · Your share {money(expenseSnapshot.myShare)}</span></div>
@@ -340,7 +342,7 @@ export default function HousePage() {
           <Link to={`/assistant?house=${id}&view=spend`}><span>◇</span><div><strong>Shopping intelligence</strong><p>{money(autopilot?.savings_ledger.potential_total || 0, autopilot?.currency_code)} in current opportunities, kept separate from actual savings.</p></div><b>→</b></Link>
           <Link to="/market"><span>◉</span><div><strong>Prices & flyers</strong><p>Check supported prices and nearby deal information before a trip.</p></div><b>→</b></Link>
         </section>
-      </>}
+      </> : <section className="v129-feature-lock compact"><span className="v129-feature-lock-icon" aria-hidden="true">$</span><div><p className="eyebrow">HOUSEHOLD MONEY</p><h2>Expenses and reimbursements start with Family Plus.</h2><p>Free Starter keeps inventory, shopping and shared household basics available. Upgrade the house owner when you want shared expense books, balances and reimbursements.</p><Link className="primary center-link" to="/pricing">See Family Plus →</Link></div></section>)}
 
       {tab === 'activity' && <section className="v95-activity-layout">
         <div><p className="eyebrow">HOUSEHOLD ACTIVITY</p><h2>One shared source of truth.</h2><p>See what changed across shopping, inventory, receipts and household actions without hunting through each page.</p></div>

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
+from app.api.plan_utils import house_plan_has_expenses
 from app.db.session import get_db
 from app.models import (
     ExpenseCategory,
@@ -42,7 +43,18 @@ from app.schemas import (
     ExpenseSummaryOut,
 )
 
-router = APIRouter(prefix="/houses/{house_id}/expenses", tags=["expenses"])
+def require_expense_feature(
+    house_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_house_member(house_id, user, db)
+    if not house_plan_has_expenses(db, house_id):
+        raise HTTPException(status_code=402, detail="Household expenses and reimbursements require Family Plus or Household Pro.")
+    return user
+
+
+router = APIRouter(prefix="/houses/{house_id}/expenses", tags=["expenses"], dependencies=[Depends(require_expense_feature)])
 
 
 def _members(db: Session, house_id: int):
