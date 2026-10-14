@@ -403,7 +403,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const askGhmChatActive = location.pathname === '/assistant' && assistantView === 'intelligence';
 
   return (
-    <div className="app-frame desktop-sidebar-layout">
+    <div className={`app-frame desktop-sidebar-layout ${askGhmChatActive ? 'v131-ask-chat-active' : ''}`}>
       <header ref={siteHeaderRef} className="site-header">
         <div className="site-header-inner shell wide">
           <div className="site-brand-premium-wrap">

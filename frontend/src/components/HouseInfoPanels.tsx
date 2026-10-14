@@ -144,8 +144,8 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
     <OverlayPortal>
     <div className="side-drawer-backdrop" role="presentation" onClick={onClose}>
       <aside ref={drawerRef} tabIndex={-1} className="side-drawer members-drawer action-focus-panel focus-dialog" role="dialog" aria-modal="true" aria-label="House members" onClick={(event) => event.stopPropagation()}>
-        <div className="drawer-header">
-          <div>
+        <div className="drawer-header v131-members-header">
+          <div className="v131-members-heading">
             <p className="eyebrow">House members</p>
             <h2>{members.length} member{members.length === 1 ? '' : 's'}</h2>
             <p>People who can access this house. Owners can remove non-owner members.</p>
@@ -153,7 +153,7 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
           <button className="drawer-close" data-dialog-close="true" onClick={onClose} aria-label="Close members panel">×</button>
         </div>
 
-        <div className="drawer-actions">
+        <div className="drawer-actions v131-members-actions">
           {!inviteUrl && onCreateInvite && <button className="primary full" onClick={onCreateInvite}>Invite someone</button>}
           {inviteUrl && (
             <div className="invite-share-card-v87">
@@ -170,7 +170,7 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search members..." />
         </div>
 
-        <div className="drawer-member-list">
+        <div className="drawer-member-list v131-members-list">
           {!filteredMembers.length && <p className="small-muted">No members match your search.</p>}
           {filteredMembers.map((member) => (
             <MemberRow key={member.id} member={member} members={members} currentUserId={currentUserId} houseRole={houseRole} onRemoveMember={onRemoveMember} />
