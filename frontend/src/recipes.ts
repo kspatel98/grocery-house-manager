@@ -98,17 +98,87 @@ function cuisinePhotoFallback(recipe:Recipe):string {
  if(cuisine==='International')return '/recipe-images-real/cuisine/international.webp';
  return '/recipe-images-real/cuisine/north-indian.webp';
 }
-export const recipes:Recipe[]=[...baseRecipes,...moreIndianRecipes].map(recipe=>({ ...recipe, cuisine:cuisineOverrides[recipe.id]||recipe.cuisine, image:realImageOverrides[recipe.id]||cuisinePhotoFallback(recipe), steps:detailedRecipeSteps[recipe.id]||recipe.steps }));
+
+// V126: make the built-in Cook from Home catalogue read like complete recipes,
+// not just the minimum inventory ingredients. Pantry seasonings are marked
+// optional so they appear in the recipe without unfairly lowering readiness or
+// being auto-added to the grocery list when a household does not track spices.
+const pantrySets:Record<Cuisine,RecipeIngredient[]>={
+ Gujarati:[
+  {name:'Salt',qty:5,unit:'g',optional:true},{name:'Cumin',qty:4,unit:'g',optional:true},
+  {name:'Turmeric',qty:2,unit:'g',optional:true},{name:'Chilli powder',qty:4,unit:'g',optional:true},
+  {name:'Coriander powder',qty:6,unit:'g',optional:true},{name:'Coriander',qty:15,unit:'g',optional:true}
+ ],
+ Punjabi:[
+  {name:'Salt',qty:5,unit:'g',optional:true},{name:'Cumin',qty:4,unit:'g',optional:true},
+  {name:'Ginger',qty:15,unit:'g',optional:true},{name:'Garam masala',qty:4,unit:'g',optional:true},
+  {name:'Coriander',qty:15,unit:'g',optional:true}
+ ],
+ 'South Indian':[
+  {name:'Salt',qty:5,unit:'g',optional:true},{name:'Mustard seeds',qty:4,unit:'g',optional:true},
+  {name:'Curry leaves',qty:10,unit:'pcs',optional:true},{name:'Green chilli',qty:2,unit:'pcs',optional:true},
+  {name:'Coriander',qty:15,unit:'g',optional:true}
+ ],
+ Maharashtrian:[
+  {name:'Salt',qty:5,unit:'g',optional:true},{name:'Mustard seeds',qty:4,unit:'g',optional:true},
+  {name:'Turmeric',qty:2,unit:'g',optional:true},{name:'Chilli powder',qty:4,unit:'g',optional:true},
+  {name:'Coriander',qty:15,unit:'g',optional:true}
+ ],
+ Rajasthani:[
+  {name:'Salt',qty:5,unit:'g',optional:true},{name:'Cumin',qty:4,unit:'g',optional:true},
+  {name:'Coriander powder',qty:6,unit:'g',optional:true},{name:'Chilli powder',qty:4,unit:'g',optional:true}
+ ],
+ 'North Indian':[
+  {name:'Salt',qty:5,unit:'g',optional:true},{name:'Cumin',qty:4,unit:'g',optional:true},
+  {name:'Ginger',qty:15,unit:'g',optional:true},{name:'Garam masala',qty:4,unit:'g',optional:true},
+  {name:'Coriander',qty:15,unit:'g',optional:true}
+ ],
+ International:[{name:'Salt',qty:4,unit:'g',optional:true}]
+};
+const recipeSpecificPantry:Partial<Record<string,RecipeIngredient[]>>={
+ 'pav-bhaji':[{name:'Pav bhaji masala',qty:12,unit:'g',optional:true},{name:'Lemon',qty:1,unit:'pcs',optional:true}],
+ chole:[{name:'Chole masala',qty:12,unit:'g',optional:true}],
+ 'paneer-butter-masala':[{name:'Kasuri methi',qty:3,unit:'g',optional:true}],
+ 'dal-makhani':[{name:'Kasuri methi',qty:3,unit:'g',optional:true}],
+ 'chicken-curry':[{name:'Ginger',qty:15,unit:'g',optional:true},{name:'Garam masala',qty:5,unit:'g',optional:true}],
+ 'egg-curry':[{name:'Ginger',qty:12,unit:'g',optional:true},{name:'Garam masala',qty:4,unit:'g',optional:true}],
+ cake:[{name:'Vanilla extract',qty:10,unit:'ml',optional:true},{name:'Salt',qty:2,unit:'g',optional:true}],
+ poha:[{name:'Lemon',qty:1,unit:'pcs',optional:true}],
+ 'masala-dosa':[{name:'Mustard seeds',qty:4,unit:'g',optional:true},{name:'Curry leaves',qty:10,unit:'pcs',optional:true}],
+ 'idli-sambar':[{name:'Sambar powder',qty:12,unit:'g',optional:true}],
+ handvo:[{name:'Sesame seeds',qty:10,unit:'g',optional:true}],
+ khaman:[{name:'Mustard seeds',qty:4,unit:'g',optional:true}],
+ khandvi:[{name:'Mustard seeds',qty:4,unit:'g',optional:true}],
+ patra:[{name:'Sesame seeds',qty:8,unit:'g',optional:true}],
+ 'masala-chaas':[{name:'Black salt',qty:3,unit:'g',optional:true}]
+};
+function enrichRecipeIngredients(recipe:Recipe):RecipeIngredient[]{
+ const cuisine=(cuisineOverrides[recipe.id]||recipe.cuisine) as Cuisine;
+ const isSweet=recipe.kind==='dessert';
+ const extras:RecipeIngredient[]=[];
+ if(!isSweet) extras.push(...(pantrySets[cuisine]||[]));
+ else if(!recipe.ingredients.some(item=>item.name==='Cardamom')) extras.push({name:'Cardamom',qty:2,unit:'g',optional:true});
+ extras.push(...(recipeSpecificPantry[recipe.id]||[]));
+ const seen=new Set(recipe.ingredients.map(item=>item.name.toLocaleLowerCase()));
+ return [...recipe.ingredients,...extras.filter(item=>!seen.has(item.name.toLocaleLowerCase()))];
+}
+export const recipes:Recipe[]=[...baseRecipes,...moreIndianRecipes].map(recipe=>({
+ ...recipe,
+ cuisine:cuisineOverrides[recipe.id]||recipe.cuisine,
+ ingredients:enrichRecipeIngredients(recipe),
+ image:realImageOverrides[recipe.id]||cuisinePhotoFallback(recipe),
+ steps:detailedRecipeSteps[recipe.id]||recipe.steps
+}));
 
 export const ingredientNames:Record<AppLanguage,Record<string,string>>={
  en:{},
  gu:{
-  'All purpose flour':'મેંદો','Baby potato':'નાના બટાકા','Bajra flour':'બાજરીનો લોટ','Baking powder':'બેકિંગ પાવડર','Besan':'ચણાનો લોટ','Bottle gourd':'દૂધી','Broken wheat':'ફાડા','Butter':'માખણ','Cardamom':'એલચી','Chana dal':'ચણાની દાળ','Chicken':'ચિકન','Chilli powder':'લાલ મરચું પાવડર','Colocasia leaves':'અરબીના પાન','Coriander':'ધાણા','Cumin':'જીરું','Desiccated coconut':'સૂકું ખમણેલું નાળિયેર','Eggplant':'રીંગણ','Eggs':'ઇંડા','Fresh methi':'તાજી મેથી','Ghee':'ઘી','Handvo flour':'હાંડવો લોટ','Hung yogurt':'ચક્કો દહીં','Jaggery':'ગોળ','Lemon':'લીંબુ','Methi muthiya':'મેથીના મુઠિયા','Milk':'દૂધ','Mixed vegetables':'મિશ્ર શાકભાજી','Moong dal':'મગની દાળ','Oil':'તેલ','Okra':'ભીંડા','Onion':'ડુંગળી','Papad khar':'પાપડ ખાર','Poha':'પૌંઆ','Potato':'બટાકા','Purple yam':'રતાળુ','Raw banana':'કાચું કેળું','Rice':'ચોખા','Rice flour':'ચોખાનો લોટ','Salt':'મીઠું','Sev':'સેવ','Sugar':'ખાંડ','Surti papdi':'સુરતી પાપડી','Tindora':'ટીંડોરા','Tomato':'ટમેટા','Turmeric':'હળદર','Tuvar dal':'તુવેર દાળ','Tuvar lilva':'તુવેર લીલવા','Warm water':'હૂંફાળું પાણી','Water':'પાણી','Whole milk':'ફુલ ફેટ દૂધ','Whole wheat flour':'ઘઉંનો લોટ','Yogurt':'દહીં','Chickpeas':'કાબુલી ચણા','Kidney beans':'રાજમા','Whole urad dal':'અડદની આખી દાળ','Cream':'મલાઈ','Paneer':'પનીર','Idli rice':'ઇડલી ચોખા','Urad dal':'અડદ દાળ','Semolina':'રવો','Peanuts':'મગફળી','Pav':'પાવ','Sprouted moth beans':'અંકુરિત મઠ','Mixed dal':'મિશ્ર દાળ'
+  'All purpose flour':'મેંદો','Baby potato':'નાના બટાકા','Bajra flour':'બાજરીનો લોટ','Baking powder':'બેકિંગ પાવડર','Besan':'ચણાનો લોટ','Bottle gourd':'દૂધી','Broken wheat':'ફાડા','Butter':'માખણ','Cardamom':'એલચી','Chana dal':'ચણાની દાળ','Chicken':'ચિકન','Chilli powder':'લાલ મરચું પાવડર','Colocasia leaves':'અરબીના પાન','Coriander':'ધાણા','Cumin':'જીરું','Desiccated coconut':'સૂકું ખમણેલું નાળિયેર','Eggplant':'રીંગણ','Eggs':'ઇંડા','Fresh methi':'તાજી મેથી','Ghee':'ઘી','Handvo flour':'હાંડવો લોટ','Hung yogurt':'ચક્કો દહીં','Jaggery':'ગોળ','Lemon':'લીંબુ','Methi muthiya':'મેથીના મુઠિયા','Milk':'દૂધ','Mixed vegetables':'મિશ્ર શાકભાજી','Moong dal':'મગની દાળ','Oil':'તેલ','Okra':'ભીંડા','Onion':'ડુંગળી','Papad khar':'પાપડ ખાર','Poha':'પૌંઆ','Potato':'બટાકા','Purple yam':'રતાળુ','Raw banana':'કાચું કેળું','Rice':'ચોખા','Rice flour':'ચોખાનો લોટ','Salt':'મીઠું','Sev':'સેવ','Sugar':'ખાંડ','Surti papdi':'સુરતી પાપડી','Tindora':'ટીંડોરા','Tomato':'ટમેટા','Turmeric':'હળદર','Tuvar dal':'તુવેર દાળ','Tuvar lilva':'તુવેર લીલવા','Warm water':'હૂંફાળું પાણી','Water':'પાણી','Whole milk':'ફુલ ફેટ દૂધ','Whole wheat flour':'ઘઉંનો લોટ','Yogurt':'દહીં','Chickpeas':'કાબુલી ચણા','Kidney beans':'રાજમા','Whole urad dal':'અડદની આખી દાળ','Cream':'મલાઈ','Paneer':'પનીર','Idli rice':'ઇડલી ચોખા','Urad dal':'અડદ દાળ','Semolina':'રવો','Peanuts':'મગફળી','Pav':'પાવ','Sprouted moth beans':'અંકુરિત મઠ','Mixed dal':'મિશ્ર દાળ','Coriander powder':'ધાણા જીરું પાવડર','Ginger':'આદુ','Garam masala':'ગરમ મસાલો','Mustard seeds':'રાઈ','Curry leaves':'કડી પત્તા','Green chilli':'લીલું મરચું','Pav bhaji masala':'પાવ ભાજી મસાલો','Chole masala':'છોલે મસાલો','Kasuri methi':'કસૂરી મેથી','Vanilla extract':'વનિલા એસેન્સ','Sambar powder':'સાંભાર પાવડર','Sesame seeds':'તલ','Black salt':'કાળું મીઠું'
  },
  hi:{
-  'All purpose flour':'मैदा','Baby potato':'छोटे आलू','Bajra flour':'बाजरे का आटा','Baking powder':'बेकिंग पाउडर','Besan':'बेसन','Bottle gourd':'लौकी','Broken wheat':'दलिया','Butter':'मक्खन','Cardamom':'इलायची','Chana dal':'चना दाल','Chicken':'चिकन','Chilli powder':'लाल मिर्च पाउडर','Colocasia leaves':'अरबी के पत्ते','Coriander':'धनिया','Cumin':'जीरा','Desiccated coconut':'सूखा कसा नारियल','Eggplant':'बैंगन','Eggs':'अंडे','Fresh methi':'ताज़ी मेथी','Ghee':'घी','Handvo flour':'हांडवो आटा','Hung yogurt':'हंग कर्ड','Jaggery':'गुड़','Lemon':'नींबू','Methi muthiya':'मेथी मुठिया','Milk':'दूध','Mixed vegetables':'मिश्रित सब्ज़ियाँ','Moong dal':'मूंग दाल','Oil':'तेल','Okra':'भिंडी','Onion':'प्याज़','Papad khar':'पापड़ खार','Poha':'पोहा','Potato':'आलू','Purple yam':'रतालू','Raw banana':'कच्चा केला','Rice':'चावल','Rice flour':'चावल का आटा','Salt':'नमक','Sev':'सेव','Sugar':'चीनी','Surti papdi':'सुरती पापड़ी','Tindora':'टिंडोरा','Tomato':'टमाटर','Turmeric':'हल्दी','Tuvar dal':'तुअर दाल','Tuvar lilva':'तुअर लिलवा','Warm water':'गुनगुना पानी','Water':'पानी','Whole milk':'फुल क्रीम दूध','Whole wheat flour':'गेहूं का आटा','Yogurt':'दही','Chickpeas':'काबुली चना','Kidney beans':'राजमा','Whole urad dal':'साबुत उड़द दाल','Cream':'क्रीम','Paneer':'पनीर','Idli rice':'इडली चावल','Urad dal':'उड़द दाल','Semolina':'सूजी','Peanuts':'मूंगफली','Pav':'पाव','Sprouted moth beans':'अंकुरित मटकी','Mixed dal':'मिश्रित दाल'
+  'All purpose flour':'मैदा','Baby potato':'छोटे आलू','Bajra flour':'बाजरे का आटा','Baking powder':'बेकिंग पाउडर','Besan':'बेसन','Bottle gourd':'लौकी','Broken wheat':'दलिया','Butter':'मक्खन','Cardamom':'इलायची','Chana dal':'चना दाल','Chicken':'चिकन','Chilli powder':'लाल मिर्च पाउडर','Colocasia leaves':'अरबी के पत्ते','Coriander':'धनिया','Cumin':'जीरा','Desiccated coconut':'सूखा कसा नारियल','Eggplant':'बैंगन','Eggs':'अंडे','Fresh methi':'ताज़ी मेथी','Ghee':'घी','Handvo flour':'हांडवो आटा','Hung yogurt':'हंग कर्ड','Jaggery':'गुड़','Lemon':'नींबू','Methi muthiya':'मेथी मुठिया','Milk':'दूध','Mixed vegetables':'मिश्रित सब्ज़ियाँ','Moong dal':'मूंग दाल','Oil':'तेल','Okra':'भिंडी','Onion':'प्याज़','Papad khar':'पापड़ खार','Poha':'पोहा','Potato':'आलू','Purple yam':'रतालू','Raw banana':'कच्चा केला','Rice':'चावल','Rice flour':'चावल का आटा','Salt':'नमक','Sev':'सेव','Sugar':'चीनी','Surti papdi':'सुरती पापड़ी','Tindora':'टिंडोरा','Tomato':'टमाटर','Turmeric':'हल्दी','Tuvar dal':'तुअर दाल','Tuvar lilva':'तुअर लिलवा','Warm water':'गुनगुना पानी','Water':'पानी','Whole milk':'फुल क्रीम दूध','Whole wheat flour':'गेहूं का आटा','Yogurt':'दही','Chickpeas':'काबुली चना','Kidney beans':'राजमा','Whole urad dal':'साबुत उड़द दाल','Cream':'क्रीम','Paneer':'पनीर','Idli rice':'इडली चावल','Urad dal':'उड़द दाल','Semolina':'सूजी','Peanuts':'मूंगफली','Pav':'पाव','Sprouted moth beans':'अंकुरित मटकी','Mixed dal':'मिश्रित दाल','Coriander powder':'धनिया पाउडर','Ginger':'अदरक','Garam masala':'गरम मसाला','Mustard seeds':'सरसों के दाने','Curry leaves':'करी पत्ते','Green chilli':'हरी मिर्च','Pav bhaji masala':'पाव भाजी मसाला','Chole masala':'छोले मसाला','Kasuri methi':'कसूरी मेथी','Vanilla extract':'वैनिला एसेंस','Sambar powder':'सांभर पाउडर','Sesame seeds':'तिल','Black salt':'काला नमक'
  },
  fr:{
-  'All purpose flour':'farine tout usage','Baby potato':'petites pommes de terre','Bajra flour':'farine de millet perlé','Baking powder':'levure chimique','Besan':'farine de pois chiches','Bottle gourd':'calebasse','Broken wheat':'blé concassé','Butter':'beurre','Cardamom':'cardamome','Chana dal':'chana dal','Chicken':'poulet','Chilli powder':'piment en poudre','Colocasia leaves':'feuilles de colocasia','Coriander':'coriandre','Cumin':'cumin','Desiccated coconut':'noix de coco râpée séchée','Eggplant':'aubergine','Eggs':'œufs','Fresh methi':'fenugrec frais','Ghee':'ghee','Handvo flour':'farine pour handvo','Hung yogurt':'yaourt égoutté','Jaggery':'jaggery','Lemon':'citron','Methi muthiya':'muthiya au fenugrec','Milk':'lait','Mixed vegetables':'légumes mélangés','Moong dal':'moong dal','Oil':'huile','Okra':'gombo','Onion':'oignon','Papad khar':'papad khar','Poha':'riz aplati','Potato':'pomme de terre','Purple yam':'igname violette','Raw banana':'banane verte','Rice':'riz','Rice flour':'farine de riz','Salt':'sel','Sev':'sev','Sugar':'sucre','Surti papdi':'papdi de Surti','Tindora':'tindora','Tomato':'tomate','Turmeric':'curcuma','Tuvar dal':'toor dal','Tuvar lilva':'grains de tuvar frais','Warm water':'eau tiède','Water':'eau','Whole milk':'lait entier','Whole wheat flour':'farine de blé complet','Yogurt':'yaourt','Chickpeas':'pois chiches','Kidney beans':'haricots rouges','Whole urad dal':'urad entier','Cream':'crème','Paneer':'paneer','Idli rice':'riz pour idli','Urad dal':'urad dal','Semolina':'semoule','Peanuts':'cacahuètes','Pav':'petits pains pav','Sprouted moth beans':'haricots matki germés','Mixed dal':'mélange de dals'
+  'All purpose flour':'farine tout usage','Baby potato':'petites pommes de terre','Bajra flour':'farine de millet perlé','Baking powder':'levure chimique','Besan':'farine de pois chiches','Bottle gourd':'calebasse','Broken wheat':'blé concassé','Butter':'beurre','Cardamom':'cardamome','Chana dal':'chana dal','Chicken':'poulet','Chilli powder':'piment en poudre','Colocasia leaves':'feuilles de colocasia','Coriander':'coriandre','Cumin':'cumin','Desiccated coconut':'noix de coco râpée séchée','Eggplant':'aubergine','Eggs':'œufs','Fresh methi':'fenugrec frais','Ghee':'ghee','Handvo flour':'farine pour handvo','Hung yogurt':'yaourt égoutté','Jaggery':'jaggery','Lemon':'citron','Methi muthiya':'muthiya au fenugrec','Milk':'lait','Mixed vegetables':'légumes mélangés','Moong dal':'moong dal','Oil':'huile','Okra':'gombo','Onion':'oignon','Papad khar':'papad khar','Poha':'riz aplati','Potato':'pomme de terre','Purple yam':'igname violette','Raw banana':'banane verte','Rice':'riz','Rice flour':'farine de riz','Salt':'sel','Sev':'sev','Sugar':'sucre','Surti papdi':'papdi de Surti','Tindora':'tindora','Tomato':'tomate','Turmeric':'curcuma','Tuvar dal':'toor dal','Tuvar lilva':'grains de tuvar frais','Warm water':'eau tiède','Water':'eau','Whole milk':'lait entier','Whole wheat flour':'farine de blé complet','Yogurt':'yaourt','Chickpeas':'pois chiches','Kidney beans':'haricots rouges','Whole urad dal':'urad entier','Cream':'crème','Paneer':'paneer','Idli rice':'riz pour idli','Urad dal':'urad dal','Semolina':'semoule','Peanuts':'cacahuètes','Pav':'petits pains pav','Sprouted moth beans':'haricots matki germés','Mixed dal':'mélange de dals','Coriander powder':'coriandre moulue','Ginger':'gingembre','Garam masala':'garam masala','Mustard seeds':'graines de moutarde','Curry leaves':'feuilles de curry','Green chilli':'piment vert','Pav bhaji masala':'masala pour pav bhaji','Chole masala':'masala pour chole','Kasuri methi':'fenugrec séché','Vanilla extract':'extrait de vanille','Sambar powder':'poudre de sambar','Sesame seeds':'graines de sésame','Black salt':'sel noir'
  }
 };

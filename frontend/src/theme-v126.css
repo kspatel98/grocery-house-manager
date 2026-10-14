@@ -1,0 +1,184 @@
+/* ========================================================================== 
+   GHM V126 — Ask GHM true bottom dock + richer built-in recipe presentation
+   ========================================================================== */
+
+/* Ask GHM behaves like a real chat workspace: the transcript scrolls, the
+   composer owns the bottom edge, and no answer text can appear underneath it. */
+@media (min-width: 981px) {
+  .v125-ask-page {
+    height: calc(100dvh - 88px) !important;
+    min-height: 0 !important;
+    box-sizing: border-box;
+    padding: 14px 0 14px !important;
+    overflow: hidden !important;
+  }
+  .v125-ask-shell {
+    height: 100% !important;
+    min-height: 0 !important;
+    grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+    overflow: hidden !important;
+  }
+  .v125-chat-transcript {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    padding: 24px clamp(18px, 5vw, 64px) 28px !important;
+    scrollbar-gutter: stable;
+  }
+  .v125-composer-zone {
+    position: relative !important;
+    inset: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    z-index: 12;
+    flex: 0 0 auto;
+    padding: 10px clamp(16px, 4vw, 34px) 12px !important;
+    border-radius: 0 0 30px 30px !important;
+    box-shadow: 0 -14px 30px rgba(8, 18, 14, .12) !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .v125-ask-page {
+    height: calc(100dvh - var(--site-header-height, 104px)) !important;
+    min-height: 0 !important;
+    box-sizing: border-box;
+    margin: 0 !important;
+    padding: 6px 8px calc(76px + env(safe-area-inset-bottom)) !important;
+    overflow: hidden !important;
+  }
+  .v125-ask-shell {
+    height: 100% !important;
+    min-height: 0 !important;
+    grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+    overflow: hidden !important;
+  }
+  .v125-chat-transcript {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    padding: 16px 12px 20px !important;
+    scrollbar-gutter: stable;
+  }
+  .v125-composer-zone {
+    position: relative !important;
+    inset: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    z-index: 20;
+    padding: 8px 8px 9px !important;
+    border-radius: 0 0 20px 20px !important;
+    box-shadow: 0 -12px 26px rgba(8, 18, 14, .18) !important;
+  }
+  .v125-context-summary {
+    padding-bottom: 6px !important;
+  }
+  .v125-ask-composer {
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 650px) {
+  .v125-ask-page {
+    padding-inline: 6px !important;
+  }
+  .v125-ask-shell {
+    border-radius: 18px !important;
+  }
+  .v125-composer-zone {
+    padding-inline: 6px !important;
+  }
+}
+
+/* Same microphone artwork as Tell GHM. */
+.v125-mic-image {
+  width: 18px;
+  height: 18px;
+  display: block;
+  object-fit: contain;
+}
+html[data-ghm-theme="dark"] .v125-mic-image,
+html[data-theme="dark"] .v125-mic-image {
+  filter: invert(1) brightness(1.16);
+}
+
+/* ----- Built-in recipe detail: structured, scannable, premium ----- */
+.v126-recipe-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+.v126-recipe-overview > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 12px 13px;
+  border: 1px solid var(--ghm-border);
+  border-radius: 15px;
+  background: var(--ghm-surface-elevated);
+}
+.v126-recipe-overview small {
+  color: var(--ghm-muted);
+  font-size: .62rem;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.v126-recipe-overview strong {
+  color: var(--ghm-text-strong);
+  font-size: .9rem;
+  line-height: 1.25;
+}
+.v126-recipe-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 18px 0 10px;
+}
+.v126-recipe-section-head > div {
+  min-width: 0;
+}
+.v126-recipe-section-head h3 {
+  margin: 2px 0 3px;
+  color: var(--ghm-text-strong);
+}
+.v126-recipe-section-head p {
+  margin: 0;
+  color: var(--ghm-muted);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+.v126-recipe-section-head > span {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid var(--ghm-border);
+  border-radius: 999px;
+  background: var(--ghm-primary-soft);
+  color: var(--ghm-text-strong);
+  font-size: .66rem;
+  font-weight: 900;
+}
+.v126-recipe-trust-note {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--ghm-border);
+  border-radius: 13px;
+  background: var(--ghm-surface-soft);
+  color: var(--ghm-muted);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+.v126-recipe-trust-note strong { color: var(--ghm-text-strong); }
+
+@media (max-width: 720px) {
+  .v126-recipe-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .v126-recipe-section-head {
+    align-items: flex-start;
+  }
+}
