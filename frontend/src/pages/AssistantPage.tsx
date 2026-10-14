@@ -799,6 +799,7 @@ export default function AssistantPage() {
     return (
       <main className="page shell wide v125-ask-page" data-workspace="intelligence">
         <section className="v125-ask-shell">
+          <div className="v127-ask-scroll-area">
           <header className="v125-ask-header">
             <div className="v125-ask-title">
               <img src="/brand/grocery-house-manager-icon.png" alt="" />
@@ -846,6 +847,7 @@ export default function AssistantPage() {
 
             {agentBusy ? <div className="v125-ghm-message v125-thinking"><header><span className="v125-ghm-avatar" aria-hidden="true">✦</span><div><strong>GHM</strong><small>Thinking with your household…</small></div></header><div className="v125-thinking-dots"><i/><i/><i/></div></div> : null}
             <div ref={agentConversationEndRef} />
+          </div>
           </div>
 
           <div className="v125-composer-zone">

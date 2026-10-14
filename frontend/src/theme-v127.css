@@ -1,0 +1,103 @@
+/* ==========================================================================
+   GHM V127 — Ask GHM scroll area + recipe library controls + shopping confirm
+   ========================================================================== */
+
+/* Only the Ask GHM composer stays docked. Header, mode strip and conversation
+   all live in the same scroll area so they move away naturally. */
+.v125-ask-shell {
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  overflow: hidden !important;
+}
+.v127-ask-scroll-area {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.v127-ask-scroll-area .v125-chat-transcript {
+  overflow: visible !important;
+  min-height: auto !important;
+  padding-bottom: 28px !important;
+}
+.v125-composer-zone {
+  position: relative !important;
+  inset: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  z-index: 30 !important;
+  border-radius: 0 0 30px 30px !important;
+}
+@media (max-width: 980px) {
+  .v125-composer-zone {
+    border-radius: 18px 18px 0 0 !important;
+  }
+  .v127-ask-scroll-area .v125-chat-transcript {
+    padding-bottom: 22px !important;
+  }
+}
+
+/* Cook from Home can collapse without hiding search/filter controls. */
+.v127-library-actions {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.v127-library-toggle {
+  min-height:38px !important;
+  padding:7px 11px !important;
+  border-radius:12px !important;
+  white-space:nowrap;
+}
+.v127-library-collapsed-note {
+  margin:8px 0 0;
+  padding:14px 16px;
+  border:1px dashed var(--ghm-border);
+  border-radius:14px;
+  background:var(--ghm-surface-soft);
+  color:var(--ghm-muted);
+  text-align:center;
+}
+@media (max-width: 650px) {
+  .v127-meal-library .panel-title-row { align-items:flex-start; }
+  .v127-library-actions { width:100%; justify-content:space-between; }
+  .v127-library-toggle { flex:1; }
+}
+
+/* Confirm recipe shopping changes before writing to the list. */
+.v127-add-shopping-backdrop { backdrop-filter: blur(8px); }
+.v127-add-shopping-confirm { width:min(560px, calc(100vw - 24px)) !important; }
+.v127-add-shopping-summary {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:12px;
+}
+.v127-add-shopping-summary > div {
+  display:grid;
+  gap:3px;
+  padding:12px;
+  border:1px solid var(--ghm-border);
+  border-radius:14px;
+  background:var(--ghm-surface-soft);
+}
+.v127-add-shopping-summary small { color:var(--ghm-muted); font-weight:800; }
+.v127-add-shopping-summary strong { color:var(--ghm-text-strong); }
+.v127-add-shopping-preview {
+  display:grid;
+  gap:6px;
+}
+.v127-add-shopping-preview > span {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:8px 10px;
+  border-bottom:1px solid var(--ghm-divider);
+}
+.v127-add-shopping-preview b { color:var(--ghm-text-strong); }
+.v127-add-shopping-preview small,.v127-add-shopping-preview em { color:var(--ghm-muted); }
+@media (max-width: 520px) {
+  .v127-add-shopping-summary { grid-template-columns:1fr; }
+}
