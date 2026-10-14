@@ -2103,4 +2103,20 @@ export const v118Translations: Record<string, V118Translation> = {
   "Requires Household Pro": { gu:"Household Pro જરૂરી", hi:"Household Pro आवश्यक", fr:"Nécessite Household Pro" },
   "Requires Basic Home": { gu:"Basic Home જરૂરી", hi:"Basic Home आवश्यक", fr:"Nécessite Basic Home" },
 
+  // V130 guided registration onboarding
+  "Welcome. Let’s set up your home.": { gu:"સ્વાગત છે. ચાલો તમારું ઘર સેટ કરીએ.", hi:"स्वागत है। आइए आपका घर सेट करें।", fr:"Bienvenue. Configurons votre foyer." },
+  "YOUR PRIVATE GROCERY HOME": { gu:"તમારું ખાનગી ગ્રોસરી હોમ", hi:"आपका निजी ग्रोसरी होम", fr:"VOTRE FOYER D’ÉPICERIE PRIVÉ" },
+  "Start with one place for everything your household buys and uses.": { gu:"તમારા ઘરમાં જે કંઈ ખરીદાય અને વપરાય તે માટે એક જ જગ્યાથી શરૂઆત કરો.", hi:"आपके घर में जो कुछ खरीदा और उपयोग किया जाता है, उसके लिए एक ही जगह से शुरू करें।", fr:"Commencez avec un seul endroit pour tout ce que votre foyer achète et utilise." },
+  "GHM will personalize itself after this. You do not need to learn every feature now.": { gu:"આ પછી GHM તમારા માટે અનુકૂળ બનશે. તમને હમણાં દરેક ફીચર શીખવાની જરૂર નથી.", hi:"इसके बाद GHM आपके लिए व्यक्तिगत हो जाएगा। आपको अभी हर फीचर सीखने की जरूरत नहीं है।", fr:"GHM se personnalisera ensuite. Vous n’avez pas besoin d’apprendre toutes les fonctions maintenant." },
+  "Name the private household space.": { gu:"ખાનગી ઘરેલુ જગ્યાને નામ આપો.", hi:"निजी घरेलू स्थान का नाम रखें।", fr:"Donnez un nom à l’espace privé du foyer." },
+  "A few quick choices, one screen at a time.": { gu:"થોડા ઝડપી વિકલ્પો, એક સમયે એક સ્ક્રીન.", hi:"कुछ त्वरित विकल्प, एक समय में एक स्क्रीन।", fr:"Quelques choix rapides, un écran à la fois." },
+  "Get useful quickly": { gu:"ઝડપથી ઉપયોગી બનાવો", hi:"जल्दी उपयोगी बनाएं", fr:"Devenez utile rapidement" },
+  "Add a few groceries and make one real list.": { gu:"થોડી ગ્રોસરી ઉમેરો અને એક વાસ્તવિક યાદી બનાવો.", hi:"कुछ किराने का सामान जोड़ें और एक वास्तविक सूची बनाएँ।", fr:"Ajoutez quelques produits et créez une vraie liste." },
+  "What should we call your Grocery Home?": { gu:"તમારા Grocery Home ને શું નામ આપવું?", hi:"आपके Grocery Home को क्या नाम दें?", fr:"Comment devons-nous appeler votre Grocery Home ?" },
+  "Who shares groceries here?": { gu:"અહીં ગ્રોસરી કોણ શેર કરે છે?", hi:"यहाँ किराने का सामान कौन साझा करता है?", fr:"Qui partage les courses ici ?" },
+  "Create my Grocery Home →": { gu:"મારું Grocery Home બનાવો →", hi:"मेरा Grocery Home बनाएँ →", fr:"Créer mon Grocery Home →" },
+  "Creating your home…": { gu:"તમારું ઘર બનાવી રહ્યા છીએ…", hi:"आपका घर बनाया जा रहा है…", fr:"Création de votre foyer…" },
+  "No payment card required. You can rename the home later.": { gu:"પેમેન્ટ કાર્ડ જરૂરી નથી. પછી ઘરનું નામ બદલી શકો છો.", hi:"भुगतान कार्ड की आवश्यकता नहीं है। आप बाद में घर का नाम बदल सकते हैं।", fr:"Aucune carte bancaire requise. Vous pourrez renommer le foyer plus tard." },
+  "The small setup guide will follow you and advance automatically.": { gu:"નાની સેટઅપ માર્ગદર્શિકા તમારી સાથે રહેશે અને આપમેળે આગળ વધશે.", hi:"छोटी सेटअप गाइड आपके साथ रहेगी और अपने आप आगे बढ़ेगी।", fr:"Le petit guide de configuration vous suivra et progressera automatiquement." },
+
 };

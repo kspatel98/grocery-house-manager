@@ -125,7 +125,7 @@ export default function HousesPage() {
         <div className="v104-switchboard-art" aria-hidden="true"><span>🏡</span><div><i>🥦</i><i>🧾</i><i>🛒</i><i>💸</i></div></div>
       </header>
 
-      <FirstRunSetup onStatus={setOnboarding} />
+      <FirstRunSetup onStatus={setOnboarding} onHouseCreated={(house) => { setHouses((current) => current.some((row) => row.id === house.id) ? current : [...current, house]); setShowCreate(false); void load(); }} />
       {onboarding?.complete ? <InstallAppPrompt /> : null}
       {error && houses.length === 0 ? <div className="error">{error}</div> : error ? <div className="ghm-refresh-note-v106"><span>↻</span><div><strong>Showing your last loaded household view.</strong><small>GHM will refresh automatically when the connection is stable.</small></div></div> : null}
       {loading && houses.length === 0 && <div className="ghm-shell-loader-v106" aria-live="polite"><span></span><div><strong>Opening your homes</strong><small>Loading the latest household data…</small></div></div>}
@@ -137,7 +137,7 @@ export default function HousesPage() {
         <div className="v95-house-switcher-grid">{houses.map((house) => <Link key={house.id} to={`/houses/${house.id}?tab=home`} onClick={() => localStorage.setItem('ghm_active_house_id', String(house.id))} className={activeHouse?.id === house.id ? 'active' : ''}><span>⌂</span><div><strong>{house.name}</strong><small>{house.role} access</small></div><b>→</b></Link>)}</div>
       </section> : null}
 
-      {(showCreate || houses.length === 0) ? <section className="v95-create-home">
+      {((showCreate && houses.length > 0) || (!loading && houses.length === 0 && onboarding === null)) ? <section className="v95-create-home">
         <div><p className="eyebrow">PRIVATE SHARED SPACE</p><h2>{houses.length ? 'Add another household' : 'Create your first Grocery Home'}</h2><p>Inventory, shopping, receipts, expenses and members stay together. You can keep the name simple.</p></div>
         {canCreateHouse || houses.length === 0 ? <form onSubmit={createHouse} className="v96-house-create-form"><input placeholder="Example: Patel Family Home" value={name} onChange={(event) => setName(event.target.value)} /><div className="v96-household-type-grid" aria-label="Household type">{[
           ['family','👨‍👩‍👧‍👦','Family','Meals, expiry and weekly shopping first'],

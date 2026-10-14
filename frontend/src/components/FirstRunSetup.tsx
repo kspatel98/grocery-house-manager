@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import OverlayPortal from './OverlayPortal';
 import { api, errorMessage } from '../api';
 import type {
   OnboardingCookingFrequency,
@@ -9,10 +10,14 @@ import type {
   OnboardingReceiptHabit,
   OnboardingRecipeHabit,
   OnboardingStatus,
+  House,
 } from '../types';
+
+type HouseholdType = 'family' | 'roommates' | 'couple' | 'solo' | 'other';
 
 type FirstRunSetupProps = {
   onStatus?: (status: OnboardingStatus) => void;
+  onHouseCreated?: (house: House) => void;
 };
 
 type GoalOption = { key: OnboardingGoal; icon: string; label: string; copy: string };
@@ -76,7 +81,7 @@ function focusForGoal(goal: OnboardingGoal) {
   return GOALS.find((item) => item.key === goal) || GOALS[0];
 }
 
-export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
+export default function FirstRunSetup({ onStatus, onHouseCreated }: FirstRunSetupProps) {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const previousCompletedRef = useRef<number | null>(null);
   const [advanced, setAdvanced] = useState(false);
@@ -85,6 +90,10 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
   const [preferenceError, setPreferenceError] = useState('');
   const [draft, setDraft] = useState<OnboardingPreferences>(INITIAL_PREFS);
   const [completeCollapsed, setCompleteCollapsed] = useState(false);
+  const [houseName, setHouseName] = useState('');
+  const [householdType, setHouseholdType] = useState<HouseholdType>('family');
+  const [creatingHouse, setCreatingHouse] = useState(false);
+  const [houseError, setHouseError] = useState('');
 
   async function load() {
     try {
@@ -113,6 +122,36 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
     const timer = window.setInterval(() => void load(), 12000);
     return () => window.clearInterval(timer);
   }, [status?.complete]);
+
+  useEffect(() => {
+    if (!status || status.complete || typeof document === 'undefined') return;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [status?.complete]);
+
+  async function createFirstHouse(event: FormEvent) {
+    event.preventDefault();
+    if (!houseName.trim() || creatingHouse) return;
+    try {
+      setCreatingHouse(true);
+      setHouseError('');
+      const { data } = await api.post<House>('/houses', { name: houseName.trim(), household_type: householdType });
+      localStorage.setItem('ghm_active_house_id', String(data.id));
+      onHouseCreated?.(data);
+      window.dispatchEvent(new Event('account:refresh'));
+      await load();
+    } catch (err) {
+      setHouseError(errorMessage(err));
+    } finally {
+      setCreatingHouse(false);
+    }
+  }
 
   const houseStep = status?.steps.find((step) => step.key === 'house');
   const teachStep = status?.steps.find((step) => step.key === 'teach_home');
@@ -150,26 +189,49 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
   if (!status) return null;
 
   if (!hasHouse) {
-    return <section className="v128-first-value v128-first-value-house" aria-label="First-time setup">
-      <div className="v128-first-value-progress"><span style={{ width: `${status.percent}%` }} /></div>
-      <div className="v128-first-value-copy">
-        <p className="eyebrow">START WITH ONE PRIVATE HOME</p>
-        <h2>Make GHM useful before learning every feature.</h2>
-        <p>Create or join one Grocery Home first. It is simply the private place where groceries, receipts, shopping, meals and household members stay connected.</p>
-      </div>
-      <div className="v128-value-promise-grid">
-        <span><b>1</b><small>Create your home</small></span>
-        <span><b>2</b><small>Give GHM one real signal</small></span>
-        <span><b>3</b><small>Get your first useful result</small></span>
-      </div>
-      <strong className="v128-inline-nudge">Create your Grocery Home below ↓</strong>
-    </section>;
+    const houseTypes: Array<[HouseholdType,string,string,string]> = [
+      ['family','👨‍👩‍👧‍👦','Family','Meals, expiry and weekly shopping'],
+      ['roommates','👥','Roommates','Shared lists and coordination'],
+      ['couple','♥','Couple','Shared shopping and meals'],
+      ['solo','●','Just me','A lighter personal setup'],
+      ['other','⌂','Other','Keep the setup flexible'],
+    ];
+    return <OverlayPortal><div className="v130-onboarding-backdrop" role="presentation">
+      <section className="v130-onboarding-shell v130-create-home-shell" role="dialog" aria-modal="true" aria-label="Welcome to Grocery House Manager">
+        <div className="v130-onboarding-progress"><span style={{ width: '14%' }} /></div>
+        <header className="v130-onboarding-brand">
+          <img src="/brand/grocery-house-manager-icon.png" alt="" />
+          <div><small>GROCERY HOUSE MANAGER</small><strong>Welcome. Let’s set up your home.</strong></div>
+          <b>1 / 7</b>
+        </header>
+        <div className="v130-create-home-grid">
+          <div className="v130-create-home-copy">
+            <p className="eyebrow">YOUR PRIVATE GROCERY HOME</p>
+            <h1>Start with one place for everything your household buys and uses.</h1>
+            <p>GHM will personalize itself after this. You do not need to learn every feature now.</p>
+            <div className="v130-onboarding-promises">
+              <span><b>1</b><div><strong>Create your home</strong><small>Name the private household space.</small></div></span>
+              <span><b>2</b><div><strong>Tell GHM what matters</strong><small>A few quick choices, one screen at a time.</small></div></span>
+              <span><b>3</b><div><strong>Get useful quickly</strong><small>Add a few groceries and make one real list.</small></div></span>
+            </div>
+          </div>
+          <form className="v130-create-home-form" onSubmit={createFirstHouse}>
+            <div><label htmlFor="v130-house-name">What should we call your Grocery Home?</label><input id="v130-house-name" autoFocus value={houseName} onChange={(event) => setHouseName(event.target.value)} placeholder="Example: Patel Family Home" /></div>
+            <fieldset><legend>Who shares groceries here?</legend><div className="v130-house-type-grid">{houseTypes.map(([key,icon,title,copy]) => <button key={key} type="button" className={householdType === key ? 'selected' : ''} onClick={() => setHouseholdType(key)}><span>{icon}</span><div><strong>{title}</strong><small>{copy}</small></div><i>{householdType === key ? '✓' : ''}</i></button>)}</div></fieldset>
+            {houseError ? <div className="error">{houseError}</div> : null}
+            <button type="submit" className="primary v130-onboarding-primary" disabled={!houseName.trim() || creatingHouse}>{creatingHouse ? 'Creating your home…' : 'Create my Grocery Home →'}</button>
+            <small className="v130-create-note">No payment card required. You can rename the home later.</small>
+          </form>
+        </div>
+      </section>
+    </div></OverlayPortal>;
   }
+
 
   if (!status.preferences_complete) {
     const totalQuestions = 6;
     const progress = Math.round(((questionIndex + 1) / totalQuestions) * 100);
-    return <section className={`v128-onboarding-wizard ${advanced ? 'advanced' : ''}`} aria-label="Personalize GHM">
+    return <OverlayPortal><div className="v130-onboarding-backdrop"><section className={`v128-onboarding-wizard v130-onboarding-shell ${advanced ? 'advanced' : ''}`} role="dialog" aria-modal="true" aria-label="Personalize GHM">
       <div className="v128-wizard-progress"><span style={{ width: `${progress}%` }} /></div>
       <header className="v128-wizard-head">
         <div><p className="eyebrow">MAKE GHM FEEL LIKE YOUR HOUSEHOLD</p><h2>{questionIndex === 5 ? 'Your first GHM focus is ready.' : 'A few quick choices. Then start using the app.'}</h2></div>
@@ -213,7 +275,7 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
         <button type="button" className="text-button v128-skip-personalization" disabled={savingPreferences} onClick={() => void savePreferences(DEFAULT_PREFS)}>Skip personalization</button>
         {questionIndex < 5 ? <button type="button" className="primary" disabled={questionIndex === 0 && draft.goals.length === 0} onClick={() => setQuestionIndex((value) => Math.min(5, value + 1))}>Continue →</button> : <button type="button" className="primary" disabled={savingPreferences} onClick={() => void savePreferences()}>{savingPreferences ? 'Saving your focus…' : 'Use this focus →'}</button>}
       </footer>
-    </section>;
+    </section></div></OverlayPortal>;
   }
 
   if (!status.complete) {
@@ -221,7 +283,7 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
       ? { eyebrow: 'MAKE GHM USEFUL RIGHT NOW', title: 'Give GHM one real household signal.', copy: 'Do one useful action. You do not need to configure the whole app first.' }
       : { eyebrow: 'ONE MORE REAL ACTION', title: 'Create the shopping trip your household will actually use.', copy: 'Once GHM has household context and a live list, the rest of the system becomes much easier to understand.' };
 
-    return <section className={`v128-activation-card ${advanced ? 'advanced' : ''}`} aria-label="First household activation">
+    return <OverlayPortal><div className="v130-onboarding-backdrop"><section className={`v128-activation-card v130-onboarding-shell v130-activation-shell ${advanced ? 'advanced' : ''}`} role="dialog" aria-modal="true" aria-label="First household activation">
       <div className="v128-activation-head">
         <div><p className="eyebrow">{activationCopy.eyebrow}</p><h2>{activationCopy.title}</h2><p>{activationCopy.copy}</p></div>
         <div className="v128-first-run-progress"><strong>{status.percent}%</strong><span><i style={{ width: `${status.percent}%` }} /></span></div>
@@ -235,7 +297,8 @@ export default function FirstRunSetup({ onStatus }: FirstRunSetupProps) {
       {teachStep?.complete && !tripStep?.complete && status.primary_house_id ? <Link className="v128-first-trip-cta" to={`/houses/${status.primary_house_id}/shopping`}><span>🛒</span><div><strong>Create the first shopping list</strong><small>Use a real upcoming trip. GHM can connect shortages, meals and price history around it later.</small></div><b>Start list →</b></Link> : null}
 
       <div className="v128-activation-steps">{status.steps.map((step) => <span key={step.key} className={step.complete ? 'done' : ''}><b>{step.complete ? '✓' : '○'}</b>{step.title}</span>)}</div>
-    </section>;
+      <small className="v130-activation-note">You can continue using GHM after choosing the next step. The small setup guide will follow you and advance automatically.</small>
+    </section></div></OverlayPortal>;
   }
 
   if (completeCollapsed) {
