@@ -12,6 +12,7 @@ from app.api.activity_utils import display_name, log_activity
 from app.models import AuthProvider, House, HouseMember, HouseRole, PasswordHistory, PasswordResetCode, RegistrationVerificationCode, User, Receipt, ProductStorePrice, PlanName
 from app.utils.location import currency_for_country, normalize_country
 from app.utils.emailer import email_configured, send_password_reset_code, send_account_confirmation_code
+from app.services.deletion import purge_user_account
 from app.schemas import AccountDeleteIn, AccountDeletePreviewOut, ForgotPasswordRequestIn, ForgotPasswordRequestOut, ForgotPasswordResetIn, ForgotPasswordVerifyIn, ForgotPasswordVerifyOut, GoogleLoginIn, LoginIn, PasswordChangeIn, RegisterConfirmIn, RegisterIn, RegisterRequestOut, TokenOut, UserOut, UserProfileOut, UserProfileUpdate, PersonalInsightsOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -521,32 +522,19 @@ def delete_my_account(payload: AccountDeleteIn, db: Session = Depends(get_db), u
             detail=f"You own shared house(s): {names}. Remove other members or transfer/delete those houses before deleting your account.",
         )
 
-    user_name = display_name(user)
-
-    # Leave houses the user does not own, keeping those houses for the remaining members.
-    non_owner_memberships = db.query(HouseMember).filter(
-        HouseMember.user_id == user.id,
-        HouseMember.role != HouseRole.owner,
-    ).all()
-    for membership in non_owner_memberships:
-        log_activity(
-            db,
-            house_id=membership.house_id,
-            user=user,
-            action="member_left",
-            message=f"{user_name} left this house by deleting their account.",
-            entity_type="member",
-            entity_id=user.id,
+    try:
+        purge_user_account(db, user.id, owned_solo_house_ids)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        # Keep the API response safe for users while preserving the traceback in server logs.
+        import logging
+        logging.getLogger(__name__).exception("Account deletion failed", extra={"user_id": user.id})
+        raise HTTPException(
+            status_code=500,
+            detail="GHM could not finish deleting this account. Nothing was partially deleted; please retry or contact support.",
         )
-        db.delete(membership)
-
-    # Delete houses the user owns only when they are the sole member.
-    for house_id in owned_solo_house_ids:
-        house = db.get(House, house_id)
-        if house:
-            db.delete(house)
-
-    db.flush()
-    db.delete(user)
-    db.commit()
     return {"ok": True}

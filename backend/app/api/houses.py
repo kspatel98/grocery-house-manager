@@ -8,6 +8,7 @@ from app.api.plan_utils import ensure_house_limit, ensure_member_limit, get_hous
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import Activity, House, HouseMember, HouseMessageReaction, HouseRole, Invite, Section, User
+from app.services.deletion import purge_house
 from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseMessageIn, HouseMessageReactionIn, HouseMessageReactionOut, HouseOut, HouseUpdate, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
 
 router = APIRouter(prefix="/houses", tags=["houses"])
@@ -499,8 +500,17 @@ def delete_house(house_id: int, db: Session = Depends(get_db), user: User = Depe
             detail="You can delete this house only when you are the only remaining member. Remove other members first.",
         )
 
-    db.delete(house)
-    db.commit()
+    try:
+        purge_house(db, house_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        import logging
+        logging.getLogger(__name__).exception("House deletion failed", extra={"house_id": house_id, "user_id": user.id})
+        raise HTTPException(
+            status_code=500,
+            detail="GHM could not finish deleting this house. Nothing was partially deleted; please retry or contact support.",
+        )
     return {"ok": True}
 
 
