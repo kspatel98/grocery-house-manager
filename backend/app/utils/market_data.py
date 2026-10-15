@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlparse
 
 import requests
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -1264,6 +1265,165 @@ def _make_cache_key(items: list[str], location: str | None, retailers: list[str]
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _canonical_price_item(value: str) -> str:
+    """Stable product key used by the shared live-price cache.
+
+    The cache is intentionally global (not household scoped), so the same product/location
+    result can be reused by every GHM household until it expires. Keep normalization
+    conservative enough that unlike products never collapse into one key, while handling
+    common grocery plurals such as bananas/banana and eggs/egg.
+    """
+    text = re.sub(r"[^a-z0-9]+", " ", (value or "").casefold()).strip()
+    words = []
+    irregular = {
+        "tomatoes": "tomato", "potatoes": "potato", "berries": "berry",
+        "loaves": "loaf", "knives": "knife", "leaves": "leaf",
+    }
+    for word in text.split():
+        if word in irregular:
+            word = irregular[word]
+        elif len(word) > 4 and word.endswith("ies"):
+            word = word[:-3] + "y"
+        elif len(word) > 4 and word.endswith("es") and word[:-2].endswith(("s", "x", "z", "ch", "sh")):
+            word = word[:-2]
+        elif len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us")):
+            word = word[:-1]
+        words.append(word)
+    return " ".join(words)
+
+
+def _price_item_cache_key(item: str, location: str | None, retailers: list[str]) -> str:
+    normalized = {
+        "item": _canonical_price_item(item),
+        "location": (location or "").strip().casefold(),
+        "retailers": sorted([retailer.strip().casefold() for retailer in retailers if retailer.strip()]),
+        "actor": settings.apify_canada_price_actor_id,
+        "mode": settings.apify_price_output_mode,
+        "schema": 2,
+    }
+    raw = json.dumps(normalized, sort_keys=True)
+    return "apify_item:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:44]
+
+
+def _raw_row_query(row: dict[str, Any]) -> str:
+    return str(row.get("item") or row.get("query") or row.get("search_term") or row.get("input") or "").strip()
+
+
+def _row_belongs_to_item(row: dict[str, Any], item: str) -> bool:
+    expected = _canonical_price_item(item)
+    supplied = _canonical_price_item(_raw_row_query(row))
+    if supplied:
+        return supplied == expected
+    # Defensive fallback for actors that omit the original query in a result row.
+    matched = _canonical_price_item(str(row.get("matched_product") or row.get("matched_product_name") or row.get("product_name") or row.get("name") or ""))
+    if not matched or not expected:
+        return False
+    expected_tokens = set(expected.split())
+    matched_tokens = set(matched.split())
+    overlap = len(expected_tokens & matched_tokens)
+    return bool(overlap and overlap / max(len(expected_tokens), 1) >= 0.7)
+
+
+def _shared_price_location_scope(location: str) -> str:
+    """Use a stable regional scope so nearby households can share paid results.
+
+    Full Canadian postal codes are intentionally reduced to the FSA (first 3 characters).
+    Grocery pricing is normally regional/store based, while this greatly improves reuse.
+    Non-postal locations remain unchanged.
+    """
+    normalized = normalize_canadian_postal_code(location)
+    if normalized:
+        compact = normalized.replace(" ", "")
+        if len(compact) >= 3:
+            return compact[:3]
+    return (location or "Canada").strip().casefold()
+
+
+def _advisory_lock_id(value: str) -> int:
+    raw = int.from_bytes(hashlib.sha256(value.encode("utf-8")).digest()[:8], "big", signed=False)
+    return raw if raw < 2**63 else raw - 2**64
+
+
+def _lock_shared_price_items(db: Session, *, items: list[str], location: str, retailers: list[str]) -> None:
+    """Prevent concurrent workers from buying the same live lookup twice.
+
+    PostgreSQL advisory transaction locks are DB-wide. SQLite/dev environments simply skip
+    this optimization. Locks are taken in sorted order to avoid deadlocks.
+    """
+    try:
+        if db.get_bind().dialect.name != "postgresql":
+            return
+        keys = sorted(_price_item_cache_key(item, location, retailers) for item in items)
+        for key in keys:
+            db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": _advisory_lock_id(key)})
+    except Exception:
+        # Caching still works even if the database does not support advisory locks.
+        return
+
+
+def _read_shared_item_price_cache(
+    db: Session,
+    *,
+    items: list[str],
+    location: str,
+    retailers: list[str],
+) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    """Read globally reusable product/location cache shards in one DB query."""
+    now = datetime.now(timezone.utc)
+    key_by_item = {item: _price_item_cache_key(item, location, retailers) for item in items}
+    rows = (
+        db.query(ExternalPriceCache)
+        .filter(ExternalPriceCache.cache_key.in_(list(key_by_item.values())), ExternalPriceCache.expires_at > now)
+        .all()
+    ) if key_by_item else []
+    row_by_key = {row.cache_key: row for row in rows}
+    cached: dict[str, list[dict[str, Any]]] = {}
+    missing: list[str] = []
+    for item, key in key_by_item.items():
+        row = row_by_key.get(key)
+        if not row:
+            missing.append(item)
+            continue
+        try:
+            payload = json.loads(row.payload_json)
+            cached[item] = [entry for entry in (payload if isinstance(payload, list) else []) if isinstance(entry, dict)]
+        except Exception:
+            missing.append(item)
+    return cached, missing
+
+
+def _write_shared_item_price_cache(
+    db: Session,
+    *,
+    item: str,
+    location: str,
+    retailers: list[str],
+    rows: list[dict[str, Any]],
+    fetched_at: datetime,
+) -> None:
+    key = _price_item_cache_key(item, location, retailers)
+    # A successful no-match is still valuable: cache it for a shorter window so opening or
+    # refreshing another household does not immediately pay for the same fruitless query.
+    ttl_hours = settings.apify_price_cache_hours if rows else getattr(settings, "apify_price_negative_cache_hours", 6)
+    expires = fetched_at + timedelta(hours=max(1, ttl_hours))
+    existing = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == key).first()
+    payload = json.dumps(rows, default=str)
+    if existing:
+        existing.source = "apify_canada_item"
+        existing.query = item
+        existing.location = location
+        existing.retailers = ",".join(retailers) if retailers else None
+        existing.payload_json = payload
+        existing.fetched_at = fetched_at
+        existing.expires_at = expires
+    else:
+        db.add(ExternalPriceCache(
+            cache_key=key, source="apify_canada_item", query=item, location=location,
+            retailers=",".join(retailers) if retailers else None, payload_json=payload,
+            fetched_at=fetched_at, expires_at=expires,
+        ))
+
+
 def normalize_canadian_postal_code(value: str | None) -> str | None:
     if not value:
         return None
@@ -1392,18 +1552,20 @@ def get_cached_price_rows(db: Session, items: list[str], location: str | None, r
 
 
 def safe_market_error(exc: Exception) -> str:
+    """Return customer-safe provider errors. Credentials/billing details belong in admin diagnostics."""
     text = str(exc) or exc.__class__.__name__
     text = re.sub(r"token=[^&\s]+", "token=hidden", text, flags=re.I)
     text = re.sub(r"[A-Za-z0-9_\-]{28,}", "hidden", text)
+    lower = text.lower()
+    if "402" in text or "payment" in lower or "credit" in lower or "balance" in lower or "billing" in lower:
+        return "Live store prices are temporarily unavailable. GHM will keep using cached, flyer and household price history where available."
     if "401" in text or "403" in text:
-        return "The live-price connection is not authorized. Check the Apify API token."
+        return "Live store prices are temporarily unavailable. GHM will keep using other supported price sources."
     if "404" in text:
-        return "The live-price service or actor was not found. Check the actor ID."
-    if "timed out" in text.lower() or "timeout" in text.lower():
-        return "The live-price service took too long to respond. Try fewer items or refresh again."
-    if "402" in text or "payment" in text.lower() or "credit" in text.lower():
-        return "The live-price provider may need credits or billing attention."
-    return text[:220]
+        return "The live store-price source is temporarily unavailable. GHM will keep using other supported price sources."
+    if "timed out" in lower or "timeout" in lower:
+        return "The live store-price check took too long. GHM will keep using cached and household prices instead."
+    return "Live store prices could not be refreshed right now. GHM will keep using other supported price sources."
 
 
 def compare_canadian_grocery_prices(
@@ -1415,42 +1577,76 @@ def compare_canadian_grocery_prices(
     retailers: list[str] | None = None,
     force_refresh: bool = False,
 ) -> tuple[bool, list[LivePriceResultOut]]:
-    clean_items = [item.strip() for item in items if item and item.strip()]
-    clean_items = clean_items[: max(1, settings.market_max_compare_items)]
+    """Compare Canadian grocery prices with shared per-product cache shards.
+
+    Cost rule: a valid cached product/location result is never re-fired merely because another
+    household, list, refresh button, or basket combination asks for it. All products that are
+    genuinely missing/expired are batched into ONE Apify actor run (up to the configured safety
+    cap) and then written back as independent cache shards for reuse across households.
+    """
+    # De-duplicate without losing the user's ordering. Do not apply the provider safety cap yet:
+    # cached items are free and should never prevent later products from being considered.
+    clean_items: list[str] = []
+    seen_items: set[str] = set()
+    for raw in items:
+        value = " ".join(str(raw or "").split()).strip()
+        canonical = _canonical_price_item(value)
+        if value and canonical and canonical not in seen_items:
+            clean_items.append(value)
+            seen_items.add(canonical)
     clean_retailers = _normalize_retailers(retailers)
     clean_postal = normalize_canadian_postal_code(postal_code or location)
     location_key = clean_postal or (location or "Canada").strip()
+    shared_location_key = _shared_price_location_scope(location_key)
     if not clean_items:
         return False, []
 
-    cached, rows = get_cached_price_rows(db, clean_items, location_key, clean_retailers)
-    if cached:
-        if not force_refresh:
-            return True, rows
-        # A user can ask for a refresh, but do not spend on another provider run repeatedly
-        # within a short freshness window. This protects the household and provider budget
-        # from double-clicks, reloads, and repeated automatic checks.
-        key = _make_cache_key(clean_items, location_key, clean_retailers)
-        cache_row = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == key).first()
-        if cache_row and cache_row.fetched_at:
-            fetched = cache_row.fetched_at if cache_row.fetched_at.tzinfo else cache_row.fetched_at.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) - fetched < timedelta(minutes=max(1, settings.apify_price_force_refresh_min_minutes)):
-                return True, rows
+    # Preserve compatibility with old whole-basket caches. A valid exact basket cache is still
+    # reused, but new writes are sharded per product so future basket combinations can share it.
+    legacy_cached, legacy_rows = get_cached_price_rows(db, clean_items, location_key, clean_retailers)
+    if legacy_cached:
+        return True, legacy_rows
 
-    if not settings.apify_api_token:
-        return False, []
+    cached_by_item, missing_items = _read_shared_item_price_cache(
+        db, items=clean_items, location=shared_location_key, retailers=clean_retailers
+    )
+    cached_raw_rows: list[dict[str, Any]] = []
+    for item in clean_items:
+        cached_raw_rows.extend(cached_by_item.get(item, []))
+
+    # "Force refresh" deliberately does NOT invalidate a still-valid paid result. It means
+    # refresh anything stale/missing now. This prevents double-clicks and different users from
+    # burning credits while the same result remains valid.
+    provider_limit = max(1, settings.market_max_compare_items)
+    provider_items = missing_items[:provider_limit]
+    if provider_items and settings.apify_api_token:
+        # Lock the missing shards and re-check after waiting. If another request bought the
+        # result while we waited, this request reuses it instead of firing Apify again.
+        _lock_shared_price_items(db, items=provider_items, location=shared_location_key, retailers=clean_retailers)
+        refreshed_cache, refreshed_missing = _read_shared_item_price_cache(
+            db, items=clean_items, location=shared_location_key, retailers=clean_retailers
+        )
+        cached_by_item = refreshed_cache
+        cached_raw_rows = []
+        for item in clean_items:
+            cached_raw_rows.extend(cached_by_item.get(item, []))
+        provider_items = refreshed_missing[:provider_limit]
+
+    if not provider_items or not settings.apify_api_token:
+        normalized_cached = [normalize_price_row(row) for row in cached_raw_rows]
+        if not provider_items:
+            db.commit()  # releases advisory locks if this request waited for another worker
+        return bool(cached_by_item) and not provider_items, normalized_cached
 
     actor_id = (settings.apify_canada_price_actor_id or "sunny_eternity/canada-grocery-price-comparison").replace("/", "~")
     url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items"
     payload: dict[str, Any] = {
-        "items": clean_items,
-        "queries": clean_items,
+        "items": provider_items,
+        "queries": provider_items,
         "mode": settings.apify_price_output_mode or "comparison",
         "output_mode": settings.apify_price_output_mode or "comparison",
     }
     if clean_postal:
-        # The actor is most reliable with postal code. Send several common key styles
-        # because actor input schemas sometimes use different casing.
         payload["postal_code"] = clean_postal
         payload["postalCode"] = clean_postal
         payload["location"] = clean_postal
@@ -1461,15 +1657,19 @@ def compare_canadian_grocery_prices(
     if clean_retailers:
         payload["retailers"] = clean_retailers
 
-    response = requests.post(
-        url,
-        params={"token": settings.apify_api_token, "timeout": max(20, settings.apify_price_timeout_seconds)},
-        json=payload,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        timeout=max(30, settings.apify_price_timeout_seconds + 15),
-    )
-    response.raise_for_status()
-    raw_items = response.json()
+    try:
+        response = requests.post(
+            url,
+            params={"token": settings.apify_api_token, "timeout": max(20, settings.apify_price_timeout_seconds)},
+            json=payload,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            timeout=max(30, settings.apify_price_timeout_seconds + 15),
+        )
+        response.raise_for_status()
+        raw_items = response.json()
+    except Exception:
+        db.rollback()  # release any PostgreSQL advisory locks before the caller falls back
+        raise
     if isinstance(raw_items, dict):
         for key in ("items", "results", "comparison", "data"):
             if isinstance(raw_items.get(key), list):
@@ -1479,30 +1679,39 @@ def compare_canadian_grocery_prices(
             raw_items = [raw_items]
     if not isinstance(raw_items, list):
         raw_items = []
-    rows = _flatten_apify_items(raw_items)
-    normalized = [normalize_price_row(row) for row in rows]
+    flat_rows = _flatten_apify_items([row for row in raw_items if isinstance(row, dict)])
 
-    key = _make_cache_key(clean_items, location_key, clean_retailers)
     now = datetime.now(timezone.utc)
+    new_rows: list[dict[str, Any]] = []
+    for item in provider_items:
+        item_rows = [row for row in flat_rows if _row_belongs_to_item(row, item)]
+        _write_shared_item_price_cache(
+            db, item=item, location=shared_location_key, retailers=clean_retailers, rows=item_rows, fetched_at=now
+        )
+        new_rows.extend(item_rows)
+    db.commit()
+
+    # Keep an exact-basket cache as a fast compatibility layer, but the per-item shards above
+    # are what let another household/list reuse these paid results.
+    combined_raw = [*cached_raw_rows, *new_rows]
+    exact_key = _make_cache_key(clean_items, location_key, clean_retailers)
     expires = now + timedelta(hours=max(1, settings.apify_price_cache_hours))
-    existing = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == key).first()
+    existing = db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == exact_key).first()
     if existing:
-        existing.payload_json = json.dumps(raw_items, default=str)
+        existing.source = "apify_canada"
         existing.query = ", ".join(clean_items)
         existing.location = location_key
         existing.retailers = ",".join(clean_retailers) if clean_retailers else None
+        existing.payload_json = json.dumps(combined_raw, default=str)
         existing.fetched_at = now
         existing.expires_at = expires
     else:
         db.add(ExternalPriceCache(
-            cache_key=key,
-            source="apify_canada",
-            query=", ".join(clean_items),
-            location=location_key,
-            retailers=",".join(clean_retailers) if clean_retailers else None,
-            payload_json=json.dumps(raw_items, default=str),
-            fetched_at=now,
-            expires_at=expires,
+            cache_key=exact_key, source="apify_canada", query=", ".join(clean_items),
+            location=location_key, retailers=",".join(clean_retailers) if clean_retailers else None,
+            payload_json=json.dumps(combined_raw, default=str), fetched_at=now, expires_at=expires,
         ))
     db.commit()
-    return False, normalized
+    return False, [normalize_price_row(row) for row in combined_raw]
+
+

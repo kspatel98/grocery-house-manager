@@ -333,21 +333,48 @@ def _clean_key(value: str | None) -> str:
 
 
 def _live_row_matches(item_name: str, row) -> bool:
+    """Validate the returned product identity, not merely the provider's original query.
+
+    Provider rows usually echo the requested query in ``item``. Treating that echo as proof of
+    identity made every returned row look valid even when the actor matched the wrong product.
+    The basket calculator now requires the actual matched product name to agree with the grocery
+    item (or, only as a fallback, a high-confidence query-only result).
+    """
     wanted = _clean_key(item_name)
     if not wanted:
         return False
-    candidates = [_clean_key(getattr(row, "item", None)), _clean_key(getattr(row, "matched_product_name", None))]
-    wanted_tokens = set(wanted.split())
-    for candidate in candidates:
-        if not candidate:
-            continue
-        if candidate == wanted or wanted in candidate or candidate in wanted:
+
+    confidence_raw = str(getattr(row, "match_confidence", None) or "").strip().casefold()
+    confidence_value = None
+    try:
+        confidence_value = float(re.search(r"\d+(?:\.\d+)?", confidence_raw).group(0)) if re.search(r"\d+(?:\.\d+)?", confidence_raw) else None
+        if confidence_value is not None and confidence_value > 1:
+            confidence_value /= 100
+    except (TypeError, ValueError, AttributeError):
+        confidence_value = None
+    if confidence_value is not None and confidence_value < 0.45:
+        return False
+    if any(token in confidence_raw for token in ("low", "weak", "poor")):
+        return False
+
+    matched = _clean_key(getattr(row, "matched_product_name", None))
+    ignore = {"fresh", "large", "small", "original", "regular", "brand", "assorted", "selected", "size", "pack", "package"}
+    wanted_tokens = {token for token in wanted.split() if len(token) > 1 and token not in ignore}
+    if matched:
+        matched_tokens = {token for token in matched.split() if len(token) > 1 and token not in ignore}
+        if wanted == matched:
             return True
-        candidate_tokens = set(candidate.split())
-        overlap = len(wanted_tokens & candidate_tokens)
-        if overlap and overlap / max(len(wanted_tokens), 1) >= 0.6:
-            return True
-    return False
+        if len(wanted_tokens) == 1:
+            return bool(wanted_tokens & matched_tokens)
+        overlap = len(wanted_tokens & matched_tokens)
+        ratio = overlap / max(len(wanted_tokens), 1)
+        return overlap >= 1 and ratio >= 0.67
+
+    # Some actor versions omit matched_product_name. Only accept the echoed query when the
+    # provider itself reports strong confidence; otherwise skip rather than invent a basket price.
+    query = _clean_key(getattr(row, "item", None))
+    high_confidence = (confidence_value is not None and confidence_value >= 0.8) or any(token in confidence_raw for token in ("high", "exact"))
+    return bool(high_confidence and query == wanted)
 
 
 def _flyer_row_matches(item_name: str, deal) -> bool:
@@ -378,6 +405,7 @@ def _measure_family(unit: str | None) -> tuple[str | None, float]:
         "ml": ("volume", 1.0), "millilitre": ("volume", 1.0), "millilitres": ("volume", 1.0),
         "milliliter": ("volume", 1.0), "milliliters": ("volume", 1.0),
         "pcs": ("count", 1.0), "pc": ("count", 1.0), "piece": ("count", 1.0), "pieces": ("count", 1.0),
+        "each": ("count", 1.0), "ea": ("count", 1.0), "ct": ("count", 1.0), "count": ("count", 1.0), "unit": ("count", 1.0),
         "pack": ("package", 1.0), "packs": ("package", 1.0), "package": ("package", 1.0), "packages": ("package", 1.0),
     }
     return aliases.get(normalized, (None, 1.0))
@@ -454,6 +482,100 @@ def _flyer_effective_unit_price(item: ShoppingListItem, deal) -> float | None:
     return shelf_price if abs(required - 1.0) < 1e-9 else None
 
 
+def _parse_live_unit_price(value: str | None, wanted_family: str | None) -> float | None:
+    """Parse strings such as '$1.49/kg' or '$0.49 / 100 g' into price/base-unit."""
+    text = (value or "").casefold().replace(",", ".").strip()
+    if not text:
+        return None
+    price_match = re.search(r"\$?\s*(\d+(?:\.\d+)?)", text)
+    unit_match = re.search(r"(?:/|per)\s*(?:(\d+(?:\.\d+)?)\s*)?(kg|g|l|ml|litres?|liters?|kilograms?|grams?|milliliters?|each|ea|pcs?|count|unit)\b", text)
+    if not price_match or not unit_match:
+        return None
+    family, factor = _measure_family(unit_match.group(2))
+    if not family or (wanted_family and family != wanted_family):
+        return None
+    denominator = float(unit_match.group(1) or 1) * factor
+    if denominator <= 0:
+        return None
+    return float(price_match.group(1)) / denominator
+
+
+def _live_effective_unit_price(item: ShoppingListItem, row) -> float | None:
+    """Convert a live retailer result into a price safe to multiply by the list quantity.
+
+    The provider's shelf price is often a package price, not a per-kg/per-gram price. This
+    function prefers explicit unit_price, then package_size, and refuses unsafe multiplication
+    when the quantity/unit relationship cannot be established.
+    """
+    row_price = getattr(row, "sale_price", None)
+    if row_price is None:
+        row_price = getattr(row, "price", None)
+    try:
+        shelf_price = float(row_price)
+        required = max(float(item.requested_quantity or 1), 0.0001)
+    except (TypeError, ValueError):
+        return None
+    if shelf_price < 0:
+        return None
+
+    family, factor = _measure_family(getattr(item.product, "unit", None))
+    unit_base_price = _parse_live_unit_price(getattr(row, "unit_price", None), family)
+    if unit_base_price is not None and family in {"mass", "volume", "count"}:
+        return unit_base_price * factor
+
+    package_text = " ".join(filter(None, [getattr(row, "package_size", None), getattr(row, "matched_product_name", None)]))
+    package_family, package_base = _flyer_package_measure(package_text, family)
+    if family in {"mass", "volume"}:
+        if package_family == family and package_base and package_base > 0:
+            required_base = required * factor
+            packages = max(ceil(required_base / package_base), 1)
+            return (shelf_price * packages) / required
+        # Never multiply a package shelf price by grams/kg/ml/L when package size is unknown.
+        return shelf_price if abs(required - 1.0) < 1e-9 else None
+    if family == "count":
+        if package_family == "count" and package_base and package_base > 0:
+            packages = max(ceil(required / package_base), 1)
+            return (shelf_price * packages) / required
+        return shelf_price
+    if family == "package":
+        return shelf_price
+    return shelf_price if abs(required - 1.0) < 1e-9 else None
+
+
+def _convert_quantity(value: float, from_unit: str | None, to_unit: str | None) -> float | None:
+    from_family, from_factor = _measure_family(from_unit)
+    to_family, to_factor = _measure_family(to_unit)
+    if not from_family or from_family != to_family or to_factor <= 0:
+        return None
+    return float(value) * from_factor / to_factor
+
+
+def _quantity_warning(item: ShoppingListItem) -> str | None:
+    try:
+        qty = float(item.requested_quantity or 0)
+    except (TypeError, ValueError):
+        return f"{item.product.name}: quantity is invalid."
+    if qty <= 0:
+        return f"{item.product.name}: quantity must be greater than zero."
+    unit = getattr(item.product, "unit", None) or "pcs"
+    family, factor = _measure_family(unit)
+    base = qty * factor
+    name = (item.product.name or "Item").strip()
+    if family == "mass" and base > 25_000:
+        return f"{name}: {qty:g} {unit} is unusually large. Confirm the unit before GHM prices this trip."
+    if family == "volume" and base > 30_000:
+        return f"{name}: {qty:g} {unit} is unusually large. Confirm the unit before GHM prices this trip."
+    if family == "count" and qty > 120:
+        return f"{name}: {qty:g} {unit} is unusually large. Confirm the quantity before GHM prices this trip."
+    if family == "package" and qty > 60:
+        return f"{name}: {qty:g} {unit} is unusually large. Confirm the quantity before GHM prices this trip."
+    # Catch obvious recipe unit mistakes without flagging legitimate 1–2 g spices.
+    bulk_keywords = ("flour", "rice", "potato", "banana", "apple", "tomato", "onion", "milk", "yogurt", "paneer", "chicken", "vegetable")
+    if family == "mass" and base < 5 and any(word in name.casefold() for word in bulk_keywords):
+        return f"{name}: {qty:g} {unit} looks unusually small for this grocery item. Confirm the recipe/list unit."
+    return None
+
+
 def _classify_saved_source(source: str | None, recorded_at: datetime | None) -> str:
     raw = (source or "saved").lower()
     if raw.startswith("receipt"):
@@ -496,6 +618,23 @@ def _basket_comparison(
             last_refreshed_at=now,
         )
 
+    # Never spend provider credits on a basket whose quantities are clearly malformed. A common
+    # example is a recipe's 250 g ingredient being attached to an existing kg product as 250 kg.
+    quantity_warnings = [warning for item in items if (warning := _quantity_warning(item))]
+    if quantity_warnings:
+        return BasketComparisonOut(
+            message="Trip check paused because one or more quantities need review. Correct them first; GHM will reuse any existing cached prices without paying for another lookup.",
+            list_id=shopping_list.id,
+            list_title=shopping_list.title,
+            total_items=total_items,
+            quantity_review_required=True,
+            quantity_warnings=quantity_warnings[:8],
+            live_configured=bool(settings.apify_api_token),
+            flyer_configured=bool(settings.apify_api_token),
+            last_refreshed_at=now,
+            recommendation_reason="GHM blocks implausible quantities before calculating or purchasing live-price data so an incorrect unit cannot create a misleading basket total.",
+        )
+
     clean_postal = normalize_canadian_postal_code(postal_code)
     location_label = clean_postal
     if not location_label and user:
@@ -504,11 +643,12 @@ def _basket_comparison(
 
     live_rows = []
     live_attempted = False
+    live_cache_reused = False
     live_error = None
     if include_live and settings.apify_api_token:
         live_attempted = True
         try:
-            _, live_rows = compare_canadian_grocery_prices(
+            live_cache_reused, live_rows = compare_canadian_grocery_prices(
                 db,
                 items=[item.product.name for item in items],
                 location=location_label,
@@ -525,8 +665,11 @@ def _basket_comparison(
     if include_live and settings.apify_api_token and clean_postal and len(clean_postal.replace(" ", "")) == 6:
         flyer_attempted = True
         try:
+            house = db.get(House, house_id)
+            preferred_flyer_stores = _split_pref_stores(house.autopilot_preferred_stores)[:5] if house else []
             _, _, flyer_rows = get_weekly_flyer_deals(
-                db, postal_code=clean_postal, force_refresh=force_refresh
+                db, postal_code=clean_postal, merchants=preferred_flyer_stores or None,
+                force_refresh=force_refresh, max_merchants=5,
             )
         except Exception as exc:
             flyer_error = safe_market_error(exc)
@@ -567,15 +710,14 @@ def _basket_comparison(
             put_price(item.id, product.store_name, float(product.price), "saved_price", product.updated_at)
 
     for row in live_rows:
-        row_price = getattr(row, "sale_price", None)
-        if row_price is None:
-            row_price = getattr(row, "price", None)
         store = getattr(row, "banner", None) or getattr(row, "store_name", None) or getattr(row, "retailer", None)
-        if row_price is None or not store:
+        if not store:
             continue
         for item in items:
             if _live_row_matches(item.product.name, row):
-                put_price(item.id, store, float(row_price), "live", getattr(row, "scraped_at", None) or now)
+                effective_price = _live_effective_unit_price(item, row)
+                if effective_price is not None:
+                    put_price(item.id, store, effective_price, "live", getattr(row, "scraped_at", None) or now)
 
     for deal in flyer_rows:
         if getattr(deal, "price", None) is None or getattr(deal, "is_multi_product_bundle", False):
@@ -657,8 +799,25 @@ def _basket_comparison(
         )
 
     store_options.sort(key=lambda row: (not row.complete, -row.coverage_percent, row.known_total, row.store_name.lower()))
-    complete_stores = [row for row in store_options if row.complete]
-    best_single = min(complete_stores, key=lambda row: row.known_total) if complete_stores else (store_options[0] if store_options else None)
+
+    # Final plausibility guard: even valid-looking quantities can receive a bad provider price.
+    # Do not recommend an obviously extreme basket as though it were trustworthy. The threshold
+    # intentionally scales with list size and is generous enough for normal Canadian grocery trips.
+    basket_total_guard = max(750.0, float(total_items) * 100.0)
+    price_warnings: list[str] = []
+    plausible_store_options: list[BasketStoreOptionOut] = []
+    for option in store_options:
+        proportional_guard = basket_total_guard * max(option.priced_items / max(total_items, 1), 0.35)
+        suspicious = option.priced_items >= min(5, total_items) and option.known_total > proportional_guard
+        if suspicious:
+            price_warnings.append(
+                f"{option.store_name}: ${option.known_total:.2f} for {option.priced_items} priced items looks unusually high, so GHM excluded it from the recommendation."
+            )
+        else:
+            plausible_store_options.append(option)
+
+    complete_stores = [row for row in plausible_store_options if row.complete]
+    best_single = min(complete_stores, key=lambda row: row.known_total) if complete_stores else (plausible_store_options[0] if plausible_store_options else None)
     comparison_ready = bool(complete_stores)
 
     # A split trip is recommended only when every item has a supported price at one of the two stores.
@@ -689,7 +848,12 @@ def _basket_comparison(
             pair_total += chosen_price * qty
             pair_picks.append(f"{item.product.name} → {chosen_store}")
         if complete_pair:
-            pair_candidates.append((round(pair_total, 2), (first_store, second_store), pair_picks))
+            if pair_total <= basket_total_guard:
+                pair_candidates.append((round(pair_total, 2), (first_store, second_store), pair_picks))
+            else:
+                price_warnings.append(
+                    f"{first_store} + {second_store}: ${pair_total:.2f} looks unusually high, so GHM excluded this split trip."
+                )
 
     if pair_candidates:
         pair_total, pair_names, pair_picks = min(pair_candidates, key=lambda row: row[0])
@@ -712,7 +876,7 @@ def _basket_comparison(
             split_worth_it = True
             split_recommendation = "No single store has a complete known basket, but this two-store combination covers every item with supported prices."
 
-    if not store_options:
+    if not plausible_store_options:
         if live_attempted:
             message = "We automatically checked live prices and your household history, but no usable store prices were found for this list yet."
         else:
@@ -722,6 +886,9 @@ def _basket_comparison(
         if flyer_error:
             message += f" Flyer lookup issue: {flyer_error}"
         recommendation_reason = "Add or scan prices only when convenient; the app will reuse them automatically next time."
+        if price_warnings and store_options:
+            message = "GHM found price totals that look implausibly high, so it refused to recommend a trip from them. The underlying prices remain available for review without triggering another paid lookup."
+            recommendation_reason = "A sanity check blocked an extreme basket total before it could be shown as a shopping recommendation."
     elif complete_stores:
         winner = min(complete_stores, key=lambda row: row.known_total)
         message = f"{winner.store_name} is the lowest complete basket we can support right now at ${winner.known_total:.2f}."
@@ -730,7 +897,7 @@ def _basket_comparison(
         message = f"No single store has every price yet, but {' + '.join(split_names)} covers all {total_items} items at a supported total of ${split_value:.2f}."
         recommendation_reason = "This is a complete two-store price plan built only from supported prices; no missing item was guessed."
     else:
-        leader = store_options[0]
+        leader = plausible_store_options[0]
         message = f"{leader.store_name} has the most complete price picture ({leader.priced_items} of {total_items} items). We are not guessing prices for the missing items."
         recommendation_reason = "A full cheapest-store recommendation will appear automatically when enough supported prices exist for a complete one- or two-store trip."
 
@@ -758,6 +925,9 @@ def _basket_comparison(
         location_label=location_label,
         needs_postal_code=bool(include_live and not clean_postal),
         data_sources=sorted(data_sources),
+        price_review_required=bool(price_warnings and not complete_stores and split_value is None),
+        price_warnings=list(dict.fromkeys(price_warnings))[:8],
+        live_cache_reused=live_cache_reused,
         last_refreshed_at=now,
         recommendation_reason=recommendation_reason,
     )
@@ -1273,6 +1443,18 @@ def add_recipe_shopping_items(
             product = Product(house_id=house_id, section_id=section.id, name=name[:180], quantity=0, unit=(row.unit or "pcs")[:32], low_stock_threshold=0, notes=f"Created from recipe shopping: {payload.recipe_name or 'Recipe'}")
             db.add(product); db.flush(); products.append(product); created_products.append(product.name)
         quantity = max(float(row.quantity), 0.0001)
+        # The frontend usually converts recipe units before sending, but the backend is the final
+        # authority because fuzzy ingredient matching can resolve a 250 g ingredient to an
+        # existing product tracked in kg. Convert again here so 250 g can never become 250 kg.
+        converted_quantity = _convert_quantity(quantity, row.unit, product.unit)
+        if converted_quantity is not None:
+            quantity = max(converted_quantity, 0.0001)
+        elif (row.unit or "").strip().casefold() != (product.unit or "").strip().casefold():
+            # Incompatible fuzzy matches (for example tablespoons vs pieces) are unsafe. Create a
+            # separate recipe product in the requested unit instead of silently corrupting units.
+            ensure_product_limit(db, house_id, user)
+            product = Product(house_id=house_id, section_id=section.id, name=name[:180], quantity=0, unit=(row.unit or "pcs")[:32], low_stock_threshold=0, notes=f"Created from recipe shopping: {payload.recipe_name or 'Recipe'}")
+            db.add(product); db.flush(); products.append(product); created_products.append(product.name)
         message = row.tag or f"Recipe · {payload.recipe_name or 'Meal'}"
         if product.id in existing:
             item = existing[product.id]

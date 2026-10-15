@@ -413,7 +413,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       });
       if (usePremiumTry && !data.premium_required) window.dispatchEvent(new Event('account:refresh'));
       setComparison(data);
-      setDetailsOpen(Boolean(data.store_options.length));
+      setDetailsOpen(false);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -426,7 +426,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
     const restored = taskId ? getBackgroundTaskResult<BasketComparison>(taskId) : null;
     if (taskId && restored) {
       setComparison(restored);
-      setDetailsOpen(Boolean(restored.store_options.length));
+      setDetailsOpen(false);
       setError('');
       window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0);
       return;
@@ -453,9 +453,9 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
             <p className="eyebrow">Family Plus • automatic trip check</p>
             <div className="feature-heading-with-why-v101"><h2>Where should I buy “{selectedList.title}”?</h2><FeatureWhyButton feature="price_compare" label="Why?" /></div>
           </div>
-          <span className={`auto-status ${busy ? 'checking' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparison ? 'Prices checked' : 'Ready to check'}</span>
+          <span className={`auto-status ${busy ? 'checking' : (comparison?.quantity_review_required || comparison?.price_review_required) ? 'review' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : (comparison?.quantity_review_required || comparison?.price_review_required) ? '!' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparison?.quantity_review_required ? 'Needs quantity review' : comparison?.price_review_required ? 'Needs price review' : comparison ? 'Prices checked' : 'Ready to check'}</span>
         </div>
-        <p>Prices are checked automatically: current Canadian prices first, then active weekly flyer deals, then your recent receipts and older saved prices. If a price cannot be found, we say so instead of guessing.</p>
+        <p>GHM compares the whole list using shared live-price cache, current flyers and your household price history. Paid lookups run only for products whose shared result is missing or expired.</p>
 
         {comparison?.premium_required ? (
           <div className="basket-upgrade-line">
@@ -467,6 +467,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
         {comparison && !comparison.premium_required ? (
           <div className="basket-source-strip">
             {comparison.data_sources.length ? comparison.data_sources.map((source) => <span key={source}>✓ {source}</span>) : <span>No prices found yet</span>}
+            {comparison.live_cache_reused ? <span>♻ Shared live-price cache reused</span> : null}
             {comparison.location_label ? <span>📍 {comparison.location_label}</span> : null}
             {lastUpdated ? <span>Updated {lastUpdated}</span> : null}
           </div>
@@ -485,7 +486,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
 
         <div className="whole-list-actions">
           <button className="primary" type="button" onClick={() => compare(false)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : 'Refresh prices'}</button>
-          {comparison?.store_options.length ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : 'View store details'}</button> : null}
+          {comparison?.store_options.length && !comparison.quantity_review_required ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : comparison.price_review_required ? 'Review flagged prices' : 'View store details'}</button> : null}
         </div>
         {backgroundNote && busy ? <div className="v120-background-work-note"><span>↻</span><div><strong>Working in the background</strong><small>{backgroundNote}</small></div></div> : null}
         {error && <div className="error compact-message">{error}</div>}
@@ -496,6 +497,10 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
           <><span>AUTOMATIC CHECK</span><strong>{selectedList.items.length}</strong><small>{busy ? 'checking live + flyer + household prices…' : 'items checked together'}</small></>
         ) : comparison.premium_required ? (
           <><span>PREMIUM</span><strong>Family Plus</strong><small>Automatic whole-list comparison unlocks here.</small></>
+        ) : comparison.quantity_review_required ? (
+          <><span>CHECK QUANTITIES</span><strong>Trip check paused</strong><small>Fix the highlighted quantities before GHM calculates or purchases fresh live-price data.</small></>
+        ) : comparison.price_review_required ? (
+          <><span>PRICE CHECK BLOCKED</span><strong>Unusual total detected</strong><small>GHM refused to recommend an implausibly high basket. Review the flagged store prices instead of paying for another lookup.</small></>
         ) : winner && winner.complete ? (
           <><span>BEST ONE-STORE TRIP</span><strong>{winner.store_name}</strong><em>{money(winner.known_total, comparison.currency_code)}</em><small>{winner.priced_items}/{winner.total_items} items found • {winner.source_summary}</small></>
         ) : comparison.split_store_total != null && comparison.split_store_names.length ? (
@@ -508,8 +513,10 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       </div>
 
       {comparison && !comparison.premium_required ? (
-        <div className="basket-guidance-line">
+        <div className={`basket-guidance-line ${comparison.quantity_review_required || comparison.price_review_required ? 'quantity-review' : ''}`}>
           <strong>{comparison.message}</strong>
+          {comparison.quantity_review_required && comparison.quantity_warnings?.length ? <div className="v132-quantity-warnings">{comparison.quantity_warnings.map((warning) => <span key={warning}>⚠ {warning}</span>)}</div> : null}
+          {comparison.price_review_required && comparison.price_warnings?.length ? <div className="v132-quantity-warnings">{comparison.price_warnings.map((warning) => <span key={warning}>⚠ {warning}</span>)}</div> : null}
           {comparison.recommendation_reason ? <span>{comparison.recommendation_reason}</span> : null}
           {comparison.live_configured && comparison.needs_postal_code ? <small>Tip: we are using your saved city. Add a postal code only if you want more local results.</small> : null}
           {!comparison.live_configured ? <small>Current Canadian prices are unavailable right now, so Grocery House Manager is automatically using any cached weekly flyers plus your receipt and saved prices instead.</small> : null}
@@ -519,8 +526,8 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       {comparison && detailsOpen && !comparison.premium_required && comparison.store_options.length ? (
         <div className="whole-list-results">
           {comparison.store_options.slice(0, 6).map((store, index) => (
-            <div key={store.store_name} className={store.complete && index === 0 ? 'best' : ''}>
-              <span>{store.complete && index === 0 ? '★ ' : ''}{store.store_name}</span>
+            <div key={store.store_name} className={!comparison.price_review_required && store.complete && index === 0 ? 'best' : ''}>
+              <span>{!comparison.price_review_required && store.complete && index === 0 ? '★ ' : ''}{store.store_name}</span>
               <strong>{money(store.known_total, comparison.currency_code)}{store.complete ? '' : ' known'}</strong>
               <small>{store.priced_items}/{store.total_items} items found • {store.source_summary}</small>
               {!store.complete ? <small className="basket-missing-line">Missing: {store.missing_items.slice(0, 4).join(', ')}{store.missing_items.length > 4 ? ` +${store.missing_items.length - 4} more` : ''}</small> : null}

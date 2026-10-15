@@ -37,6 +37,8 @@ type AgentConversationTurn = {
   id: string;
   question: string;
   response: HouseholdAgentResponse;
+  askedAt?: string;
+  answeredAt?: string;
 };
 
 const agentModeMeta: Record<AgentMode, { label: string; icon: string; hint: string }> = {
@@ -89,6 +91,13 @@ function actionLinksForMode(mode: AgentMode, houseId: number) {
   ];
 }
 
+
+function formatAgentTime(value: string | undefined, locale: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(date);
+}
 
 function nextDayNames(count: number, locale = 'en-CA') {
   const start = new Date();
@@ -153,6 +162,8 @@ export default function AssistantPage() {
   const [agentAnswer, setAgentAnswer] = useState<HouseholdAgentResponse | null>(null);
   const [agentTurns, setAgentTurns] = useState<AgentConversationTurn[]>([]);
   const [agentBusy, setAgentBusy] = useState(false);
+  const [pendingAgentQuestion, setPendingAgentQuestion] = useState('');
+  const [pendingAgentAskedAt, setPendingAgentAskedAt] = useState<string | undefined>(undefined);
   const [agentModeOverride, setAgentModeOverride] = useState<AgentMode | null>(null);
   const [agentContexts, setAgentContexts] = useState<AgentContextSource[]>([]);
   const [agentAttachOpen, setAgentAttachOpen] = useState(false);
@@ -164,6 +175,7 @@ export default function AssistantPage() {
   const [decisionBusy, setDecisionBusy] = useState('');
   const kitchenInputRef = useRef<HTMLInputElement | null>(null);
   const agentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const agentScrollRef = useRef<HTMLDivElement | null>(null);
   const agentConversationEndRef = useRef<HTMLDivElement | null>(null);
   const agentRecognitionRef = useRef<any>(null);
   const [reminderPermission, setReminderPermission] = useState<'unsupported' | NotificationPermission>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
@@ -181,8 +193,7 @@ export default function AssistantPage() {
     const focusAskBox = () => {
       const input = agentInputRef.current;
       if (input) {
-        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        window.setTimeout(() => input.focus({ preventScroll: true }), 260);
+        input.focus({ preventScroll: true });
         return;
       }
       attempts += 1;
@@ -204,7 +215,7 @@ export default function AssistantPage() {
         if (sharedQuestion) {
           setAgentTurns((current) => current.some((turn) => turn.id === taskId)
             ? current
-            : [...current, { id: taskId, question: sharedQuestion, response }].slice(-8));
+            : [...current, { id: taskId, question: sharedQuestion, response, askedAt: new Date().toISOString(), answeredAt: new Date().toISOString() }].slice(-8));
         }
       } else if ('days_requested' in result) setPlan(result as HouseholdPlan);
       else if ('detections' in result) {
@@ -338,10 +349,14 @@ export default function AssistantPage() {
 
 
   useEffect(() => {
-    if (workspace !== 'intelligence' || (!agentTurns.length && !agentAnswer)) return;
-    const timer = window.setTimeout(() => agentConversationEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 120);
+    if (workspace !== 'intelligence' || (!agentTurns.length && !agentAnswer && !pendingAgentQuestion && !agentBusy)) return;
+    const timer = window.setTimeout(() => {
+      const scroller = agentScrollRef.current;
+      if (!scroller) return;
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+    }, 120);
     return () => window.clearTimeout(timer);
-  }, [workspace, agentTurns.length, agentAnswer]);
+  }, [workspace, agentTurns.length, agentAnswer, pendingAgentQuestion, agentBusy]);
 
   useEffect(() => () => { agentRecognitionRef.current?.stop?.(); }, []);
 
@@ -659,6 +674,10 @@ export default function AssistantPage() {
       setError('');
       setMessage('');
       const prompt = agentPrompt.trim();
+      const askedAt = new Date().toISOString();
+      setPendingAgentQuestion(prompt);
+      setPendingAgentAskedAt(askedAt);
+      setAgentPrompt('');
       const mode = agentModeOverride || detectAgentMode(prompt);
       const contextSources = agentContexts.length ? agentContexts : defaultContextForMode(mode);
       const taskId = makeBackgroundTaskId(`household-intelligence-${houseId}`);
@@ -686,8 +705,9 @@ export default function AssistantPage() {
         })).data,
       });
       setAgentAnswer(data);
-      setAgentTurns((current) => [...current, { id: taskId, question: prompt, response: data }].slice(-8));
-      setAgentPrompt('');
+      setAgentTurns((current) => [...current, { id: taskId, question: prompt, response: data, askedAt, answeredAt: new Date().toISOString() }].slice(-8));
+      setPendingAgentQuestion('');
+      setPendingAgentAskedAt(undefined);
       setAgentModeOverride(null);
       if (householdIntelligenceTryReady) {
         await loadHouses();
@@ -695,6 +715,8 @@ export default function AssistantPage() {
       }
     } catch (err) {
       setError(errorMessage(err));
+      setPendingAgentQuestion('');
+      setPendingAgentAskedAt(undefined);
     } finally {
       setAgentBusy(false);
     }
@@ -745,6 +767,8 @@ export default function AssistantPage() {
     setAgentTurns([]);
     setAgentAnswer(null);
     setAgentPrompt('');
+    setPendingAgentQuestion('');
+    setPendingAgentAskedAt(undefined);
     setAgentModeOverride(null);
     setAgentContexts([]);
     setAgentAttachOpen(false);
@@ -757,7 +781,6 @@ export default function AssistantPage() {
     setParams(nextParams, { replace: true });
     setNewConversationConfirm(false);
     window.setTimeout(() => {
-      agentInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       agentInputRef.current?.focus({ preventScroll: true });
     }, 80);
   }
@@ -836,58 +859,57 @@ export default function AssistantPage() {
     return (
       <main className="page shell wide v125-ask-page" data-workspace="intelligence">
         <section className="v125-ask-shell">
-          <div className="v127-ask-scroll-area">
-          <header className="v125-ask-header">
-            <div className="v125-ask-title">
-              <img src="/brand/grocery-house-manager-icon.png" alt="" />
-              <div><p className="eyebrow">YOUR HOUSEHOLD AI</p><h1>Ask GHM</h1><span>Ask, decide and follow up using the household data you choose.</span></div>
+          <div className="v127-ask-scroll-area" ref={agentScrollRef}>
+            <div className="v132-chat-tools" aria-label="Ask GHM conversation controls">
+              <label className="v132-chat-select"><span>Household</span><select value={houseId || ''} onChange={(event) => setHouseId(Number(event.target.value))}>{houses.map((house) => <option key={house.id} value={house.id}>{house.name}</option>)}</select></label>
+              <label className="v132-chat-select"><span>Mode</span><select value={agentModeOverride || 'auto'} onChange={(event) => setAgentModeOverride(event.target.value === 'auto' ? null : event.target.value as AgentMode)}><option value="auto">✦ {agentModeMeta[inferredAgentMode].label} · Auto</option>{(Object.keys(agentModeMeta) as AgentMode[]).map((mode) => <option key={mode} value={mode}>{agentModeMeta[mode].icon} {agentModeMeta[mode].label}</option>)}</select></label>
+              {houseId ? <Link className="secondary v132-tool-action" to={`/assistant?house=${houseId}&view=insights`}>📈 Insights</Link> : null}
+              {agentTurns.length ? <button type="button" className="secondary v132-tool-action" onClick={() => setNewConversationConfirm(true)}>＋ New conversation</button> : null}
             </div>
-            <div className="v125-ask-header-actions">
-              <label className="v125-house-select"><span>Household</span><select value={houseId || ''} onChange={(event) => setHouseId(Number(event.target.value))}>{houses.map((house) => <option key={house.id} value={house.id}>{house.name}</option>)}</select></label>
-              {houseId ? <Link className="secondary v125-insights-link" to={`/assistant?house=${houseId}&view=insights`}>📈 Household insights</Link> : null}
-              {agentTurns.length ? <button type="button" className="secondary" onClick={() => setNewConversationConfirm(true)}>＋ New conversation</button> : null}
-            </div>
-          </header>
 
-          <div className="v125-agent-mode-strip" aria-label="Ask GHM reasoning mode">
-            <div className="v125-mode-intro"><small>MODE</small><strong>{agentModeOverride ? agentModeMeta[agentModeOverride].label : `${agentModeMeta[inferredAgentMode].label} · Auto`}</strong></div>
-            <div className="v125-mode-chips">
-              {(Object.keys(agentModeMeta) as AgentMode[]).map((mode) => <button key={mode} type="button" className={activeAgentMode === mode ? 'active' : ''} onClick={() => setAgentModeOverride(mode)} title={agentModeMeta[mode].hint}><span>{agentModeMeta[mode].icon}</span>{agentModeMeta[mode].label}</button>)}
-              {agentModeOverride ? <button type="button" className="auto-reset" onClick={() => setAgentModeOverride(null)}>Auto</button> : null}
-            </div>
-          </div>
+            {error ? <div className="error v125-ask-message v132-chat-error">{error}</div> : null}
 
-          {error ? <div className="error v125-ask-message">{error}</div> : null}
-
-          <div className="v125-chat-transcript" aria-live="polite">
-            {!agentTurns.length && !agentAnswer && !agentBusy ? <section className="v125-ask-empty">
-              <div className="v125-empty-orb" aria-hidden="true">✦</div>
-              <h2>What would you like to know?</h2>
-              <p>GHM can reason across your inventory, shopping, receipts, expenses and saved recipes—then keep the conversation going.</p>
-              <div className="v125-prompt-grid">{suggestedPrompts.map((prompt) => <button key={prompt} type="button" onClick={() => { setAgentPrompt(prompt); window.setTimeout(() => agentInputRef.current?.focus({ preventScroll: true }), 50); }}>{prompt}<span>→</span></button>)}</div>
-            </section> : null}
-
-            {agentTurns.map((turn, index) => {
-              const turnMode = detectAgentMode(turn.question);
-              const actions = houseId ? actionLinksForMode(turnMode, houseId) : [];
-              return <article key={turn.id} className="v125-chat-turn">
-                <div className="v125-user-message"><small>YOU</small><p>{turn.question}</p></div>
-                <div data-ghm-background-result={index === agentTurns.length - 1 ? 'true' : undefined} className={`v125-ghm-message ${turn.response.configured ? 'live' : 'setup'}`} tabIndex={-1}>
-                  <header><span className="v125-ghm-avatar" aria-hidden="true">✦</span><div><strong>GHM</strong><small>{agentModeMeta[turnMode].label} · household context</small></div></header>
-                  <StructuredAiResponse text={turn.response.answer} />
-                  {turn.response.configured && actions.length ? <div className="v125-answer-actions">{actions.map((action) => <Link key={action.href} to={action.href} className="secondary"><span aria-hidden="true">{action.icon}</span>{action.label}</Link>)}</div> : null}
+            <div className="v125-chat-transcript v132-chat-transcript" aria-live="polite">
+              {!agentTurns.length && !agentAnswer && !agentBusy ? <section className="v132-welcome-thread">
+                <div className="v132-ghm-line">
+                  <img className="v132-ghm-avatar-image" src="/brand/grocery-house-manager-icon.png" alt="" aria-hidden="true" />
+                  <div className="v132-welcome-bubble">
+                    <header><strong>GHM</strong><time>Now</time></header>
+                    <p>Hi! 👋 I’m your Grocery House Manager assistant. I can help with groceries, meal planning, recipes, receipts, prices and household spending.</p>
+                    <p>What would you like to do today?</p>
+                  </div>
                 </div>
-              </article>;
-            })}
+                <div className="v132-quick-prompts">{suggestedPrompts.slice(0, 4).map((prompt) => <button key={prompt} type="button" onClick={() => { setAgentPrompt(prompt); window.setTimeout(() => agentInputRef.current?.focus({ preventScroll: true }), 50); }}>{prompt}<span>→</span></button>)}</div>
+              </section> : null}
 
-            {!agentTurns.length && agentAnswer ? <div data-ghm-background-result="true" className={`v125-ghm-message ${agentAnswer.configured ? 'live' : 'setup'}`} tabIndex={-1}><header><span className="v125-ghm-avatar" aria-hidden="true">✦</span><div><strong>GHM</strong><small>{agentModeMeta[activeAgentMode].label} · household context</small></div></header><StructuredAiResponse text={agentAnswer.answer} /></div> : null}
+              {agentTurns.map((turn, index) => {
+                const turnMode = detectAgentMode(turn.question);
+                const actions = houseId ? actionLinksForMode(turnMode, houseId) : [];
+                return <article key={turn.id} className="v125-chat-turn v132-chat-turn">
+                  <div className="v132-user-line">
+                    <div className="v125-user-message v132-user-message"><header><strong>You</strong>{turn.askedAt ? <time>{formatAgentTime(turn.askedAt, appLocale)}</time> : null}</header><p>{turn.question}</p></div>
+                  </div>
+                  <div className="v132-ghm-line">
+                    <img className="v132-ghm-avatar-image" src="/brand/grocery-house-manager-icon.png" alt="" aria-hidden="true" />
+                    <div data-ghm-background-result={index === agentTurns.length - 1 ? 'true' : undefined} className={`v125-ghm-message v132-ghm-message ${turn.response.configured ? 'live' : 'setup'}`} tabIndex={-1}>
+                      <header><div><strong>GHM</strong><small>{agentModeMeta[turnMode].label} · household context</small></div>{turn.answeredAt ? <time>{formatAgentTime(turn.answeredAt, appLocale)}</time> : null}</header>
+                      <StructuredAiResponse text={turn.response.answer} />
+                      {turn.response.configured && actions.length ? <div className="v125-answer-actions">{actions.map((action) => <Link key={action.href} to={action.href} className="secondary"><span aria-hidden="true">{action.icon}</span>{action.label}</Link>)}</div> : null}
+                    </div>
+                  </div>
+                </article>;
+              })}
 
-            {agentBusy ? <div className="v125-ghm-message v125-thinking"><header><span className="v125-ghm-avatar" aria-hidden="true">✦</span><div><strong>GHM</strong><small>Thinking with your household…</small></div></header><div className="v125-thinking-dots"><i/><i/><i/></div></div> : null}
-            <div ref={agentConversationEndRef} />
+              {!agentTurns.length && agentAnswer ? <div className="v132-ghm-line"><img className="v132-ghm-avatar-image" src="/brand/grocery-house-manager-icon.png" alt="" aria-hidden="true" /><div data-ghm-background-result="true" className={`v125-ghm-message v132-ghm-message ${agentAnswer.configured ? 'live' : 'setup'}`} tabIndex={-1}><header><div><strong>GHM</strong><small>{agentModeMeta[activeAgentMode].label} · household context</small></div></header><StructuredAiResponse text={agentAnswer.answer} /></div></div> : null}
+
+              {pendingAgentQuestion ? <div className="v132-user-line v132-pending-user"><div className="v125-user-message v132-user-message"><header><strong>You</strong>{pendingAgentAskedAt ? <time>{formatAgentTime(pendingAgentAskedAt, appLocale)}</time> : null}</header><p>{pendingAgentQuestion}</p></div></div> : null}
+
+              {agentBusy ? <div className="v132-ghm-line"><img className="v132-ghm-avatar-image" src="/brand/grocery-house-manager-icon.png" alt="" aria-hidden="true" /><div className="v125-ghm-message v132-ghm-message v125-thinking"><header><div><strong>GHM</strong><small>Thinking with your household…</small></div></header><div className="v125-thinking-dots"><i/><i/><i/></div></div></div> : null}
+              <div ref={agentConversationEndRef} />
+            </div>
           </div>
-          </div>
 
-          <div className="v125-composer-zone">
+          <div className="v125-composer-zone v132-composer-zone">
             {agentAttachOpen ? <section className="v125-context-picker" aria-label="Choose household context">
               <header><div><strong>Bring household context into this question</strong><small>GHM uses these categories plus baseline household safety and pattern signals for this turn.</small></div><button type="button" className="icon-button" onClick={() => setAgentAttachOpen(false)} aria-label="Close context picker">×</button></header>
               <div>{(Object.keys(agentContextMeta) as AgentContextSource[]).map((source) => {
@@ -901,7 +923,7 @@ export default function AssistantPage() {
 
             <div className={`v125-ask-composer ${agentListening ? 'is-listening' : ''}`}>
               <button type="button" className="v125-compose-icon" onClick={() => setAgentAttachOpen((open) => !open)} aria-label="Attach household context" title="Attach household context">＋</button>
-              <textarea ref={agentInputRef} rows={1} value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void askHouseholdAgent(); }} placeholder={agentTurns.length ? 'Ask a follow-up…' : 'Ask GHM anything about your household…'} />
+              <textarea ref={agentInputRef} rows={1} value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void askHouseholdAgent(); }} placeholder={agentTurns.length ? 'Ask a follow-up…' : 'Ask GHM anything…'} />
               <button type="button" className="v125-compose-icon mic" onClick={startAgentVoice} aria-label={agentListening ? 'Listening' : 'Speak to Ask GHM'} title={agentListening ? 'Listening…' : 'Speak'}>{agentListening ? <span className="v125-mic-live" aria-hidden="true">◉</span> : <img src="/brand/mic-symbol.png" alt="" className="v125-mic-image" aria-hidden="true" />}</button>
               <button type="button" className="v125-send" onClick={() => void askHouseholdAgent()} disabled={agentBusy || !agentPrompt.trim()} aria-label="Send to Ask GHM">➤</button>
             </div>

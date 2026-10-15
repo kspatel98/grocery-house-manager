@@ -1,0 +1,439 @@
+/* ==========================================================================
+   GHM V132 — production Ask GHM chat + cost-safe Automatic Trip Check
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Ask GHM: conversation owns the workspace.  The composer is a dedicated grid
+   row, never an overlay, so scrolling/focus cannot lift it or hide text below it.
+   -------------------------------------------------------------------------- */
+.v131-ask-chat-active .v125-ask-shell {
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  background:
+    radial-gradient(circle at 72% 10%, color-mix(in srgb, var(--ghm-primary) 7%, transparent), transparent 34%),
+    var(--ghm-page-bg) !important;
+}
+.v131-ask-chat-active .v127-ask-scroll-area {
+  padding: 20px clamp(18px, 3.4vw, 52px) 30px !important;
+  scroll-padding-top: 18px;
+  overscroll-behavior-y: contain;
+}
+.v131-ask-chat-active .v132-chat-tools,
+.v131-ask-chat-active .v132-chat-transcript,
+.v131-ask-chat-active .v132-chat-error {
+  width: min(100%, 1180px) !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+}
+.v132-chat-tools {
+  display: flex;
+  justify-content: flex-end;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px !important;
+  color: var(--ghm-muted);
+}
+.v132-chat-select {
+  display: grid;
+  gap: 4px;
+}
+.v132-chat-select > span {
+  padding-left: 4px;
+  font-size: .65rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ghm-muted);
+}
+.v132-chat-select select {
+  min-width: 150px;
+  min-height: 38px;
+  padding: 7px 34px 7px 11px;
+  border: 1px solid var(--ghm-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ghm-surface-elevated) 92%, transparent);
+  color: var(--ghm-text-strong);
+  font-weight: 750;
+}
+.v132-tool-action {
+  min-height: 38px !important;
+  padding: 8px 12px !important;
+  border-radius: 12px !important;
+  white-space: nowrap;
+}
+
+.v131-ask-chat-active .v125-chat-transcript.v132-chat-transcript {
+  min-height: 100% !important;
+  padding: 0 0 18px !important;
+  display: flex !important;
+  flex-direction: column;
+  gap: 26px !important;
+  overflow: visible !important;
+}
+.v132-welcome-thread {
+  display: grid;
+  gap: 12px;
+  padding-top: clamp(6px, 2vh, 28px);
+}
+.v132-ghm-line {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  width: min(100%, 980px);
+}
+.v132-ghm-avatar-image {
+  width: 42px;
+  height: 42px;
+  padding: 3px;
+  object-fit: contain;
+  border: 1px solid var(--ghm-border);
+  border-radius: 50%;
+  background: var(--ghm-surface-elevated);
+  box-shadow: var(--ghm-shadow-soft);
+}
+.v132-welcome-bubble,
+.v131-ask-chat-active .v125-ghm-message.v132-ghm-message {
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 15px 18px !important;
+  border: 1px solid var(--ghm-border) !important;
+  border-radius: 20px !important;
+  background: color-mix(in srgb, var(--ghm-surface-elevated) 94%, var(--ghm-primary-soft) 6%) !important;
+  box-shadow: 0 8px 24px rgba(13, 32, 24, .07) !important;
+  color: var(--ghm-text) !important;
+}
+.v132-welcome-bubble header,
+.v132-ghm-message > header {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: baseline !important;
+  gap: 12px;
+  margin: 0 0 8px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+}
+.v132-welcome-bubble header strong,
+.v132-ghm-message > header strong {
+  color: var(--ghm-text-strong) !important;
+  font-size: .84rem;
+}
+.v132-welcome-bubble time,
+.v132-ghm-message time {
+  flex: 0 0 auto;
+  color: var(--ghm-muted);
+  font-size: .72rem;
+  font-weight: 650;
+}
+.v132-welcome-bubble p {
+  margin: 5px 0 !important;
+  line-height: 1.55;
+}
+.v132-quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 54px;
+}
+.v132-quick-prompts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--ghm-border);
+  border-radius: 13px;
+  background: var(--ghm-surface-elevated);
+  color: var(--ghm-text-strong);
+  font-weight: 750;
+  text-align: left;
+}
+.v132-quick-prompts button:hover {
+  border-color: color-mix(in srgb, var(--ghm-primary) 55%, var(--ghm-border));
+  background: var(--ghm-primary-soft);
+}
+.v132-quick-prompts button span { color: var(--ghm-primary); }
+
+.v131-ask-chat-active .v125-chat-turn.v132-chat-turn {
+  display: grid !important;
+  gap: 14px !important;
+  margin: 0 !important;
+}
+.v132-user-line {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+.v131-ask-chat-active .v125-user-message.v132-user-message {
+  width: fit-content !important;
+  max-width: min(72%, 690px) !important;
+  margin: 0 !important;
+  padding: 12px 16px !important;
+  border: 1px solid color-mix(in srgb, var(--ghm-primary) 25%, var(--ghm-border)) !important;
+  border-radius: 19px 19px 6px 19px !important;
+  background: color-mix(in srgb, var(--ghm-primary) 22%, var(--ghm-surface-elevated)) !important;
+  color: var(--ghm-text-strong) !important;
+  box-shadow: 0 7px 20px rgba(13, 32, 24, .06) !important;
+}
+.v132-user-message header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 5px;
+}
+.v132-user-message header strong { font-size: .76rem; }
+.v132-user-message time { color: var(--ghm-muted); font-size: .7rem; }
+.v132-user-message p { margin: 0 !important; line-height: 1.5; }
+.v132-ghm-message .v125-ghm-avatar { display: none !important; }
+.v132-ghm-message .structured-ai-response { line-height: 1.58; }
+.v132-ghm-message .v125-answer-actions { margin-top: 14px !important; }
+
+/* The dock is a real layout row.  It cannot be pushed up by scrollIntoView and
+   chat content can never render underneath it. */
+.v131-ask-chat-active .v125-composer-zone.v132-composer-zone {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 40 !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 9px clamp(18px, 3.4vw, 52px) 8px !important;
+  border: 1px solid var(--ghm-border) !important;
+  border-bottom: 0 !important;
+  border-radius: 24px 24px 0 0 !important;
+  background: color-mix(in srgb, var(--ghm-surface-elevated) 97%, transparent) !important;
+  box-shadow: 0 -15px 38px rgba(13, 30, 23, .12) !important;
+  backdrop-filter: blur(20px) saturate(1.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.08);
+}
+.v131-ask-chat-active .v132-composer-zone > * {
+  width: min(100%, 1180px) !important;
+  max-width: 1180px !important;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-context-summary {
+  min-height: 30px;
+  display: flex !important;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px 7px !important;
+  margin: 0 auto !important;
+}
+.v132-composer-zone .v125-context-summary > span {
+  margin-right: 2px;
+  font-size: .72rem;
+  font-weight: 800;
+  color: var(--ghm-muted);
+}
+.v132-composer-zone .v125-context-summary em {
+  margin: 0 !important;
+  padding: 4px 8px !important;
+  border: 1px solid var(--ghm-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ghm-surface) 76%, transparent);
+  color: var(--ghm-muted);
+  font-size: .69rem;
+  font-style: normal;
+  font-weight: 750;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-ask-composer {
+  min-height: 58px !important;
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) 46px 50px !important;
+  align-items: end !important;
+  gap: 8px !important;
+  margin: 0 auto !important;
+  padding: 6px !important;
+  border: 1px solid color-mix(in srgb, var(--ghm-primary) 22%, var(--ghm-border)) !important;
+  border-radius: 19px !important;
+  background: color-mix(in srgb, var(--ghm-surface) 91%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 7px 24px rgba(6, 20, 14, .08) !important;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-ask-composer textarea {
+  min-height: 44px !important;
+  max-height: 132px !important;
+  padding: 10px 6px !important;
+  align-self: center;
+  resize: none !important;
+  overflow-y: auto;
+  color: var(--ghm-text-strong) !important;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-compose-icon,
+.v131-ask-chat-active .v132-composer-zone .v125-send {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  min-height: 46px !important;
+  border-radius: 14px !important;
+  align-self: end;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-send {
+  width: 50px !important;
+  min-width: 50px !important;
+  background: var(--ghm-primary) !important;
+  color: var(--ghm-primary-contrast, #fff) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--ghm-primary) 26%, transparent) !important;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-send:disabled {
+  opacity: .42 !important;
+  box-shadow: none !important;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-composer-hint {
+  min-height: 19px;
+  margin: 0 auto !important;
+  padding: 5px 4px 0 !important;
+  color: var(--ghm-muted) !important;
+  text-align: center;
+  font-size: .65rem;
+}
+.v131-ask-chat-active .v132-composer-zone .v125-context-picker {
+  margin: 0 auto 8px !important;
+  max-height: min(44vh, 360px);
+  overflow: auto;
+  border-radius: 18px !important;
+}
+
+/* Light mode keeps the dock visibly complete without the washed-out panels that
+   previously caused readability problems. */
+html:not([data-ghm-theme="dark"]):not([data-theme="dark"]) .v131-ask-chat-active .v132-composer-zone {
+  background: rgba(255, 253, 248, .98) !important;
+  box-shadow: 0 -14px 34px rgba(43, 54, 47, .10) !important;
+}
+html:not([data-ghm-theme="dark"]):not([data-theme="dark"]) .v132-welcome-bubble,
+html:not([data-ghm-theme="dark"]):not([data-theme="dark"]) .v132-ghm-message {
+  background: #fffdfa !important;
+}
+
+html[data-ghm-theme="dark"] .v131-ask-chat-active .v132-composer-zone,
+html[data-theme="dark"] .v131-ask-chat-active .v132-composer-zone {
+  background: rgba(13, 23, 19, .975) !important;
+  border-color: #2c4036 !important;
+  box-shadow: 0 -16px 42px rgba(0,0,0,.34) !important;
+}
+html[data-ghm-theme="dark"] .v132-welcome-bubble,
+html[data-ghm-theme="dark"] .v132-ghm-message,
+html[data-theme="dark"] .v132-welcome-bubble,
+html[data-theme="dark"] .v132-ghm-message {
+  background: linear-gradient(145deg, rgba(24, 43, 34, .96), rgba(18, 31, 25, .96)) !important;
+  border-color: #30483b !important;
+}
+html[data-ghm-theme="dark"] .v132-user-message,
+html[data-theme="dark"] .v132-user-message {
+  background: linear-gradient(145deg, #214f3b, #193e31) !important;
+  border-color: #336c53 !important;
+}
+
+/* Mobile: reserve the exact bottom-nav zone in the shell, not inside the chat.
+   This keeps the composer directly above navigation with zero random gap below. */
+@media (max-width: 1099px) {
+  .v131-ask-chat-active .desktop-shell-v86 {
+    box-sizing: border-box !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+  }
+  .v131-ask-chat-active .app-main-content {
+    padding-bottom: 0 !important;
+  }
+  .v131-ask-chat-active .v127-ask-scroll-area {
+    padding: 12px 12px 18px !important;
+  }
+  .v132-chat-tools {
+    justify-content: flex-start;
+    gap: 6px;
+    margin-bottom: 13px !important;
+  }
+  .v132-chat-select { flex: 1 1 140px; }
+  .v132-chat-select select { width: 100%; min-width: 0; }
+  .v132-tool-action { flex: 0 0 auto; }
+  .v131-ask-chat-active .v125-composer-zone.v132-composer-zone {
+    padding: 7px 8px 6px !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+  .v131-ask-chat-active .v132-composer-zone .v125-composer-hint { display: none !important; }
+}
+
+@media (max-width: 650px) {
+  .v132-chat-tools { align-items: stretch; }
+  .v132-chat-select > span { display: none; }
+  .v132-chat-select select { min-height: 34px; padding-block: 5px; font-size: .76rem; }
+  .v132-tool-action { min-height: 34px !important; padding: 6px 9px !important; font-size: .75rem !important; }
+  .v131-ask-chat-active .v125-chat-transcript.v132-chat-transcript { gap: 20px !important; }
+  .v132-ghm-line { grid-template-columns: 34px minmax(0, 1fr); gap: 8px; width: 100%; }
+  .v132-ghm-avatar-image { width: 34px; height: 34px; }
+  .v132-welcome-bubble,
+  .v131-ask-chat-active .v125-ghm-message.v132-ghm-message { padding: 12px 13px !important; border-radius: 17px !important; }
+  .v132-quick-prompts { padding-left: 42px; display: grid; grid-template-columns: 1fr 1fr; }
+  .v132-quick-prompts button { min-width: 0; padding: 8px 9px; font-size: .76rem; }
+  .v131-ask-chat-active .v125-user-message.v132-user-message { max-width: 87% !important; padding: 10px 12px !important; }
+  .v131-ask-chat-active .v132-composer-zone .v125-context-summary {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 5px !important;
+  }
+  .v131-ask-chat-active .v132-composer-zone .v125-context-summary::-webkit-scrollbar { display: none; }
+  .v132-composer-zone .v125-context-summary > span { flex: 0 0 auto; font-size: .61rem; }
+  .v132-composer-zone .v125-context-summary em { flex: 0 0 auto; font-size: .59rem; padding: 3px 6px !important; }
+  .v131-ask-chat-active .v132-composer-zone .v125-ask-composer {
+    grid-template-columns: 40px minmax(0, 1fr) 40px 43px !important;
+    min-height: 52px !important;
+    gap: 5px !important;
+    padding: 5px !important;
+    border-radius: 17px !important;
+  }
+  .v131-ask-chat-active .v132-composer-zone .v125-compose-icon,
+  .v131-ask-chat-active .v132-composer-zone .v125-send {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 12px !important;
+  }
+  .v131-ask-chat-active .v132-composer-zone .v125-send { width: 43px !important; min-width: 43px !important; }
+  .v131-ask-chat-active .v132-composer-zone .v125-ask-composer textarea { min-height: 38px !important; padding: 8px 3px !important; font-size: .88rem; }
+}
+
+/* --------------------------------------------------------------------------
+   Automatic Trip Check: summary first, guard malformed quantities, and make
+   shared provider-cache reuse visible without turning the page into a dashboard.
+   -------------------------------------------------------------------------- */
+.basket-guidance-line.quantity-review {
+  border-color: color-mix(in srgb, #d68b2d 52%, var(--ghm-border)) !important;
+  background: color-mix(in srgb, #d68b2d 9%, var(--ghm-surface-elevated)) !important;
+}
+.v132-quantity-warnings {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+.v132-quantity-warnings span {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, #d68b2d 35%, var(--ghm-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, #d68b2d 6%, var(--ghm-surface));
+  color: var(--ghm-text-strong);
+  font-size: .82rem;
+  line-height: 1.4;
+}
+.auto-basket-comparison .basket-source-strip span {
+  white-space: normal;
+}
+.auto-basket-comparison .whole-list-result-preview {
+  min-height: 170px;
+}
+@media (max-width: 760px) {
+  .auto-basket-comparison .whole-list-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+  }
+  .auto-basket-comparison .whole-list-actions > :only-child { grid-column: 1 / -1; }
+}
+.auto-status.review {
+  border-color: color-mix(in srgb, #d68b2d 46%, var(--ghm-border)) !important;
+  background: color-mix(in srgb, #d68b2d 9%, var(--ghm-surface-elevated)) !important;
+  color: color-mix(in srgb, #d68b2d 82%, var(--ghm-text-strong)) !important;
+}

@@ -109,11 +109,13 @@ class Settings(BaseSettings):
     apify_canada_price_actor_id: str = "sunny_eternity/canada-grocery-price-comparison"
     apify_price_output_mode: str = "comparison"
     apify_price_cache_hours: int = 24
+    # Cache successful no-match results too, so repeated users do not repay for the same unavailable product.
+    apify_price_negative_cache_hours: int = 6
     apify_price_force_refresh_min_minutes: int = 30
     product_lookup_store_cache_hours: int = 24
     product_lookup_universal_cache_hours: int = 8760
     apify_price_timeout_seconds: int = 90
-    market_max_compare_items: int = 12
+    market_max_compare_items: int = 15
 
     # Weekly Canadian flyer integration. Reuses APIFY_API_TOKEN and stores results in
     # ExternalPriceCache (PostgreSQL) so nearby users can reuse the same postal-code fetch.

@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 import requests
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -117,8 +118,13 @@ def normalize_flyer_row(row: dict[str, Any]) -> FlyerDealOut:
     )
 
 
-def _cache_key(postal_code: str, merchants: list[str]) -> str:
-    payload = "|".join([postal_code.replace(" ", ""), *sorted(item.casefold().strip() for item in merchants if item.strip())])
+def _flyer_area(postal_code: str) -> str:
+    compact = (normalize_canadian_postal_code(postal_code) or postal_code).replace(" ", "").upper()
+    return compact[:3] if len(compact) >= 3 else compact
+
+
+def _cache_key(postal_code: str, merchants: list[str], max_merchants: int | None = None) -> str:
+    payload = "|".join([_flyer_area(postal_code), f"max={max_merchants or settings.flyer_max_merchants}", *sorted(item.casefold().strip() for item in merchants if item.strip())])
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
     return f"weekly_flyers:{digest}"
 
@@ -132,8 +138,19 @@ def _clean_merchants(merchants: list[str] | None) -> list[str]:
     return result[: max(1, settings.flyer_max_merchants)]
 
 
-def _cache_row(db: Session, postal_code: str, merchants: list[str]) -> ExternalPriceCache | None:
-    return db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == _cache_key(postal_code, merchants)).first()
+def _cache_row(db: Session, postal_code: str, merchants: list[str], max_merchants: int | None = None) -> ExternalPriceCache | None:
+    return db.query(ExternalPriceCache).filter(ExternalPriceCache.cache_key == _cache_key(postal_code, merchants, max_merchants)).first()
+
+
+def _lock_flyer_cache(db: Session, cache_key: str) -> None:
+    try:
+        if db.get_bind().dialect.name != "postgresql":
+            return
+        raw = int.from_bytes(hashlib.sha256(cache_key.encode("utf-8")).digest()[:8], "big", signed=False)
+        lock_id = raw if raw < 2**63 else raw - 2**64
+        db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_id})
+    except Exception:
+        return
 
 
 def get_weekly_flyer_deals(
@@ -142,14 +159,16 @@ def get_weekly_flyer_deals(
     postal_code: str,
     merchants: list[str] | None = None,
     force_refresh: bool = False,
+    max_merchants: int | None = None,
 ) -> tuple[bool, datetime | None, list[FlyerDealOut]]:
     clean_postal = normalize_canadian_postal_code(postal_code)
     if not clean_postal or len(clean_postal.replace(" ", "")) != 6:
         raise ValueError("Enter a complete Canadian postal code, for example L8P 1A1.")
 
     clean_merchants = _clean_merchants(merchants)
+    effective_max_merchants = max(1, min(int(max_merchants or settings.flyer_max_merchants), settings.flyer_max_merchants))
     now = datetime.now(timezone.utc)
-    existing = _cache_row(db, clean_postal, clean_merchants)
+    existing = _cache_row(db, clean_postal, clean_merchants, effective_max_merchants)
     if existing and not force_refresh:
         expires = existing.expires_at if existing.expires_at.tzinfo else existing.expires_at.replace(tzinfo=timezone.utc)
         if expires > now:
@@ -160,6 +179,22 @@ def get_weekly_flyer_deals(
             except Exception:
                 pass
 
+    if settings.apify_api_token:
+        cache_key = _cache_key(clean_postal, clean_merchants, effective_max_merchants)
+        _lock_flyer_cache(db, cache_key)
+        # Another worker may have populated the cache while this request waited.
+        existing = _cache_row(db, clean_postal, clean_merchants, effective_max_merchants)
+        if existing:
+            cache_expires = existing.expires_at if existing.expires_at.tzinfo else existing.expires_at.replace(tzinfo=timezone.utc)
+            if cache_expires > now:
+                try:
+                    raw = json.loads(existing.payload_json)
+                    rows = raw if isinstance(raw, list) else []
+                    db.commit()
+                    return True, existing.fetched_at, [normalize_flyer_row(row) for row in rows if isinstance(row, dict)]
+                except Exception:
+                    pass
+
     if not settings.apify_api_token:
         return False, existing.fetched_at if existing else None, []
 
@@ -169,7 +204,7 @@ def get_weekly_flyer_deals(
         "postalCode": clean_postal.replace(" ", ""),
         "listMerchantsOnly": False,
         "locale": "en-ca",
-        "maxMerchants": max(1, settings.flyer_max_merchants),
+        "maxMerchants": effective_max_merchants,
         "categories": ["Groceries"],
         "trackChanges": True,
         "onlyChanges": False,
@@ -178,15 +213,19 @@ def get_weekly_flyer_deals(
     if clean_merchants:
         payload["merchants"] = clean_merchants
 
-    response = requests.post(
-        url,
-        params={"token": settings.apify_api_token, "timeout": max(30, settings.flyer_timeout_seconds)},
-        json=payload,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        timeout=max(45, settings.flyer_timeout_seconds + 20),
-    )
-    response.raise_for_status()
-    raw_items = response.json()
+    try:
+        response = requests.post(
+            url,
+            params={"token": settings.apify_api_token, "timeout": max(30, settings.flyer_timeout_seconds)},
+            json=payload,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            timeout=max(45, settings.flyer_timeout_seconds + 20),
+        )
+        response.raise_for_status()
+        raw_items = response.json()
+    except Exception:
+        db.rollback()  # release any shared-cache advisory lock before fallback handling
+        raise
     if isinstance(raw_items, dict):
         for key in ("items", "results", "data"):
             if isinstance(raw_items.get(key), list):
@@ -210,7 +249,7 @@ def get_weekly_flyer_deals(
     else:
         db.add(
             ExternalPriceCache(
-                cache_key=_cache_key(clean_postal, clean_merchants),
+                cache_key=_cache_key(clean_postal, clean_merchants, effective_max_merchants),
                 source="apify_flipp_flyer",
                 query="weekly flyers",
                 location=clean_postal,

@@ -772,6 +772,11 @@ export type BasketComparison = {
   data_sources: string[];
   last_refreshed_at?: string | null;
   recommendation_reason?: string | null;
+  quantity_review_required?: boolean;
+  quantity_warnings?: string[];
+  price_review_required?: boolean;
+  price_warnings?: string[];
+  live_cache_reused?: boolean;
 };
 
 export type WeeklyAssistantRecipe = {
