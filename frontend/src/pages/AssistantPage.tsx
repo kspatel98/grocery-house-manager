@@ -22,6 +22,7 @@ import type {
   KitchenVisionReviewItem,
   PremiumTryStatus,
   PlanName,
+  UserProfile,
   RecipeMissingAddResponse,
   ReceiptGuardianIssue,
   ShoppingList,
@@ -92,6 +93,13 @@ function actionLinksForMode(mode: AgentMode, houseId: number) {
 }
 
 
+function userInitials(user: UserProfile | null) {
+  const source = String(user?.full_name || user?.email || 'You').replace(/@.*/, '').trim();
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (parts.length > 1) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0]?.slice(0, 2) || 'Y').toUpperCase();
+}
+
 function formatAgentTime(value: string | undefined, locale: string) {
   if (!value) return '';
   const date = new Date(value);
@@ -117,6 +125,7 @@ export default function AssistantPage() {
   const sharedQuestion = params.get('q') || '';
   const workspace: AutopilotView = ['today', 'intelligence', 'insights', 'plan', 'spend', 'protect'].includes(requestedView || '') ? (requestedView as AutopilotView) : 'today';
   const [houses, setHouses] = useState<House[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [premiumTry, setPremiumTry] = useState<PremiumTryStatus | null>(null);
   const [stockUpTryBusy, setStockUpTryBusy] = useState(false);
   const [houseId, setHouseId] = useState<number | null>(null);
@@ -238,6 +247,7 @@ export default function AssistantPage() {
     try {
       const { data } = await api.get<AccountBootstrap>('/account/bootstrap', { params: { t: Date.now() } });
       const list = data.houses || [];
+      setCurrentUser(data.user || null);
       setHouses(list);
       setPremiumTry(data.subscription.premium_try || null);
       const requested = Number(params.get('house'));
@@ -888,6 +898,7 @@ export default function AssistantPage() {
                 return <article key={turn.id} className="v125-chat-turn v132-chat-turn">
                   <div className="v132-user-line">
                     <div className="v125-user-message v132-user-message"><header><strong>You</strong>{turn.askedAt ? <time>{formatAgentTime(turn.askedAt, appLocale)}</time> : null}</header><p>{turn.question}</p></div>
+                    <div className="v133-user-avatar" aria-hidden="true">{currentUser?.avatar_url ? <img src={currentUser.avatar_url} alt="" /> : <span>{userInitials(currentUser)}</span>}</div>
                   </div>
                   <div className="v132-ghm-line">
                     <img className="v132-ghm-avatar-image" src="/brand/grocery-house-manager-icon.png" alt="" aria-hidden="true" />
@@ -902,7 +913,7 @@ export default function AssistantPage() {
 
               {!agentTurns.length && agentAnswer ? <div className="v132-ghm-line"><img className="v132-ghm-avatar-image" src="/brand/grocery-house-manager-icon.png" alt="" aria-hidden="true" /><div data-ghm-background-result="true" className={`v125-ghm-message v132-ghm-message ${agentAnswer.configured ? 'live' : 'setup'}`} tabIndex={-1}><header><div><strong>GHM</strong><small>{agentModeMeta[activeAgentMode].label} · household context</small></div></header><StructuredAiResponse text={agentAnswer.answer} /></div></div> : null}
 
-              {pendingAgentQuestion ? <div className="v132-user-line v132-pending-user"><div className="v125-user-message v132-user-message"><header><strong>You</strong>{pendingAgentAskedAt ? <time>{formatAgentTime(pendingAgentAskedAt, appLocale)}</time> : null}</header><p>{pendingAgentQuestion}</p></div></div> : null}
+              {pendingAgentQuestion ? <div className="v132-user-line v132-pending-user"><div className="v125-user-message v132-user-message"><header><strong>You</strong>{pendingAgentAskedAt ? <time>{formatAgentTime(pendingAgentAskedAt, appLocale)}</time> : null}</header><p>{pendingAgentQuestion}</p></div><div className="v133-user-avatar" aria-hidden="true">{currentUser?.avatar_url ? <img src={currentUser.avatar_url} alt="" /> : <span>{userInitials(currentUser)}</span>}</div></div> : null}
 
               {agentBusy ? <div className="v132-ghm-line"><img className="v132-ghm-avatar-image" src="/brand/grocery-house-manager-icon.png" alt="" aria-hidden="true" /><div className="v125-ghm-message v132-ghm-message v125-thinking"><header><div><strong>GHM</strong><small>Thinking with your household…</small></div></header><div className="v125-thinking-dots"><i/><i/><i/></div></div></div> : null}
               <div ref={agentConversationEndRef} />

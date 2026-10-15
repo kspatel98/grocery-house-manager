@@ -395,15 +395,18 @@ export default function AppFrame({ children }: { children: ReactNode }) {
 
   const assistantView = location.pathname === '/assistant' ? (new URLSearchParams(location.search).get('view') || 'today') : null;
   const assistantTitle = assistantView === 'intelligence' ? 'Ask GHM' : assistantView === 'insights' ? 'Insights' : assistantView === 'plan' ? 'Plan' : assistantView === 'spend' ? 'Shop smarter' : assistantView === 'protect' ? 'Protect' : assistantView === 'today' ? 'Today' : null;
-  const pageTitle = location.pathname.includes('/food') ? 'Food tonight' : (assistantTitle || ([
+  const houseChatPage = /^\/houses\/\d+\/chat$/.test(location.pathname);
+  const pageTitle = houseChatPage ? 'House Chat' : location.pathname.includes('/food') ? 'Food tonight' : (assistantTitle || ([
     ...navItems,
     ...extraNavItems,
     { to: '/profile', label: t('profile'), icon: '👤' },
   ].find((item) => navActive(item.to))?.label || (homeActive ? 'Home' : 'Grocery House Manager')));
   const askGhmChatActive = location.pathname === '/assistant' && assistantView === 'intelligence';
+  const houseChatActive = /^\/houses\/\d+\/chat$/.test(location.pathname);
+  const chatLayoutActive = askGhmChatActive || houseChatActive;
 
   return (
-    <div className={`app-frame desktop-sidebar-layout ${askGhmChatActive ? 'v131-ask-chat-active' : ''}`}>
+    <div className={`app-frame desktop-sidebar-layout ${askGhmChatActive ? 'v131-ask-chat-active' : ''} ${houseChatActive ? 'v133-house-chat-active' : ''} ${chatLayoutActive ? 'v133-chat-layout-active' : ''}`}>
       <header ref={siteHeaderRef} className="site-header">
         <div className="site-header-inner shell wide">
           <div className="site-brand-premium-wrap">

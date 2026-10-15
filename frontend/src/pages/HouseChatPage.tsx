@@ -239,22 +239,21 @@ export default function HouseChatPage() {
   let previousDay = '';
 
   return (
-    <main className="page house-chat-page-v105 house-chat-page-v113">
-      <header className="chat-heading-v105">
-        <div><p className="eyebrow">HOUSE CHAT</p><h1>{house?.name || 'Household'} chat</h1><p>Share household decisions and the GHM items behind them—without leaving the app.</p></div>
-        <div className="chat-heading-actions-v105"><Link className="secondary" to={`/houses/${id}/shopping`}>Shopping</Link><Link className="secondary" to={`/houses/${id}/meals`}>Meals</Link></div>
-      </header>
-
-      <section className="chat-context-strip-v105" aria-label="Quick household context">
-        <Link to={`/houses/${id}/shopping`}><span>🛒</span><strong>Shopping</strong><small>Lists and trips</small></Link>
-        <Link to={`/houses/${id}/meals`}><span>🍲</span><strong>Meals</strong><small>Recipes to share</small></Link>
-        <Link to={`/houses/${id}/scan`}><span>🧾</span><strong>Receipts</strong><small>What changed</small></Link>
-        <Link to={`/houses/${id}/expenses`}><span>💸</span><strong>Money</strong><small>Expense context</small></Link>
-      </section>
-
-      <section className="chat-shell-v105">
-        {loadError ? <div className="status-card error">{loadError}</div> : null}
-        <div className="chat-thread-v105" aria-live="polite">
+    <main className="page house-chat-page-v105 house-chat-page-v113 v133-house-chat-page">
+      <section className="chat-shell-v105 v133-house-chat-shell">
+        <div className="v133-house-chat-scroll">
+          <section className="v133-house-chat-intro" aria-label="Household chat tools">
+            <div><p className="eyebrow">HOUSE CHAT</p><strong>{house?.name || 'Household'}</strong><small>Messages and shared GHM items stay together here.</small></div>
+            <div className="v133-house-chat-actions"><Link className="secondary" to={`/houses/${id}/shopping`}>🛒 Shopping</Link><Link className="secondary" to={`/houses/${id}/meals`}>🍲 Meals</Link></div>
+          </section>
+          <section className="chat-context-strip-v105 v133-house-chat-context" aria-label="Quick household context">
+            <Link to={`/houses/${id}/shopping`}><span>🛒</span><strong>Shopping</strong><small>Lists and trips</small></Link>
+            <Link to={`/houses/${id}/meals`}><span>🍲</span><strong>Meals</strong><small>Recipes to share</small></Link>
+            <Link to={`/houses/${id}/scan`}><span>🧾</span><strong>Receipts</strong><small>What changed</small></Link>
+            <Link to={`/houses/${id}/expenses`}><span>💸</span><strong>Money</strong><small>Expense context</small></Link>
+          </section>
+          {loadError ? <div className="status-card error">{loadError}</div> : null}
+          <div className="chat-thread-v105 v133-house-chat-thread" aria-live="polite">
           {loading ? <div className="chat-empty-v105">Loading household messages…</div> : null}
           {!loading && messages.length === 0 ? <div className="chat-empty-v105"><span>👋</span><h2>Start the house conversation</h2><p>Send a quick message or attach a shopping list, receipt or recipe.</p></div> : null}
 
@@ -265,8 +264,8 @@ export default function HouseChatPage() {
             const mine = Boolean(me?.id && item.user?.id === me.id);
             return <div key={item.id}>
               {showDay ? <div className="chat-day-v105"><span>{currentDay}</span></div> : null}
-              <article className={`chat-message-v105 ${mine ? 'mine' : ''}`}>
-                {!mine ? <div className="chat-avatar-v105">{initials(item.user?.full_name || item.user?.email)}</div> : null}
+              <article className={`chat-message-v105 v133-house-chat-message ${mine ? 'mine' : ''}`}>
+                <div className="chat-avatar-v105 v133-house-chat-avatar" aria-hidden="true">{(item.user?.avatar_url || (mine ? me?.avatar_url : '')) ? <img src={item.user?.avatar_url || me?.avatar_url} alt="" /> : <span>{initials(item.user?.full_name || item.user?.email || (mine ? me?.full_name || me?.email : 'House member'))}</span>}</div>
                 <div className="chat-bubble-v105">
                   {!mine ? <strong className="chat-author-v105">{item.user?.full_name || item.user?.email || 'House member'}</strong> : null}
                   {item.reply_to_id ? <div className="chat-reply-preview-v113"><small>↩ {item.reply_to_user_name || 'House member'}</small><span>{item.reply_to_message || 'Message'}</span></div> : null}
@@ -281,10 +280,11 @@ export default function HouseChatPage() {
               </article>
             </div>;
           })}
-          <div ref={bottomRef} />
+            <div ref={bottomRef} />
+          </div>
         </div>
 
-        <form ref={composerRef} className="chat-composer-v105 chat-composer-v113 chat-composer-v122" onSubmit={send}>
+        <form ref={composerRef} className="chat-composer-v105 chat-composer-v113 chat-composer-v122 v133-house-chat-composer" onSubmit={send}>
           {replyTo ? <div className="chat-compose-context-v113"><span><small>Replying to {replyTo.user?.full_name || (replyTo.user?.id === me?.id ? 'yourself' : 'house member')}</small><strong>{replyTo.message || replyTo.attachment_title || 'Shared item'}</strong></span><button type="button" onClick={() => setReplyTo(null)}>×</button></div> : null}
           {selectedShare ? <div className="chat-compose-context-v113 attachment"><span>{selectedShare.icon}</span><div><small>ATTACHED GHM ITEM</small><strong>{selectedShare.title}</strong><p>{selectedShare.subtitle}</p></div><button type="button" onClick={() => setSelectedShare(null)}>×</button></div> : null}
           <div className="chat-composer-main-v113"><button className="chat-attach-button-v113" type="button" onClick={() => void openSharePicker()} aria-label="Attach a GHM item">＋</button><textarea ref={messageInputRef} value={message} onChange={(event) => { setMessage(event.target.value.slice(0, 1200)); resizeComposerInput(event.currentTarget); }} placeholder="Message your household…" rows={1} aria-label="Household message" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button className="primary" type="submit" disabled={(!message.trim() && !selectedShare) || sending}>{sending ? 'Sending…' : 'Send'}</button></div>

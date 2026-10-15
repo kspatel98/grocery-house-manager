@@ -1,0 +1,391 @@
+/* ==========================================================================
+   GHM V133 — final chat workspaces
+   Ask GHM + House Chat share one invariant:
+   header at top, ONE scroll pane in the middle, composer flush to the bottom.
+   ========================================================================== */
+
+/* The whole application becomes a bounded viewport only on chat routes. */
+.v133-chat-layout-active {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  padding-bottom: 0 !important;
+}
+.v133-chat-layout-active .desktop-shell-v86 {
+  min-height: 0 !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+}
+.v133-chat-layout-active .desktop-main-v86 {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+.v133-chat-layout-active .app-main-content {
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+.v133-chat-layout-active .parent-company-royal,
+.v133-chat-layout-active .site-footer { display: none !important; }
+
+@media (min-width: 1100px) {
+  .v133-chat-layout-active .desktop-shell-v86 {
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+  .v133-chat-layout-active .desktop-sidebar-v86 {
+    min-height: 0 !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+  .v133-chat-layout-active .desktop-main-v86 {
+    display: grid !important;
+    grid-template-rows: auto auto minmax(0, 1fr) !important;
+    align-content: stretch !important;
+    gap: 0 !important;
+    padding: 0 24px !important;
+  }
+  .v133-chat-layout-active .desktop-topbar-v86 {
+    position: relative !important;
+    top: auto !important;
+    z-index: 70 !important;
+    margin: 0 !important;
+    border-radius: 0 0 24px 24px !important;
+  }
+  .v133-chat-layout-active .ghm-inapp-status-slot-v109 { margin: 0 !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Ask GHM
+   -------------------------------------------------------------------------- */
+.v133-chat-layout-active.v131-ask-chat-active .v125-ask-page,
+.v133-chat-layout-active.v131-ask-chat-active .v125-ask-shell {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.v133-chat-layout-active.v131-ask-chat-active .v125-ask-shell {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  align-content: stretch !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.v133-chat-layout-active.v131-ask-chat-active .v127-ask-scroll-area {
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 18px clamp(16px, 3vw, 46px) 24px !important;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+
+/* User identity mirrors GHM identity: bubble + avatar. */
+.v132-user-line {
+  align-items: flex-end !important;
+  gap: 10px !important;
+}
+.v133-user-avatar {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--ghm-border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ghm-primary-soft) 76%, var(--ghm-surface-elevated));
+  color: var(--ghm-text-strong);
+  box-shadow: var(--ghm-shadow-soft);
+  font-size: .72rem;
+  font-weight: 900;
+}
+.v133-user-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+
+/* The dock is the LAST row of the layout. No margin/padding can exist below it. */
+.v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone.v132-composer-zone {
+  position: relative !important;
+  inset: auto !important;
+  bottom: auto !important;
+  align-self: end !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 9px clamp(16px, 3vw, 46px) 8px !important;
+  overflow: visible !important;
+  border: 1px solid var(--ghm-border) !important;
+  border-bottom: 0 !important;
+  border-radius: 24px 24px 0 0 !important;
+  box-shadow: 0 -14px 38px rgba(10, 27, 20, .16) !important;
+  z-index: 90 !important;
+}
+.v133-chat-layout-active.v131-ask-chat-active .v132-composer-zone > * {
+  width: min(100%, 1180px) !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+}
+
+/* Context picker is an anchored popover, not content that can stretch or clip the dock. */
+.v133-chat-layout-active .v132-composer-zone .v125-context-picker {
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: calc(100% + 10px) !important;
+  transform: translateX(-50%) !important;
+  width: min(calc(100% - 32px), 1060px) !important;
+  max-width: 1060px !important;
+  max-height: min(62dvh, 430px) !important;
+  margin: 0 !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  z-index: 140 !important;
+  box-sizing: border-box !important;
+}
+.v133-chat-layout-active .v132-composer-zone .v125-context-picker > div {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+}
+.v133-chat-layout-active .v132-composer-zone .v125-context-picker > footer {
+  flex-wrap: wrap;
+}
+.v133-chat-layout-active .v132-composer-zone .v125-context-picker > footer small {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   House Chat — same full-page architecture as Ask GHM.
+   -------------------------------------------------------------------------- */
+.v133-house-chat-active .house-chat-page-v105.v133-house-chat-page {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.v133-house-chat-shell {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.v133-house-chat-scroll {
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  padding: 18px clamp(16px, 3vw, 46px) 24px;
+}
+.v133-house-chat-intro,
+.v133-house-chat-context,
+.v133-house-chat-thread {
+  width: min(100%, 1180px) !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+}
+.v133-house-chat-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px !important;
+}
+.v133-house-chat-intro > div:first-child { display:grid; gap:3px; }
+.v133-house-chat-intro .eyebrow { margin:0 !important; }
+.v133-house-chat-intro strong { font-size:1.12rem; }
+.v133-house-chat-intro small { color:var(--ghm-muted); }
+.v133-house-chat-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.v133-house-chat-context { margin-bottom: 16px !important; }
+.v133-house-chat-thread {
+  overflow: visible !important;
+  padding: 8px 0 10px !important;
+  background: transparent !important;
+}
+.v133-house-chat-message {
+  max-width: min(82%, 820px) !important;
+  align-items: flex-end !important;
+  gap: 10px !important;
+}
+.v133-house-chat-message.mine {
+  margin-left: auto !important;
+}
+.v133-house-chat-message.mine .v133-house-chat-avatar { order: 2; }
+.v133-house-chat-message.mine .chat-bubble-v105 { order: 1; }
+.v133-house-chat-avatar {
+  width: 38px !important;
+  height: 38px !important;
+  flex: 0 0 38px !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--ghm-border);
+  background: color-mix(in srgb, var(--ghm-primary-soft) 80%, var(--ghm-surface-elevated)) !important;
+}
+.v133-house-chat-avatar img { width:100%; height:100%; display:block; object-fit:cover; }
+.v133-house-chat-avatar span { display:grid; width:100%; height:100%; place-items:center; }
+
+/* House-chat composer is a true bottom row, never an overlay or floating card. */
+.v133-house-chat-composer {
+  position: relative !important;
+  inset: auto !important;
+  align-self: end !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 9px clamp(16px, 3vw, 46px) 8px !important;
+  border: 1px solid var(--ghm-border) !important;
+  border-bottom: 0 !important;
+  border-radius: 24px 24px 0 0 !important;
+  background: color-mix(in srgb, var(--ghm-surface-elevated) 97%, transparent) !important;
+  box-shadow: 0 -14px 38px rgba(10, 27, 20, .16) !important;
+  backdrop-filter: blur(20px) saturate(1.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.08);
+  z-index: 90 !important;
+}
+.v133-house-chat-composer > * {
+  width: min(100%, 1180px) !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+}
+.v133-house-chat-composer .chat-composer-main-v113 {
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  gap: 8px !important;
+  padding: 6px !important;
+  border: 1px solid color-mix(in srgb, var(--ghm-primary) 22%, var(--ghm-border)) !important;
+  border-radius: 19px !important;
+  background: color-mix(in srgb, var(--ghm-surface) 91%, transparent) !important;
+}
+.v133-house-chat-composer textarea {
+  min-height: 44px !important;
+  max-height: 112px !important;
+  margin: 0 !important;
+  padding: 10px 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.v133-house-chat-composer .chat-attach-button-v113 {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  border-radius: 14px !important;
+}
+.v133-house-chat-composer .primary {
+  min-height: 46px !important;
+  margin: 0 !important;
+  border-radius: 14px !important;
+}
+.v133-house-chat-composer .chat-char-count-v113 {
+  display: block;
+  padding-top: 5px;
+  text-align: right;
+}
+
+html[data-ghm-theme="dark"] .v133-house-chat-composer,
+html[data-theme="dark"] .v133-house-chat-composer {
+  background: rgba(13, 23, 19, .98) !important;
+  border-color: #2c4036 !important;
+  box-shadow: 0 -16px 42px rgba(0,0,0,.34) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Mobile — dock flush immediately above nav; no hidden content below it.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1099px) {
+  .v133-chat-layout-active {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .v133-chat-layout-active > .site-header { flex: 0 0 auto; }
+  .v133-chat-layout-active > .site-header-mobile-spacer { flex: 0 0 auto; }
+  .v133-chat-layout-active .desktop-shell-v86 {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+  }
+  .v133-chat-layout-active .desktop-main-v86,
+  .v133-chat-layout-active .app-main-content {
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    padding-bottom: 0 !important;
+  }
+  .v133-chat-layout-active.v131-ask-chat-active .v127-ask-scroll-area,
+  .v133-house-chat-scroll { padding: 12px 10px 16px !important; }
+  .v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone.v132-composer-zone,
+  .v133-house-chat-composer {
+    padding: 7px 8px 6px !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+  .v133-chat-layout-active .v132-composer-zone .v125-context-picker {
+    width: calc(100% - 16px) !important;
+    max-height: min(58dvh, 420px) !important;
+  }
+  .v133-house-chat-intro { align-items:flex-start; }
+  .v133-house-chat-context {
+    display: flex !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+  .v133-house-chat-context::-webkit-scrollbar { display:none; }
+  .v133-house-chat-context > a { min-width: 150px; }
+}
+
+@media (max-width: 650px) {
+  .v133-user-avatar,
+  .v133-house-chat-avatar {
+    width: 32px !important;
+    height: 32px !important;
+    flex-basis: 32px !important;
+  }
+  .v132-user-line { gap: 7px !important; }
+  .v133-house-chat-intro { display:grid; gap:9px; }
+  .v133-house-chat-actions { width:100%; }
+  .v133-house-chat-actions .secondary { flex:1; text-align:center; }
+  .v133-house-chat-message { max-width: 94% !important; gap:7px !important; }
+  .v133-house-chat-composer .chat-composer-main-v113 {
+    grid-template-columns: 40px minmax(0, 1fr) auto !important;
+    gap: 5px !important;
+    padding: 5px !important;
+    border-radius: 17px !important;
+  }
+  .v133-house-chat-composer .chat-attach-button-v113 {
+    width:40px !important; height:40px !important; min-width:40px !important;
+  }
+  .v133-house-chat-composer textarea { min-height:40px !important; padding:8px 4px !important; }
+  .v133-house-chat-composer .primary { min-height:40px !important; padding-inline:12px !important; }
+  .v133-chat-layout-active .v132-composer-zone .v125-context-picker > div {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
