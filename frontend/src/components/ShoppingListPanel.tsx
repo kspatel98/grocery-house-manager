@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { Product, Section, ShoppingItemStatus, ShoppingList, ShoppingListItem } from '../types';
-import { normalizeText, smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
+import { normalizeText, smartProductIcon, smartProductUnit, smartSectionId, smartSectionSuggestion } from '../smartCategory';
 import OverlayPortal from './OverlayPortal';
 
-type Selection = Record<number, { selected: boolean; requested_quantity: number; message: string; bought_price?: number | null; bought_store_name?: string }>;
+type Selection = Record<number, { selected: boolean; requested_quantity: number | string; message: string; bought_price?: number | null; bought_store_name?: string }>;
 type ItemUpdates = {
   requested_quantity?: number;
   bought_quantity?: number;
@@ -108,7 +108,7 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
       ...prev,
       [product.id]: {
         selected,
-        requested_quantity: prev[product.id]?.requested_quantity || 1,
+        requested_quantity: prev[product.id]?.requested_quantity ?? 1,
         message: prev[product.id]?.message || '',
         bought_price: prev[product.id]?.bought_price ?? product.price ?? null,
         bought_store_name: prev[product.id]?.bought_store_name || product.store_name || '',
@@ -130,20 +130,25 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
       ...prev,
       [productId]: {
         selected: true,
-        requested_quantity: prev[productId]?.requested_quantity || 1,
+        requested_quantity: prev[productId]?.requested_quantity ?? 1,
         message: prev[productId]?.message || '',
         bought_price: prev[productId]?.bought_price ?? null,
         bought_store_name: prev[productId]?.bought_store_name || '',
-        [key]: key === 'requested_quantity' ? (value === '' ? 1 : Number(value)) : key === 'bought_price' ? (value === '' ? null : Number(value)) : value,
+        [key]: key === 'requested_quantity' ? value : key === 'bought_price' ? (value === '' ? null : Number(value)) : value,
       },
     }));
   }
 
   function selectionPayload() {
+    const invalid = selectedItems.find(([, item]) => item.requested_quantity === '' || !Number.isFinite(Number(item.requested_quantity)) || Number(item.requested_quantity) <= 0);
+    if (invalid) {
+      setError('Enter a quantity greater than zero for every selected product. You can leave the field empty while editing, but save requires a valid quantity.');
+      return null;
+    }
     return selectedItems.map(([productId, item]) => ({
       product_id: Number(productId),
-      requested_quantity: item.requested_quantity || 1,
-      bought_quantity: item.requested_quantity || 1,
+      requested_quantity: Number(item.requested_quantity),
+      bought_quantity: Number(item.requested_quantity),
       bought_price: item.bought_price ?? null,
       bought_store_name: item.bought_store_name || null,
       message: item.message || null,
@@ -152,8 +157,10 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
 
   async function createList() {
     try {
+      const items = selectionPayload();
+      if (!items) return;
       setBusy(true);
-      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists`, { title, items: selectionPayload() });
+      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists`, { title, items });
       setSelection({});
       setTitle('Grocery List');
       setError('');
@@ -170,8 +177,10 @@ export default function ShoppingListPanel({ houseId, products, sections, activeL
   async function addMoreProducts() {
     if (!activeList) return;
     try {
+      const items = selectionPayload();
+      if (!items) return;
       setBusy(true);
-      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists/${activeList.id}/items`, { items: selectionPayload() });
+      const { data } = await api.post<ShoppingList>(`/houses/${houseId}/shopping-lists/${activeList.id}/items`, { items });
       setSelection({});
       setShowAddMore(false);
       setError('');
@@ -430,10 +439,15 @@ function ProductPicker({ houseId, sections, products, selection, onToggle, onUpd
         setMessage(`${exact.name} already exists. It was selected instead of creating a duplicate.`);
         return;
       }
-      const sectionId = newProductSectionId || smartSectionId(name, sections) || sections[0]?.id;
+      let sectionId = newProductSectionId || smartSectionId(name, sections);
       if (!sectionId) {
-        setMessage('Create a section first, then add this product.');
-        return;
+        const suggestion = smartSectionSuggestion(name);
+        const existingSection = sections.find((section) => normalizeText(section.name) === normalizeText(suggestion.name));
+        if (existingSection) sectionId = existingSection.id;
+        else {
+          const { data: createdSection } = await api.post<Section>(`/houses/${houseId}/sections`, { name: suggestion.name, icon: suggestion.icon, sort_order: sections.length });
+          sectionId = createdSection.id;
+        }
       }
       const { data } = await api.post<Product>(`/houses/${houseId}/sections/${sectionId}/products`, {
         name,
@@ -480,7 +494,7 @@ function ProductPicker({ houseId, sections, products, selection, onToggle, onUpd
               </div>
               {selected && (
                 <div className="pick-extra">
-                  <input type="number" min="0.01" step="0.01" value={selection[product.id]?.requested_quantity || 1} onChange={(e) => onUpdate(product.id, 'requested_quantity', e.target.value)} />
+                  <input type="number" min="0.01" step="0.01" value={selection[product.id]?.requested_quantity ?? ''} onChange={(e) => onUpdate(product.id, 'requested_quantity', e.target.value)} />
                   <input placeholder="Store for this trip" value={selection[product.id]?.bought_store_name || ''} onChange={(e) => onUpdate(product.id, 'bought_store_name', e.target.value)} />
                   <input type="number" min="0" step="0.01" placeholder="Expected price" value={selection[product.id]?.bought_price ?? ''} onChange={(e) => onUpdate(product.id, 'bought_price', e.target.value)} />
                   <input placeholder="Message e.g. buy 2% milk" value={selection[product.id]?.message || ''} onChange={(e) => onUpdate(product.id, 'message', e.target.value)} />
@@ -544,13 +558,62 @@ function CategoryGroup({ title, items, onUpdate, onStatusChange, onRemove }: { t
   );
 }
 
-function ShoppingRow({ item, onUpdate, onStatusChange, onRemove }: { item: ShoppingListItem; onUpdate: (item: ShoppingListItem, updates: ItemUpdates) => void; onStatusChange: (item: ShoppingListItem, status: ShoppingItemStatus) => void; onRemove: (item: ShoppingListItem) => void }) {
+function ShoppingRow({ item, onUpdate, onStatusChange, onRemove }: { item: ShoppingListItem; onUpdate: (item: ShoppingListItem, updates: ItemUpdates) => void | Promise<void>; onStatusChange: (item: ShoppingListItem, status: ShoppingItemStatus) => void; onRemove: (item: ShoppingListItem) => void }) {
   const suggestion = suggestedPrice(item.product);
   const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState({
+    requested: String(item.requested_quantity ?? ''),
+    bought: String(item.bought_quantity ?? ''),
+    store: item.bought_store_name || '',
+    price: item.bought_price == null ? '' : String(item.bought_price),
+    message: item.message || '',
+  });
+  const [draftError, setDraftError] = useState('');
   const requested = Number(item.requested_quantity || 1);
+
+  useEffect(() => {
+    if (expanded) return;
+    setDraft({ requested: String(item.requested_quantity ?? ''), bought: String(item.bought_quantity ?? ''), store: item.bought_store_name || '', price: item.bought_price == null ? '' : String(item.bought_price), message: item.message || '' });
+    setDraftError('');
+  }, [expanded, item.requested_quantity, item.bought_quantity, item.bought_store_name, item.bought_price, item.message]);
+
   function adjust(delta: number) {
     onUpdate(item, { requested_quantity: Math.max(0.01, Math.round((requested + delta) * 100) / 100) });
   }
+
+  async function saveDetails() {
+    const requestedQty = Number(draft.requested);
+    if (draft.requested.trim() === '' || !Number.isFinite(requestedQty) || requestedQty <= 0) {
+      setDraftError('Required quantity must be greater than zero. It can be empty while you edit, but not when you save.');
+      return;
+    }
+    const boughtQty = draft.bought.trim() === '' ? undefined : Number(draft.bought);
+    if (boughtQty !== undefined && (!Number.isFinite(boughtQty) || boughtQty <= 0)) {
+      setDraftError('Bought quantity must be greater than zero when entered.');
+      return;
+    }
+    const price = draft.price.trim() === '' ? null : Number(draft.price);
+    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+      setDraftError('Price must be zero or greater.');
+      return;
+    }
+    setDraftError('');
+    await onUpdate(item, {
+      requested_quantity: requestedQty,
+      ...(boughtQty === undefined ? {} : { bought_quantity: boughtQty }),
+      bought_store_name: draft.store.trim() || null,
+      bought_price: price,
+      message: draft.message.trim() || null,
+    });
+    setExpanded(false);
+  }
+
+  function cancelDetails() {
+    setDraft({ requested: String(item.requested_quantity ?? ''), bought: String(item.bought_quantity ?? ''), store: item.bought_store_name || '', price: item.bought_price == null ? '' : String(item.bought_price), message: item.message || '' });
+    setDraftError('');
+    setExpanded(false);
+  }
+
   return (
     <article className={`shopping-compact-row-v106 ${expanded ? 'expanded' : ''} ${item.status === 'in_cart' ? 'in-cart' : ''}`}>
       <div className="shopping-compact-main-v106">
@@ -562,27 +625,26 @@ function ShoppingRow({ item, onUpdate, onStatusChange, onRemove }: { item: Shopp
         <div className="shopping-compact-copy-v106">
           <strong>{item.product.name}</strong>
           <small>{item.message || item.bought_store_name || item.product.store_name || item.product.section_name || 'Shopping item'}</small>
-          <div className="shopping-compact-meta-v106">
-            {stockBadge(item.product)}
-            {suggestion ? <span className="shopping-price-chip-v106">{suggestion.icon} {money(suggestion.price)} · {suggestion.store}</span> : null}
-          </div>
+          <div className="shopping-compact-meta-v106">{stockBadge(item.product)}{suggestion ? <span className="shopping-price-chip-v106">{suggestion.icon} {money(suggestion.price)} · {suggestion.store}</span> : null}</div>
         </div>
         <div className="shopping-qty-v106" aria-label={`Requested quantity ${requested}`}>
           <button type="button" onClick={() => adjust(-1)} aria-label="Decrease quantity">−</button><strong>{requested}</strong><small>{item.product.unit || 'pcs'}</small><button type="button" onClick={() => adjust(1)} aria-label="Increase quantity">+</button>
         </div>
-        <button type="button" className="shopping-details-toggle-v106" onClick={() => setExpanded(v => !v)} aria-expanded={expanded}>{expanded ? 'Done' : 'Details'}</button>
+        <button type="button" className="shopping-details-toggle-v106" onClick={() => setExpanded(v => !v)} aria-expanded={expanded}>{expanded ? 'Close' : 'Details'}</button>
       </div>
       {expanded ? <div className="shopping-row-details-v106">
         <div className="shopping-row-detail-head-v106"><div><small>CURRENT INVENTORY</small><strong>{item.product.quantity} {item.product.unit}</strong></div><SuggestedPriceBadge suggestion={suggestion} unit={item.product.unit || 'unit'} /></div>
+        {draftError ? <div className="error compact-message">{draftError}</div> : null}
         <div className="cart-grid shopping-detail-grid-v106">
-          <label>Need<input type="number" min="0.01" step="0.01" value={item.requested_quantity} onChange={(e) => onUpdate(item, { requested_quantity: Number(e.target.value) })} /></label>
-          <label>Bought<input type="number" min="0.01" step="0.01" value={item.bought_quantity} onChange={(e) => onUpdate(item, { bought_quantity: Number(e.target.value) })} /></label>
-          <label>Store<input value={item.bought_store_name || ''} onChange={(e) => onUpdate(item, { bought_store_name: e.target.value || null })} /></label>
-          <label>Price<input type="number" min="0" step="0.01" value={item.bought_price ?? ''} onChange={(e) => onUpdate(item, { bought_price: e.target.value === '' ? null : Number(e.target.value) })} /></label>
+          <label>Need<input type="number" step="0.01" value={draft.requested} onChange={(e) => setDraft((prev) => ({ ...prev, requested: e.target.value }))} /></label>
+          <label>Bought<input type="number" step="0.01" value={draft.bought} onChange={(e) => setDraft((prev) => ({ ...prev, bought: e.target.value }))} /></label>
+          <label>Store<input value={draft.store} onChange={(e) => setDraft((prev) => ({ ...prev, store: e.target.value }))} /></label>
+          <label>Price<input type="number" min="0" step="0.01" value={draft.price} onChange={(e) => setDraft((prev) => ({ ...prev, price: e.target.value }))} /></label>
         </div>
-        <label className="shopping-note-v106">Item note<textarea value={item.message || ''} placeholder="2% milk, specific brand, size…" onChange={(e) => onUpdate(item, { message: e.target.value })} /></label>
-        <div className="shopping-row-detail-footer-v106"><small>Trip store: {item.bought_store_name || item.product.store_name || 'Not set'}</small><button className="secondary small-button" onClick={() => onRemove(item)}>Remove item</button></div>
+        <label className="shopping-note-v106">Item note<textarea value={draft.message} placeholder="2% milk, specific brand, size…" onChange={(e) => setDraft((prev) => ({ ...prev, message: e.target.value }))} /></label>
+        <div className="shopping-row-detail-footer-v106"><small>Changes are saved together, so price comparison will not restart while you type.</small><div className="v134-row-save-actions"><button className="secondary small-button" type="button" onClick={cancelDetails}>Cancel</button><button className="primary small-button" type="button" onClick={() => void saveDetails()}>Save changes</button><button className="secondary small-button danger-button" type="button" onClick={() => onRemove(item)}>Remove item</button></div></div>
       </div> : null}
     </article>
   );
 }
+

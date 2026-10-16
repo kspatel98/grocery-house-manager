@@ -1576,6 +1576,7 @@ def compare_canadian_grocery_prices(
     postal_code: str | None = None,
     retailers: list[str] | None = None,
     force_refresh: bool = False,
+    allow_provider_run: bool = True,
 ) -> tuple[bool, list[LivePriceResultOut]]:
     """Compare Canadian grocery prices with shared per-product cache shards.
 
@@ -1619,6 +1620,10 @@ def compare_canadian_grocery_prices(
     # burning credits while the same result remains valid.
     provider_limit = max(1, settings.market_max_compare_items)
     provider_items = missing_items[:provider_limit]
+    if provider_items and not allow_provider_run:
+        # Cache-only mode is used when a grocery list opens. Never spend provider credits merely
+        # because the user visited the page; return whatever shared cache is already valid.
+        return bool(cached_by_item), [normalize_price_row(row) for row in cached_raw_rows]
     if provider_items and settings.apify_api_token:
         # Lock the missing shards and re-check after waiting. If another request bought the
         # result while we waited, this request reuses it instead of firing Apify again.

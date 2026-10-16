@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import OverlayPortal from './OverlayPortal';
 import { featureEducation, type FeatureEducationKey } from '../featureEducation';
 
-function seenKey(feature: FeatureEducationKey) {
-  return `ghm_feature_purpose_seen_v101:${feature}`;
-}
 
 export function FeatureWhyButton({ feature, label = 'Why?' }: { feature: FeatureEducationKey; label?: string }) {
   const [open, setOpen] = useState(false);
@@ -16,27 +13,10 @@ export function FeatureWhyButton({ feature, label = 'Why?' }: { feature: Feature
   </>;
 }
 
-export function FeaturePurposeCard({ feature, learnPath = '/learn' }: { feature: FeatureEducationKey; learnPath?: string }) {
-  const [visible, setVisible] = useState(false);
-  const [open, setOpen] = useState(false);
-  const item = featureEducation[feature];
-  useEffect(() => {
-    try { setVisible(localStorage.getItem(seenKey(feature)) !== '1'); } catch { setVisible(true); }
-  }, [feature]);
-  const dismiss = () => {
-    try { localStorage.setItem(seenKey(feature), '1'); } catch { /* no-op */ }
-    setVisible(false);
-  };
-  if (!visible) return null;
-  return <section className={`feature-purpose-card-v101 feature-${feature}`} aria-label={`Why ${item.title}`}>
-    <div className="feature-purpose-icon-v101" aria-hidden="true">{item.icon}</div>
-    <div className="feature-purpose-copy-v101"><small>WHY THIS EXISTS</small><strong>{item.title}</strong><p>{item.benefit}</p></div>
-    <div className="feature-purpose-actions-v101">
-      <button type="button" className="secondary" onClick={() => setOpen(true)}>Learn more</button>
-      <button type="button" className="text-button" onClick={dismiss}>Got it</button>
-    </div>
-    {open && <FeaturePurposeDialog feature={feature} onClose={() => setOpen(false)} learnPath={learnPath} />}
-  </section>;
+export function FeaturePurposeCard({ feature: _feature, learnPath: _learnPath = '/learn' }: { feature: FeatureEducationKey; learnPath?: string }) {
+  // V134: education stays available through the compact Why? link. Large duplicate
+  // purpose cards consumed valuable mobile space and repeated the same information.
+  return null;
 }
 
 export function FeaturePurposeDialog({ feature, onClose, learnPath = '/learn' }: { feature: FeatureEducationKey; onClose: () => void; learnPath?: string }) {

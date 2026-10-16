@@ -1,0 +1,111 @@
+/* ============================================================================
+   V134 · Smart grocery UX, quiet background work, inventory media/category UX
+   ============================================================================ */
+
+/* Polished modal motion: subtle, quick, and respectful of reduced-motion. */
+@keyframes v134-backdrop-in { from { opacity:0 } to { opacity:1 } }
+@keyframes v134-dialog-in { from { opacity:0; transform:translateY(12px) scale(.985) } to { opacity:1; transform:none } }
+@keyframes v134-stripe-in { from { opacity:0; transform:translateY(-14px) scale(.98) } to { opacity:1; transform:none } }
+@keyframes v134-spin { to { transform:rotate(360deg) } }
+.modal-backdrop,
+.focus-overlay,
+.feature-purpose-backdrop-v101,
+.v134-category-backdrop { animation:v134-backdrop-in .18s ease-out both; }
+.modal-backdrop > :where(.modal,.focus-dialog),
+.focus-overlay > :where(.modal,.focus-dialog),
+.feature-purpose-dialog-v101,
+.v134-category-dialog { transform-origin:50% 18%; animation:v134-dialog-in .24s cubic-bezier(.22,.8,.26,1) both; }
+
+/* Background work: 2.6s centered notice then a compact non-blocking stripe. */
+.v134-background-start-backdrop {
+  position:fixed; inset:0; z-index:7200; display:grid; place-items:center;
+  padding:20px; pointer-events:none; background:rgba(5,13,10,.22); backdrop-filter:blur(2px);
+  animation:v134-backdrop-in .18s ease-out both;
+}
+.v134-background-start {
+  width:min(520px,calc(100vw - 32px)); display:grid; grid-template-columns:48px 1fr; gap:14px;
+  padding:20px; border:1px solid var(--ghm-border); border-radius:24px;
+  background:color-mix(in srgb,var(--ghm-surface-elevated) 97%,transparent);
+  box-shadow:0 28px 80px rgba(8,18,14,.24); animation:v134-dialog-in .24s cubic-bezier(.22,.8,.26,1) both;
+}
+.v134-background-start h2 { margin:2px 0 6px; font-size:1.2rem; }
+.v134-background-start p { margin:0 0 6px; color:var(--ghm-muted); }
+.v134-background-start small { color:var(--ghm-muted); }
+.v134-background-task-spinner {
+  display:grid; place-items:center; width:42px; height:42px; border-radius:50%;
+  background:var(--ghm-primary-soft); color:var(--ghm-primary); font-size:1.3rem; font-weight:900;
+  animation:v134-spin 1s linear infinite;
+}
+.v134-background-task-stripe {
+  position:fixed; z-index:7100; top:78px; left:50%; transform:translateX(-50%);
+  width:min(720px,calc(100vw - 24px)); display:grid; grid-template-columns:34px minmax(0,1fr); gap:10px; align-items:center;
+  padding:9px 12px; border:1px solid color-mix(in srgb,var(--ghm-primary) 28%,var(--ghm-border)); border-radius:999px;
+  background:color-mix(in srgb,var(--ghm-surface-elevated) 96%,transparent); backdrop-filter:blur(16px);
+  box-shadow:0 12px 34px rgba(8,18,14,.18); animation:v134-stripe-in .25s cubic-bezier(.22,.8,.26,1) both;
+}
+.v134-background-task-stripe .v134-background-task-spinner { width:30px; height:30px; font-size:.9rem; }
+.v134-background-task-stripe strong,.v134-background-task-stripe small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.v134-background-task-stripe strong { font-size:.82rem; }
+.v134-background-task-stripe small { color:var(--ghm-muted); font-size:.72rem; margin-top:1px; }
+
+/* Inventory: desktop uses the spare media width intentionally; mobile is product-only. */
+@media (min-width:761px) {
+  .products-grid .v124-product-media { grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important; gap:10px !important; }
+  .products-grid .v124-product-media.has-image .v124-product-visual-primary > img { object-fit:cover !important; }
+}
+.v134-product-photo-inline {
+  display:grid; grid-template-columns:96px minmax(0,1fr); gap:14px; align-items:center;
+  padding:12px; margin-top:12px; border:1px solid var(--ghm-border); border-radius:18px;
+  background:color-mix(in srgb,var(--ghm-surface-elevated) 72%,transparent);
+}
+.v134-product-photo-preview { width:96px; height:82px; display:grid; place-items:center; overflow:hidden; border-radius:14px; background:var(--ghm-surface); border:1px solid var(--ghm-border); font-size:2rem; }
+.v134-product-photo-preview img { width:100%; height:100%; object-fit:cover; display:block; }
+.v134-product-photo-inline > div:last-child { display:flex; flex-wrap:wrap; gap:7px 10px; align-items:center; min-width:0; }
+.v134-product-photo-inline strong,.v134-product-photo-inline small { flex-basis:100%; }
+.v134-product-photo-inline small,.v134-category-help small { color:var(--ghm-muted); }
+.v134-photo-upload { position:relative; overflow:hidden; cursor:pointer; display:inline-flex !important; width:auto !important; }
+.v134-photo-upload input { position:absolute !important; inset:0 !important; opacity:0 !important; cursor:pointer; }
+.v134-category-help { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:5px; }
+.v134-category-help .text-button { padding:2px 0 !important; white-space:nowrap; }
+.v134-category-dialog { width:min(560px,calc(100vw - 28px)) !important; }
+
+/* Shopping edit details: edit freely, then save once. */
+.v134-row-save-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+.v134-purchase-notes { display:grid; gap:4px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--ghm-border); }
+.v134-purchase-notes strong { font-size:.78rem; }
+.v134-purchase-notes small { display:block; color:var(--ghm-muted); line-height:1.4; }
+
+/* Own chat messages need stronger separation in light mode. */
+html:not([data-ghm-theme="dark"]):not([data-theme="dark"]) .v131-ask-chat-active .v125-user-message.v132-user-message {
+  background:#dcebf9 !important; border-color:#9bbbd9 !important; color:#17324a !important;
+  box-shadow:0 7px 18px rgba(37,73,105,.10) !important;
+}
+html:not([data-ghm-theme="dark"]):not([data-theme="dark"]) .v133-house-chat-message.mine .chat-bubble-v105 {
+  background:#dcebf9 !important; border-color:#9bbbd9 !important; color:#17324a !important;
+}
+
+/* Mobile chat workspaces: composer touches the nav's top edge exactly (68px nav + 8px offset). */
+@media (max-width:760px) {
+  .v133-chat-layout-active .desktop-shell-v86 { padding-bottom:calc(68px + max(8px, env(safe-area-inset-bottom))) !important; }
+  .v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone.v132-composer-zone,
+  .v133-house-chat-composer { margin-bottom:0 !important; border-radius:18px 18px 0 0 !important; }
+
+  .products-grid .v124-product-media { grid-template-columns:minmax(0,1fr) !important; gap:0 !important; }
+  .products-grid .v124-product-brand-mark { display:none !important; }
+  .products-grid .v124-product-media.has-image .v124-product-visual-primary > img { object-fit:cover !important; }
+  .v134-product-photo-inline { grid-template-columns:78px minmax(0,1fr); padding:10px; gap:10px; }
+  .v134-product-photo-preview { width:78px; height:72px; }
+
+  /* Normal pages: vertically stack Chat above Tell GHM on the right. Chat pages hide both in AppFrame. */
+  .ghm-capture-fab { right:12px !important; left:auto !important; bottom:calc(86px + env(safe-area-inset-bottom)) !important; }
+  .ghm-house-chat-fab-v108 { right:12px !important; left:auto !important; bottom:calc(144px + env(safe-area-inset-bottom)) !important; }
+  .v134-background-task-stripe { top:64px; border-radius:18px; }
+  .v134-background-task-stripe small { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .modal-backdrop,.focus-overlay,.feature-purpose-backdrop-v101,.v134-category-backdrop,
+  .modal-backdrop > :where(.modal,.focus-dialog),.focus-overlay > :where(.modal,.focus-dialog),
+  .feature-purpose-dialog-v101,.v134-category-dialog,.v134-background-start-backdrop,.v134-background-start,.v134-background-task-stripe { animation:none !important; }
+  .v134-background-task-spinner { animation-duration:2.2s !important; }
+}

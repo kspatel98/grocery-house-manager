@@ -5,6 +5,9 @@ export function normalizeText(value: string) {
 }
 
 const CATEGORY_RULES: Array<{ targets: string[]; keywords: string[]; icon: string; unit?: string }> = [
+  // Specific pantry units come first so GHM does not suggest `pcs` for liquids/dry goods.
+  { targets: ['pantry', 'grocery'], icon: '🫙', unit: 'ml', keywords: ['oil', 'cooking oil', 'olive oil', 'vegetable oil', 'canola oil', 'avocado oil', 'sesame oil', 'vinegar'] },
+  { targets: ['pantry', 'dry goods', 'grocery'], icon: '🥫', unit: 'g', keywords: ['flour', 'rice', 'sugar', 'salt', 'spice', 'turmeric', 'cumin', 'masala', 'garam masala', 'mustard seeds', 'coriander powder', 'chili powder', 'chilli powder', 'paprika', 'cinnamon', 'cardamom', 'lentil', 'beans', 'pasta', 'noodle', 'cereal'] },
   { targets: ['dairy'], icon: '🥛', unit: 'pcs', keywords: ['milk', 'cheese', 'paneer', 'yogurt', 'yoghurt', 'cream', 'butter', 'egg', 'eggs', 'sour cream', 'cottage cheese'] },
   { targets: ['fruits', 'fruit', 'produce'], icon: '🍎', unit: 'pcs', keywords: ['banana', 'apple', 'orange', 'grape', 'berry', 'berries', 'mango', 'pear', 'peach', 'melon', 'kiwi', 'avocado', 'pineapple'] },
   { targets: ['vegetables', 'vegetable', 'produce'], icon: '🥦', unit: 'pcs', keywords: ['tomato', 'onion', 'potato', 'lettuce', 'spinach', 'pepper', 'carrot', 'cucumber', 'broccoli', 'cauliflower', 'cilantro', 'coriander'] },
@@ -20,9 +23,18 @@ const CATEGORY_RULES: Array<{ targets: string[]; keywords: string[]; icon: strin
   { targets: ['pets', 'pet'], icon: '🐾', unit: 'pcs', keywords: ['dog food', 'cat food', 'pet', 'litter', 'treats'] },
 ];
 
+export type SmartSectionSuggestion = { name: string; icon: string; unit?: string };
+
+export function smartSectionSuggestion(name: string, hints: Array<string | null | undefined> = []): SmartSectionSuggestion {
+  const text = normalizeText([name, ...hints.filter(Boolean)].join(' '));
+  const match = CATEGORY_RULES.find((rule) => rule.keywords.some((keyword) => text.includes(normalizeText(keyword))));
+  if (match) return { name: match.targets[0].replace(/\b\w/g, (ch) => ch.toUpperCase()), icon: match.icon, unit: match.unit };
+  return { name: 'Other', icon: '🧺', unit: 'pcs' };
+}
+
 export function smartSectionId(name: string, sections: Section[], hints: Array<string | null | undefined> = []): number | '' {
   const text = normalizeText([name, ...hints.filter(Boolean)].join(' '));
-  if (!text) return sections[0]?.id || '';
+  if (!text) return '';
 
   for (const rule of CATEGORY_RULES) {
     if (rule.keywords.some((keyword) => text.includes(normalizeText(keyword)))) {
@@ -30,7 +42,9 @@ export function smartSectionId(name: string, sections: Section[], hints: Array<s
         const sectionName = normalizeText(section.name);
         return rule.targets.some((target) => sectionName.includes(normalizeText(target)) || normalizeText(target).includes(sectionName));
       });
-      if (match) return match.id;
+      // Important: never fall back to the first section. Returning blank tells the caller to
+      // create the suggested category instead of silently putting flour/oil/etc. in Fruits.
+      return match?.id || '';
     }
   }
 
@@ -41,8 +55,8 @@ export function smartSectionId(name: string, sections: Section[], hints: Array<s
     if (direct) return direct.id;
   }
 
-  const pantry = sections.find((section) => normalizeText(section.name).includes('pantry'));
-  return pantry?.id || sections[0]?.id || '';
+  const other = sections.find((section) => normalizeText(section.name) === 'other');
+  return other?.id || '';
 }
 
 export function smartProductIcon(name: string, fallback = '🛒', hints: Array<string | null | undefined> = []) {

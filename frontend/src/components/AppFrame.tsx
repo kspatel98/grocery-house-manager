@@ -693,8 +693,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
       <BackgroundResultFocus />
       <BackgroundTaskNotice houseId={contextHouseId} />
       <SmartReviewPrompt />
-      {contextHouseId && !askGhmChatActive ? <Link className="ghm-house-chat-fab-v108" to={`/houses/${contextHouseId}/chat`} aria-label="Open house chat" title="House Chat"><span aria-hidden="true">💬</span><strong>Chat</strong></Link> : null}
-      {!askGhmChatActive ? <UniversalCapture houseId={contextHouseId} /> : null}
+      {contextHouseId && !chatLayoutActive ? <Link className="ghm-house-chat-fab-v108" to={`/houses/${contextHouseId}/chat`} aria-label="Open house chat" title="House Chat"><span aria-hidden="true">💬</span><strong>Chat</strong></Link> : null}
+      {!chatLayoutActive ? <UniversalCapture houseId={contextHouseId} /> : null}
 
       <PremiumAwardCelebration
         open={celebrationOpen && showPremiumCrown}

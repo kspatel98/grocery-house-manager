@@ -3,7 +3,7 @@ import type { ChangeEvent } from 'react';
 import { api, errorMessage } from '../api';
 import { money } from '../currency';
 import type { HouseMember, Product, Section } from '../types';
-import { smartProductIcon, smartProductUnit, smartSectionId } from '../smartCategory';
+import { smartProductIcon, smartProductUnit, smartSectionId, smartSectionSuggestion } from '../smartCategory';
 import OverlayPortal from './OverlayPortal';
 
 type Props = {
@@ -78,7 +78,7 @@ async function resizeImageToDataUrl(file: File): Promise<string> {
 export default function ProductModal({ houseId, sections, modal, onClose, onSaved }: Props) {
   const product = modal.product;
   const [form, setForm] = useState({
-    section_id: product?.section_id || modal.sectionId || sections[0]?.id,
+    section_id: product?.section_id || modal.sectionId || '',
     name: product?.name || '',
     image_url: product?.image_url || '',
     icon: product?.icon || '',
@@ -98,12 +98,22 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   const [error, setError] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
   const [previewBroken, setPreviewBroken] = useState(false);
+  const [localSections, setLocalSections] = useState<Section[]>(sections);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('🧺');
+  const [categoryBusy, setCategoryBusy] = useState(false);
+  const [categoryError, setCategoryError] = useState('');
   const categoryManuallyChosen = useRef(Boolean(product?.section_id || modal.sectionId));
   const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
   const scannerStreamRef = useRef<MediaStream | null>(null);
   const scannerFrameRef = useRef<number | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerError, setScannerError] = useState('');
+
+  useEffect(() => {
+    setLocalSections(sections);
+  }, [sections]);
 
   useEffect(() => {
     api.get<HouseMember[]>(`/houses/${houseId}/members`)
@@ -113,18 +123,18 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
 
   useEffect(() => {
     if (modal.mode !== 'create' || categoryManuallyChosen.current || !form.name.trim()) return;
-    const suggestedSection = smartSectionId(form.name, sections);
+    const suggestedSection = smartSectionId(form.name, localSections);
     if (suggestedSection && suggestedSection !== form.section_id) {
       setForm((prev) => ({ ...prev, section_id: suggestedSection }));
     }
-  }, [form.name, form.section_id, modal.mode, sections]);
+  }, [form.name, form.section_id, modal.mode, localSections]);
 
   function setField(key: string, value: string | number) {
     if (key === 'section_id') categoryManuallyChosen.current = true;
     setForm((prev) => {
       const next = { ...prev, [key]: value };
       if (modal.mode === 'create' && key === 'name' && !categoryManuallyChosen.current) {
-        const suggestedSection = smartSectionId(String(value), sections);
+        const suggestedSection = smartSectionId(String(value), localSections);
         if (suggestedSection) next.section_id = suggestedSection;
         if (!next.icon) next.icon = smartProductIcon(String(value));
         if (!next.unit || next.unit === 'pcs') next.unit = smartProductUnit(String(value));
@@ -143,7 +153,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   function applyPreset(preset: ProductPreset) {
     setForm((prev) => {
       const nextName = prev.name || preset.label;
-      const suggestedSection = modal.mode === 'create' && !categoryManuallyChosen.current ? smartSectionId(nextName, sections) : prev.section_id;
+      const suggestedSection = modal.mode === 'create' && !categoryManuallyChosen.current ? smartSectionId(nextName, localSections) : prev.section_id;
       return {
         ...prev,
         section_id: suggestedSection || prev.section_id,
@@ -154,6 +164,40 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
       };
     });
     setPreviewBroken(false);
+  }
+
+  function suggestedCategory() {
+    return smartSectionSuggestion(form.name || 'Other');
+  }
+
+  async function createCategory(nameOverride?: string, iconOverride?: string) {
+    const suggested = suggestedCategory();
+    const name = (nameOverride ?? newCategoryName ?? suggested.name).trim() || suggested.name;
+    const icon = (iconOverride ?? newCategoryIcon ?? suggested.icon).trim() || suggested.icon;
+    const existing = localSections.find((section) => section.name.trim().toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setForm((prev) => ({ ...prev, section_id: existing.id }));
+      categoryManuallyChosen.current = true;
+      setCategoryOpen(false);
+      return existing.id;
+    }
+    try {
+      setCategoryBusy(true);
+      setCategoryError('');
+      const { data } = await api.post<Section>(`/houses/${houseId}/sections`, { name, icon, sort_order: localSections.length });
+      setLocalSections((prev) => [...prev, data]);
+      setForm((prev) => ({ ...prev, section_id: data.id }));
+      categoryManuallyChosen.current = true;
+      setCategoryOpen(false);
+      setNewCategoryName('');
+      setNewCategoryIcon('🧺');
+      return data.id;
+    } catch (err) {
+      setCategoryError(errorMessage(err));
+      return null;
+    } finally {
+      setCategoryBusy(false);
+    }
   }
 
   async function handleImageFile(event: ChangeEvent<HTMLInputElement>) {
@@ -233,9 +277,14 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
-    const sectionId = Number(form.section_id);
+    let sectionId = Number(form.section_id);
+    if (!sectionId && modal.mode === 'create') {
+      const suggested = suggestedCategory();
+      const matched = localSections.find((section) => section.name.trim().toLowerCase() === suggested.name.toLowerCase());
+      sectionId = matched?.id || Number(await createCategory(suggested.name, suggested.icon) || 0);
+    }
     if (!sectionId) {
-      setError('Please create or choose a section first.');
+      setError('Please choose or create a category first.');
       return;
     }
 
@@ -289,7 +338,19 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
             </div>
             <div className="form-row">
               <label>Name<input autoFocus value={form.name} onChange={(e) => setField('name', e.target.value)} required placeholder="Example: Milk" /></label>
-              <label>Category<select value={form.section_id} onChange={(e) => setField('section_id', Number(e.target.value))}>{sections.map((s) => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select><small>Auto-selected from the product name. You can change it anytime.</small></label>
+              <label>Category
+                <select value={form.section_id} onChange={(e) => setField('section_id', e.target.value ? Number(e.target.value) : '')}>
+                  <option value="">Auto: {suggestedCategory().icon} {suggestedCategory().name}</option>
+                  {localSections.map((section) => <option key={section.id} value={section.id}>{section.icon} {section.name}</option>)}
+                </select>
+                <span className="v134-category-help"><small>GHM suggests a category from the product name and creates it automatically if needed.</small><button type="button" className="text-button" onClick={() => { const suggestion = suggestedCategory(); setNewCategoryName(suggestion.name === 'Other' ? '' : suggestion.name); setNewCategoryIcon(suggestion.icon); setCategoryError(''); setCategoryOpen(true); }}>+ Add category</button></span>
+              </label>
+            </div>
+            <div className="v134-product-photo-inline">
+              <div className="v134-product-photo-preview">
+                {form.image_url && !previewBroken ? <img src={form.image_url} alt="Product preview" onError={() => setPreviewBroken(true)} /> : <span aria-hidden="true">{form.icon || smartProductIcon(form.name || '') || '🛒'}</span>}
+              </div>
+              <div><strong>Product photo</strong><small>Optional. Upload any normal phone photo — GHM resizes and crops it safely for the product card.</small><label className="secondary v134-photo-upload">{imageBusy ? 'Preparing image…' : form.image_url ? 'Replace photo' : 'Add photo'}<input type="file" accept="image/*" onChange={handleImageFile} disabled={imageBusy} /></label>{form.image_url ? <button type="button" className="text-button" onClick={() => { setForm((prev) => ({ ...prev, image_url: '' })); setPreviewBroken(false); }}>Remove photo</button> : null}</div>
             </div>
             <div className="form-row">
               <label>Quantity<input type="number" step="0.01" value={form.quantity} onChange={(e) => setField('quantity', e.target.value)} /></label>
@@ -355,7 +416,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
 
           <details className="product-form-section product-optional-section">
             <summary>
-              <span><b>Optional appearance</b><small>Add a photo or icon only if you want one.</small></span>
+              <span><b>Optional icon & image URL</b><small>The photo uploader is above. These are advanced appearance options.</small></span>
               <span aria-hidden="true">＋</span>
             </summary>
             <section className="product-visual-editor">
@@ -393,11 +454,6 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
               <label>Icon<input placeholder="🥛" value={form.icon} onChange={(e) => setField('icon', e.target.value)} /></label>
               <label>Image URL<input placeholder="Paste image URL or choose/upload above" value={form.image_url} onChange={(e) => setField('image_url', e.target.value)} /></label>
             </div>
-            <label className="file-upload-box">
-              Upload product photo — it will be resized automatically
-              <input type="file" accept="image/*" onChange={handleImageFile} />
-              {imageBusy && <span>Resizing image...</span>}
-            </label>
           </details>
 
           <section className="product-form-section">
@@ -418,6 +474,7 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
           </div>
         </form>
       </div>
+      {categoryOpen ? <div className="modal-backdrop v134-category-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setCategoryOpen(false); }}><section className="modal focus-dialog v134-category-dialog" role="dialog" aria-modal="true" aria-label="Create inventory category"><header className="focus-dialog-titlebar"><div><p className="eyebrow">INVENTORY CATEGORY</p><h2>Create category</h2><p>Add a category only when you need one. GHM will select it for this product after saving.</p></div><button type="button" data-dialog-close="true" onClick={() => setCategoryOpen(false)} aria-label="Close">×</button></header><div className="focus-dialog-scroll"><div className="form-row"><label>Icon<input value={newCategoryIcon} onChange={(event) => setNewCategoryIcon(event.target.value)} maxLength={8} /></label><label>Category name<input autoFocus value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Pantry" /></label></div>{categoryError ? <div className="error compact-message">{categoryError}</div> : null}</div><footer className="focus-dialog-actions"><button type="button" className="secondary" onClick={() => setCategoryOpen(false)}>Cancel</button><button type="button" className="primary" disabled={categoryBusy || !newCategoryName.trim()} onClick={() => void createCategory()}>{categoryBusy ? 'Creating…' : 'Create category'}</button></footer></section></div> : null}
     </div>
     </OverlayPortal>
   );

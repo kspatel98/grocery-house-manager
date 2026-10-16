@@ -160,6 +160,7 @@ def get_weekly_flyer_deals(
     merchants: list[str] | None = None,
     force_refresh: bool = False,
     max_merchants: int | None = None,
+    allow_provider_run: bool = True,
 ) -> tuple[bool, datetime | None, list[FlyerDealOut]]:
     clean_postal = normalize_canadian_postal_code(postal_code)
     if not clean_postal or len(clean_postal.replace(" ", "")) != 6:
@@ -178,6 +179,11 @@ def get_weekly_flyer_deals(
                 return True, existing.fetched_at, [normalize_flyer_row(row) for row in rows if isinstance(row, dict)]
             except Exception:
                 pass
+
+    if not allow_provider_run:
+        # Opening Shopping is cache-first. A missing/expired flyer cache must not trigger Apify
+        # until the user explicitly asks to refresh/resume the comparison.
+        return False, existing.fetched_at if existing else None, []
 
     if settings.apify_api_token:
         cache_key = _cache_key(clean_postal, clean_merchants, effective_max_merchants)

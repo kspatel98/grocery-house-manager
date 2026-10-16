@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
+from app.api.products import guess_section_for_product
 from app.api.plan_utils import (
     ensure_active_shopping_list_limit,
     ensure_product_limit,
@@ -519,10 +520,11 @@ def _live_effective_unit_price(item: ShoppingListItem, row) -> float | None:
         return None
 
     family, factor = _measure_family(getattr(item.product, "unit", None))
-    unit_base_price = _parse_live_unit_price(getattr(row, "unit_price", None), family)
-    if unit_base_price is not None and family in {"mass", "volume", "count"}:
-        return unit_base_price * factor
 
+    # A retailer's unit-price string is often only an informational comparison (for example
+    # "$1.07 / 100 ml" on a 750 ml bottle). When a real package size is available, price the
+    # physical package(s) the shopper must actually buy first. Only use unit pricing as the
+    # fallback for genuinely variable/weighted products whose package size is not known.
     package_text = " ".join(filter(None, [getattr(row, "package_size", None), getattr(row, "matched_product_name", None)]))
     package_family, package_base = _flyer_package_measure(package_text, family)
     if family in {"mass", "volume"}:
@@ -530,16 +532,91 @@ def _live_effective_unit_price(item: ShoppingListItem, row) -> float | None:
             required_base = required * factor
             packages = max(ceil(required_base / package_base), 1)
             return (shelf_price * packages) / required
+        unit_base_price = _parse_live_unit_price(getattr(row, "unit_price", None), family)
+        if unit_base_price is not None:
+            return unit_base_price * factor
         # Never multiply a package shelf price by grams/kg/ml/L when package size is unknown.
         return shelf_price if abs(required - 1.0) < 1e-9 else None
     if family == "count":
         if package_family == "count" and package_base and package_base > 0:
             packages = max(ceil(required / package_base), 1)
             return (shelf_price * packages) / required
+        unit_base_price = _parse_live_unit_price(getattr(row, "unit_price", None), family)
+        if unit_base_price is not None:
+            return unit_base_price * factor
         return shelf_price
     if family == "package":
         return shelf_price
     return shelf_price if abs(required - 1.0) < 1e-9 else None
+
+
+
+def _display_base_measure(family: str, value: float) -> str:
+    if family == "mass":
+        return f"{value / 1000:g} kg" if value >= 1000 else f"{value:g} g"
+    if family == "volume":
+        return f"{value / 1000:g} L" if value >= 1000 else f"{value:g} ml"
+    if family == "count":
+        return f"{value:g} pcs"
+    return f"{value:g} units"
+
+
+def _retail_purchase_base(item: ShoppingListItem, package_text: str | None) -> float | None:
+    """Return the total base-unit amount the shopper would physically purchase.
+
+    Used as a tie-breaker inside the same provider/source tier so a tiny recipe requirement such
+    as 5 ml oil prefers the smallest known bottle that actually covers the need, rather than a
+    larger bulk package merely because its unit price is lower.
+    """
+    try:
+        required = float(item.requested_quantity or 0)
+    except (TypeError, ValueError):
+        return None
+    family, factor = _measure_family(getattr(item.product, "unit", None))
+    if family not in {"mass", "volume", "count"} or required <= 0:
+        return None
+    package_family, package_base = _flyer_package_measure(package_text, family)
+    if package_family != family or not package_base or package_base <= 0:
+        return None
+    required_base = required * factor
+    packages = max(ceil(required_base / package_base), 1)
+    return packages * package_base
+
+
+def _retail_package_note(item: ShoppingListItem, package_text: str | None, *, source_label: str) -> str | None:
+    """Explain when a retailer package is larger than the recipe/list requirement.
+
+    The shopping list keeps the amount actually needed (useful for recipes/inventory). Basket
+    pricing separately models the physical package the shopper must buy. This avoids rewriting
+    15 ml oil into 750 ml while still pricing the 750 ml bottle the store actually sells.
+    """
+    try:
+        required = float(item.requested_quantity or 0)
+    except (TypeError, ValueError):
+        return None
+    family, factor = _measure_family(getattr(item.product, "unit", None))
+    if family not in {"mass", "volume", "count"} or required <= 0:
+        return None
+    package_family, package_base = _flyer_package_measure(package_text, family)
+    if package_family != family or not package_base or package_base <= 0:
+        return None
+    required_base = required * factor
+    packages = max(ceil(required_base / package_base), 1)
+    # Only explain when the physical purchase differs materially from the requested amount.
+    if packages == 1 and abs(required_base - package_base) <= max(1.0, package_base * 0.05):
+        return None
+    need_label = f"{required:g} {getattr(item.product, 'unit', None) or 'unit'}"
+    package_label = _display_base_measure(family, package_base)
+    return f"{item.product.name}: need {need_label}; {source_label} sells a {package_label} package, so GHM prices {packages} × {package_label}."
+
+
+def _live_purchase_note(item: ShoppingListItem, row) -> str | None:
+    package_text = " ".join(filter(None, [getattr(row, "package_size", None), getattr(row, "matched_product_name", None)]))
+    return _retail_package_note(item, package_text, source_label="the matched retailer")
+
+
+def _flyer_purchase_note(item: ShoppingListItem, deal) -> str | None:
+    return _retail_package_note(item, getattr(deal, "name", None), source_label="the flyer")
 
 
 def _convert_quantity(value: float, from_unit: str | None, to_unit: str | None) -> float | None:
@@ -569,10 +646,6 @@ def _quantity_warning(item: ShoppingListItem) -> str | None:
         return f"{name}: {qty:g} {unit} is unusually large. Confirm the quantity before GHM prices this trip."
     if family == "package" and qty > 60:
         return f"{name}: {qty:g} {unit} is unusually large. Confirm the quantity before GHM prices this trip."
-    # Catch obvious recipe unit mistakes without flagging legitimate 1–2 g spices.
-    bulk_keywords = ("flour", "rice", "potato", "banana", "apple", "tomato", "onion", "milk", "yogurt", "paneer", "chicken", "vegetable")
-    if family == "mass" and base < 5 and any(word in name.casefold() for word in bulk_keywords):
-        return f"{name}: {qty:g} {unit} looks unusually small for this grocery item. Confirm the recipe/list unit."
     return None
 
 
@@ -596,6 +669,7 @@ def _basket_comparison(
     postal_code: str | None = None,
     force_refresh: bool = False,
     include_live: bool = False,
+    allow_provider_run: bool = True,
 ) -> BasketComparisonOut:
     shopping_list = (
         db.query(ShoppingList)
@@ -654,6 +728,7 @@ def _basket_comparison(
                 location=location_label,
                 postal_code=clean_postal,
                 force_refresh=force_refresh,
+                allow_provider_run=allow_provider_run,
             )
         except Exception as exc:
             live_error = safe_market_error(exc)
@@ -669,7 +744,7 @@ def _basket_comparison(
             preferred_flyer_stores = _split_pref_stores(house.autopilot_preferred_stores)[:5] if house else []
             _, _, flyer_rows = get_weekly_flyer_deals(
                 db, postal_code=clean_postal, merchants=preferred_flyer_stores or None,
-                force_refresh=force_refresh, max_merchants=5,
+                force_refresh=force_refresh, max_merchants=5, allow_provider_run=allow_provider_run,
             )
         except Exception as exc:
             flyer_error = safe_market_error(exc)
@@ -681,7 +756,15 @@ def _basket_comparison(
     price_map: dict[int, dict[str, dict]] = {item.id: {} for item in items}
     data_sources: set[str] = set()
 
-    def put_price(item_id: int, store: str | None, price: float | None, source: str, recorded_at: datetime | None = None):
+    def put_price(
+        item_id: int,
+        store: str | None,
+        price: float | None,
+        source: str,
+        recorded_at: datetime | None = None,
+        purchase_note: str | None = None,
+        purchase_size_base: float | None = None,
+    ):
         if not store or price is None or price < 0:
             return
         store_name = " ".join(store.split()).strip()
@@ -689,8 +772,27 @@ def _basket_comparison(
             return
         rank = {"live": 0, "flyer": 1, "recent_receipt": 2, "saved_price": 3}.get(source, 4)
         current = price_map.setdefault(item_id, {}).get(store_name)
-        candidate = {"price": float(price), "source": source, "rank": rank, "recorded_at": recorded_at}
-        if current is None or rank < current["rank"] or (rank == current["rank"] and float(price) < current["price"]):
+        candidate = {
+            "price": float(price), "source": source, "rank": rank,
+            "recorded_at": recorded_at, "purchase_note": purchase_note,
+            "purchase_size_base": purchase_size_base,
+        }
+        replace = current is None or rank < current["rank"]
+        if current is not None and rank == current["rank"]:
+            current_size = current.get("purchase_size_base")
+            candidate_size = purchase_size_base
+            if source in {"live", "flyer"} and candidate_size is not None and current_size is not None:
+                # Retail/package results: satisfy the household need with the smallest known
+                # purchasable container first, then use price as a tie-breaker.
+                replace = candidate_size < current_size - 1e-9 or (abs(candidate_size - current_size) <= 1e-9 and float(price) < current["price"])
+            elif source in {"live", "flyer"} and candidate_size is not None and current_size is None:
+                # Prefer a result with a known package fit over an ambiguous shelf-price result.
+                replace = True
+            elif candidate_size is None and current_size is not None and source in {"live", "flyer"}:
+                replace = False
+            else:
+                replace = float(price) < current["price"]
+        if replace:
             price_map[item_id][store_name] = candidate
         if source == "live":
             data_sources.add("Live Canadian prices")
@@ -717,7 +819,11 @@ def _basket_comparison(
             if _live_row_matches(item.product.name, row):
                 effective_price = _live_effective_unit_price(item, row)
                 if effective_price is not None:
-                    put_price(item.id, store, effective_price, "live", getattr(row, "scraped_at", None) or now)
+                    live_package_text = " ".join(filter(None, [getattr(row, "package_size", None), getattr(row, "matched_product_name", None)]))
+                    put_price(
+                        item.id, store, effective_price, "live", getattr(row, "scraped_at", None) or now,
+                        _live_purchase_note(item, row), _retail_purchase_base(item, live_package_text),
+                    )
 
     for deal in flyer_rows:
         if getattr(deal, "price", None) is None or getattr(deal, "is_multi_product_bundle", False):
@@ -732,7 +838,10 @@ def _basket_comparison(
             if _flyer_row_matches(item.product.name, deal):
                 effective_price = _flyer_effective_unit_price(item, deal)
                 if effective_price is not None:
-                    put_price(item.id, getattr(deal, "merchant", None), effective_price, "flyer", getattr(deal, "scraped_at", None) or now)
+                    put_price(
+                        item.id, getattr(deal, "merchant", None), effective_price, "flyer", getattr(deal, "scraped_at", None) or now,
+                        _flyer_purchase_note(item, deal), _retail_purchase_base(item, getattr(deal, "name", None)),
+                    )
 
     all_store_names = sorted({store for stores in price_map.values() for store in stores})
     store_options: list[BasketStoreOptionOut] = []
@@ -819,6 +928,13 @@ def _basket_comparison(
     complete_stores = [row for row in plausible_store_options if row.complete]
     best_single = min(complete_stores, key=lambda row: row.known_total) if complete_stores else (plausible_store_options[0] if plausible_store_options else None)
     comparison_ready = bool(complete_stores)
+    purchase_notes: list[str] = []
+    if best_single:
+        for item in items:
+            record = price_map.get(item.id, {}).get(best_single.store_name)
+            note = record.get("purchase_note") if record else None
+            if note and note not in purchase_notes:
+                purchase_notes.append(note)
 
     # A split trip is recommended only when every item has a supported price at one of the two stores.
     # No synthetic 5% fill-in is used.
@@ -927,6 +1043,7 @@ def _basket_comparison(
         data_sources=sorted(data_sources),
         price_review_required=bool(price_warnings and not complete_stores and split_value is None),
         price_warnings=list(dict.fromkeys(price_warnings))[:8],
+        purchase_notes=purchase_notes[:8],
         live_cache_reused=live_cache_reused,
         last_refreshed_at=now,
         recommendation_reason=recommendation_reason,
@@ -940,6 +1057,7 @@ def basket_comparison(
     postal_code: str | None = Query(default=None, max_length=20),
     force_refresh: bool = Query(default=False),
     live: bool = Query(default=True),
+    provider_run: bool = Query(default=True),
     premium_try_feature: str | None = Header(default=None, alias="X-GHM-Premium-Try"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -969,6 +1087,7 @@ def basket_comparison(
         postal_code=postal_code,
         force_refresh=force_refresh,
         include_live=live,
+        allow_provider_run=provider_run,
     )
     if trial_allowed and (result.comparison_ready or result.store_options or result.split_store_total is not None):
         complete_premium_try(db, house_id, user, "whole_list_compare", premium_try_feature)
@@ -1329,16 +1448,6 @@ def add_recipe_missing_items(
         db.flush()
 
     products = db.query(Product).filter(Product.house_id == house_id).all()
-    section = db.query(Section).filter(
-        Section.house_id == house_id,
-        or_(Section.name.ilike("%pantry%"), Section.name.ilike("%grocery%"), Section.name.ilike("%other%")),
-    ).order_by(Section.sort_order.asc(), Section.id.asc()).first()
-    if not section:
-        section = db.query(Section).filter(Section.house_id == house_id).order_by(Section.sort_order.asc(), Section.id.asc()).first()
-    if not section:
-        section = Section(house_id=house_id, name="Pantry", icon="pantry", sort_order=0)
-        db.add(section)
-        db.flush()
 
     existing_item_product_ids = {item.product_id for item in shopping_list.items}
     added_items: list[str] = []
@@ -1347,6 +1456,7 @@ def add_recipe_missing_items(
         product = _find_product_for_ingredient(products, ingredient)
         if not product:
             ensure_product_limit(db, house_id, user)
+            section = guess_section_for_product(db, house_id, ingredient)
             product = Product(
                 house_id=house_id,
                 section_id=section.id,
@@ -1395,6 +1505,23 @@ def add_recipe_missing_items(
     )
 
 
+def _normalize_recipe_grocery_measure(name: str, quantity: float, unit: str | None) -> tuple[float, str, str | None]:
+    """Normalize obviously incompatible recipe measures before matching inventory.
+
+    Recipe sources occasionally express oil by mass. Grocery retail and GHM inventory normally
+    track cooking oil by volume, so use a conservative density conversion (~0.92 g/ml). The
+    actual store package is still chosen later by live-price/package-size logic.
+    """
+    clean_unit = (unit or "pcs").strip() or "pcs"
+    family, factor = _measure_family(clean_unit)
+    key = _clean_key(name)
+    if "oil" in key and family == "mass":
+        grams = max(float(quantity), 0.0001) * factor
+        ml = grams / 0.92
+        return max(ml, 0.0001), "ml", f"Recipe amount converted from {quantity:g} {clean_unit} to about {ml:.2f} ml for grocery shopping."
+    return max(float(quantity), 0.0001), clean_unit, None
+
+
 @router.post("/houses/{house_id}/recipes/add-shopping", response_model=RecipeShoppingAddOut)
 def add_recipe_shopping_items(
     house_id: int,
@@ -1423,10 +1550,6 @@ def add_recipe_shopping_items(
         db.add(shopping_list); db.flush()
 
     products = db.query(Product).filter(Product.house_id == house_id).all()
-    section = db.query(Section).filter(Section.house_id == house_id).order_by(Section.sort_order.asc(), Section.id.asc()).first()
-    if not section:
-        section = Section(house_id=house_id, name="Pantry", icon="pantry", sort_order=0)
-        db.add(section); db.flush()
 
     existing = {item.product_id: item for item in shopping_list.items}
     added_items, updated_items, created_products = [], [], []
@@ -1437,25 +1560,32 @@ def add_recipe_shopping_items(
         # It is accepted only when the user explicitly chose the manual action.
         if payload.mode != "manual" and _is_household_water_ingredient(name):
             continue
+        quantity, requested_unit, unit_note = _normalize_recipe_grocery_measure(name, float(row.quantity), row.unit)
+        desired_section = guess_section_for_product(db, house_id, name)
         product = _find_product_for_ingredient(products, name)
+        if product and (product.notes or '').startswith('Created from recipe shopping:') and product.section_id != desired_section.id:
+            # Repair earlier recipe-created items that accidentally landed in the first category
+            # (often Fruits) before V134's semantic category creation.
+            product.section_id = desired_section.id
         if not product:
             ensure_product_limit(db, house_id, user)
-            product = Product(house_id=house_id, section_id=section.id, name=name[:180], quantity=0, unit=(row.unit or "pcs")[:32], low_stock_threshold=0, notes=f"Created from recipe shopping: {payload.recipe_name or 'Recipe'}")
+            product = Product(house_id=house_id, section_id=desired_section.id, name=name[:180], quantity=0, unit=requested_unit[:32], low_stock_threshold=0, notes=f"Created from recipe shopping: {payload.recipe_name or 'Recipe'}")
             db.add(product); db.flush(); products.append(product); created_products.append(product.name)
-        quantity = max(float(row.quantity), 0.0001)
         # The frontend usually converts recipe units before sending, but the backend is the final
         # authority because fuzzy ingredient matching can resolve a 250 g ingredient to an
         # existing product tracked in kg. Convert again here so 250 g can never become 250 kg.
-        converted_quantity = _convert_quantity(quantity, row.unit, product.unit)
+        converted_quantity = _convert_quantity(quantity, requested_unit, product.unit)
         if converted_quantity is not None:
             quantity = max(converted_quantity, 0.0001)
-        elif (row.unit or "").strip().casefold() != (product.unit or "").strip().casefold():
+        elif requested_unit.strip().casefold() != (product.unit or "").strip().casefold():
             # Incompatible fuzzy matches (for example tablespoons vs pieces) are unsafe. Create a
             # separate recipe product in the requested unit instead of silently corrupting units.
             ensure_product_limit(db, house_id, user)
-            product = Product(house_id=house_id, section_id=section.id, name=name[:180], quantity=0, unit=(row.unit or "pcs")[:32], low_stock_threshold=0, notes=f"Created from recipe shopping: {payload.recipe_name or 'Recipe'}")
+            product = Product(house_id=house_id, section_id=desired_section.id, name=name[:180], quantity=0, unit=requested_unit[:32], low_stock_threshold=0, notes=f"Created from recipe shopping: {payload.recipe_name or 'Recipe'}")
             db.add(product); db.flush(); products.append(product); created_products.append(product.name)
         message = row.tag or f"Recipe · {payload.recipe_name or 'Meal'}"
+        if unit_note:
+            message = f"{message} · {unit_note}"
         if product.id in existing:
             item = existing[product.id]
             # Recipe actions represent the target quantity needed for this plan. Keep the larger request instead of accidentally doubling it.

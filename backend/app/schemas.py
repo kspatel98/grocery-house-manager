@@ -904,6 +904,7 @@ class BasketComparisonOut(BaseModel):
     quantity_warnings: list[str] = Field(default_factory=list)
     price_review_required: bool = False
     price_warnings: list[str] = Field(default_factory=list)
+    purchase_notes: list[str] = Field(default_factory=list)
     live_cache_reused: bool = False
     last_refreshed_at: datetime | None = None
     recommendation_reason: str | None = None

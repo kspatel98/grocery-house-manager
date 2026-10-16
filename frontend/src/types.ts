@@ -776,6 +776,7 @@ export type BasketComparison = {
   quantity_warnings?: string[];
   price_review_required?: boolean;
   price_warnings?: string[];
+  purchase_notes?: string[];
   live_cache_reused?: boolean;
 };
 

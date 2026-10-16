@@ -4,7 +4,6 @@ import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import { money } from '../currency';
 import ProductModal from '../components/ProductModal';
-import SectionManager from '../components/SectionManager';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import type { House, Product, Section } from '../types';
@@ -130,7 +129,6 @@ export default function InventoryPage() {
             <p>Use sections to keep grocery items easy to find.</p>
           </div>
         </div>
-        <SectionManager houseId={id} sections={sections} onChange={loadAll} />
       </section>
 
       <section className="panel inventory-control-panel">

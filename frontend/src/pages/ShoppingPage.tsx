@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
@@ -376,12 +376,13 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
   const [comparison, setComparison] = useState<BasketComparison | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [backgroundNote, setBackgroundNote] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [postalCode, setPostalCode] = useState(() => localStorage.getItem('ghm_price_postal') || '');
   const listSignature = selectedList.items.map((item) => `${item.id}:${item.product_id}:${item.requested_quantity}:${item.status}:${item.product.updated_at || ''}`).join('|');
+  const lastComparedSignature = useRef('');
+  const [comparisonDirty, setComparisonDirty] = useState(false);
 
-  async function compare(forceRefresh = false, postal = postalCode, usePremiumTry = false) {
+  async function compare(forceRefresh = false, postal = postalCode, usePremiumTry = false, allowProviderRun = true) {
     if (!navigator.onLine) {
       setError('You are offline. The saved shopping list is still available; price recommendations will refresh when you reconnect.');
       return;
@@ -391,28 +392,39 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       setError('');
       const normalizedPostal = postal.trim().toUpperCase();
       if (normalizedPostal) localStorage.setItem('ghm_price_postal', normalizedPostal);
-      const taskId = makeBackgroundTaskId(`basket-compare-${houseId}-${selectedList.id}`);
-      const href = `/houses/${houseId}/shopping?list=${selectedList.id}&bgTask=${encodeURIComponent(taskId)}`;
-      setBackgroundNote('A full basket check can take longer than 45–50 seconds when GHM checks several live sources. You can leave this list and keep using GHM; we’ll notify you when it is ready.');
-      const data = await runBackgroundCapableTask<BasketComparison>({
-        id: taskId,
-        kind: 'basket-comparison',
-        title: `Price comparison for ${selectedList.title}`,
-        message: 'GHM is checking live, flyer and household price sources. You can continue using the app.',
-        href,
-        task: async () => (await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, {
-          params: {
-            t: Date.now(),
-            live: true,
-            force_refresh: forceRefresh || undefined,
-            postal_code: normalizedPostal || undefined,
-          },
-          headers: usePremiumTry ? { 'X-GHM-Premium-Try': 'whole_list_compare' } : undefined,
-          timeout: 120000,
-        })).data,
-      });
+      const request = async () => (await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, {
+        params: {
+          t: allowProviderRun ? Date.now() : undefined,
+          live: true,
+          provider_run: allowProviderRun,
+          force_refresh: allowProviderRun && forceRefresh ? true : undefined,
+          postal_code: normalizedPostal || undefined,
+        },
+        headers: usePremiumTry ? { 'X-GHM-Premium-Try': 'whole_list_compare' } : undefined,
+        timeout: allowProviderRun ? 120000 : 25000,
+      })).data;
+
+      let data: BasketComparison;
+      if (allowProviderRun) {
+        const taskId = makeBackgroundTaskId(`basket-compare-${houseId}-${selectedList.id}`);
+        const href = `/houses/${houseId}/shopping?list=${selectedList.id}&bgTask=${encodeURIComponent(taskId)}`;
+        data = await runBackgroundCapableTask<BasketComparison>({
+          id: taskId,
+          kind: 'basket-comparison',
+          title: `Price comparison for ${selectedList.title}`,
+          message: 'GHM is refreshing missing or expired live prices. You can continue using the app.',
+          href,
+          task: request,
+        });
+      } else {
+        // Opening a list never buys new provider data. It only reuses shared live/flyer
+        // cache and saved household history; the user explicitly chooses when to refresh.
+        data = await request();
+      }
       if (usePremiumTry && !data.premium_required) window.dispatchEvent(new Event('account:refresh'));
       setComparison(data);
+      lastComparedSignature.current = listSignature;
+      setComparisonDirty(false);
       setDetailsOpen(false);
     } catch (err) {
       setError(errorMessage(err));
@@ -426,6 +438,8 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
     const restored = taskId ? getBackgroundTaskResult<BasketComparison>(taskId) : null;
     if (taskId && restored) {
       setComparison(restored);
+      lastComparedSignature.current = listSignature;
+      setComparisonDirty(false);
       setDetailsOpen(false);
       setError('');
       window.setTimeout(() => announceBackgroundResultHydrated(taskId), 0);
@@ -438,8 +452,13 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
     setComparison(null);
     setDetailsOpen(false);
     setError('');
-    void compare(false, localStorage.getItem('ghm_price_postal') || '');
-  }, [selectedList.id, houseId, listSignature, comparisonSearchParams]);
+    // Cache-only first paint: zero new Apify spend just because someone opened the list.
+    void compare(false, localStorage.getItem('ghm_price_postal') || '', false, false);
+  }, [selectedList.id, houseId, comparisonSearchParams]);
+
+  useEffect(() => {
+    if (lastComparedSignature.current && listSignature !== lastComparedSignature.current) setComparisonDirty(true);
+  }, [listSignature]);
 
   const winner = comparison?.best_single_store || null;
   const incompleteWinner = Boolean(winner && !winner.complete);
@@ -453,14 +472,14 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
             <p className="eyebrow">Family Plus • automatic trip check</p>
             <div className="feature-heading-with-why-v101"><h2>Where should I buy “{selectedList.title}”?</h2><FeatureWhyButton feature="price_compare" label="Why?" /></div>
           </div>
-          <span className={`auto-status ${busy ? 'checking' : (comparison?.quantity_review_required || comparison?.price_review_required) ? 'review' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : (comparison?.quantity_review_required || comparison?.price_review_required) ? '!' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparison?.quantity_review_required ? 'Needs quantity review' : comparison?.price_review_required ? 'Needs price review' : comparison ? 'Prices checked' : 'Ready to check'}</span>
+          <span className={`auto-status ${busy ? 'checking' : (comparisonDirty || comparison?.quantity_review_required || comparison?.price_review_required) ? 'review' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : (comparisonDirty || comparison?.quantity_review_required || comparison?.price_review_required) ? '!' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparisonDirty ? 'List changed' : comparison?.quantity_review_required ? 'Needs quantity review' : comparison?.price_review_required ? 'Needs price review' : comparison ? 'Prices checked' : 'Ready to check'}</span>
         </div>
         <p>GHM compares the whole list using shared live-price cache, current flyers and your household price history. Paid lookups run only for products whose shared result is missing or expired.</p>
 
         {comparison?.premium_required ? (
           <div className="basket-upgrade-line">
             <span>{comparison.message}</span>
-            {premiumTry?.available ? (premiumTry.selected_feature === 'whole_list_compare' ? <button type="button" className="primary" disabled={busy} onClick={() => void compare(false, postalCode, true)}>{busy ? 'Comparing…' : 'Use my free Premium Try'}</button> : <Link to={`/premium-try?feature=whole_list_compare&house=${houseId}`} className="primary center-link">Choose this as my free try</Link>) : <Link to="/pricing" className="secondary center-link">See Family Plus</Link>}
+            {premiumTry?.available ? (premiumTry.selected_feature === 'whole_list_compare' ? <button type="button" className="primary" disabled={busy} onClick={() => void compare(false, postalCode, true, true)}>{busy ? 'Comparing…' : 'Use my free Premium Try'}</button> : <Link to={`/premium-try?feature=whole_list_compare&house=${houseId}`} className="primary center-link">Choose this as my free try</Link>) : <Link to="/pricing" className="secondary center-link">See Family Plus</Link>}
           </div>
         ) : null}
 
@@ -474,27 +493,28 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
         ) : null}
 
         {comparison?.live_configured && !comparison.premium_required ? (
-          <form className="basket-location-inline" onSubmit={(event) => { event.preventDefault(); void compare(false, postalCode); }}>
+          <form className="basket-location-inline" onSubmit={(event) => { event.preventDefault(); void compare(false, postalCode, false, true); }}>
             <label>
               <span>Postal code (optional) for nearby prices</span>
               <input value={postalCode} onChange={(event) => setPostalCode(event.target.value.toUpperCase())} placeholder="L8P 1A1" maxLength={7} />
             </label>
             <button className="secondary" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Use & refresh'}</button>
-            {postalCode ? <button type="button" className="text-button" onClick={() => { setPostalCode(''); localStorage.removeItem('ghm_price_postal'); void compare(false, ''); }}>Clear</button> : null}
+            {postalCode ? <button type="button" className="text-button" onClick={() => { setPostalCode(''); localStorage.removeItem('ghm_price_postal'); void compare(false, '', false, false); }}>Clear</button> : null}
           </form>
         ) : null}
 
         <div className="whole-list-actions">
-          <button className="primary" type="button" onClick={() => compare(false)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : 'Refresh prices'}</button>
-          {comparison?.store_options.length && !comparison.quantity_review_required ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : comparison.price_review_required ? 'Review flagged prices' : 'View store details'}</button> : null}
+          <button className="primary" type="button" onClick={() => compare(false, postalCode, false, true)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : comparisonDirty ? 'Resume price check' : 'Refresh prices'}</button>
+          {comparison?.store_options.length && !comparison.quantity_review_required && !comparisonDirty ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : comparison.price_review_required ? 'Review flagged prices' : 'View store details'}</button> : null}
         </div>
-        {backgroundNote && busy ? <div className="v120-background-work-note"><span>↻</span><div><strong>Working in the background</strong><small>{backgroundNote}</small></div></div> : null}
         {error && <div className="error compact-message">{error}</div>}
       </div>
 
       <div className="whole-list-result-preview" data-ghm-background-result={comparison && !busy ? 'true' : undefined}>
         {!comparison || busy ? (
-          <><span>AUTOMATIC CHECK</span><strong>{selectedList.items.length}</strong><small>{busy ? 'checking live + flyer + household prices…' : 'items checked together'}</small></>
+          <><span>CACHE-FIRST CHECK</span><strong>{selectedList.items.length}</strong><small>{busy ? 'checking available price data…' : 'items checked without buying new provider data'}</small></>
+        ) : comparisonDirty ? (
+          <><span>LIST CHANGED</span><strong>Price check paused</strong><small>Finish all quantity edits, then press Resume price check. GHM will not search on every keystroke.</small></>
         ) : comparison.premium_required ? (
           <><span>PREMIUM</span><strong>Family Plus</strong><small>Automatic whole-list comparison unlocks here.</small></>
         ) : comparison.quantity_review_required ? (
@@ -513,17 +533,20 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       </div>
 
       {comparison && !comparison.premium_required ? (
-        <div className={`basket-guidance-line ${comparison.quantity_review_required || comparison.price_review_required ? 'quantity-review' : ''}`}>
+        <div className={`basket-guidance-line ${comparisonDirty || comparison.quantity_review_required || comparison.price_review_required ? 'quantity-review' : ''}`}>
+          {comparisonDirty ? <><strong>Price comparison is paused while you edit.</strong><span>Make every change you need, save the item details, then press Resume price check once. No live provider query runs while you type.</span></> : <>
           <strong>{comparison.message}</strong>
           {comparison.quantity_review_required && comparison.quantity_warnings?.length ? <div className="v132-quantity-warnings">{comparison.quantity_warnings.map((warning) => <span key={warning}>⚠ {warning}</span>)}</div> : null}
           {comparison.price_review_required && comparison.price_warnings?.length ? <div className="v132-quantity-warnings">{comparison.price_warnings.map((warning) => <span key={warning}>⚠ {warning}</span>)}</div> : null}
           {comparison.recommendation_reason ? <span>{comparison.recommendation_reason}</span> : null}
           {comparison.live_configured && comparison.needs_postal_code ? <small>Tip: we are using your saved city. Add a postal code only if you want more local results.</small> : null}
           {!comparison.live_configured ? <small>Current Canadian prices are unavailable right now, so Grocery House Manager is automatically using any cached weekly flyers plus your receipt and saved prices instead.</small> : null}
+          {comparison.purchase_notes?.length ? <div className="v134-purchase-notes"><strong>Retail package fit</strong>{comparison.purchase_notes.map((note) => <small key={note}>ℹ {note}</small>)}</div> : null}
+          </>}
         </div>
       ) : null}
 
-      {comparison && detailsOpen && !comparison.premium_required && comparison.store_options.length ? (
+      {comparison && !comparisonDirty && detailsOpen && !comparison.premium_required && comparison.store_options.length ? (
         <div className="whole-list-results">
           {comparison.store_options.slice(0, 6).map((store, index) => (
             <div key={store.store_name} className={!comparison.price_review_required && store.complete && index === 0 ? 'best' : ''}>
@@ -592,9 +615,10 @@ function SmartShoppingSuggestions({ houseId, selectedList, premiumTry }: { house
   }
 
   useEffect(() => {
+    // Nearby-store/marketplace discovery can involve external providers. Do not fire it merely
+    // because the user opened a list; let the user request it when it is useful.
     setSuggestions(null);
     setError('');
-    if (selectedList) void loadSuggestions(null, null);
   }, [selectedList?.id]);
 
   function useCurrentLocation() {
@@ -624,7 +648,7 @@ function SmartShoppingSuggestions({ houseId, selectedList, premiumTry }: { house
       <section className="panel smart-suggestions-panel">
         <p className="eyebrow">Household Pro</p>
         <h2>Nearby store options</h2>
-        <p>Choose a shopping list and nearby-store suggestions will load automatically.</p>
+        <p>Choose a shopping list, then load nearby-store suggestions when you need them.</p>
       </section>
     );
   }
@@ -636,7 +660,7 @@ function SmartShoppingSuggestions({ houseId, selectedList, premiumTry }: { house
           <p className="eyebrow">Household Pro • nearby convenience</p>
           <h2>Stores around your trip</h2>
         </div>
-        <span className="badge">Auto-loaded</span>
+        <span className="badge">On demand</span>
       </div>
       <p>The full basket price decision is handled above. This panel stays focused on nearby grocery locations so you do not have to run the same comparison twice.</p>
       {error && <div className="error">{error}</div>}
@@ -649,7 +673,7 @@ function SmartShoppingSuggestions({ houseId, selectedList, premiumTry }: { house
         <button className="secondary" type="button" onClick={() => loadSuggestions()} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh nearby stores'}</button>
       </div>
 
-      {busy && !suggestions ? <p className="small-muted">Finding useful nearby options automatically…</p> : null}
+      {busy && !suggestions ? <p className="small-muted">Finding useful nearby options…</p> : !suggestions ? <p className="small-muted">Nearby-store discovery stays off until you request it, avoiding unnecessary external lookups.</p> : null}
       {suggestions ? (
         <div className="suggestion-results">
           <div className={suggestions.premium_required ? 'hint' : 'success compact-message'}>{suggestions.message}</div>

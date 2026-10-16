@@ -102,6 +102,7 @@ def list_products(
     user: User = Depends(get_current_user),
 ):
     require_house_member(house_id, user, db)
+    _repair_recipe_created_categories(db, house_id)
     query = db.query(Product).options(joinedload(Product.section), joinedload(Product.store_prices)).filter(Product.house_id == house_id)
     if section_id:
         query = query.filter(Product.section_id == section_id)
@@ -366,10 +367,11 @@ def match_product_for_line(description: str, products: list[Product]) -> tuple[P
 CATEGORY_KEYWORDS = [
     ("Dairy", "🥛", ["milk", "cheese", "paneer", "yogurt", "yoghurt", "tofu", "cream", "butter", "egg", "eggs", "sour cream", "cottage cheese"]),
     ("Fruits", "🍎", ["banana", "apple", "orange", "grape", "berry", "berries", "mango", "pear", "peach", "melon", "kiwi", "avocado", "pineapple"]),
+    ("Pantry", "🥫", ["coriander powder", "chili powder", "chilli powder", "garam masala", "mustard seed", "cumin", "turmeric", "paprika", "cinnamon", "cardamom", "kasuri methi"]),
     ("Vegetables", "🥦", ["tomato", "onion", "potato", "lettuce", "spinach", "pepper", "carrot", "cucumber", "broccoli", "cauliflower", "cilantro", "coriander"]),
     ("Meat", "🥩", ["chicken", "beef", "pork", "fish", "salmon", "turkey", "shrimp", "meat", "ham", "sausage"]),
     ("Bakery", "🍞", ["bread", "bun", "bagel", "naan", "tortilla", "cake", "muffin", "croissant"]),
-    ("Pantry", "🥫", ["rice", "flour", "sugar", "oil", "pasta", "beans", "lentil", "cereal", "sauce", "spice", "salt", "pepper", "can", "noodle"]),
+    ("Pantry", "🥫", ["rice", "flour", "sugar", "oil", "pasta", "beans", "lentil", "cereal", "sauce", "spice", "salt", "pepper", "cumin", "turmeric", "masala", "paprika", "oregano", "chili", "chilli", "cinnamon", "cardamom", "mustard seed", "can", "noodle"]),
     ("Snacks", "🍿", ["chips", "cookie", "cookies", "snack", "chocolate", "candy", "cracker", "popcorn"]),
     ("Frozen", "🧊", ["frozen", "ice cream", "fries", "pizza", "nuggets"]),
     ("Beverages", "🧃", ["juice", "pop", "soda", "water", "coffee", "tea", "drink", "beverage", "coke", "pepsi"]),
@@ -450,6 +452,41 @@ def find_existing_product(db: Session, house_id: int, name: str | None) -> Produ
     return best if best and score >= 0.86 else None
 
 
+def _repair_recipe_created_categories(db: Session, house_id: int) -> None:
+    """Repair older recipe-created products that were silently placed in the first section.
+
+    Earlier builds could fall back to whatever section happened to be first (commonly Fruits).
+    Limit this compatibility repair to products explicitly created by the recipe-shopping flow so
+    we never override a category the user intentionally chose for ordinary inventory items.
+    """
+    rows = (
+        db.query(Product)
+        .filter(Product.house_id == house_id, Product.notes.ilike("Created from recipe shopping:%"))
+        .limit(200)
+        .all()
+    )
+    if not rows:
+        return
+    sections = db.query(Section).filter(Section.house_id == house_id).all()
+    by_name = {section.name.casefold(): section for section in sections}
+    changed = False
+    for product in rows:
+        text = normalize_name_key(product.name)
+        match = next(((section_name, icon) for section_name, icon, keywords in CATEGORY_KEYWORDS if any(keyword in text for keyword in keywords)), None)
+        if not match:
+            continue
+        section_name, icon = match
+        section = by_name.get(section_name.casefold())
+        if not section:
+            section = Section(house_id=house_id, name=section_name, icon=icon, sort_order=max([item.sort_order for item in sections], default=0) + 1)
+            db.add(section); db.flush(); sections.append(section); by_name[section_name.casefold()] = section
+        if product.section_id != section.id:
+            product.section_id = section.id
+            changed = True
+    if changed:
+        db.commit()
+
+
 def guess_section_for_product(db: Session, house_id: int, name: str | None) -> Section:
     text = normalize_name_key(name)
     sections = db.query(Section).filter(Section.house_id == house_id).all()
@@ -464,7 +501,14 @@ def guess_section_for_product(db: Session, house_id: int, name: str | None) -> S
             db.add(section)
             db.flush()
             return section
-    return default_receipt_section(db, house_id)
+    existing = by_name.get("other")
+    if existing:
+        return existing
+    sort_order = max([section.sort_order for section in sections], default=0) + 1
+    section = Section(house_id=house_id, name="Other", icon="🧺", sort_order=sort_order)
+    db.add(section)
+    db.flush()
+    return section
 
 
 def _positive_quantity(value: object, default: float = 1.0) -> float:
