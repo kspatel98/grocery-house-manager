@@ -4,6 +4,7 @@ import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import { money } from '../currency';
 import ProductModal from '../components/ProductModal';
+import GroceryPhotoScan from '../components/GroceryPhotoScan';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import type { House, Product, Section } from '../types';
@@ -23,6 +24,7 @@ export default function InventoryPage() {
   const [sectionFilter, setSectionFilter] = useState<number | ''>('');
   const [scopeFilter, setScopeFilter] = useState<'shared' | 'personal' | 'selected' | ''>('');
   const [productModal, setProductModal] = useState<{ mode: 'create' | 'edit'; product?: Product; sectionId?: number; scanOnOpen?: boolean } | null>(null);
+  const [groceryScanOpen, setGroceryScanOpen] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -101,7 +103,7 @@ export default function InventoryPage() {
           <div className="feature-heading-with-why-v101"><h1>Your grocery inventory</h1><FeatureWhyButton feature="inventory" label="Why?" /></div>
           <p>Keep a simple picture of what you already have. Add everyday groceries first; low-stock, expiry, meal, and shopping suggestions will build automatically.</p>
         </div>
-        <div className="inventory-hero-actions-v94"><button className="secondary" onClick={() => setProductModal({ mode: 'create', scanOnOpen: true })}>▦ Scan barcode</button><button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button></div>
+        <div className="inventory-hero-actions-v94"><button className="secondary" type="button" onClick={() => setGroceryScanOpen(true)}>📷 Scan groceries</button><button className="secondary" onClick={() => setProductModal({ mode: 'create', scanOnOpen: true })}>▦ Scan barcode</button><button className="primary glow-action" onClick={() => setProductModal({ mode: 'create' })}>+ Add product</button></div>
       </header>
 
       <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="inventory" />
@@ -212,6 +214,11 @@ export default function InventoryPage() {
         ))}
       </div>
 
+      {groceryScanOpen && <GroceryPhotoScan houseId={id} sections={sections} initialMode="products" initialDestination="inventory" onClose={() => setGroceryScanOpen(false)} onSaved={(result) => {
+        setGroceryScanOpen(false);
+        void loadAll();
+        if (result.list_id) navigate(`/houses/${id}/shopping?list=${result.list_id}`);
+      }} />}
       {productModal && (
         <ProductModal
           houseId={id}

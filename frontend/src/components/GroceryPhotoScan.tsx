@@ -1,0 +1,189 @@
+import { useEffect, useRef, useState } from 'react';
+import { api, errorMessage } from '../api';
+import type { Section, ShoppingList } from '../types';
+import OverlayPortal from './OverlayPortal';
+import { smartSectionId, smartProductUnit, smartSectionSuggestion } from '../smartCategory';
+
+type ScanMode = 'products' | 'written_list';
+type Destination = 'shopping' | 'inventory';
+type ScanRow = { name: string; category: string; quantity: number | string; unit: string; confidence: number; notes: string; needs_review: boolean; product_id: number | null; section_id: number | null; selected: boolean; reviewConfirmed: boolean };
+type Preview = { mode: ScanMode; items: Omit<ScanRow, 'selected' | 'section_id' | 'reviewConfirmed'>[]; warnings: string[]; message: string };
+const UNITS = ['pcs', 'kg', 'g', 'L', 'mL', 'pack', 'box', 'bag', 'bottle', 'can', 'loaf'];
+
+export default function GroceryPhotoScan({ houseId, sections, initialMode = 'written_list', initialDestination = 'shopping', onClose, onSaved }: {
+  houseId: number; sections: Section[]; initialMode?: ScanMode; initialDestination?: Destination; onClose: () => void; onSaved: (result: { destination: Destination; count: number; list_id: number | null }) => void;
+}) {
+  const [mode, setMode] = useState<ScanMode>(initialMode);
+  const [destination, setDestination] = useState<Destination>(initialMode === 'written_list' ? 'shopping' : initialDestination);
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [rows, setRows] = useState<ScanRow[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
+  const [listId, setListId] = useState<number | null>(null);
+  const [listTitle, setListTitle] = useState('Scanned Groceries');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [stage, setStage] = useState<'choose' | 'review'>('choose');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    let mounted = true;
+    api.get<ShoppingList[]>(`/houses/${houseId}/shopping-lists`).then(({ data }) => {
+      if (mounted) { setShoppingLists(data); setListId(data[0]?.id || null); }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [houseId]);
+  useEffect(() => {
+    if (!file) { setPreviewUrl(''); return; }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busyRef.current) { event.preventDefault(); closeRef.current(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); previous?.focus?.(); };
+  }, []);
+
+  function changeMode(next: ScanMode) {
+    if (busy) return;
+    setMode(next);
+    if (next === 'written_list') setDestination('shopping');
+    setStage('choose'); setRows([]); setWarnings([]); setError('');
+  }
+  function selectFile(next: File | null) {
+    if (busy) return;
+    setFile(next); setRows([]); setStage('choose'); setError('');
+  }
+  function updateRow(index: number, change: Partial<ScanRow>) {
+    setRows(prev => prev.map((row, i) => i !== index ? row : {
+      ...row, ...change,
+      product_id: change.product_id !== undefined ? change.product_id : (change.name !== undefined && change.name !== row.name ? null : row.product_id),
+      section_id: change.name !== undefined && change.name !== row.name ? (smartSectionId(change.name, sections) || null) : (change.section_id === undefined ? row.section_id : change.section_id),
+      category: change.name !== undefined && change.name !== row.name ? ( ["Fruits", "Vegetables", "Dairy", "Pantry", "Bakery", "Beverages", "Household", "Frozen", "Snacks", "Other"].includes(smartSectionSuggestion(change.name).name) ? smartSectionSuggestion(change.name).name : "Other") : (change.category ?? row.category),
+      reviewConfirmed: change.name !== undefined || change.quantity !== undefined || change.unit !== undefined ? true : (change.reviewConfirmed ?? row.reviewConfirmed),
+    }));
+  }
+
+  async function scan() {
+    if (!file || busy) return;
+    if (file.size > 8 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Choose a JPG, PNG or WebP photo smaller than 8 MB.'); return;
+    }
+    setError(''); setBusy(true); busyRef.current = true;
+    try {
+      const form = new FormData();
+      form.set('mode', mode); form.set('image', file);
+      const { data } = await api.post<Preview>(`/houses/${houseId}/grocery-scan/preview`, form, { timeout: 100000 });
+      setWarnings(data.warnings || []);
+      setRows((data.items || []).map(item => ({
+        ...item, selected: true, reviewConfirmed: !item.needs_review,
+        quantity: item.quantity || 1, unit: item.unit || smartProductUnit(item.name) || 'pcs',
+        section_id: smartSectionId(item.name, sections) || null,
+        category: item.category || smartSectionSuggestion(item.name).name,
+        product_id: item.product_id ?? null,
+      })));
+      setStage('review');
+      if (!data.items.length) setError('No groceries were recognized. Try a clearer image with better lighting.');
+    } catch (err) { setError(errorMessage(err)); }
+    finally { setBusy(false); busyRef.current = false; }
+  }
+
+  const selected = rows.filter(row => row.selected);
+  const hasInvalid = selected.some(row => !row.name.trim() || !Number.isFinite(Number(row.quantity)) || Number(row.quantity) <= 0 || Number(row.quantity) > 10000 || !UNITS.includes(row.unit) || !row.reviewConfirmed);
+  const duplicateNames = selected.some((row, i) => selected.slice(0, i).some(p => p.name.trim().toLocaleLowerCase() === row.name.trim().toLocaleLowerCase() && p.unit.toLowerCase() === row.unit.toLowerCase()));
+
+  async function apply() {
+    if (!selected.length || hasInvalid || duplicateNames || busy) return;
+    setBusy(true); busyRef.current = true; setError('');
+    try {
+      const { data } = await api.post<{ destination: Destination; count: number; list_id: number | null }>(`/houses/${houseId}/grocery-scan/apply`, {
+        mode, destination: mode === 'written_list' ? 'shopping' : destination,
+        list_id: destination === 'shopping' ? listId : null,
+        list_title: listTitle.trim() || 'Scanned Groceries',
+        items: selected.map(row => ({
+          name: row.name.trim(), quantity: Number(row.quantity), unit: row.unit,
+          product_id: row.product_id, section_id: row.product_id ? null : row.section_id, category: row.category,
+        })),
+      }, { timeout: 60000 });
+      window.dispatchEvent(new Event('account:refresh'));
+      onSaved(data);
+    } catch (err) { setError(errorMessage(err)); }
+    finally { setBusy(false); busyRef.current = false; }
+  }
+
+  return <OverlayPortal>
+    <div className="v137-scan-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+      <section className="v137-scan-modal" role="dialog" aria-modal="true" aria-label="Scan groceries" ref={dialogRef} tabIndex={-1}>
+        <header className="v137-scan-header">
+          <div><small>GHM SMART CAPTURE</small><h2>Scan groceries</h2><p>One picture, many groceries. You review everything before it changes your house.</p></div>
+          <button type="button" className="v137-scan-close" disabled={busy} onClick={onClose} aria-label="Close grocery scanner">×</button>
+        </header>
+        <div className="v137-scan-content">
+          <div className="v137-scan-mode-grid" role="group" aria-label="What do you want to scan?">
+            <button type="button" aria-pressed={mode === 'products'} className={mode === 'products' ? 'active' : ''} disabled={busy} onClick={() => changeMode('products')}>
+              <span aria-hidden="true">🥑</span><strong>Products</strong><small>Photo of physical groceries, packages or produce</small>
+            </button>
+            <button type="button" aria-pressed={mode === 'written_list'} className={mode === 'written_list' ? 'active' : ''} disabled={busy} onClick={() => changeMode('written_list')}>
+              <span aria-hidden="true">📝</span><strong>Written list</strong><small>Handwritten paper, printed sheet or screenshot</small>
+            </button>
+          </div>
+          {mode === 'products' ? <div className="v137-scan-target"><strong>Add products to</strong><div role="group" aria-label="Where should products go?">
+            <button type="button" aria-pressed={destination === 'inventory'} className={destination === 'inventory' ? 'active' : ''} disabled={busy} onClick={() => setDestination('inventory')}>🏠 Inventory</button>
+            <button type="button" aria-pressed={destination === 'shopping'} className={destination === 'shopping' ? 'active' : ''} disabled={busy} onClick={() => setDestination('shopping')}>🛒 Shopping list</button>
+          </div></div> : <p className="v137-scan-info">Written lists go to <strong>Shopping Lists</strong>. They won't increase inventory quantities until shopping is finished.</p>}
+          {stage === 'choose' ? <div className="v137-scan-upload">
+            <input ref={fileRef} type="file" id="v137-grocery-photo" accept="image/jpeg,image/png,image/webp" onChange={event => selectFile(event.target.files?.[0] || null)} disabled={busy} />
+            {previewUrl ? <img src={previewUrl} alt="Selected grocery scan" className="v137-scan-thumbnail" /> : <span aria-hidden="true" className="v137-scan-upload-icon">📷</span>}
+            <label htmlFor="v137-grocery-photo">{file ? 'Change photo' : 'Take a picture or choose an image'}</label>
+            <small>{file?.name || 'JPG, PNG, WebP · up to 8 MB · one image per scan'}</small>
+            <p>GHM uses an AI vision service for this scan. Don't include private information on the page if you don't want it processed.</p>
+          </div> : <div className="v137-scan-review-head">
+            <div><strong>{rows.length} groceries found</strong><small>{selected.length} selected · review quantities and units</small></div>
+            <button type="button" disabled={busy} className="secondary" onClick={() => setStage('choose')}>← Choose another photo</button>
+          </div>}
+          {stage === 'review' && rows.length > 0 ? <div className="v137-scan-rows">
+            {rows.map((row, index) => <article className="v137-scan-row" key={`${index}-${row.product_id || 'new'}`}>
+              <label className="v137-scan-row-check"><input type="checkbox" checked={row.selected} onChange={event => updateRow(index, { selected: event.target.checked })} disabled={busy} /><span>Item {index + 1}</span></label>
+              {row.needs_review && <span className="v137-scan-uncertain">Review recognition</span>}
+              {row.product_id ? <span className="v137-scan-existing">Matches an existing shared product</span> : null}
+              <div className="v137-scan-fields">
+                <label className="v137-scan-name">Name<input disabled={busy || !row.selected} value={row.name} maxLength={180} onChange={e => updateRow(index, { name: e.target.value })} /></label>
+                <label>Quantity<input disabled={busy || !row.selected} inputMode="decimal" type="number" min="0.01" max="10000" step="any" value={row.quantity} onChange={e => updateRow(index, { quantity: e.target.value })} /></label>
+                <label>Unit<select disabled={busy || !row.selected} value={row.unit} onChange={e => updateRow(index, { unit: e.target.value, product_id: null })}>{UNITS.map(v => <option key={v}>{v}</option>)}</select></label>
+              </div>
+              {row.product_id ? null : <label className="v137-scan-section">Category<select disabled={busy || !row.selected} value={row.section_id || ''} onChange={e => updateRow(index, { section_id: Number(e.target.value) || null })}><option value="">Suggested: {row.category} (create category if needed)</option>{sections.map(s => <option value={s.id} key={s.id}>{s.icon} {s.name}</option>)}</select></label>}
+              {row.needs_review && !row.reviewConfirmed ? <label className="v137-scan-confirm"><input type="checkbox" checked={false} disabled={!row.selected || busy} onChange={() => updateRow(index, { reviewConfirmed: true })} />I checked this item against the photo</label> : null}
+              {row.notes && row.needs_review ? <small className="v137-scan-note">{row.notes}</small> : null}
+            </article>)}
+          </div> : null}
+          {stage === 'review' && selected.length > 0 && (mode === 'written_list' || destination === 'shopping') ? <div className="v137-scan-list-choice">
+            <strong>Choose a shopping list</strong>
+            <label>List<select value={listId || ''} onChange={e => setListId(e.target.value ? Number(e.target.value) : null)} disabled={busy}>
+              {shoppingLists.map(list => <option key={list.id} value={list.id}>Add to: {list.title}</option>)}
+              <option value="">Create new shopping list</option>
+            </select></label>
+            {!listId ? <label>New list name<input value={listTitle} maxLength={180} onChange={e => setListTitle(e.target.value)} disabled={busy} /></label> : null}
+          </div> : null}
+          {warnings.map((warning, i) => <p key={i} className="v137-scan-warning" role="status">⚠ {warning}</p>)}
+          {duplicateNames && stage === 'review' ? <p className="v137-scan-warning">There are duplicate names with the same unit. Uncheck or combine duplicates before saving.</p> : null}
+          {error && <p className="v137-scan-error" role="alert">{error}</p>}
+        </div>
+        <footer className="v137-scan-footer">
+          <button type="button" disabled={busy} className="secondary" onClick={onClose}>Cancel</button>
+          {stage === 'choose' ? <button type="button" disabled={!file || busy} className="primary" onClick={() => void scan()}>{busy ? 'Reading photo…' : 'Scan this image'}</button>
+            : <button type="button" className="primary" disabled={busy || selected.length === 0 || hasInvalid || duplicateNames} onClick={() => void apply()}>{busy ? 'Saving…' : `Add ${selected.length} to ${destination === 'inventory' ? 'inventory' : 'shopping'}`}</button>}
+        </footer>
+      </section>
+    </div>
+  </OverlayPortal>;
+}

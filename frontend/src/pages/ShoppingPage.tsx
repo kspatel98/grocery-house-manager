@@ -4,6 +4,7 @@ import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import type { BasketComparison, House, HouseMember, MarketCapabilities, Plan, Product, Section, ShoppingList, ShoppingSuggestions, Subscription, User } from '../types';
 import ShoppingListPanel from '../components/ShoppingListPanel';
+import GroceryPhotoScan from '../components/GroceryPhotoScan';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import { HouseMembersBar, MembersDrawer } from '../components/HouseInfoPanels';
 import { money } from '../currency';
@@ -25,6 +26,7 @@ export default function ShoppingPage() {
   const [activeLists, setActiveLists] = useState<ShoppingList[]>([]);
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
+  const [groceryScanOpen, setGroceryScanOpen] = useState(false);
   const [members, setMembers] = useState<HouseMember[]>([]);
   const [listWorkspaceOpen, setListWorkspaceOpen] = useState(Boolean(requestedListId));
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -271,7 +273,7 @@ export default function ShoppingPage() {
             <h2>Your grocery lists</h2>
             <p>Open one list at a time in its own focused screen. Your Shop page stays clean and easy to scan.</p>
           </div>
-          <button className="primary" disabled={!canCreateMore} onClick={openNewList}>New list</button>
+          <div className="v137-shopping-scan-actions"><button type="button" className="secondary" onClick={() => setGroceryScanOpen(true)}>📷 Scan groceries</button><button className="primary" disabled={!canCreateMore} onClick={openNewList}>New list</button></div>
         </div>
         {!canCreateMore && <div className="hint">This house reached the owner plan's active shopping-list limit. Finish or cancel one list before creating another.</div>}
         {activeLists.length ? (
@@ -356,6 +358,11 @@ export default function ShoppingPage() {
         </OverlayPortal>
       ) : null}
 
+      {groceryScanOpen && <GroceryPhotoScan houseId={id} sections={sections} initialMode="written_list" initialDestination="shopping" onClose={() => setGroceryScanOpen(false)} onSaved={(result) => {
+        setGroceryScanOpen(false);
+        void loadAll();
+        if (result.list_id) openList(result.list_id);
+      }} />}
       <MembersDrawer
         open={membersOpen}
         onClose={() => setMembersOpen(false)}
