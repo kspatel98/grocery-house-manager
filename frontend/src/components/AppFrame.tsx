@@ -561,11 +561,6 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             </div>
             <div className="desktop-topbar-actions-v86 v105-desktop-actions v117-topbar-actions">
               {contextHouseId ? (
-                <button type="button" className="desktop-topbar-pill-v86 v105-quick-add v117-action-pill" onClick={() => window.dispatchEvent(new Event('ghm:capture-open'))} aria-label="Quick add" title="Quick add">
-                  <span className="v117-action-icon" aria-hidden="true">＋</span><span className="v117-action-label">Quick add</span>
-                </button>
-              ) : null}
-              {contextHouseId ? (
                 <Link to={askGhmHref} className={`desktop-topbar-pill-v86 v117-action-pill ${contextPlanRank < 2 ? 'v129-premium-shortcut' : ''}`} aria-label={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'} title={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'}>
                   <span className="v117-action-icon" aria-hidden="true">{contextPlanRank < 2 ? '🔒' : '✦'}</span><span className="v117-action-label">Ask GHM</span>
                 </Link>

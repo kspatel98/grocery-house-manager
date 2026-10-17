@@ -242,9 +242,8 @@ export default function HouseChatPage() {
     <main className="page house-chat-page-v105 house-chat-page-v113 v133-house-chat-page">
       <section className="chat-shell-v105 v133-house-chat-shell">
         <div className="v133-house-chat-scroll">
-          <section className="v133-house-chat-intro" aria-label="Household chat tools">
+          <section className="v133-house-chat-intro" aria-label="Household chat">
             <div><p className="eyebrow">HOUSE CHAT</p><strong>{house?.name || 'Household'}</strong><small>Messages and shared GHM items stay together here.</small></div>
-            <div className="v133-house-chat-actions"><Link className="secondary" to={`/houses/${id}/shopping`}>🛒 Shopping</Link><Link className="secondary" to={`/houses/${id}/meals`}>🍲 Meals</Link></div>
           </section>
           <section className="chat-context-strip-v105 v133-house-chat-context" aria-label="Quick household context">
             <Link to={`/houses/${id}/shopping`}><span>🛒</span><strong>Shopping</strong><small>Lists and trips</small></Link>

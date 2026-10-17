@@ -38,6 +38,7 @@ import './theme-v131.css';
 import './theme-v132.css';
 import './theme-v133.css';
 import './theme-v134.css';
+import './theme-v135.css';
 import { LanguageProvider } from './i18n';
 import DialogFocusManager from './components/DialogFocusManager';
 import { initializeThemePreferences } from './theme';
