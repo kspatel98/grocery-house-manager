@@ -11,6 +11,25 @@ import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpo
 
 type Row=RecipeIngredient & {required:number; owned:number; shortage:number; matched?:Product; selected:boolean; autoShop:boolean};
 type CookReviewItem={productId:number;name:string;unit:string;available:number;amount:number;selected:boolean;recipeAmount:number;recipeUnit:string;optional:boolean};
+// External recipe measurements vary widely; never guess package count or silently multiply unknown units.
+function parseExternalMeasure(input:string):{quantity:number;unit:string;precise:boolean}{
+ const text=(input||'').trim().toLowerCase().replace(/,/g,'.');
+ const unicode:Record<string,number>={'½':.5,'¼':.25,'¾':.75,'⅓':1/3,'⅔':2/3,'⅛':.125};
+ const unicodeMatch=text.match(/([0-9]+)?\s*([½¼¾⅓⅔⅛])/);
+ const fraction=text.match(/^(\d+)\s+(\d+)\/(\d+)/) || text.match(/^(\d+)\/(\d+)/);
+ let number:number|undefined;
+ let remainder=text;
+ if(unicodeMatch){number=Number(unicodeMatch[1]||0)+unicode[unicodeMatch[2]];remainder=text.replace(unicodeMatch[0],'').trim();}
+ else if(fraction){number=fraction.length===4?Number(fraction[1])+Number(fraction[2])/Number(fraction[3]):Number(fraction[1])/Number(fraction[2]);remainder=text.slice(fraction[0].length).trim();}
+ else {const match=text.match(/^(\d+(?:\.\d+)?)(?:\s+|$)/);if(match){number=Number(match[1]);remainder=text.slice(match[0].length).trim();}}
+ const match=remainder.match(/^(kg|kilograms?|g|grams?|ml|millilit(?:er|re)s?|l|lit(?:er|re)s?|pcs?|pieces?|whole|cloves?|cans?|cups?|tbsp|tablespoons?|tsp|teaspoons?)\b/);
+ const units:Record<string,string>={kilogram:'kg',kilograms:'kg',gram:'g',grams:'g',milliliter:'ml',milliliters:'ml',millilitre:'ml',millilitres:'ml',liter:'l',liters:'l',litre:'l',litres:'l',pc:'pcs',piece:'pcs',pieces:'pcs',whole:'pcs',clove:'pcs',cloves:'pcs',can:'pcs',cans:'pcs'};
+ const raw=match?.[1]||'';
+ const unit=units[raw]||raw;
+ // Freeform units like cups / spoons cannot be safely converted into product package quantities.
+ const precise=Boolean(number && number>0 && ['kg','g','ml','l','pcs'].includes(unit) && !remainder.slice(raw.length).trim());
+ return {quantity:precise?number!:0,unit:precise?unit:'pcs',precise};
+}
 type ExternalMeal={
  id:string; name:string; alternate_name?:string|null; image?:string|null; category?:string|null; area?:string|null; country?:string|null; tags?:string[];
  ingredients:{name:string;measure:string}[]; instructions:string[]; source_url?:string|null; youtube_url?:string|null; date_modified?:string|null; provider:string;
@@ -206,6 +225,12 @@ export default function MealsPage(){
  const [externalError,setExternalError]=useState('');
  const [externalSelected,setExternalSelected]=useState<ExternalMeal|null>(null);
  const [externalSearched,setExternalSearched]=useState(false);
+ const [externalSelection,setExternalSelection]=useState<Record<number,boolean>>({});
+ const [externalValues,setExternalValues]=useState<Record<number,{quantity:number;unit:string}>>({});
+ const [externalConfirm,setExternalConfirm]=useState(false);
+ const [externalMode,setExternalMode]=useState<'selected'|'missing'|'full'>('selected');
+ const [externalSaving,setExternalSaving]=useState(false);
+ const [externalNotice,setExternalNotice]=useState('');
 
  const [communityRecipes,setCommunityRecipes]=useState<CommunityRecipe[]>([]);
  const [myRecipes,setMyRecipes]=useState<CommunityRecipe[]>([]);
@@ -352,6 +377,57 @@ export default function MealsPage(){
    }catch(e:any){setCookError(e?.response?.data?.detail||'Could not update inventory. Refresh the meal and try again.');}
    finally{setCookBusy(false);}
  }
+ function openExternal(meal:ExternalMeal){
+   setExternalSelected(meal);setExternalNotice('');setExternalConfirm(false);
+   setExternalSelection(Object.fromEntries(meal.ingredients.map((ingredient,i)=>[i,!isManualOnlyIngredient(ingredient.name)])));
+   setExternalValues(Object.fromEntries(meal.ingredients.map((ingredient,i)=>{const parsed=parseExternalMeasure(ingredient.measure);return [i,{quantity:parsed.quantity,unit:parsed.unit}]})));
+ }
+ async function shareExternal(){
+   if(!externalSelected)return;
+   try{
+     await api.post(`/houses/${id}/chat`,{message:'',attachment_type:'recipe',attachment_title:externalSelected.name,attachment_subtitle:`${externalSelected.area||'International'} · TheMealDB`,attachment_url:`/houses/${id}/meals?external=${encodeURIComponent(externalSelected.id)}&externalName=${encodeURIComponent(externalSelected.name)}`});
+     setExternalNotice('Shared to House Chat.');
+   }catch(e:any){setExternalNotice(e?.response?.data?.detail||'Could not share this recipe.');}
+ }
+ async function addExternalIngredients(){
+   if(!externalSelected || externalSaving)return;
+   const ingredients=externalSelected.ingredients.flatMap((ingredient,i)=>{
+     if(externalMode==='selected'&&!externalSelection[i])return [];
+     if(externalMode!=='selected'&&isManualOnlyIngredient(ingredient.name))return [];
+     const parsed=parseExternalMeasure(ingredient.measure);
+     const {quantity,unit}=externalValues[i]||{quantity:parsed.quantity,unit:parsed.unit};
+     if(!(quantity>0 && Number.isFinite(quantity)))return [];
+     if(externalMode==='missing'){
+       // Never calculate shortages for unknown conversions or ambiguous measures.
+       if(!parsed.precise || !compatible(unit,parsed.unit))return [];
+       const owned=matchProduct(ingredient.name,products);
+       if(owned && !compatible(unit,owned.unit))return [];
+       const available=owned?normalizeQty(owned.quantity,owned.unit,unit):0;
+       const need=Math.max(0,quantity-available);
+       if(need<=0)return [];
+       return [{name:ingredient.name,quantity:need,unit,tag:`TheMealDB recipe shortage · ${externalSelected.name}`}];
+     }
+     return [{name:ingredient.name,quantity,unit,tag:`TheMealDB · ${externalSelected.name} · original: ${ingredient.measure||'unspecified'}`}];
+   });
+   if(!ingredients.length){setExternalNotice('Select at least one ingredient.');return;}
+   try{
+     setExternalSaving(true);setExternalNotice('');
+     const {data}=await api.post(`/insights/houses/${id}/recipes/add-shopping`,{ingredients,recipe_name:externalSelected.name,mode:externalMode==='selected'?'manual':'shortage',list_id:activeList?.id||null});
+     await refreshMealData();setExternalConfirm(false);setExternalNotice(`Added to ${data.list_title}.`);
+   }catch(e:any){setExternalNotice(e?.response?.data?.detail||'Could not add ingredients.');}
+   finally{setExternalSaving(false);}
+ }
+ useEffect(()=>{
+   const recipeId=searchParams.get('external');const recipeName=searchParams.get('externalName');
+   if(!id || !recipeId || !recipeName)return;
+   let cancelled=false;
+   api.get('/recipes/external/search',{params:{q:recipeName}}).then(({data})=>{
+     if(cancelled)return;
+     const item=(data?.items||[] as ExternalMeal[]).find((x:ExternalMeal)=>x.id===recipeId);
+     if(item)openExternal(item);
+   }).catch(()=>{ if(!cancelled)setExternalError('This external recipe could not be loaded right now. Search its name below.'); });
+   return()=>{cancelled=true};
+ },[id,searchParams.get('external'),searchParams.get('externalName')]);
  async function searchExternal(){if(externalQ.trim().length<2)return;try{setExternalBusy(true);setExternalError('');setExternalSearched(true);const {data}=await api.get('/recipes/external/search',{params:{q:externalQ.trim()}});setExternalMeals(data.items||[]);}catch(e:any){setExternalMeals([]);setExternalError(e?.response?.data?.detail||'Recipe service is temporarily unavailable.');}finally{setExternalBusy(false)}}
 
  const ingName=(n:string)=>ingredientNames[language]?.[n]||n;
@@ -483,7 +559,18 @@ export default function MealsPage(){
      {editorError&&<div className="error form-message">{editorError}</div>}
    </div><footer className="focus-dialog-actions recipe-editor-actions-v89"><button className="secondary" disabled={editorBusy} onClick={()=>setEditorOpen(false)}>Cancel</button><button className="primary" disabled={editorBusy} onClick={saveRecipe}>{editorBusy?'Saving recipe…':editingRecipe?'Save changes':'Create recipe'}</button></footer></section></div></OverlayPortal>}
 
-   <section className="panel external-recipe-discovery meal-discovery-v84"><div className="panel-title-row"><div><p className="eyebrow">MORE MEAL IDEAS</p><h2>Discover more recipes</h2><p>Search TheMealDB by dish name. Results include the original image, ingredient measurements and detailed method returned by the recipe source.</p></div><span className="badge provider-badge">Powered by TheMealDB</span></div><div className="external-recipe-search"><input value={externalQ} onChange={e=>setExternalQ(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')searchExternal()}} placeholder="Search pasta, paneer, chicken, soup..."/><button className="primary external-recipe-search-button-v124" disabled={externalBusy||externalQ.trim().length<2} onClick={searchExternal}>{externalBusy?'Searching...':'Search recipes'}</button></div>{externalError&&<div className="hint">{externalError}</div>}{externalSearched&&!externalBusy&&!externalError&&<div className="external-search-summary"><strong>{externalMeals.length}</strong><span>recipes found for “{externalQ.trim()}”</span></div>}{externalSearched&&!externalBusy&&!externalError&&externalMeals.length===0&&<div className="empty-state compact">No recipes found. Try a different dish name.</div>}{externalMeals.length>0&&<div className="external-recipe-grid v135-recipe-showcase-grid">{externalMeals.map(meal=><button key={meal.id} className="external-recipe-card v135-external-recipe-card" onClick={()=>setExternalSelected(meal)}><span className="v135-recipe-image-wrap"><img src={meal.image||'/recipe-images-real/cuisine/international.webp'} alt={meal.name} loading="lazy"/><i>TheMealDB</i></span><span className="recipe-image-copy v135-recipe-copy"><small>{meal.area||meal.country||'International'} · {meal.category||'Meal'}</small><strong>{meal.name}</strong>{meal.tags?.length?<span className="external-mini-tags">{meal.tags.slice(0,3).map(tag=><i key={tag}>{tag}</i>)}</span>:null}<b>View details →</b></span></button>)}</div>}</section>
-   {externalSelected&&<OverlayPortal><div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setExternalSelected(null)}}><section className="modal focus-dialog external-recipe-modal" role="dialog" aria-modal="true" aria-label={externalSelected.name}><header className="focus-dialog-titlebar"><div><p className="eyebrow">{externalSelected.provider||'RECIPE'}</p><h2>{externalSelected.name}</h2>{externalSelected.alternate_name&&<small>{externalSelected.alternate_name}</small>}</div><button data-dialog-close="true" className="icon-btn" onClick={()=>setExternalSelected(null)}>×</button></header><div className="focus-dialog-scroll"><img className="recipe-detail-image" src={externalSelected.image||'/recipe-images-real/cuisine/international.webp'} alt={externalSelected.name}/><div className="diet-chips"><span>{externalSelected.area||externalSelected.country||'International'}</span><span>{externalSelected.category||'Meal'}</span>{(externalSelected.tags||[]).slice(0,4).map(tag=><span key={tag}>{tag}</span>)}</div><h3>Ingredients</h3><div className="external-ingredient-list">{(externalSelected.ingredients||[]).map((x,i)=><span key={`${x.name}-${i}`}><b>{x.name}</b><small>{x.measure||'As needed'}</small></span>)}</div><h3>Method</h3><ol className="recipe-step-list">{(externalSelected.instructions||[]).map((step,i)=><li key={i}><span className="step-number">{i+1}</span><div><p>{step}</p></div></li>)}</ol>{(externalSelected.source_url||externalSelected.youtube_url)&&<div className="external-source-actions">{externalSelected.source_url&&<a className="button secondary" href={externalSelected.source_url} target="_blank" rel="noreferrer">Original recipe source ↗</a>}{externalSelected.youtube_url&&<a className="button ghost" href={externalSelected.youtube_url} target="_blank" rel="noreferrer">Watch cooking video ↗</a>}</div>}<p className="small-muted">External recipe quantities are shown exactly as provided by TheMealDB. Because the API does not provide a reliable serving count for every meal, these quantities are not automatically scaled or used as inventory-safe shortages.</p></div></section></div></OverlayPortal>}
+   <section className="panel external-recipe-discovery meal-discovery-v84"><div className="panel-title-row"><div><p className="eyebrow">MORE MEAL IDEAS</p><h2>Discover more recipes</h2><p>Search TheMealDB by dish name. Results include the original image, ingredient measurements and detailed method returned by the recipe source.</p></div><span className="badge provider-badge">Powered by TheMealDB</span></div><div className="external-recipe-search"><input value={externalQ} onChange={e=>setExternalQ(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')searchExternal()}} placeholder="Search pasta, paneer, chicken, soup..."/><button className="primary external-recipe-search-button-v124" disabled={externalBusy||externalQ.trim().length<2} onClick={searchExternal}>{externalBusy?'Searching...':'Search recipes'}</button></div>{externalError&&<div className="hint">{externalError}</div>}{externalSearched&&!externalBusy&&!externalError&&<div className="external-search-summary"><strong>{externalMeals.length}</strong><span>recipes found for “{externalQ.trim()}”</span></div>}{externalSearched&&!externalBusy&&!externalError&&externalMeals.length===0&&<div className="empty-state compact">No recipes found. Try a different dish name.</div>}{externalMeals.length>0&&<div className="external-recipe-grid v135-recipe-showcase-grid">{externalMeals.map(meal=><button key={meal.id} className="external-recipe-card v135-external-recipe-card" onClick={()=>openExternal(meal)}><span className="v135-recipe-image-wrap"><img src={meal.image||'/recipe-images-real/cuisine/international.webp'} alt={meal.name} loading="lazy"/><i>TheMealDB</i></span><span className="recipe-image-copy v135-recipe-copy"><small>{meal.area||meal.country||'International'} · {meal.category||'Meal'}</small><strong>{meal.name}</strong>{meal.tags?.length?<span className="external-mini-tags">{meal.tags.slice(0,3).map(tag=><i key={tag}>{tag}</i>)}</span>:null}<b>View details →</b></span></button>)}</div>}</section>
+   {externalSelected && <OverlayPortal><div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!externalSaving)setExternalSelected(null)}}><section className="modal focus-dialog external-recipe-modal v136-external-dialog" role="dialog" aria-modal="true" aria-label={externalSelected.name}>
+     <header className="focus-dialog-titlebar"><div><p className="eyebrow">THEMEALDB RECIPE</p><h2>{externalSelected.name}</h2><small>{externalSelected.area||'International'} · {externalSelected.category||'Meal'}</small></div><button type="button" data-dialog-close="true" className="icon-btn" disabled={externalSaving} onClick={()=>setExternalSelected(null)}>×</button></header>
+     <div className="focus-dialog-scroll v136-external-body"><img className="recipe-detail-image" src={externalSelected.image||'/recipe-images-real/cuisine/international.webp'} alt={externalSelected.name}/><div className="diet-chips"><span>{externalSelected.area||'International'}</span><span>{externalSelected.category||'Meal'}</span>{(externalSelected.tags||[]).slice(0,4).map(tag=><span key={tag}>{tag}</span>)}</div>
+       <div className="v136-external-section-head"><div><h3>Ingredients & shopping</h3><p>Review quantities before adding. Exact grams, kilograms, millilitres, litres and pieces are recognized; cooking measures must be entered manually.</p></div><button type="button" className="secondary" onClick={()=>setExternalSelection(Object.fromEntries(externalSelected.ingredients.map((x,i)=>[i,!isManualOnlyIngredient(x.name)])))}>Select ingredients</button></div>
+       <div className="v136-external-ingredients">{externalSelected.ingredients.map((ingredient,i)=>{const parsed=parseExternalMeasure(ingredient.measure);const quantity=externalValues[i]?.quantity??parsed.quantity;const unit=externalValues[i]?.unit||'pcs';const owned=matchProduct(ingredient.name,products);return <label key={`${ingredient.name}-${i}`} className="v136-external-ingredient"><input type="checkbox" checked={!!externalSelection[i]} onChange={e=>setExternalSelection(curr=>({...curr,[i]:e.target.checked}))}/><div className="v136-external-ingredient-name"><strong>{ingredient.name}</strong><small>Recipe: {ingredient.measure||'As needed'} · {owned?`Inventory: ${fmt(owned.quantity)} ${owned.unit}`:'Not in inventory'}</small>{!parsed.precise&&<em>Confirm purchase quantity and unit</em>}</div><div className="v136-external-ingredient-qty"><input aria-label={`Shopping quantity for ${ingredient.name}`} type="number" min="0.001" step="any" value={quantity} onChange={e=>setExternalValues(curr=>({...curr,[i]:{quantity:Number(e.target.value),unit}}))}/><select aria-label={`Shopping unit for ${ingredient.name}`} value={unit} onChange={e=>setExternalValues(curr=>({...curr,[i]:{quantity,unit:e.target.value}}))}>{['pcs','g','kg','ml','l'].map(u=><option key={u} value={u}>{u}</option>)}</select></div></label>})}</div>
+       <h3>Step-by-step method</h3><ol className="recipe-step-list">{externalSelected.instructions.map((step,i)=><li key={i}><span className="step-number">{i+1}</span><div><p>{step}</p></div></li>)}</ol>
+       {(externalSelected.source_url||externalSelected.youtube_url)&&<div className="external-source-actions">{externalSelected.source_url&&<a className="button secondary" href={externalSelected.source_url} target="_blank" rel="noreferrer">Original source ↗</a>}{externalSelected.youtube_url&&<a className="button ghost" href={externalSelected.youtube_url} target="_blank" rel="noreferrer">Cooking video ↗</a>}</div>}
+       {externalNotice&&<div className="hint" role="status">{externalNotice}</div>}
+     </div>
+     <footer className="focus-dialog-actions v136-external-actions"><button type="button" className="secondary" onClick={()=>void shareExternal()}>💬 Share in House Chat</button><button type="button" className="secondary" onClick={()=>{setExternalMode('missing');setExternalConfirm(true)}} disabled={externalSaving}>🛒 Add exact shortages</button><button type="button" className="secondary" onClick={()=>{setExternalMode('full');setExternalConfirm(true)}} disabled={externalSaving}>＋ Full recipe</button><button type="button" className="primary" onClick={()=>{setExternalMode('selected');setExternalConfirm(true)}} disabled={externalSaving||!externalSelected.ingredients.some((_,i)=>externalSelection[i])}>☑ Selected</button></footer>
+     {externalConfirm&&<div className="v136-confirm-layer"><div className="v136-confirm-card" role="alertdialog" aria-modal="true" aria-label="Confirm shopping ingredients"><h3>{externalMode==='missing'?'Add exact shortages?':externalMode==='full'?'Add full recipe?':'Add selected ingredients?'}</h3><p>{externalMode==='missing'?'Only supported exact quantities will be compared with inventory. Ingredients in cups/spoons or unmatched units are skipped; adjust those yourself.':externalMode==='full'?'Every non-water ingredient will be added. TheMealDB cooking measures can be approximate—please review the quantities shown above before confirming.':'Only the ingredients you checked above will be added.'} Destination: {activeList?.title||'Recipe shopping'}.</p><div className="focus-dialog-actions"><button type="button" className="secondary" disabled={externalSaving} onClick={()=>setExternalConfirm(false)}>Cancel</button><button type="button" className="primary" disabled={externalSaving||externalSelected.ingredients.some((_,i)=>(externalMode==='full'||externalMode==='selected'&&externalSelection[i])&&(!(Number(externalValues[i]?.quantity||0)>0)||!Number.isFinite(externalValues[i]?.quantity)))} onClick={()=>void addExternalIngredients()}>{externalSaving?'Adding…':'Confirm & add'}</button></div></div></div>}
+   </section></div></OverlayPortal>}
  </main>;
 }

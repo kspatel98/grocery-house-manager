@@ -1,0 +1,131 @@
+/* V136 — one coherent visual and spacing contract for inventory, create-house,
+   external recipes and Ask GHM; overrides conflicting legacy card rules. */
+
+/* House creation: independent modal, not the old inline form/grid. */
+.v136-house-create-backdrop { z-index: 5200 !important; padding: max(12px, env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom)); display: grid !important; place-items:center !important; }
+.v136-house-create-dialog { width:min(560px,100%) !important; min-width:0 !important; max-height:min(760px,calc(100dvh - 28px)) !important; display:grid !important; grid-template-rows:auto minmax(0,1fr) !important; overflow:hidden !important; border-radius:23px !important; padding:0 !important; background:var(--ghm-surface-elevated) !important; color:var(--ghm-text-strong) !important; }
+.v136-house-create-dialog .focus-dialog-titlebar { padding:20px 22px 13px !important; }
+.v136-house-create-dialog .focus-dialog-titlebar h2 { font-size:clamp(1.2rem,3vw,1.55rem); line-height:1.2; margin:3px 0 5px; }
+.v136-house-create-dialog .focus-dialog-titlebar small { line-height:1.45; color:var(--ghm-muted); }
+.v136-house-create-form { min-height:0; display:grid; grid-template-rows:minmax(0,1fr) auto; width:100%; }
+.v136-house-create-body { display:flex; flex-direction:column; gap:10px; padding:9px 22px 19px !important; min-height:0; overflow-y:auto; }
+.v136-house-create-body>label { font-weight:800; font-size:.84rem; color:var(--ghm-text-strong) !important; }
+.v136-house-create-body>input { width:100%; min-width:0; height:47px; padding:10px 12px; border-radius:12px; color:var(--ghm-text-strong); border:1px solid var(--ghm-border); background:var(--ghm-surface); }
+.v136-house-create-choose { display:grid; gap:3px; margin-top:12px; }
+.v136-house-create-choose>strong { font-size:.96rem; }
+.v136-house-create-choose>small { color:var(--ghm-muted); font-size:.78rem; line-height:1.4; }
+.v136-house-type-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:5px; }
+.v136-house-type-grid>button { display:grid !important; grid-template-columns:30px minmax(0,1fr) 15px !important; align-items:center !important; gap:8px !important; width:100% !important; height:auto !important; min-width:0 !important; min-height:75px !important; padding:12px 10px !important; border:1px solid var(--ghm-border) !important; border-radius:14px !important; color:var(--ghm-text-strong) !important; background:var(--ghm-surface) !important; box-shadow:none !important; transform:none !important; text-align:left !important; }
+.v136-house-type-grid>button.selected { border-color:var(--ghm-primary) !important; background:var(--ghm-primary-soft) !important; }
+.v136-house-type-grid>button>span:first-child { font-size:1.35rem; line-height:1; }
+.v136-house-type-grid>button>span:nth-child(2) { display:grid; min-width:0; gap:3px; }
+.v136-house-type-grid>button strong { display:block; font-size:.84rem; line-height:1.2; color:inherit; }
+.v136-house-type-grid>button small { display:block; font-size:.68rem; line-height:1.3; color:var(--ghm-muted); overflow-wrap:anywhere; }
+.v136-house-type-grid>button>b { color:var(--ghm-primary); }
+.v136-house-create-actions { display:grid !important; grid-template-columns:1fr 1fr !important; gap:10px !important; align-items:center; padding:14px 20px 17px !important; background:var(--ghm-surface-elevated); border-top:1px solid var(--ghm-border); }
+.v136-house-create-actions button { margin:0 !important; width:100% !important; min-height:45px !important; font-weight:800; border-radius:12px; white-space:normal; }
+
+/* Inventory desktop: each product has a deliberate 40%-ish visual upper section,
+   with two filled halves and equally sized consistent action buttons. */
+@media(min-width:761px) {
+ .products-grid { align-items:stretch; grid-template-columns:repeat(auto-fill,minmax(245px,1fr)) !important; gap:14px !important; }
+ .products-grid>.product-card { display:grid !important; grid-template-columns:minmax(0,1fr) !important; grid-template-rows:148px minmax(110px,1fr) auto !important; min-width:0; min-height:314px; overflow:hidden; border-radius:20px !important; }
+ .products-grid>.product-card>.v124-product-media { grid-row:1 !important; grid-column:1 !important; height:148px !important; min-height:148px !important; max-height:148px !important; width:100% !important; aspect-ratio:auto !important; padding:10px !important; gap:8px !important; grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr) !important; align-items:stretch !important; }
+ .products-grid>.product-card .v124-product-visual-primary { border-radius:14px !important; padding:5px !important; }
+ .products-grid>.product-card .v124-product-visual-primary>img { display:block; width:100% !important; height:100% !important; object-fit:contain !important; object-position:center !important; border-radius:10px !important; }
+ .products-grid>.product-card .v124-product-brand-mark { border-radius:14px !important; gap:4px !important; }
+ .products-grid>.product-card .v124-product-brand-mark img { width:53px !important; height:53px !important; max-height:53px !important; }
+ .products-grid>.product-card>.product-body { grid-row:2 !important; min-height:0; padding:12px 13px 9px !important; }
+ .products-grid>.product-card>.card-actions { grid-row:3 !important; grid-column:1 !important; }
+}
+.products-grid>.product-card .card-actions { display:grid !important; grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important; gap:8px !important; width:100% !important; padding:10px 12px 12px !important; align-items:stretch !important; }
+.products-grid>.product-card .card-actions button { display:flex !important; align-items:center; justify-content:center; min-width:0 !important; width:100% !important; height:42px !important; min-height:42px !important; padding:8px !important; margin:0 !important; font-size:.83rem !important; border:1px solid var(--ghm-border) !important; border-radius:12px !important; background:var(--ghm-surface) !important; color:var(--ghm-text-strong) !important; font-weight:750 !important; }
+.products-grid>.product-card .card-actions button:last-child { color:var(--ghm-text-strong) !important; }
+.products-grid>.product-card .card-actions button:focus-visible { outline:3px solid var(--ghm-primary); outline-offset:2px; }
+.products-grid>.product-card>.product-body strong { font-size:1rem; }
+
+/* Mobile: a substantial image pane, all imagery visible, readable actions.
+   A single list column avoids side-by-side cards becoming unreadable. */
+@media(max-width:760px) {
+ .products-grid { display:grid !important; grid-template-columns:minmax(0,1fr) !important; gap:12px !important; }
+ .products-grid>.product-card { display:grid !important; grid-template-columns:minmax(132px,39%) minmax(0,1fr) !important; grid-template-rows:minmax(158px,1fr) auto !important; min-height:198px !important; height:auto !important; overflow:hidden; border-radius:19px !important; }
+ .products-grid>.product-card>.v124-product-media { grid-row:1/3 !important; grid-column:1 !important; width:100% !important; height:100% !important; min-height:198px !important; max-height:none !important; aspect-ratio:auto !important; padding:8px !important; border-radius:0 !important; display:grid !important; grid-template-columns:minmax(0,1fr) !important; }
+ .products-grid>.product-card .v124-product-visual-primary { min-height:100% !important; border-radius:13px !important; padding:4px !important; background:var(--ghm-surface) !important; }
+ .products-grid>.product-card .v124-product-visual-primary>img { display:block !important; width:100% !important; height:100% !important; max-width:100% !important; max-height:none !important; border-radius:9px !important; object-fit:contain !important; object-position:center center !important; background:var(--ghm-surface) !important; }
+ .products-grid>.product-card .v124-product-brand-mark { display:none !important; }
+ .products-grid>.product-card .product-media-emoji { width:100%; height:100%; min-height:155px; background:var(--ghm-surface); }
+ .products-grid>.product-card>.product-body { grid-row:1 !important; grid-column:2 !important; padding:12px 10px 5px !important; }
+ .products-grid>.product-card>.card-actions { grid-row:2 !important; grid-column:2 !important; padding:6px 9px 10px !important; gap:6px !important; }
+ .products-grid>.product-card .card-actions button { height:38px !important; min-height:38px !important; font-size:.75rem !important; padding:5px !important; }
+}
+@media(max-width:355px) { .products-grid>.product-card { grid-template-columns:120px minmax(0,1fr) !important; } }
+
+/* Mobile: reduce brand/title redundancy and reclaim header space. */
+@media(max-width:1099px) {
+ .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand { width:42px !important; min-width:42px !important; max-width:42px !important; display:flex !important; justify-content:center !important; }
+ .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand>span { display:none !important; }
+ .site-header:not(.public-site-header) .site-brand-premium-wrap .site-brand img { width:39px !important; height:39px !important; min-width:39px !important; border-radius:11px !important; }
+ .site-header:not(.public-site-header) .site-header-inner.shell.wide { grid-template-columns:minmax(42px,1fr) auto !important; grid-template-areas:'brand utilities' !important; padding:8px 10px !important; }
+ .mobile-header-title-v88 { display:none !important; }
+ .site-header:not(.public-site-header) .site-brand-premium-wrap { width:fit-content !important; }
+}
+
+/* Ask composer: don't count the fixed nav twice. The app container owns exactly
+   one navigation reservation; the chat occupies all remaining flex space. */
+@media(max-width:1099px) {
+ .v133-chat-layout-active.v131-ask-chat-active .desktop-shell-v86 { height:auto !important; max-height:none !important; min-height:0 !important; flex:1 1 auto !important; padding-bottom:calc(76px + env(safe-area-inset-bottom)) !important; }
+ .v133-chat-layout-active.v131-ask-chat-active .desktop-main-v86 { flex:1 1 auto !important; min-height:0 !important; }
+ .v133-chat-layout-active.v131-ask-chat-active .v125-ask-page { bottom:0 !important; }
+ .v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone.v132-composer-zone { margin-bottom:0 !important; padding-bottom:5px !important; }
+}
+
+/* Accessible starter guidance in both themes. Never put low-opacity text over a
+   white gradient in dark mode. */
+.starter-inventory-progress { display:flex !important; align-items:center; flex-wrap:wrap; gap:8px 12px; border:1px solid var(--ghm-border); border-radius:15px; padding:13px 16px !important; background:var(--ghm-surface-elevated) !important; color:var(--ghm-text-strong) !important; }
+.starter-inventory-progress>span { padding:5px 8px; border-radius:99px; color:#fff !important; background:#22587c !important; font-size:.72rem; font-weight:850; }
+.starter-inventory-progress>strong { color:var(--ghm-text-strong) !important; }
+.starter-inventory-progress>small { color:var(--ghm-text-strong) !important; font-weight:650; line-height:1.5; opacity:1 !important; }
+html[data-ghm-theme="dark"] .starter-inventory-progress,html[data-theme="dark"] .starter-inventory-progress { background:#1e2934 !important; border-color:#415162 !important; color:#f0f7ff !important; }
+html[data-ghm-theme="dark"] .starter-inventory-progress :where(strong,small),html[data-theme="dark"] .starter-inventory-progress :where(strong,small) { color:#eff6ff !important; opacity:1 !important; }
+
+/* TheMealDB: Gujarati-card-level actions and self-contained review before list edits. */
+.v136-external-dialog { position:relative !important; width:min(820px,calc(100vw - 24px)) !important; max-height:min(90dvh,920px) !important; overflow:hidden !important; display:grid !important; grid-template-rows:auto minmax(0,1fr) auto !important; padding:0 !important; }
+.v136-external-body { min-height:0 !important; overflow-y:auto !important; padding:15px 20px !important; }
+.v136-external-body>.recipe-detail-image { max-height:245px !important; width:100%; object-fit:cover; border-radius:16px; }
+.v136-external-section-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin:16px 0 11px; }
+.v136-external-section-head h3 { margin:0 0 4px; }
+.v136-external-section-head p { margin:0; max-width:580px; font-size:.8rem; line-height:1.45; color:var(--ghm-muted); }
+.v136-external-ingredients { display:grid; gap:7px; margin:10px 0 20px; }
+.v136-external-ingredient { display:grid !important; grid-template-columns:22px minmax(0,1fr) 155px !important; gap:10px; align-items:center; padding:10px 12px; border:1px solid var(--ghm-border); border-radius:14px; background:var(--ghm-surface); color:var(--ghm-text-strong); }
+.v136-external-ingredient>input[type=checkbox] { width:18px !important; height:18px !important; margin:0 !important; }
+.v136-external-ingredient-name { display:grid; min-width:0; gap:4px; }
+.v136-external-ingredient-name strong { color:var(--ghm-text-strong); font-size:.88rem; }
+.v136-external-ingredient-name small { color:var(--ghm-muted); font-size:.73rem; line-height:1.4; overflow-wrap:anywhere; }
+.v136-external-ingredient-name em { color:#9c5217; font-size:.7rem; font-style:normal; font-weight:750; }
+html[data-ghm-theme="dark"] .v136-external-ingredient-name em { color:#ffcf83 !important; }
+.v136-external-ingredient-qty { display:grid; grid-template-columns:minmax(0,1fr) 70px; gap:5px; }
+.v136-external-ingredient-qty input,.v136-external-ingredient-qty select { min-width:0 !important; max-width:100%; padding:6px 5px !important; font-size:.8rem; border:1px solid var(--ghm-border); border-radius:9px; background:var(--ghm-surface-elevated); color:var(--ghm-text-strong); }
+.v136-external-actions { display:flex !important; justify-content:space-between; gap:10px !important; padding:12px 18px !important; border-top:1px solid var(--ghm-border); background:var(--ghm-surface-elevated); }
+.v136-external-actions>button { flex:1; min-height:44px; white-space:normal; }
+.v136-confirm-layer { position:absolute; inset:0; z-index:3; display:grid; place-items:center; padding:16px; background:rgba(6,17,15,.72); }
+.v136-confirm-card { width:min(465px,100%); padding:23px; border-radius:19px; background:var(--ghm-surface-elevated); color:var(--ghm-text-strong); border:1px solid var(--ghm-border); box-shadow:0 22px 54px rgba(0,0,0,.26); }
+.v136-confirm-card h3 { margin:0 0 10px; }
+.v136-confirm-card p { color:var(--ghm-muted); font-size:.86rem; line-height:1.5; }
+.v136-confirm-card .focus-dialog-actions { display:flex; flex-wrap:wrap; }
+@media(max-width:600px) {
+ .v136-house-type-grid { grid-template-columns:1fr; }
+ .v136-house-type-grid>button { min-height:60px !important; }
+ .v136-house-create-body { padding:9px 14px 14px !important; }
+ .v136-house-create-dialog .focus-dialog-titlebar { padding:15px 14px 10px !important; }
+ .v136-external-ingredient { grid-template-columns:20px minmax(0,1fr) !important; }
+ .v136-external-ingredient-qty { grid-column:2 !important; grid-template-columns:minmax(0,1fr) 90px; }
+ .v136-external-body { padding:12px 13px !important; }
+ .v136-external-actions { flex-direction:column !important; padding:9px 12px !important; }
+ .v136-external-actions button { width:100%; }
+}
+
+/* Sticky mobile header already participates in page layout. Avoid a second
+   invisible spacer on the two bounded chat routes. */
+@media (max-width:1099px) {
+ .v133-chat-layout-active.v131-ask-chat-active > .site-header-mobile-spacer { display:none !important; height:0 !important; min-height:0 !important; }
+}

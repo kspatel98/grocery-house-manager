@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Callable, Any
 
 import requests
 from sqlalchemy import text
@@ -161,6 +161,7 @@ def get_weekly_flyer_deals(
     force_refresh: bool = False,
     max_merchants: int | None = None,
     allow_provider_run: bool = True,
+    before_provider_run: Callable[[], bool] | None = None,
 ) -> tuple[bool, datetime | None, list[FlyerDealOut]]:
     clean_postal = normalize_canadian_postal_code(postal_code)
     if not clean_postal or len(clean_postal.replace(" ", "")) != 6:
@@ -202,6 +203,10 @@ def get_weekly_flyer_deals(
                     pass
 
     if not settings.apify_api_token:
+        return False, existing.fetched_at if existing else None, []
+
+    if before_provider_run is not None and not before_provider_run():
+        db.commit()  # release cache lock; no paid call made
         return False, existing.fetched_at if existing else None, []
 
     actor_id = (settings.apify_flyer_actor_id or "scrapersdelight/flipp-flyer-digest").replace("/", "~")

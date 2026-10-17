@@ -5,7 +5,7 @@ import html as html_lib
 import json
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Callable, Any
 from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlparse
 
 import requests
@@ -1577,6 +1577,7 @@ def compare_canadian_grocery_prices(
     retailers: list[str] | None = None,
     force_refresh: bool = False,
     allow_provider_run: bool = True,
+    before_provider_run: Callable[[], bool] | None = None,
 ) -> tuple[bool, list[LivePriceResultOut]]:
     """Compare Canadian grocery prices with shared per-product cache shards.
 
@@ -1642,6 +1643,11 @@ def compare_canadian_grocery_prices(
         if not provider_items:
             db.commit()  # releases advisory locks if this request waited for another worker
         return bool(cached_by_item) and not provider_items, normalized_cached
+
+    if before_provider_run is not None and not before_provider_run():
+        # Still return the valid shared cache without calling the paid provider.
+        db.commit()  # release the shared-cache advisory lock
+        return bool(cached_by_item), [normalize_price_row(row) for row in cached_raw_rows]
 
     actor_id = (settings.apify_canada_price_actor_id or "sunny_eternity/canada-grocery-price-comparison").replace("/", "~")
     url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items"

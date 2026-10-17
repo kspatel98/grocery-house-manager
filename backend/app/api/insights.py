@@ -91,6 +91,7 @@ from app.schemas import (
 from app.utils.location import currency_for_country
 from app.utils.flyer_data import get_weekly_flyer_deals
 from app.utils.market_data import compare_canadian_grocery_prices, normalize_canadian_postal_code, safe_market_error
+from app.utils.provider_budget import consume_house_provider_run
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -715,6 +716,14 @@ def _basket_comparison(
         location_label = ", ".join(part for part in [user.city, user.country or "Canada"] if part) or "Canada"
     location_label = location_label or "Canada"
 
+    budget_exhausted = False
+    def may_purchase_for_house() -> bool:
+        nonlocal budget_exhausted
+        granted = consume_house_provider_run(house_id)
+        if not granted:
+            budget_exhausted = True
+        return granted
+
     live_rows = []
     live_attempted = False
     live_cache_reused = False
@@ -729,6 +738,7 @@ def _basket_comparison(
                 postal_code=clean_postal,
                 force_refresh=force_refresh,
                 allow_provider_run=allow_provider_run,
+                before_provider_run=may_purchase_for_house,
             )
         except Exception as exc:
             live_error = safe_market_error(exc)
@@ -745,6 +755,7 @@ def _basket_comparison(
             _, _, flyer_rows = get_weekly_flyer_deals(
                 db, postal_code=clean_postal, merchants=preferred_flyer_stores or None,
                 force_refresh=force_refresh, max_merchants=5, allow_provider_run=allow_provider_run,
+                before_provider_run=may_purchase_for_house,
             )
         except Exception as exc:
             flyer_error = safe_market_error(exc)
@@ -1016,6 +1027,10 @@ def _basket_comparison(
         leader = plausible_store_options[0]
         message = f"{leader.store_name} has the most complete price picture ({leader.priced_items} of {total_items} items). We are not guessing prices for the missing items."
         recommendation_reason = "A full cheapest-store recommendation will appear automatically when enough supported prices exist for a complete one- or two-store trip."
+
+    if budget_exhausted:
+        message += " Today's household live-lookup allowance is used up. Saved prices, current flyer caches and your receipt history still work; fresh lookups return when the allowance resets."
+        purchase_notes.insert(0, "New live-provider checks are paused by this household's cost-safety allowance. Cached prices remain available.")
 
     return BasketComparisonOut(
         message=message,

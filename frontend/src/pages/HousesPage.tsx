@@ -5,6 +5,7 @@ import { api, errorMessage } from '../api';
 import type { AccountBootstrap, AdminUserOffer, House, OnboardingStatus, Subscription, WeeklyAssistant } from '../types';
 import FirstRunSetup from '../components/FirstRunSetup';
 import InstallAppPrompt from '../components/InstallAppPrompt';
+import OverlayPortal from '../components/OverlayPortal';
 
 function isPaidStatus(status?: string) {
   return ['active', 'trialing', 'past_due', 'cancel_at_period_end', 'paid'].includes((status || '').toLowerCase());
@@ -33,6 +34,8 @@ export default function HousesPage() {
   });
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
   const navigate = useNavigate();
 
   async function load() {
@@ -80,16 +83,19 @@ export default function HousesPage() {
 
   async function createHouse(event: FormEvent) {
     event.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || creating) return;
     try {
-      setError('');
+      setCreating(true);
+      setCreateError('');
       const { data } = await api.post<House>('/houses', { name: name.trim(), household_type: householdType });
       localStorage.setItem('ghm_active_house_id', String(data.id));
       setName('');
       setHouseholdType('family');
       navigate(`/houses/${data.id}`);
     } catch (err) {
-      setError(errorMessage(err));
+      setCreateError(errorMessage(err));
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -133,20 +139,37 @@ export default function HousesPage() {
       {!loading && todayAction ? <Link to={todayAction.to} className="v95-switchboard-focus"><span>{todayAction.icon}</span><div><p className="eyebrow">{todayAction.eyebrow}</p><h2>{todayAction.title}</h2><p>{todayAction.copy}</p></div><strong>{todayAction.cta} →</strong></Link> : null}
 
       {!loading && houses.length > 0 ? <section className="v95-house-switcher">
-        <header><div><p className="eyebrow">YOUR HOUSEHOLDS</p><h2>Choose where you want to work.</h2></div>{canCreateHouse ? <button type="button" className="secondary" onClick={() => setShowCreate((value) => !value)}>{showCreate ? 'Close' : '+ Add household'}</button> : null}</header>
+        <header><div><p className="eyebrow">YOUR HOUSEHOLDS</p><h2>Choose where you want to work.</h2></div>{canCreateHouse ? <button type="button" className="secondary" onClick={() => { setCreateError(''); setShowCreate(true); }}>+ Add household</button> : null}</header>
         <div className="v95-house-switcher-grid">{houses.map((house) => <Link key={house.id} to={`/houses/${house.id}?tab=home`} onClick={() => localStorage.setItem('ghm_active_house_id', String(house.id))} className={activeHouse?.id === house.id ? 'active' : ''}><span>⌂</span><div><strong>{house.name}</strong><small>{house.role} access</small></div><b>→</b></Link>)}</div>
       </section> : null}
 
-      {((showCreate && houses.length > 0) || (!loading && houses.length === 0 && onboarding === null)) ? <section className="v95-create-home">
-        <div><p className="eyebrow">PRIVATE SHARED SPACE</p><h2>{houses.length ? 'Add another household' : 'Create your first Grocery Home'}</h2><p>Inventory, shopping, receipts, expenses and members stay together. You can keep the name simple.</p></div>
-        {canCreateHouse || houses.length === 0 ? <form onSubmit={createHouse} className="v96-house-create-form"><input placeholder="Example: Patel Family Home" value={name} onChange={(event) => setName(event.target.value)} /><div className="v96-household-type-grid" aria-label="Household type">{[
-          ['family','👨‍👩‍👧‍👦','Family','Meals, expiry and weekly shopping first'],
-          ['roommates','👥','Roommates','Shared lists, expenses and personal items first'],
-          ['couple','♥','Couple','Shared shopping, meals and spending first'],
-          ['solo','●','Just me','A simpler personal household workflow'],
-          ['other','⌂','Other','Keep the setup flexible'],
-        ].map(([key,icon,title,copy]) => <button key={key} type="button" className={householdType === key ? 'active' : ''} onClick={() => setHouseholdType(key as typeof householdType)}><span>{icon}</span><div><strong>{title}</strong><small>{copy}</small></div></button>)}</div><button className="primary" disabled={!name.trim()}>Create household</button></form> : <div className="upgrade-callout"><strong>Your current plan has reached its household limit.</strong><Link to="/pricing">Compare plans →</Link></div>}
-      </section> : null}
+      {((showCreate && (canCreateHouse || houses.length === 0)) || (!loading && houses.length === 0 && onboarding === null)) && (
+        <OverlayPortal>
+          <div className="modal-backdrop v136-house-create-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !creating && houses.length > 0) setShowCreate(false); }}>
+            <section className="focus-dialog v136-house-create-dialog" role="dialog" aria-modal="true" aria-labelledby="create-house-title">
+              <header className="focus-dialog-titlebar"><div><p className="eyebrow">PRIVATE SHARED SPACE</p><h2 id="create-house-title">{houses.length ? 'Add another household' : 'Create your first household'}</h2><small>Every household keeps its own inventory, shopping and expenses.</small></div><button className="icon-btn" type="button" data-dialog-close="true" aria-label="Close create household" disabled={creating} onClick={() => setShowCreate(false)}>×</button></header>
+              <form onSubmit={createHouse} className="v136-house-create-form">
+                <div className="focus-dialog-scroll v136-house-create-body">
+                  <label htmlFor="new-house-name">Household name</label>
+                  <input id="new-house-name" autoFocus maxLength={100} required value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Family Home" />
+                  <div className="v136-house-create-choose"><strong>What kind of household?</strong><small>Choose one to personalize your setup. You can change it later.</small></div>
+                  <div className="v136-house-type-grid" role="group" aria-label="Household type">
+                    {([
+                      ['family','🏠','Family','Groceries and meals'],
+                      ['roommates','👥','Roommates','Shared shopping and bills'],
+                      ['couple','♥','Couple','Plan together'],
+                      ['solo','●','Just me','Personal home'],
+                      ['other','⌂','Other','Flexible setup'],
+                    ] as const).map(([key,icon,title,sub]) => <button type="button" key={key} aria-pressed={householdType === key} className={householdType === key ? 'selected' : ''} onClick={() => setHouseholdType(key)}><span aria-hidden="true">{icon}</span><span><strong>{title}</strong><small>{sub}</small></span><b aria-hidden="true">{householdType === key ? '✓' : ''}</b></button>)}
+                  </div>
+                  {createError ? <div role="alert" className="error">{createError}</div> : null}
+                </div>
+                <footer className="focus-dialog-actions v136-house-create-actions"><button type="button" className="secondary" disabled={creating} onClick={() => setShowCreate(false)}>Cancel</button><button type="submit" className="primary" disabled={creating || !name.trim()}>{creating ? 'Creating…' : 'Create household'}</button></footer>
+              </form>
+            </section>
+          </div>
+        </OverlayPortal>
+      )}
 
       {onboarding?.complete && (showOffer || offers.length > 0) ? <details className="v95-updates-drawer">
         <summary><span><strong>{showOffer || offers.length ? 'Offers & account updates' : 'Updates'}</strong><small>Kept out of your way until you want to see them.</small></span><b>{(showOffer ? 1 : 0) + offers.length}</b></summary>

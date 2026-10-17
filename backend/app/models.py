@@ -555,6 +555,16 @@ class ExternalPriceCache(Base):
 
 
 
+class HouseProviderBudget(Base):
+    """Atomic daily/monthly quota counter for actual paid provider invocations."""
+    __tablename__ = "house_provider_budget"
+    __table_args__ = (UniqueConstraint("house_id", "period_key", name="uq_house_provider_budget_period"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    period_key: Mapped[str] = mapped_column(String(24), index=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class ProductEvent(Base):
     __tablename__ = "product_events"
 

@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     food_places_cache_minutes: int = 30
     food_menu_fetch_timeout_seconds: int = 10
 
+    # Actual new Apify HTTP runs per household, not page visits or cached comparisons.
+    trip_provider_daily_limit: int = 4
+    trip_provider_monthly_limit: int = 30
+
     # Grocery market/product data integrations.
     # Open Food Facts is used for universal barcode/product details. It does not provide live store pricing.
     open_food_facts_base_url: str = "https://world.openfoodfacts.org"
