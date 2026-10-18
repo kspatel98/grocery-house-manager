@@ -1,3 +1,4 @@
+import FeatureUsageStrip from '../components/FeatureUsageStrip';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
@@ -410,6 +411,7 @@ export default function MarketPage() {
       </header>
 
       <FeaturePurposeCard feature="price_compare" />
+      <FeatureUsageStrip houseId={Number(selectedHouseId) || null} features={['product_lookup', 'paid_provider_day', 'paid_provider_month']} />
       {error && <div className="error">{error}</div>}
 
       <section className="panel market-access-panel animated-card-lift">

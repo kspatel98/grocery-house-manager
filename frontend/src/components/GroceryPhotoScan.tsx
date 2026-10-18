@@ -97,10 +97,18 @@ export default function GroceryPhotoScan({ houseId, sections, initialMode = 'wri
         product_id: item.product_id ?? null,
       })));
       setStage('review');
+      window.dispatchEvent(new Event('ghm:usage-changed'));
       api.get<{limit:number;used:number;remaining:number}>(`/houses/${houseId}/grocery-scan/quota`).then(({data:q})=>setQuota(q)).catch(()=>{});
-      if (!data.items.length) setError('This picture could not be read reliably. Try filling more of the frame with the grocery list, avoiding glare and shadows, or choose a clearer photo. This attempt used one image-scan credit.');
+      if (!data.items.length) setError('No groceries could be identified confidently. You can enter items manually below without using another scan credit, or try a clearer picture. This attempt used one image-scan credit.');
     } catch (err) { setError(errorMessage(err)); }
     finally { setBusy(false); busyRef.current = false; }
+  }
+
+  function addManualRow() {
+    setStage('review');
+    setRows(prev=>[...prev,{name:'',category:'Other',quantity:'',unit:'pcs',confidence:0,notes:'Enter the visible grocery name and quantity.',needs_review:true,product_id:null,section_id:null,selected:true,reviewConfirmed:false}]);
+    setEditingRow(rows.length);
+    setError('');
   }
 
   const selected = rows.filter(row => row.selected);
@@ -164,7 +172,8 @@ export default function GroceryPhotoScan({ houseId, sections, initialMode = 'wri
             <button type="button" disabled={busy} className="secondary" onClick={() => setStage('choose')}>← Choose another photo</button>
           </div>}
           {stage === 'review' && previewUrl && <details className="v138-scan-photo-reference"><summary>Compare with original photo</summary><img src={previewUrl} alt="Original grocery list or products for comparison" /></details>}
-          {stage === 'review' && rows.length > 0 && <div className="v138-scan-tools">
+          {stage === 'review' && <div className="v139-scan-manual-actions"><button type="button" className="secondary" disabled={busy || rows.length >= 60} onClick={addManualRow}>＋ Add an item manually (no scan credit)</button></div>}
+      {stage === 'review' && rows.length > 0 && <div className="v138-scan-tools">
             <strong>{needsQuantity ? `${needsQuantity} quantities need confirmation` : 'Ready for review'}</strong>
             {needsQuantity > 0 && <button type="button" className="secondary" onClick={chooseOneForUnspecified}>Set unspecified quantities to 1 each</button>}
             <small>Check the original photo when uncertain. Tap Edit only on rows you want to change.</small>

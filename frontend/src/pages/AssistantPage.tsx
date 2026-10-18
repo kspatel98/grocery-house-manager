@@ -1,3 +1,4 @@
+import FeatureUsageStrip from '../components/FeatureUsageStrip';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -876,6 +877,7 @@ export default function AssistantPage() {
               {houseId ? <Link className="secondary v132-tool-action" to={`/assistant?house=${houseId}&view=insights`}>📈 Insights</Link> : null}
               {agentTurns.length ? <button type="button" className="secondary v132-tool-action" onClick={() => setNewConversationConfirm(true)}>＋ New conversation</button> : null}
             </div>
+            <FeatureUsageStrip houseId={houseId} features={['ask_ghm']} compact />
 
             {error ? <div className="error v125-ask-message v132-chat-error">{error}</div> : null}
 

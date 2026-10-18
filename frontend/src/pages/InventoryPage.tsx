@@ -25,6 +25,7 @@ export default function InventoryPage() {
   const [scopeFilter, setScopeFilter] = useState<'shared' | 'personal' | 'selected' | ''>('');
   const [productModal, setProductModal] = useState<{ mode: 'create' | 'edit'; product?: Product; sectionId?: number; scanOnOpen?: boolean } | null>(null);
   const [groceryScanOpen, setGroceryScanOpen] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -64,13 +65,17 @@ export default function InventoryPage() {
   }
 
   async function removeProduct(productId: number) {
-    if (!confirm('Delete this product from inventory?')) return;
+    if (deletingProductId !== null) return;
+    if (!confirm('Remove this product from inventory and shopping lists? Receipt history will stay available.')) return;
+    setDeletingProductId(productId);
+    setError('');
     try {
       await api.delete(`/houses/${id}/products/${productId}`);
-      loadProducts();
+      setProducts(prev=>prev.filter(item=>item.id!==productId));
+      await loadProducts();
     } catch (err) {
-      setError(errorMessage(err));
-    }
+      setError(`Unable to remove product: ${errorMessage(err)}`);
+    } finally { setDeletingProductId(null); }
   }
 
   useEffect(() => {
@@ -208,7 +213,7 @@ export default function InventoryPage() {
             </div>
             <div className="card-actions">
               <button onClick={() => setProductModal({ mode: 'edit', product })}>Edit</button>
-              <button onClick={() => removeProduct(product.id)}>Remove</button>
+              <button type="button" disabled={deletingProductId !== null} onClick={() => void removeProduct(product.id)}>{deletingProductId === product.id ? 'Removing…' : 'Remove'}</button>
             </div>
           </article>
         ))}

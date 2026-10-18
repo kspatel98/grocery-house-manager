@@ -46,7 +46,18 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const url=String(response.config?.url || '');
+    const method=String(response.config?.method || 'get').toLowerCase();
+    // Refresh read-only counters after successful chargeable workflows, without
+    // polling providers or refreshing in a loop for the usage endpoint itself.
+    const paidRequest =
+      /\/grocery-scan\/preview(?:$|\?)/.test(url) ||
+      /\/market\/houses\/\d+\/(?:product-lookup|price-compare|flyers)(?:$|\?)/.test(url) ||
+      (method === 'post' && /\/ai\/houses\/\d+\/(?:household-agent|kitchen-vision)(?:$|\?)/.test(url));
+    if (paidRequest && typeof window !== 'undefined') window.dispatchEvent(new Event('ghm:usage-changed'));
+    return response;
+  },
   async (error) => {
     const requestUrl = String(error.config?.url || "");
     const status = Number(error.response?.status || 0);

@@ -15,7 +15,7 @@ MAX_SCAN_ROWS = 60
 SUPPORTED_IMAGES = {"image/jpeg", "image/png", "image/webp"}
 
 
-def prepare_image(data: bytes, mime: str, mode: str = "products") -> bytes:
+def prepare_image(data: bytes, mime: str, mode: str = "products", enhance: bool = True) -> bytes:
     if mime not in SUPPORTED_IMAGES:
         raise ValueError("Upload a JPG, PNG or WebP image.")
     if not data or len(data) > MAX_SCAN_BYTES:
@@ -30,7 +30,7 @@ def prepare_image(data: bytes, mime: str, mode: str = "products") -> bytes:
         with Image.open(BytesIO(data)) as original:
             image = ImageOps.exif_transpose(original).convert("RGB")
             image.thumbnail((2560, 2560), Image.Resampling.LANCZOS)
-            if mode == "written_list":
+            if mode == "written_list" and enhance:
                 # Preserve all edges; cropped handwriting can lose left-aligned product names.
                 image = ImageOps.autocontrast(image, cutoff=0.6, preserve_tone=True)
                 image = ImageEnhance.Contrast(image).enhance(1.16)
@@ -88,7 +88,7 @@ def normalize_recognized_rows(raw: dict, mode: str) -> dict:
     }
 
 
-def recognize_grocery_image(prepared_jpeg: bytes, mode: str) -> dict:
+def recognize_grocery_image(prepared_jpeg: bytes, mode: str, alternate_jpeg: bytes | None = None) -> dict:
     if not vision_configured():
         raise DigitalOceanAIError("Grocery photo recognition is not configured. Set up the DigitalOcean vision provider first.")
     if mode not in {"products", "written_list"}:
@@ -157,6 +157,37 @@ Rules:
         parsed = _json_from_text(result)
         if not isinstance(parsed, dict):
             raise ValueError("Expected an object")
-        return normalize_recognized_rows(parsed, mode)
+        normalized = normalize_recognized_rows(parsed, mode)
+        # A second provider attempt is made only when the first vision response
+        # found zero rows on a WRITTEN list. It uses the unenhanced image;
+        # aggressive preprocessing can erase faint pencil strokes. Keep this
+        # bounded to ONE retry so an unreadable photo cannot cause loops/costs.
+        if mode == "written_list" and not normalized["items"] and alternate_jpeg:
+            second_payload = {
+                **payload,
+                "messages": [{"role": "user", "content": [
+                    {"type": "text", "text": prompt + "\nSECOND LOOK: The earlier enhanced version produced no items. This is the ORIGINAL, unenhanced photo. Read the handwriting line-by-line. Return the visible grocery entries if legible; otherwise leave items empty. Do not invent words."},
+                    {"type": "image_url", "image_url": {"url": image_data_uri(alternate_jpeg, "scan-original.jpg", "image/jpeg")}},
+                ]}],
+            }
+            try:
+                second_response = requests.post(
+                    settings.digitalocean_inference_base_url.rstrip("/") + "/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.digitalocean_inference_key}", "Content-Type": "application/json"},
+                    json=second_payload, timeout=settings.digitalocean_vision_timeout_seconds,
+                )
+                second_response.raise_for_status()
+                second_result = _json_from_text(second_response.json()["choices"][0]["message"]["content"])
+                if isinstance(second_result, dict):
+                    secondary = normalize_recognized_rows(second_result, mode)
+                    if secondary["items"]:
+                        secondary["warnings"].append("The original photo was used for a second recognition pass. Review every item before saving.")
+                        return secondary
+                    normalized["warnings"] = (normalized["warnings"] + secondary["warnings"])[:8]
+            except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
+                # Keep the original result and allow manual correction; a retry
+                # outage should never erase a completed first response.
+                normalized["warnings"].append("A second reading was unavailable. You can enter items manually without another scan credit.")
+        return normalized
     except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as exc:
         raise DigitalOceanAIError("The image could not be recognized. Please try another photo.") from exc

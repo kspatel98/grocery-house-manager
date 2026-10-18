@@ -1,0 +1,29 @@
+/* GHM V139: readability, mobile Ask dock, contextual quota indicators */
+.v139-usage-strip { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin:10px 0 14px; padding:10px; background:var(--ghm-surface-elevated,#f8fafb); border:1px solid var(--ghm-border,#d8e0e9); border-radius:15px; color:var(--ghm-text-strong,#182b3a) }
+.v139-usage-item { min-width:138px; flex:1 1 170px; display:grid; gap:3px; align-content:center; border:1px solid var(--ghm-border,#d8e0e9); border-radius:11px; padding:8px 10px; background:var(--ghm-surface,#fff); line-height:1.35 }
+.v139-usage-item span { font-size:.74rem; font-weight:700; color:var(--ghm-text-strong,#182b3a); opacity:.92 }
+.v139-usage-item strong { font-size:.89rem; color:var(--ghm-text-strong,#182b3a); font-weight:850 }
+.v139-usage-item strong.exhausted { color:#bc4545 }
+.v139-usage-item small,.v139-usage-help{ color:var(--ghm-muted,#576875);font-size:.71rem;line-height:1.35 }
+.v139-usage-help{width:100%;padding:2px 4px}
+.v139-usage-strip.compact {padding:7px;gap:6px;margin:5px 0 8px}
+.v139-usage-strip.compact .v139-usage-item { min-width:125px;flex:1 1 135px;padding:5px 8px;gap:1px }
+.v139-usage-strip.compact .v139-usage-item span {font-size:.67rem}.v139-usage-strip.compact .v139-usage-item strong{font-size:.78rem}.v139-usage-strip.compact .v139-usage-item small{font-size:.64rem}
+.v139-scan-manual-actions button {width:auto!important; min-height:40px!important;font-size:.82rem!important;background:var(--scan-field)!important;color:var(--scan-text)!important;border:1px solid var(--scan-line)!important}
+/* Always readable even when a legacy global theme rule styles alert containers. */
+.v137-scan-modal .v137-scan-error,.v137-scan-modal .v137-scan-warning{opacity:1!important;text-shadow:none!important;font-weight:700!important;font-size:.86rem!important;line-height:1.5!important;border:1px solid #ebafaa!important;background:#fff0ee!important;color:#722826!important;overflow-wrap:anywhere!important}
+.v137-scan-modal .v137-scan-warning{border-color:#e5c37b!important;background:#fff4d8!important;color:#65440b!important}
+html[data-ghm-theme="dark"] .v137-scan-modal .v137-scan-error,html[data-theme="dark"] .v137-scan-modal .v137-scan-error{background:#4a2024!important;color:#ffe5df!important;border-color:#e58d8d!important}
+html[data-ghm-theme="dark"] .v137-scan-modal .v137-scan-warning,html[data-theme="dark"] .v137-scan-modal .v137-scan-warning{background:#493718!important;color:#fff1ca!important;border-color:#cb9e51!important}
+@media(max-width:1099px){
+  /* One nav reservation on the APP ROOT only; no second padding on chat shell. */
+  .v133-chat-layout-active.v131-ask-chat-active {height:100dvh!important;min-height:0!important;max-height:100dvh!important;box-sizing:border-box!important;display:flex!important;flex-direction:column!important;padding-bottom:calc(72px + env(safe-area-inset-bottom))!important;overflow:hidden!important}
+  .v133-chat-layout-active.v131-ask-chat-active .desktop-shell-v86 {flex:1 1 0!important;min-height:0!important;height:auto!important;max-height:none!important;padding-bottom:0!important;margin-bottom:0!important;overflow:hidden!important}
+  .v133-chat-layout-active.v131-ask-chat-active .desktop-main-v86,.v133-chat-layout-active.v131-ask-chat-active .app-main-content{min-height:0!important;max-height:100%!important;height:100%!important;padding-bottom:0!important;margin-bottom:0!important;overflow:hidden!important}
+  .v133-chat-layout-active.v131-ask-chat-active .v125-ask-page,.v133-chat-layout-active.v131-ask-chat-active .v125-ask-shell {min-height:0!important;height:100%!important;max-height:100%!important;overflow:hidden!important}
+  .v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone.v132-composer-zone {flex:none!important;min-height:0!important;margin:0!important;padding:5px 7px 3px!important;border-radius:16px 16px 0 0!important;align-self:end!important}
+  .v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone .v139-usage-strip{margin:1px 0 5px!important;padding:2px!important;background:transparent!important;border:0!important}
+  .v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone .v139-usage-item {display:flex;flex:1 1 auto;gap:6px;align-items:center;padding:3px 7px;min-width:0}
+  .v133-chat-layout-active.v131-ask-chat-active .v125-composer-zone .v139-usage-item small{display:none}
+}
+@media(max-width:560px){.v139-usage-item{min-width:130px}.v139-usage-strip:not(.compact){padding:7px}.v139-usage-strip.compact .v139-usage-item{min-width:120px} }

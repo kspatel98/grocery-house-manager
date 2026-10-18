@@ -72,6 +72,7 @@ def preview_groceries(
     try:
         raw = image.file.read(MAX_SCAN_BYTES + 1)
         prepared = prepare_image(raw, content_type, mode)
+        original_prepared = prepare_image(raw, content_type, mode, enhance=False) if mode == "written_list" else None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
@@ -81,7 +82,7 @@ def preview_groceries(
     if not owner or not consume_feature_call(owner.id, "grocery_scan", limit):
         raise HTTPException(status_code=402, detail=f"The household has reached its Smart Grocery Scan allowance ({limit}/month). Review existing lists, or upgrade the owner's plan. Attempts count even if handwriting cannot be read.")
     try:
-        scan = recognize_grocery_image(prepared, mode)
+        scan = recognize_grocery_image(prepared, mode, alternate_jpeg=original_prepared)
     except DigitalOceanAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     existing = db.query(Product).filter(Product.house_id == house_id).all()

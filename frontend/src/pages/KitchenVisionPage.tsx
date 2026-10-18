@@ -1,3 +1,4 @@
+import FeatureUsageStrip from '../components/FeatureUsageStrip';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
@@ -280,6 +281,7 @@ export default function KitchenVisionPage() {
         </div>
       </header>
 
+      <FeatureUsageStrip houseId={id} features={['kitchen_vision']} compact />
       {error ? <div className="error">{error}</div> : null}
       {message ? <div className="success">{message}</div> : null}
       {premiumTry?.available ? (premiumTry.selected_feature === 'kitchen_vision' ? <div className="premium-try-invite-v102"><span aria-hidden="true">✨</span><div><strong>Your free Kitchen Vision experience is ready.</strong><small>Scan one real storage area. The try is used only after GHM successfully analyzes it; you can still review changes before applying them.</small></div><b aria-hidden="true">Ready</b></div> : <Link className="premium-try-invite-v102" to={`/premium-try?feature=kitchen_vision&house=${id}`}><span aria-hidden="true">✨</span><div><strong>Want to see Kitchen Vision before subscribing?</strong><small>Choose it as your one free Premium Try. One successful scan, no card required.</small></div><b aria-hidden="true">→</b></Link>) : null}

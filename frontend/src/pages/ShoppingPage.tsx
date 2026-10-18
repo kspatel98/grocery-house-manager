@@ -1,3 +1,4 @@
+import FeatureUsageStrip from '../components/FeatureUsageStrip';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
@@ -257,6 +258,7 @@ export default function ShoppingPage() {
         </div>
       </header>
 
+      <FeatureUsageStrip houseId={id} features={['grocery_scan','paid_provider_day','paid_provider_month']} compact />
       <HouseContextSwitcher currentHouseId={id} currentHouseName={house?.name} section="shopping" />
       <FeaturePurposeCard feature="shopping" />
 

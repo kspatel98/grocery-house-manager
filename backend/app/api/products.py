@@ -14,7 +14,7 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_product_limit, ensure_receipt_scan_limit, receipt_scan_usage, choose_receipt_scan_credit_source, consume_extra_receipt_scan_credit, complete_premium_try
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import CommunityPriceObservation, House, HouseMember, HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus
+from app.models import CommunityPriceObservation, House, HouseMember, HouseRole, Product, ProductStorePrice, Receipt, ReceiptLineItem, Section, User, ShoppingList, ShoppingListItem, ShoppingItemStatus, KitchenVisionObservation
 from app.utils.receipt_ocr import scan_receipt, SUPPORTED_RECEIPT_IMAGE_MIME_TYPES, SUPPORTED_RECEIPT_IMAGE_SUFFIXES
 from app.schemas import ProductCreate, ProductOut, ProductUpdate, ProductConsumptionIn, ProductConsumptionOut, ReceiptCreate, ReceiptOut, ProductStorePriceOut, ReceiptLineItemOut, ReceiptParsedLineOut, ReceiptReviewSaveIn, ReceiptUploadOut, ReceiptScanUsageOut, ReceiptDeleteOut
 
@@ -1301,12 +1301,29 @@ def delete_receipt(house_id: int, receipt_id: int, db: Session = Depends(get_db)
 
 @router.delete("/products/{product_id}")
 def delete_product(house_id: int, product_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Remove a product safely even when older DB constraints lack ON DELETE cascades.
+
+    Preserve receipt/Kitchen Vision historical observations, but unlink them from
+    the removed inventory identity. List rows and saved prices need a product and
+    are intentionally removed. All changes commit together or none of them do.
+    """
     require_house_member(house_id, user, db)
     product = db.query(Product).filter(Product.id == product_id, Product.house_id == house_id).first()
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Product not found in this house")
     product_name = product.name
-    db.delete(product)
-    log_activity(db, house_id=house_id, user=user, action="product_deleted", message=f"Product {product_name} removed by {display_name(user)}.", entity_type="product", entity_id=product_id)
-    db.commit()
-    return {"ok": True}
+    try:
+        db.query(ReceiptLineItem).filter(ReceiptLineItem.house_id == house_id, ReceiptLineItem.matched_product_id == product_id).update(
+            {ReceiptLineItem.matched_product_id: None, ReceiptLineItem.created_product_from_receipt: False}, synchronize_session=False)
+        db.query(KitchenVisionObservation).filter(KitchenVisionObservation.house_id == house_id, KitchenVisionObservation.product_id == product_id).update(
+            {KitchenVisionObservation.product_id: None}, synchronize_session=False)
+        db.query(ShoppingListItem).filter(ShoppingListItem.product_id == product_id).delete(synchronize_session=False)
+        db.query(ProductStorePrice).filter(ProductStorePrice.product_id == product_id).delete(synchronize_session=False)
+        db.delete(product)
+        log_activity(db, house_id=house_id, user=user, action="product_deleted", message=f"Product {product_name} removed by {display_name(user)}.", entity_type="product", entity_id=product_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Inventory product deletion failed", extra={"house_id": house_id, "product_id": product_id})
+        raise HTTPException(status_code=500, detail="This product could not be removed safely. Refresh and try again; if it persists, contact support.")
+    return {"ok": True, "message": "Product removed. Past receipt and kitchen observations were preserved."}
