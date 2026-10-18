@@ -148,6 +148,12 @@ export type PlanLimits = {
   active_lists_per_house: number;
   members_per_house: number;
   receipt_scans_per_month: number;
+  grocery_image_scans_per_month: number;
+  trip_provider_daily_runs: number;
+  trip_provider_monthly_runs: number;
+  ask_ghm_runs_per_month: number;
+  product_lookup_runs_per_month: number;
+  kitchen_vision_scans_per_month: number;
 };
 
 export type Plan = {

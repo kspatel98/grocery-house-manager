@@ -54,17 +54,18 @@ const PLAN_BADGE_LABELS: Record<PlanName, string> = {
 const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanName }[] = [
   { title: 'Shared household essentials', description: 'One starter house, shared inventory/list access, low-stock and expiry awareness, community recipes, and Food Recall Guardian screening.', minPlan: 'free' },
   { title: 'Receipt Guardian', description: 'Review recent scanned receipts for possible duplicate lines, line-math inconsistencies and unusual price jumps. Every signal stays a review prompt.', minPlan: 'basic' },
-  { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5, and Pro includes 15 across houses you own. Extra scan packs remain available.', minPlan: 'basic' },
-  { title: 'Product lookup + private price memory', description: 'Barcode/name lookup plus household-specific store price history from the groceries you review and save.', minPlan: 'basic' },
+  { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5, and Pro includes 10 across houses you own. Extra scan packs remain available.', minPlan: 'basic' },
+  { title: 'Smart Grocery Image Scan', description: 'Scan one photo containing physical groceries or handwritten/printed lists; Basic includes 2 scans, Family 10 and Pro 25 monthly across owned houses.', minPlan: 'basic' },
+  { title: 'Product lookup + private price memory', description: 'Barcode/name lookup plus household-specific store price history from the groceries you review and save. Included monthly new lookups: Basic 30, Family 120, Pro 250.', minPlan: 'basic' },
   { title: 'GHM Autopilot Weekly Planner + Budget Rescue', description: 'Plan days at home, servings and an optional budget. Autopilot prioritizes inventory and food approaching its expiry date, then creates only the missing grocery list.', minPlan: 'family' },
-  { title: 'Ask GHM Household Intelligence', description: 'Ask household-aware questions using inventory, shopping, receipts, expenses and saved recipes, then continue with follow-up questions in the same conversation.', minPlan: 'family' },
-  { title: 'Automatic Trip Check', description: 'Compare whole-list saved prices plus supported Canadian current-price/flyer signals before you spend.', minPlan: 'family' },
+  { title: 'Ask GHM Household Intelligence', description: 'Ask household-aware questions using inventory, shopping, receipts, expenses and saved recipes, then continue with follow-up questions in the same conversation. Monthly AI responses: Family 120 and Pro 300.', minPlan: 'family' },
+  { title: 'Automatic Trip Check', description: 'Compare whole-list saved prices plus supported Canadian current-price/flyer signals before you spend. New paid provider calls share a Family quota of 3/day and 20/month or Pro 4/day and 30/month; cached results are reusable.', minPlan: 'family' },
   { title: 'Weekly Flyer Intelligence', description: 'Load postal-code-aware flyer deals from the configured provider and match them to household shopping needs when live flyer data is connected.', minPlan: 'family' },
   { title: 'Smart stock-up intelligence', description: 'Uses your household price and purchase history to identify unusually strong prices and recommend a conservative quantity instead of treating every sale as a deal.', minPlan: 'family' },
   { title: 'Savings Ledger', description: 'Separates evidence-backed savings from open opportunities so the value of your household routine remains auditable.', minPlan: 'free' },
   { title: 'Household expenses + reimbursements', description: 'Track shared grocery spending, personal share, balances and suggested reimbursements.', minPlan: 'family' },
   { title: 'Nearby store suggestions', description: 'Use your shopping needs and location to find supported nearby grocery options.', minPlan: 'pro' },
-  { title: 'Kitchen Vision + Kitchen Map', description: 'Scan real storage areas with photos or short video. GHM remembers zones, preserves multiple identical units, records coverage and keeps uncertain changes for review.', minPlan: 'pro' },
+  { title: 'Kitchen Vision + Kitchen Map', description: 'Scan real storage areas with photos or short video. GHM remembers zones, preserves multiple identical units, records coverage and keeps uncertain changes for review. Pro includes 10 AI camera scans/month.', minPlan: 'pro' },
   { title: 'Large household history and exports', description: 'Higher limits and deeper tracking for multiple houses, extended families and heavy users.', minPlan: 'pro' },
 ];
 
@@ -445,6 +446,11 @@ export default function PricingPage() {
                 <span>{plan.limits.active_lists_per_house} active lists/house</span>
                 <span>{plan.limits.members_per_house} members/house</span>
                 <span>{plan.limits.receipt_scans_per_month} receipt scans/month</span>
+                <span>{plan.limits.grocery_image_scans_per_month} grocery image scans/month</span>
+                {plan.limits.product_lookup_runs_per_month > 0 && <span>{plan.limits.product_lookup_runs_per_month} new product lookups/month</span>}
+                {plan.limits.ask_ghm_runs_per_month > 0 && <span>{plan.limits.ask_ghm_runs_per_month} Ask GHM AI responses/month</span>}
+                {plan.limits.kitchen_vision_scans_per_month > 0 && <span>{plan.limits.kitchen_vision_scans_per_month} Kitchen Vision scans/month</span>}
+                {plan.limits.trip_provider_monthly_runs > 0 && <span>{plan.limits.trip_provider_daily_runs} new paid price/flyer requests/day · {plan.limits.trip_provider_monthly_runs}/month</span>}
               </div>
               {isCurrent ? (
                 <button className="secondary full" disabled>Current plan</button>

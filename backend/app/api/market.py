@@ -10,18 +10,27 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, house_plan_has_product_lookup, house_plan_has_external_price_comparison, complete_premium_try
+from app.api.plan_utils import get_house_plan, house_plan_has_smart_market, house_plan_has_product_lookup, house_plan_has_external_price_comparison, premium_try_can_start, get_house_owner, complete_premium_try
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import ExternalPriceCache, Product, ProductStorePrice, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
 from app.schemas import FlyerDealsOut, FlyerMerchantOut, FlyerMerchantsOut, InstacartShoppingLinkOut, MarketCapabilitiesOut, NearbyStoreOut, ProductLookupOut, PriceCompareIn, LivePriceCompareOut, LivePriceResultOut, ShoppingItemSuggestionOut, ShoppingSuggestionsOut
 from app.utils.location import common_grocery_chains, currency_for_country, normalize_country
+from app.utils.provider_budget import consume_house_provider_run
+from app.utils.feature_quota import consume_feature_call
 from app.utils.flyer_data import discover_weekly_flyer_merchants, get_weekly_flyer_deals
 from app.utils.market_data import SUPPORTED_CANADA_RETAILERS, compare_canadian_grocery_prices, lookup_open_food_facts, lookup_store_product, normalize_canadian_postal_code, safe_market_error, supported_product_lookup_stores, store_lookup_search_status
 from app.utils.external_providers import create_instacart_shopping_list_link, geoapify_find_store, geoapify_nearby_stores, geoapify_reverse_postal, instacart_is_configured, instacart_nearby_retailers, lookup_upcdatabase, upcdatabase_is_configured
 from app.utils.product_identity import lookup_serper_product_identity, rank_and_merge_identity_results
 
 router = APIRouter(prefix="/market", tags=["market"])
+
+
+def _charge_apify_if_needed(db: Session, house_id: int, user: User, premium_try_feature: str | None, feature_name: str) -> bool:
+    if premium_try_can_start(db, house_id, user, feature_name, premium_try_feature):
+        return True
+    return consume_house_provider_run(house_id)
+
 
 
 def store_result_from_place(place: dict) -> NearbyStoreOut:
@@ -325,7 +334,7 @@ def flyer_merchants(
     if not settings.apify_api_token:
         return FlyerMerchantsOut(configured=False, postal_code=clean_postal, message="Weekly flyer fetching is not connected yet.", merchants=[])
     try:
-        cached, fetched_at, rows = discover_weekly_flyer_merchants(db, postal_code=clean_postal, force_refresh=force_refresh)
+        cached, fetched_at, rows = discover_weekly_flyer_merchants(db, postal_code=clean_postal, force_refresh=force_refresh, before_provider_run=lambda: _charge_apify_if_needed(db, house_id, user, premium_try_feature, "weekly_flyers"))
     except Exception as exc:
         return FlyerMerchantsOut(configured=True, postal_code=clean_postal, message=f"Local flyer stores could not be loaded: {safe_market_error(exc)}", merchants=[])
     normalized: list[FlyerMerchantOut] = []
@@ -387,7 +396,8 @@ def weekly_flyers(
     merchant_list = [part.strip() for part in (merchants or "").split(",") if part.strip()]
     try:
         cached, fetched_at, deals = get_weekly_flyer_deals(
-            db, postal_code=clean_postal, merchants=merchant_list, force_refresh=force_refresh
+            db, postal_code=clean_postal, merchants=merchant_list, force_refresh=force_refresh,
+            before_provider_run=lambda: _charge_apify_if_needed(db, house_id, user, premium_try_feature, "weekly_flyers")
         )
     except Exception as exc:
         return FlyerDealsOut(
@@ -461,6 +471,17 @@ def product_lookup(
         cached_result = _read_product_lookup_cache(db, store_filter or None, barcode, query)
         if cached_result is not None:
             return finish_lookup(cached_result)
+
+    # Cache hits above are free; only uncached remote identity searches use monthly credits.
+    if not premium_try_can_start(db, house_id, user, "product_lookup", premium_try_feature):
+        owner = get_house_owner(db, house_id)
+        limit = house_plan.limits.product_lookup_runs_per_month
+        if not owner or not consume_feature_call(owner.id, "product_lookup", limit):
+            return ProductLookupOut(
+                premium_required=True, configured=True,
+                message=f"The household reached its {limit} uncached product lookups/month. Previously saved results remain available.",
+                results=[],
+            )
 
     if store_filter:
         store_key, display_store, results, details = lookup_store_product(store_name=store_filter, product_id=barcode, query=query, limit=8)
@@ -721,6 +742,7 @@ def price_compare(
             postal_code=postal_code,
             retailers=payload.retailers,
             force_refresh=payload.force_refresh,
+            before_provider_run=lambda: _charge_apify_if_needed(db, house_id, user, premium_try_feature, "live_price_compare"),
         )
     except Exception as exc:
         reason = safe_market_error(exc)
@@ -920,7 +942,7 @@ def shopping_suggestions(
     clean_postal = normalize_canadian_postal_code(postal_code)
     if clean_postal and len(clean_postal.replace(" ", "")) == 6 and settings.apify_api_token:
         try:
-            _, _, flyer_deals = get_weekly_flyer_deals(db, postal_code=clean_postal, force_refresh=False)
+            _, _, flyer_deals = get_weekly_flyer_deals(db, postal_code=clean_postal, force_refresh=False, allow_provider_run=False)
         except Exception:
             flyer_deals = []
     flyer_location_cache: dict[str, NearbyStoreOut] = {}

@@ -11,16 +11,18 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from app.db.session import SessionLocal
 from app.models import HouseProviderBudget
 from app.core.config import settings
+from app.api.plan_utils import get_house_plan
 
 
 def consume_house_provider_run(house_id: int) -> bool:
     now = datetime.now(timezone.utc)
-    periods = [
-        (f"day:{now:%Y-%m-%d}", max(0, settings.trip_provider_daily_limit)),
-        (f"month:{now:%Y-%m}", max(0, settings.trip_provider_monthly_limit)),
-    ]
     try:
         with SessionLocal() as db:
+            plan = get_house_plan(db, house_id)
+            periods = [
+                (f"day:{now:%Y-%m-%d}", min(max(0, settings.trip_provider_daily_limit), plan.limits.trip_provider_daily_runs)),
+                (f"month:{now:%Y-%m}", min(max(0, settings.trip_provider_monthly_limit), plan.limits.trip_provider_monthly_runs)),
+            ]
             dialect = db.get_bind().dialect.name
             if dialect not in {"sqlite", "postgresql"}:
                 return False  # Never purchase prices without an enforceable quota.

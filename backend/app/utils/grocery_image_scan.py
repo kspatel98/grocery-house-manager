@@ -5,7 +5,7 @@ from io import BytesIO
 import re
 
 import requests
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps, ImageEnhance, ImageFilter, UnidentifiedImageError
 
 from app.core.config import settings
 from app.utils.digitalocean_ai import DigitalOceanAIError, image_data_uri, vision_configured, _json_from_text
@@ -15,7 +15,7 @@ MAX_SCAN_ROWS = 60
 SUPPORTED_IMAGES = {"image/jpeg", "image/png", "image/webp"}
 
 
-def prepare_image(data: bytes, mime: str) -> bytes:
+def prepare_image(data: bytes, mime: str, mode: str = "products") -> bytes:
     if mime not in SUPPORTED_IMAGES:
         raise ValueError("Upload a JPG, PNG or WebP image.")
     if not data or len(data) > MAX_SCAN_BYTES:
@@ -29,9 +29,14 @@ def prepare_image(data: bytes, mime: str) -> bytes:
             original.verify()
         with Image.open(BytesIO(data)) as original:
             image = ImageOps.exif_transpose(original).convert("RGB")
-            image.thumbnail((2000, 2000))
+            image.thumbnail((2560, 2560), Image.Resampling.LANCZOS)
+            if mode == "written_list":
+                # Preserve all edges; cropped handwriting can lose left-aligned product names.
+                image = ImageOps.autocontrast(image, cutoff=0.6, preserve_tone=True)
+                image = ImageEnhance.Contrast(image).enhance(1.16)
+                image = image.filter(ImageFilter.UnsharpMask(radius=1.1, percent=145, threshold=3))
             buffer = BytesIO()
-            image.save(buffer, format="JPEG", quality=85, optimize=True)
+            image.save(buffer, format="JPEG", quality=91, optimize=True)
             return buffer.getvalue()
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise ValueError("This image cannot be read. Try taking a clearer photo.") from exc
@@ -55,6 +60,7 @@ def normalize_recognized_rows(raw: dict, mode: str) -> dict:
             confidence = max(0.0, min(1.0, float(item.get("confidence", 0))))
         except (ValueError, TypeError):
             confidence = 0
+        quantity_missing = item.get("quantity") is None
         try:
             count = float(item.get("quantity"))
             if not (0 < count <= 10000):
@@ -62,8 +68,6 @@ def normalize_recognized_rows(raw: dict, mode: str) -> dict:
         except (TypeError, ValueError):
             count = 1.0
             quantity_missing = True
-        else:
-            quantity_missing = item.get("quantity") is None
         unit = str(item.get("unit") or "pcs").strip()
         if unit not in valid_units:
             unit = "pcs"
@@ -73,7 +77,7 @@ def normalize_recognized_rows(raw: dict, mode: str) -> dict:
         if category not in allowed_categories:
             category = "Other"
         normalized.append({
-            "name": name, "category": category, "quantity": count, "unit": unit,
+            "name": name, "category": category, "quantity": None if quantity_missing else count, "unit": unit,
             "confidence": round(confidence, 2), "needs_review": requires_review,
             "notes": str(item.get("notes") or "")[:250],
         })
@@ -102,18 +106,32 @@ def recognize_grocery_image(prepared_jpeg: bytes, mode: str) -> dict:
         mode_prompt = (
             "This is a PHOTO OR SCREENSHOT OF A PRINTED OR HANDWRITTEN GROCERY LIST. "
             "Transcribe grocery entries in any language, preserving the language of each item. "
+            "Look carefully at ALL handwritten lines top-to-bottom, even if the page is tilted, dim or small. "
+            "Transcribe short food names (including mixed scripts) without translating. "
             "Parse quantity and units only when written clearly. Skip non-grocery instructions, "
             "prices, people, dates, ticks and headings. Never add items not on the list. "
             "Indicate uncertainty for ambiguous handwriting."
         )
+    ocr_hint = ""
+    if mode == "written_list":
+        # Text OCR is not authoritative for handwriting. It provides extra letter clues
+        # to the vision model at no additional external API cost.
+        try:
+            import pytesseract
+            with Image.open(BytesIO(prepared_jpeg)) as paper:
+                ocr_hint = pytesseract.image_to_string(paper, config="--psm 6", timeout=9).strip()[:1250]
+        except Exception:
+            pass
     prompt = f"""You are GHM Smart Grocery Scan. {mode_prompt}
+If available, OCR letter hints from the same image (often incorrect for handwriting): {ocr_hint or '[none]'}.
+Use these hints only when supported by words actually visible in the picture. Ignore nonsense and never guess unseen products.
 Return ONLY valid JSON with the following shape:
 {{"items":[{{"name":"product name","quantity":1,"unit":"pcs","category":"Pantry","confidence":0.9,"needs_review":false,"notes":""}}],"warnings":[]}}
 Rules:
 - Maximum {MAX_SCAN_ROWS} distinct rows. No invented products.
 - Use only these units: pcs, kg, g, L, mL, pack, box, bag, bottle, can, loaf.
 - category must be one of Fruits, Vegetables, Dairy, Pantry, Bakery, Beverages, Household, Frozen, Snacks, Other.
-- If quantity is absent or uncertain, set quantity to 1 and needs_review=true. If unit is uncertain use pcs and flag review.
+- If quantity is absent or uncertain, set quantity to null and needs_review=true. If unit is uncertain use pcs and flag review.
 - Do not convert 2 bottles of 1 L into 2 L if two bottles is a better representation.
 - If handwriting is illegible, omit unknown words and explain briefly in warnings.
 - If the image is not a grocery list (written_list mode) or does not show identifiable groceries (products mode), return an empty items array with a warning.
@@ -126,7 +144,7 @@ Rules:
             {"type": "text", "text": prompt},
             {"type": "image_url", "image_url": {"url": image_data_uri(prepared_jpeg, "scan.jpg", "image/jpeg")}},
         ]}],
-        "temperature": 0.0, "max_tokens": 3000,
+        "temperature": 0.0, "max_tokens": 5200,
     }
     try:
         response = requests.post(

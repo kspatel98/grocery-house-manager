@@ -279,6 +279,7 @@ def discover_weekly_flyer_merchants(
     *,
     postal_code: str,
     force_refresh: bool = False,
+    before_provider_run: Callable[[], bool] | None = None,
 ) -> tuple[bool, datetime | None, list[dict[str, Any]]]:
     clean_postal = normalize_canadian_postal_code(postal_code)
     if not clean_postal or len(clean_postal.replace(" ", "")) != 6:
@@ -295,6 +296,9 @@ def discover_weekly_flyer_merchants(
             except Exception:
                 pass
     if not settings.apify_api_token:
+        return False, existing.fetched_at if existing else None, []
+
+    if before_provider_run is not None and not before_provider_run():
         return False, existing.fetched_at if existing else None, []
 
     actor_id = (settings.apify_flyer_actor_id or "scrapersdelight/flipp-flyer-digest").replace("/", "~")

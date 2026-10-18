@@ -49,7 +49,7 @@ def test_handwriting_uncertain_requires_review_and_categories():
         {"name": "?", "quantity": 3},
     ]}, "written_list")
     assert len(result['items']) == 1
-    assert result['items'][0]['quantity'] == 1
+    assert result['items'][0]['quantity'] is None
     assert result['items'][0]['needs_review'] is True
     assert result['items'][0]['category'] == 'Pantry'
 
@@ -71,6 +71,7 @@ def test_written_list_adds_to_shopping_but_not_stock():
         assert out['list_id']
         assert {p.name: p.quantity for p in db.query(Product).all()} == {'Bananas':0, 'Rice':0}
         assert len(db.query(ShoppingListItem).all()) == 2
+        assert all(row.bought_quantity == 0 for row in db.query(ShoppingListItem).all())
         assert {s.name for s in db.query(Section).all()} == {'Fruits','Pantry'}
         # Add again to same list increases requested amount without changing inventory.
         again = apply_groceries(house.id, ImportGroceries(mode='written_list', destination='shopping', list_id=out['list_id'], items=[

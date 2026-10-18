@@ -1,4 +1,11 @@
 User-agent: *
 Allow: /
+Disallow: /houses
+Disallow: /assistant
+Disallow: /admin
+Disallow: /account
+Disallow: /login
+Disallow: /register
+Disallow: /premium-try
 
 Sitemap: https://grocery-house-manager.com/sitemap.xml

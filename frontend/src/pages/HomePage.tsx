@@ -6,6 +6,7 @@ import HouseholdWorld from '../components/HouseholdWorld';
 import type { SiteReviewSummary } from '../types';
 
 const outcomeCards = [
+  {icon: '📝', title: 'Turn paper grocery lists into shared shopping.', text: 'Scan handwritten or printed grocery lists and review items before adding to Shopping Lists.', link:'/handwritten-grocery-list-scanner', cta:'See handwritten list scanning'},
   {
     icon: '🧾',
     title: 'Scan once. Reuse the information.',

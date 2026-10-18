@@ -14,6 +14,12 @@ class PlanLimits:
     active_lists_per_house: int
     members_per_house: int
     receipt_scans_per_month: int = 0
+    grocery_image_scans_per_month: int = 0
+    trip_provider_daily_runs: int = 0
+    trip_provider_monthly_runs: int = 0
+    product_lookup_runs_per_month: int = 0
+    ask_ghm_runs_per_month: int = 0
+    kitchen_vision_scans_per_month: int = 0
 
 
 @dataclass(frozen=True)
@@ -37,7 +43,7 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Free Starter",
         price_monthly_cad=0,
         tagline="Run one real household for free and see the value before paying for automation.",
-        limits=PlanLimits(houses=1, products_per_house=40, active_lists_per_house=1, members_per_house=4, receipt_scans_per_month=0),
+        limits=PlanLimits(houses=1, products_per_house=40, active_lists_per_house=1, members_per_house=4, receipt_scans_per_month=0, grocery_image_scans_per_month=0),
         features=[
             "Create 1 starter house with up to 40 products",
             "Keep 1 active shared shopping list",
@@ -55,13 +61,14 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Basic Home",
         price_monthly_cad=1.99,
         tagline="Receipt intelligence and price memory for couples and small households.",
-        limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6, receipt_scans_per_month=2),
+        limits=PlanLimits(houses=2, products_per_house=250, active_lists_per_house=5, members_per_house=6, receipt_scans_per_month=2, grocery_image_scans_per_month=2, product_lookup_runs_per_month=30),
         features=[
             "Create additional and larger grocery houses",
+            "2 Smart Grocery Image Scans/month (written lists or product photos)",
             "2 Smart Receipt Scans per month across houses you own",
             "Professional receipt scanning with item, discount, tax, and total extraction",
             "Store-specific price history for each product",
-            "Product lookup by barcode or product name",
+            "Product lookup by barcode or product name (30 fresh searches/month; saved results reusable)",
             "Receipt Guardian review signals for duplicates, line math, and unusual price jumps",
             "Personal receipt tracker, private price memory, and spending summary",
             "Low-stock, expiry, recall screening, and Savings Ledger",
@@ -74,15 +81,19 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Family Plus",
         price_monthly_cad=4.99,
         tagline="Household Autopilot for families who want less planning and smarter trips.",
-        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=15, members_per_house=15, receipt_scans_per_month=5),
+        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=10, members_per_house=15, receipt_scans_per_month=5, grocery_image_scans_per_month=10, trip_provider_daily_runs=3, trip_provider_monthly_runs=20, product_lookup_runs_per_month=120, ask_ghm_runs_per_month=120),
         features=[
             "Everything in Basic Home",
+            "Up to 10 active shopping lists per house",
+            "10 Smart Grocery Image Scans/month across owned houses",
+            "120 new product lookups/month across owned houses",
+            "3 new paid price/flyer provider runs/day, 20/month; cached comparisons remain available",
             "Whole-list basket comparison and best-store estimates",
             "Canadian grocery price comparison for supported retailers",
             "GHM Autopilot weekly planner + Budget Rescue",
             "History-aware smart stock-up recommendations",
             "Automatic Trip Check + defensible Savings Ledger",
-            "Ask GHM Household Intelligence with household-aware follow-up questions",
+            "Ask GHM Household Intelligence with household-aware follow-up questions (120 AI responses/month)",
             "Monthly household expense and reimbursement intelligence",
             "5 Smart Receipt Scans per month across houses you own",
             "Shared receipt archive with scan review and spending history",
@@ -96,15 +107,19 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Household Pro",
         price_monthly_cad=6.99,
         tagline="Maximum household intelligence for large families, multiple homes, and heavy users.",
-        limits=PlanLimits(houses=15, products_per_house=3000, active_lists_per_house=50, members_per_house=35, receipt_scans_per_month=15),
+        limits=PlanLimits(houses=10, products_per_house=3000, active_lists_per_house=20, members_per_house=35, receipt_scans_per_month=10, grocery_image_scans_per_month=25, trip_provider_daily_runs=4, trip_provider_monthly_runs=30, product_lookup_runs_per_month=250, ask_ghm_runs_per_month=300, kitchen_vision_scans_per_month=10),
         features=[
             "Everything in Family Plus",
+            "Up to 10 owned houses and 20 active shopping lists per house",
+            "25 Smart Grocery Image Scans/month across owned houses",
+            "250 new product lookups/month across owned houses",
+            "4 new paid price/flyer provider runs/day, 30/month; cached comparisons remain available",
             "Advanced price tracking for multiple stores",
-            "15 Smart Receipt Scans per month across houses you own",
+            "10 Smart Receipt Scans per month across houses you own",
             "Large receipt and inventory history",
             "Export-ready Savings Ledger and long-term household insights",
             "Full GHM Autopilot planning, stock-up, trip and receipt intelligence",
-            "Kitchen Check Beta for camera-assisted pantry/fridge reconciliation",
+            "Kitchen Vision: 10 AI camera scans/month across owned houses",
             "Canadian grocery price comparison for supported retailers",
             "Built for extended families, shared rentals, and multiple homes",
         ],

@@ -67,6 +67,8 @@ export default function App() {
         <Route path="/support" element={<PublicRoute><SupportPage /></PublicRoute>} />
         <Route path="/reviews" element={<PublicRoute><ReviewsPage /></PublicRoute>} />
         <Route path="/how-it-works" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/handwritten-grocery-list-scanner" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
+        <Route path="/grocery-products-photo-scan" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
         <Route path="/trust" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
         <Route path="/autopilot" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />
         <Route path="/kitchen-vision" element={<PublicRoute><FeatureLandingPage /></PublicRoute>} />

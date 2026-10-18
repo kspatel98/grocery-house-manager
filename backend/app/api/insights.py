@@ -671,6 +671,7 @@ def _basket_comparison(
     force_refresh: bool = False,
     include_live: bool = False,
     allow_provider_run: bool = True,
+    trial_provider_allowed: bool = False,
 ) -> BasketComparisonOut:
     shopping_list = (
         db.query(ShoppingList)
@@ -717,8 +718,15 @@ def _basket_comparison(
     location_label = location_label or "Canada"
 
     budget_exhausted = False
+    trial_provider_used = False
     def may_purchase_for_house() -> bool:
-        nonlocal budget_exhausted
+        nonlocal budget_exhausted, trial_provider_used
+        if trial_provider_allowed:
+            if trial_provider_used:
+                budget_exhausted = True
+                return False
+            trial_provider_used = True
+            return True
         granted = consume_house_provider_run(house_id)
         if not granted:
             budget_exhausted = True
@@ -1103,6 +1111,7 @@ def basket_comparison(
         force_refresh=force_refresh,
         include_live=live,
         allow_provider_run=provider_run,
+        trial_provider_allowed=trial_allowed,
     )
     if trial_allowed and (result.comparison_ready or result.store_options or result.split_store_total is not None):
         complete_premium_try(db, house_id, user, "whole_list_compare", premium_try_feature)

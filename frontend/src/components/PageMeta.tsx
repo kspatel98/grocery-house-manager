@@ -16,7 +16,11 @@ export default function PageMeta({ title, description }: { title: string; descri
       }
       return node;
     };
-    const canonicalUrl = `https://grocery-house-manager.com${window.location.pathname === '/' ? '/' : window.location.pathname}`;
+    const path = window.location.pathname;
+    const privateRoute = /^\/(houses|assistant|admin|account|login|register|premium-try|settings)(\/|$)/.test(path);
+    const canonicalUrl = `https://grocery-house-manager.com${path === '/' ? '/' : path.replace(/\/$/, '')}`;
+    const robots = ensureMeta('meta[name="robots"]', {name:'robots'});
+    robots.setAttribute('content', privateRoute ? 'noindex,nofollow' : 'index,follow,max-image-preview:large');
     const descriptionMeta = ensureMeta('meta[name="description"]', { name: 'description' });
     descriptionMeta.setAttribute('content', localizedDescription);
     const ogTitle = ensureMeta('meta[property="og:title"]', { property: 'og:title' });

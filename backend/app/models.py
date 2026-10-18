@@ -555,6 +555,17 @@ class ExternalPriceCache(Base):
 
 
 
+class UserFeatureBudget(Base):
+    """Atomic plan usage across every house owned by one paying user."""
+    __tablename__ = "user_feature_budget"
+    __table_args__ = (UniqueConstraint("user_id", "feature_key", "period_key", name="uq_user_feature_budget_period"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    feature_key: Mapped[str] = mapped_column(String(50), index=True)
+    period_key: Mapped[str] = mapped_column(String(12), index=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class HouseProviderBudget(Base):
     """Atomic daily/monthly quota counter for actual paid provider invocations."""
     __tablename__ = "house_provider_budget"

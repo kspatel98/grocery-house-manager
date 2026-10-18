@@ -11,11 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_active_shopping_list_limit
+from app.api.plan_utils import ensure_active_shopping_list_limit, get_house_plan, get_house_owner
 from app.db.session import get_db
 from app.models import Product, Section, ShoppingList, ShoppingListItem, ShoppingItemStatus, User
 from app.utils.digitalocean_ai import DigitalOceanAIError
 from app.utils.grocery_image_scan import prepare_image, recognize_grocery_image, MAX_SCAN_BYTES
+from app.utils.feature_quota import consume_feature_call, used_feature_calls
 
 router = APIRouter(prefix="/houses/{house_id}/grocery-scan", tags=["grocery scan"])
 
@@ -49,6 +50,15 @@ class ImportGroceries(BaseModel):
         return self
 
 
+@router.get("/quota")
+def scan_quota(house_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    require_house_member(house_id, user, db)
+    owner = get_house_owner(db, house_id)
+    limit = get_house_plan(db, house_id).limits.grocery_image_scans_per_month
+    used = used_feature_calls(db, owner.id, "grocery_scan") if owner else 0
+    return {"limit": limit, "used": used, "remaining": max(0, limit-used), "period": "calendar month (UTC)"}
+
+
 @router.post("/preview")
 def preview_groceries(
     house_id: int,
@@ -61,11 +71,15 @@ def preview_groceries(
     content_type = (image.content_type or "").split(";", 1)[0].lower()
     try:
         raw = image.file.read(MAX_SCAN_BYTES + 1)
-        prepared = prepare_image(raw, content_type)
+        prepared = prepare_image(raw, content_type, mode)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         image.file.close()
+    owner = get_house_owner(db, house_id)
+    limit = get_house_plan(db, house_id).limits.grocery_image_scans_per_month
+    if not owner or not consume_feature_call(owner.id, "grocery_scan", limit):
+        raise HTTPException(status_code=402, detail=f"The household has reached its Smart Grocery Scan allowance ({limit}/month). Review existing lists, or upgrade the owner's plan. Attempts count even if handwriting cannot be read.")
     try:
         scan = recognize_grocery_image(prepared, mode)
     except DigitalOceanAIError as exc:
@@ -167,11 +181,10 @@ def apply_groceries(
                 existing_item = existing_items.get(product.id)
                 if existing_item:
                     existing_item.requested_quantity += item.quantity
-                    existing_item.bought_quantity = (existing_item.bought_quantity or 0) + item.quantity
                     existing_item.status = ShoppingItemStatus.to_buy
                 else:
                     entry = ShoppingListItem(shopping_list_id=shopping_list.id, product_id=product.id,
-                                            requested_quantity=item.quantity, bought_quantity=item.quantity,
+                                            requested_quantity=item.quantity, bought_quantity=0,
                                             status=ShoppingItemStatus.to_buy)
                     db.add(entry)
                     existing_items[product.id] = entry

@@ -27,6 +27,12 @@ def plan_limits_out(plan):
         active_lists_per_house=plan.limits.active_lists_per_house,
         members_per_house=plan.limits.members_per_house,
         receipt_scans_per_month=plan.limits.receipt_scans_per_month,
+        grocery_image_scans_per_month=plan.limits.grocery_image_scans_per_month,
+        trip_provider_daily_runs=plan.limits.trip_provider_daily_runs,
+        trip_provider_monthly_runs=plan.limits.trip_provider_monthly_runs,
+        ask_ghm_runs_per_month=plan.limits.ask_ghm_runs_per_month,
+        product_lookup_runs_per_month=plan.limits.product_lookup_runs_per_month,
+        kitchen_vision_scans_per_month=plan.limits.kitchen_vision_scans_per_month,
     )
 
 

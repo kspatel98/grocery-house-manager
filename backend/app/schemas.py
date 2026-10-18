@@ -356,6 +356,12 @@ class PlanLimitsOut(BaseModel):
     active_lists_per_house: int
     members_per_house: int
     receipt_scans_per_month: int = 0
+    grocery_image_scans_per_month: int = 0
+    trip_provider_daily_runs: int = 0
+    trip_provider_monthly_runs: int = 0
+    product_lookup_runs_per_month: int = 0
+    ask_ghm_runs_per_month: int = 0
+    kitchen_vision_scans_per_month: int = 0
 
 
 class PlanOut(BaseModel):

@@ -14,6 +14,29 @@ type FeaturePage = {
 };
 
 const pages: Record<string, FeaturePage> = {
+  '/handwritten-grocery-list-scanner': {
+    eyebrow: 'HANDWRITTEN GROCERY LIST SCANNER',
+    title: 'Turn a handwritten grocery list into a shared shopping list.',
+    description: 'Photograph a paper grocery list. Grocery House Manager identifies readable items, highlights uncertain handwriting and lets you review names and quantities before you create or update a shared shopping list.',
+    promise: 'A photo of a paper shopping list becomes a checklist that the whole house can use. Every item waits for your approval.',
+    outcomes: [['📝','Handwritten or printed lists','Capture a real paper list or screenshot in one photo.'], ['✓','Review uncertain words','Correct difficult handwriting and unspecified quantities.'], ['🛒','Choose a list at the end','Add reviewed items to an existing list or create a new one.']],
+    steps: [['Choose Written List','Select a clear handwritten or printed shopping list photo.'], ['Review recognition','Fix any item names or quantities that need confirmation.'], ['Choose your list','Select an existing list or create one during confirmation.'], ['Add together','Share the resulting list with household members.']],
+    scenario:'Turn a fridge-door shopping note into a useful grocery list.',
+    scenarioSteps:['Take one picture of the shopping note','Check recognized groceries and units','Correct uncertain words','Choose Weekly Shopping in the final popup','All approved items appear as To Buy'],
+    related:[['/shared-households','Shared grocery lists'],['/receipt-scanner','Receipt scanning'],['/how-it-works','How GHM works']],
+  },
+  '/grocery-products-photo-scan': {
+    eyebrow: 'MULTIPLE GROCERY PRODUCTS PHOTO SCAN',
+    title: 'Add several groceries from one product photo.',
+    description: 'Photograph visible grocery products together, review detected items and quantities, then choose whether to add them to household inventory or a shopping list. Recognition may need corrections when products are hidden.',
+    promise: 'One photo to identify multiple visible groceries, with you in control of the final additions.',
+    outcomes: [['📷','Scan visible products','Identify multiple physical grocery items in a single photo.'],['📦','Choose inventory','Add only confirmed quantities to household stock.'],['🛒','Choose shopping','Send approved products to a shared shopping list instead.']],
+    steps: [['Choose Products','Select the Products mode in Smart Grocery Scan.'], ['Take a clear picture','Spread products so important labels are visible.'], ['Review detected items','Correct names and quantities and remove mistakes.'], ['Confirm destination','Choose Inventory or an existing/new Shopping List.']],
+    scenario:'Unload your grocery bags and record items together.',
+    scenarioSteps:['Arrange the groceries on a counter','Photograph items together','Review the product list','Approve the quantities','Add to Inventory only after confirming'],
+    related:[['/handwritten-grocery-list-scanner','Handwritten list scanner'],['/shared-households','Shared households'],['/how-it-works','How GHM works']],
+  },
+
   '/how-it-works': {
     eyebrow: 'ONE CONNECTED HOUSEHOLD SYSTEM',
     title: 'You do not maintain six different tools. They feed each other.',

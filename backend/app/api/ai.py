@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import log_activity
 from app.api.admin import require_admin
 from app.api.deps import get_current_user, require_house_member
-from app.api.plan_utils import ensure_product_limit, house_plan_has_kitchen_check, house_plan_has_household_intelligence, premium_try_can_start, complete_premium_try
+from app.api.plan_utils import ensure_product_limit, house_plan_has_kitchen_check, house_plan_has_household_intelligence, get_house_plan, get_house_owner, premium_try_can_start, complete_premium_try
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import (
@@ -55,6 +55,7 @@ from app.schemas import (
     KitchenVisionOut,
 )
 from app.services.kitchen_vision_logic import physical_observation_key
+from app.utils.feature_quota import consume_feature_call
 from app.utils.digitalocean_ai import (
     DigitalOceanAIError,
     agent_configured,
@@ -713,6 +714,11 @@ async def kitchen_vision(
         if p.id in target_ids
     ]
     if vision_configured():
+        if not trial_allowed:
+            owner = get_house_owner(db, house_id)
+            limit = get_house_plan(db, house_id).limits.kitchen_vision_scans_per_month
+            if not owner or not consume_feature_call(owner.id, "kitchen_vision", limit):
+                raise HTTPException(status_code=402, detail=f"Kitchen Vision has reached its {limit} AI scans/month allowance for this household plan.")
         try:
             raw_result = analyze_kitchen_frames(
                 images=frames,
@@ -1059,6 +1065,12 @@ def household_agent(
             answer="GHM Household Intelligence is not configured yet. Kitchen Vision and the deterministic Digital Twin can still operate, but conversational household reasoning needs the configured AI agent provider credentials.",
             message="GHM Household Intelligence connector is ready; add the AI agent provider credentials in backend/.env.",
         )
+    trial_allowed = premium_try_can_start(db, house_id, user, "household_intelligence", premium_try_feature)
+    if not trial_allowed:
+        owner = get_house_owner(db, house_id)
+        limit = get_house_plan(db, house_id).limits.ask_ghm_runs_per_month
+        if not owner or not consume_feature_call(owner.id, "ask_ghm", limit):
+            raise HTTPException(status_code=402, detail=f"Ask GHM has reached its {limit} AI responses/month allowance for this household plan. Existing conversations stay available.")
     try:
         result = ask_household_agent(prompt=payload.prompt, context=context, language=payload.language, history=[item.model_dump() for item in payload.history])
     except DigitalOceanAIError as exc:
