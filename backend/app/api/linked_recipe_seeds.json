@@ -1,0 +1,362 @@
+[
+  {
+    "slug": "khaman",
+    "title": "Khaman Dhokla",
+    "cuisine": "Gujarati",
+    "meal_kind": "light",
+    "ghm_recipe_id": "khaman",
+    "source_url": "https://www.vegrecipesofindia.com/khaman-dhokla-microwave-recipe/",
+    "video_on_source": false,
+    "summary": "A light steamed Gujarati snack."
+  },
+  {
+    "slug": "khandvi",
+    "title": "Khandvi",
+    "cuisine": "Gujarati",
+    "meal_kind": "light",
+    "ghm_recipe_id": "khandvi",
+    "source_url": "https://www.vegrecipesofindia.com/khandvi-recipe-how-to-make-khandvi/",
+    "video_on_source": false,
+    "summary": "Delicate gram-flour rolls with a savory tempering."
+  },
+  {
+    "slug": "paneer-butter-masala",
+    "title": "Paneer Butter Masala",
+    "cuisine": "Punjabi",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "paneer-butter-masala",
+    "source_url": "https://www.vegrecipesofindia.com/paneer-butter-masala/",
+    "video_on_source": true,
+    "summary": "A creamy tomato-based paneer curry."
+  },
+  {
+    "slug": "masala-dosa",
+    "title": "Masala Dosa",
+    "cuisine": "South Indian",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "masala-dosa",
+    "source_url": "https://www.vegrecipesofindia.com/masala-dosa-recipe-how-to-make-masala-dosa-recipe/",
+    "video_on_source": false,
+    "summary": "Crisp fermented rice-and-lentil crepes with a potato filling."
+  },
+  {
+    "slug": "vegetable-pulao",
+    "title": "Vegetable Pulao",
+    "cuisine": "North Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "vegetable-pulao",
+    "source_url": "https://www.vegrecipesofindia.com/vegetable-pulao-recipe-veg-pulao/",
+    "video_on_source": false,
+    "summary": "One-pot rice with vegetables and whole spices."
+  },
+  {
+    "slug": "punjabi-chole",
+    "title": "Punjabi Chole",
+    "cuisine": "Punjabi",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "chole",
+    "source_url": "https://www.vegrecipesofindia.com/punjabi-chole-chickpeas-in-a-spicy-gravy/",
+    "video_on_source": true,
+    "summary": "Chickpea curry commonly served with rice or Indian breads."
+  },
+  {
+    "slug": "dal-tadka",
+    "title": "Dal Tadka",
+    "cuisine": "North Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "dal-tadka",
+    "source_url": "https://www.vegrecipesofindia.com/restaurant-style-dal-tadka/",
+    "video_on_source": true,
+    "summary": "Soft cooked lentils finished with a seasoned tempering."
+  },
+  {
+    "slug": "palak-paneer",
+    "title": "Palak Paneer",
+    "cuisine": "North Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "palak-paneer",
+    "source_url": "https://www.vegrecipesofindia.com/palak-paneer/",
+    "video_on_source": true,
+    "summary": "Paneer cubes served in a spinach-based gravy."
+  },
+  {
+    "slug": "pav-bhaji",
+    "title": "Pav Bhaji",
+    "cuisine": "Maharashtrian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "pav-bhaji",
+    "source_url": "https://www.vegrecipesofindia.com/pav-bhaji-recipe-mumbai-pav-bhaji-a-fastfood-recipe-from-mumbai/",
+    "video_on_source": true,
+    "summary": "Spiced mashed vegetables with toasted bread rolls."
+  },
+  {
+    "slug": "rajma-masala",
+    "title": "Rajma Masala",
+    "cuisine": "Punjabi",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "rajma-masala",
+    "source_url": "https://www.vegrecipesofindia.com/rajma-masala-recipe-restaurant-style/",
+    "video_on_source": true,
+    "summary": "Kidney-bean curry often served with rice."
+  },
+  {
+    "slug": "idli",
+    "title": "Idli",
+    "cuisine": "South Indian",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "idli-sambar",
+    "source_url": "https://www.vegrecipesofindia.com/idli-recipe-how-to-make-soft-idlis/",
+    "video_on_source": true,
+    "summary": "Soft fermented rice-and-lentil cakes, often served with sambar."
+  },
+  {
+    "slug": "upma",
+    "title": "Upma",
+    "cuisine": "South Indian",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/upma-savoury-south-indian-breakfast-recipe-made-with-semolina/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "aloo-paratha",
+    "title": "Aloo Paratha",
+    "cuisine": "Punjabi",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/aloo-paratha-indian-bread-stuffed-with-potato-filling/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "medu-vada",
+    "title": "Medu Vada",
+    "cuisine": "South Indian",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/medu-vada-recipe-medu-vada/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "rava-dosa",
+    "title": "Rava Dosa",
+    "cuisine": "South Indian",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/rava-dosa-crisp-rava-dosa/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "poha",
+    "title": "Poha",
+    "cuisine": "Maharashtrian",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/kanda-poha-or-onion-poha/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "besan-ladoo",
+    "title": "Besan Ladoo",
+    "cuisine": "Desserts & Sweets",
+    "meal_kind": "dessert",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/besan-ladoo-recipe-easy-besan-ladoos/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "gajar-halwa",
+    "title": "Gajar Halwa",
+    "cuisine": "Desserts & Sweets",
+    "meal_kind": "dessert",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/gajar-halwa-recipe-gajar-ka-halwa/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "kaju-katli",
+    "title": "Kaju Katli",
+    "cuisine": "Desserts & Sweets",
+    "meal_kind": "dessert",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/kaju-katli-recipe-kaju-katli/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "basundi",
+    "title": "Basundi",
+    "cuisine": "Gujarati",
+    "meal_kind": "dessert",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/basundi-recipe-quick-basundi-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "sambar",
+    "title": "Sambar",
+    "cuisine": "South Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/sambhar-recipe-a-method-made-easy/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "tomato-rasam",
+    "title": "Tomato Rasam",
+    "cuisine": "South Indian",
+    "meal_kind": "light",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/tomato-rasam-recipe-tomato-rasam/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "veg-fried-rice",
+    "title": "Vegetable Fried Rice",
+    "cuisine": "International",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/veg-fried-rice-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "moong-dal-khichdi",
+    "title": "Moong Dal Khichdi",
+    "cuisine": "Gujarati",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/moong-dal-khichdi-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "veg-kurma",
+    "title": "Vegetable Kurma",
+    "cuisine": "South Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/hotel-style-veg-kurma-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "tomato-chutney",
+    "title": "Tomato Chutney",
+    "cuisine": "South Indian",
+    "meal_kind": "light",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/tomato-chutney-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "gobi-paratha",
+    "title": "Gobi Paratha",
+    "cuisine": "Punjabi",
+    "meal_kind": "breakfast",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/gobi-paratha-punjabi-gobi-paratha/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "paneer-bhurji",
+    "title": "Paneer Bhurji",
+    "cuisine": "Punjabi",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/paneer-bhurji-scrambled-cottage-cheese-with-spices/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "shrikhand",
+    "title": "Shrikhand",
+    "cuisine": "Gujarati",
+    "meal_kind": "dessert",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/shrikhand-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "modak",
+    "title": "Ukadiche Modak",
+    "cuisine": "Maharashtrian",
+    "meal_kind": "dessert",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/modak-recipe-ukadiche-modak-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "puran-poli",
+    "title": "Puran Poli",
+    "cuisine": "Maharashtrian",
+    "meal_kind": "dessert",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/puran-poli-recipe/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "lemon-rice",
+    "title": "Lemon Rice",
+    "cuisine": "South Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/lemon-rice/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "curd-rice",
+    "title": "Curd Rice",
+    "cuisine": "South Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/curd-rice/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "jeera-rice",
+    "title": "Jeera Rice",
+    "cuisine": "North Indian",
+    "meal_kind": "proper",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/jeera-rice-recipe-cumin-rice/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "coconut-chutney",
+    "title": "Coconut Chutney",
+    "cuisine": "South Indian",
+    "meal_kind": "light",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/coconut-chutney-recipe-coconut-chutney/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  },
+  {
+    "slug": "dal-vada",
+    "title": "Dal Vada",
+    "cuisine": "South Indian",
+    "meal_kind": "light",
+    "ghm_recipe_id": "",
+    "source_url": "https://www.vegrecipesofindia.com/masala-vada-recipe-masala-vadai/",
+    "video_on_source": false,
+    "summary": "Visit the original author for the complete step-by-step cooking method and available video."
+  }
+]

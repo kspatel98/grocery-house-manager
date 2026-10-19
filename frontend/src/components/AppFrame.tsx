@@ -17,6 +17,15 @@ import BackgroundTaskNotice from './BackgroundTaskNotice';
 import BackgroundResultFocus from './BackgroundResultFocus';
 import { AppSoundBridge, SoundToggle } from '../appSounds';
 
+function WalletHeaderIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+    <path d="M5 5.5h13.3a2 2 0 0 1 2 2v2.1H5a3 3 0 0 1-3-3 3 3 0 0 1 3-3h12.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M2 6.7v11A3.2 3.2 0 0 0 5.2 21H19a1.8 1.8 0 0 0 1.8-1.8V9.6H5.2" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+    <path d="M15.8 12.6h5.6v4.3h-5.6a2.15 2.15 0 1 1 0-4.3Z" fill="currentColor" fillOpacity=".12" stroke="currentColor" strokeWidth="1.6"/>
+    <circle cx="16.4" cy="14.75" r=".9" fill="currentColor"/>
+  </svg>;
+}
+
 function EmailIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -465,7 +474,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               </div>
             </nav>
             {contextHouseId ? <Link to={askGhmHref} className={`mobile-ask-ghm-v119 ${contextPlanRank < 2 ? 'v129-premium-shortcut' : ''}`} aria-label={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'} title={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'}><span aria-hidden="true">{contextPlanRank < 2 ? '🔒' : '✦'}</span></Link> : null}
-            <Link className="v142-wallet-header-link" to={contextHouseId ? `/wallet?house=${contextHouseId}` : "/wallet"} title="GHM Wallet" aria-label="Open GHM Wallet"><img src="/brand/ghm-token.svg" alt="" /></Link>
+            <Link className="v142-wallet-header-link" to={contextHouseId ? `/wallet?house=${contextHouseId}` : "/wallet"} title="GHM Wallet" aria-label="Open GHM Wallet"><WalletHeaderIcon /></Link>
             <LanguagePicker compact iconOnly />
             <SoundToggle className="header-sound-toggle-v121" />
             <ThemeToggle compact className="header-theme-toggle-v117" />
@@ -572,7 +581,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <span className="v117-action-icon" aria-hidden="true">{contextPlanRank < 1 ? '🔒' : '🧾'}</span><span className="v117-action-label">Scan receipt</span>
                 </Link>
               ) : <Link to="/support" className="desktop-topbar-pill-v86 alt v117-action-pill"><span className="v117-action-icon" aria-hidden="true">?</span><span className="v117-action-label">{t('support')}</span></Link>}
-              <Link className="v142-wallet-header-link" to={contextHouseId ? `/wallet?house=${contextHouseId}` : "/wallet"} title="GHM Wallet" aria-label="Open GHM Wallet"><img src="/brand/ghm-token.svg" alt="" /></Link>
+              <Link className="v142-wallet-header-link" to={contextHouseId ? `/wallet?house=${contextHouseId}` : "/wallet"} title="GHM Wallet" aria-label="Open GHM Wallet"><WalletHeaderIcon /></Link>
               <LanguagePicker compact iconOnly />
               <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} />
               <SoundToggle className="desktop-topbar-icon-v105 v121-topbar-sound" />

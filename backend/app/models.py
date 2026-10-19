@@ -601,6 +601,24 @@ class AutopilotDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
 
+class LinkedRecipeSource(Base):
+    """Only GHM-authored metadata + verified outbound link; no third-party recipe content."""
+    __tablename__ = "linked_recipe_sources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(180), index=True)
+    cuisine: Mapped[str] = mapped_column(String(80), index=True)
+    meal_kind: Mapped[str] = mapped_column(String(32), default="proper")
+    ghm_recipe_id: Mapped[str] = mapped_column(String(100), index=True)
+    source_name: Mapped[str] = mapped_column(String(100), default="Dassana's Veg Recipes")
+    source_url: Mapped[str] = mapped_column(Text)
+    video_on_source: Mapped[bool] = mapped_column(Boolean, default=False)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class CommunityRecipe(Base):
     __tablename__ = "community_recipes"
 

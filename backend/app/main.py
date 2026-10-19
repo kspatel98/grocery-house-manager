@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from sqlalchemy.exc import TimeoutError as SQLAlchemyPoolTimeout
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, houses, products, sections, shopping, live, billing, account, admin, market, reviews, offers, insights, expenses, recipes_external, community_recipes, ai, templates, analytics, food, grocery_scan, feature_usage, house_credits, credit_wallet, credit_pricing, admin_growth, communications, guides
+from app.api import auth, houses, products, sections, shopping, live, billing, account, admin, market, reviews, offers, insights, expenses, recipes_external, community_recipes, ai, templates, analytics, food, grocery_scan, feature_usage, house_credits, credit_wallet, credit_pricing, admin_growth, communications, guides, linked_recipes
 from app.core.config import settings
 from app.db.session import Base, engine
 from app.db.dev_migrations import ensure_dev_schema
@@ -41,9 +41,11 @@ def _initialize_database() -> list[str]:
     try:
         Base.metadata.create_all(bind=engine)
         from app.api.guides import seed_guides
+        from app.api.linked_recipes import seed_linked_recipes
         from app.db.session import SessionLocal
         with SessionLocal() as guide_db:
             seed_guides(guide_db)
+            seed_linked_recipes(guide_db)
     except Exception as exc:
         warning = f"metadata create_all warning: {type(exc).__name__}: {exc}"
         warnings.append(warning[:700])
@@ -195,6 +197,7 @@ app.include_router(reviews.router)
 app.include_router(offers.router)
 app.include_router(insights.router)
 app.include_router(expenses.router)
+app.include_router(linked_recipes.router)
 app.include_router(recipes_external.router)
 app.include_router(community_recipes.router)
 app.include_router(ai.router)

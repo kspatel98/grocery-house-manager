@@ -8,6 +8,7 @@ import { useLanguage } from '../i18n';
 import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import OverlayPortal from '../components/OverlayPortal';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
+import { sourceRecipeCategories } from '../sourceRecipeCategories';
 
 type Row=RecipeIngredient & {required:number; owned:number; shortage:number; matched?:Product; selected:boolean; autoShop:boolean};
 type CookReviewItem={productId:number;name:string;unit:string;available:number;amount:number;selected:boolean;recipeAmount:number;recipeUnit:string;optional:boolean};
@@ -140,6 +141,11 @@ function SmartRecipeImage({recipe,className}:{recipe:Recipe;className?:string}){
 }
 
 
+type LinkedRecipe = {
+ slug:string; title:string; cuisine:string; meal_kind:MealKind; ghm_recipe_id:string;
+ source_name:string; source_url:string; video_on_source:boolean; summary:string;
+};
+
 type CommunityIngredient = { name: string; quantity: number; unit: string; optional?: boolean };
 type CommunityRecipe = {
   id: number;
@@ -219,6 +225,16 @@ export default function MealsPage(){
  const [builtInOpen,setBuiltInOpen]=useState(true);
  const [addConfirmMode,setAddConfirmMode]=useState<'shortage'|'full'|'manual'|null>(null);
 
+ const [linkedRecipes,setLinkedRecipes]=useState<LinkedRecipe[]>([]);
+ const [linkedLoading,setLinkedLoading]=useState(true);
+ const [linkedError,setLinkedError]=useState('');
+ const [linkedQuery,setLinkedQuery]=useState('');
+ const [linkedCuisine,setLinkedCuisine]=useState('all');
+ const [linkedCategories,setLinkedCategories]=useState<string[]>([]);
+ const [linkedTotal,setLinkedTotal]=useState(0);
+ const [linkedPage,setLinkedPage]=useState(0);
+ const linkedPageSize=24;
+ const [linkedActive,setLinkedActive]=useState<LinkedRecipe|null>(null);
  const [externalQ,setExternalQ]=useState('');
  const [externalMeals,setExternalMeals]=useState<ExternalMeal[]>([]);
  const [externalBusy,setExternalBusy]=useState(false);
@@ -282,16 +298,47 @@ export default function MealsPage(){
    }finally{setCommunityLoading(false);}
  }
  useEffect(()=>{void refreshCommunity();},[]);
+ useEffect(()=>{
+   api.get<{items:string[]}>('/recipes/linked/categories').then(({data})=>setLinkedCategories(data.items||[])).catch(()=>{});
+ },[]);
+ useEffect(()=>{
+   let active=true;
+   const handle=window.setTimeout(()=>{
+     setLinkedLoading(true);
+     api.get<{items:LinkedRecipe[];total:number}>('/recipes/linked',{
+       params:{q:linkedQuery.trim(),cuisine:linkedCuisine==='all'?'':linkedCuisine,limit:linkedPageSize,offset:linkedPage*linkedPageSize}
+     }).then(({data})=>{
+       if(active){setLinkedRecipes(data.items||[]);setLinkedTotal(data.total||0);setLinkedError('');}
+     }).catch(()=>{if(active)setLinkedError('The source-linked recipe index is unavailable right now. Please retry later.');})
+       .finally(()=>{if(active)setLinkedLoading(false);});
+   },linkedQuery?300:0);
+   return()=>{active=false;window.clearTimeout(handle)};
+ },[linkedQuery,linkedCuisine,linkedPage]);
+ const filteredLinked=linkedRecipes;
+
+ function openLinked(item:LinkedRecipe){
+   const ghmRecipe=recipes.find(recipe=>recipe.id===item.ghm_recipe_id);
+   if(!ghmRecipe){window.open(item.source_url,'_blank','noopener,noreferrer');return;}
+   setLinkedActive(item);setSelectedCommunity(null);setSelected(ghmRecipe);setNotice('');setDetailOpen(true);
+ }
+ useEffect(()=>{
+   const slug=searchParams.get('linked');
+   if(!slug||!linkedRecipes.length)return;
+   const item=linkedRecipes.find(recipe=>recipe.slug===slug);
+   if(item)openLinked(item);
+ },[linkedRecipes,searchParams.get('linked')]);
+
+
 
  useEffect(()=>{
    const communityId=Number(searchParams.get('recipe')||0);
    const builtInId=searchParams.get('dish');
    if(communityId&&(communityRecipes.length||myRecipes.length)){
      const item=communityRecipes.find(x=>x.id===communityId)||myRecipes.find(x=>x.id===communityId);
-     if(item){setSelectedCommunity(item);setSelected(communityAsRecipe(item));setDetailOpen(true);}
+     if(item){setLinkedActive(null);setSelectedCommunity(item);setSelected(communityAsRecipe(item));setDetailOpen(true);}
    }else if(builtInId){
      const item=recipes.find(x=>x.id===builtInId);
-     if(item){setSelectedCommunity(null);setSelected(item);setDetailOpen(true);}
+     if(item){setLinkedActive(null);setSelectedCommunity(null);setSelected(item);setDetailOpen(true);}
    }
  },[searchParams,communityRecipes,myRecipes]);
 
@@ -445,8 +492,8 @@ export default function MealsPage(){
    fr:{'Gujarati':'Gujarati','Punjabi':'Pendjabi','South Indian':'Inde du Sud','Maharashtrian':'Maharashtrian','Rajasthani':'Rajasthani','North Indian':'Inde du Nord','International':'International'}
  }[language][value]);
 
- function openBuiltIn(recipe:Recipe){setSelected(recipe);setSelectedCommunity(null);setDetailOpen(true);setNotice('');}
- function openCommunity(item:CommunityRecipe){setSelected(communityAsRecipe(item));setSelectedCommunity(item);setDetailOpen(true);setNotice('');}
+ function openBuiltIn(recipe:Recipe){setLinkedActive(null);setSelected(recipe);setSelectedCommunity(null);setDetailOpen(true);setNotice('');}
+ function openCommunity(item:CommunityRecipe){setLinkedActive(null);setSelected(communityAsRecipe(item));setSelectedCommunity(item);setDetailOpen(true);setNotice('');}
  function resetEditor(){
    setEditingRecipe(null);setEditorName('');setEditorBaseServings(4);setEditorKind('proper');setEditorCuisine('International');setEditorDiets(['veg']);setEditorCategories([]);setEditorCategoryInput('');setEditorIngredients([{name:'',qty:1,unit:'g'}]);setEditorSteps(['']);setEditorShared(false);setEditorImage(null);setEditorExistingImage(null);setEditorRemoveImage(false);setEditorError('');
  }
@@ -486,7 +533,7 @@ export default function MealsPage(){
  async function shareSelectedRecipe(){
    if(!id)return;
    try{
-     const url=selectedCommunity?`/houses/${id}/meals?recipe=${selectedCommunity.id}`:`/houses/${id}/meals?dish=${encodeURIComponent(selected.id)}`;
+     const url=linkedActive?`/houses/${id}/meals?linked=${encodeURIComponent(linkedActive.slug)}`:selectedCommunity?`/houses/${id}/meals?recipe=${selectedCommunity.id}`:`/houses/${id}/meals?dish=${encodeURIComponent(selected.id)}`;
      await api.post(`/houses/${id}/chat`,{message:'',attachment_type:'recipe',attachment_title:selected.names[language]||selected.names.en,attachment_subtitle:`${cuisineLabel((selected.cuisine||'International') as Cuisine)} · ${kindLabel(selected.kind)} · ${servings} servings`,attachment_url:url});
      setNotice('Recipe shared to House Chat.');
    }catch(e:any){setNotice(e?.response?.data?.detail||'Recipe could not be shared right now.');}
@@ -523,6 +570,37 @@ export default function MealsPage(){
 
    <section className={`meal-library panel v127-meal-library ${builtInOpen?'is-open':'is-collapsed'}`}><div className="panel-title-row"><div><p className="eyebrow">COOK FROM HOME</p><div className="feature-heading-with-why-v101"><h2>{c.browse}</h2><FeatureWhyButton feature="meals" label="Why?" /></div></div><div className="v127-library-actions"><span className="badge">{filtered.length} {c.recipesWord}</span><button type="button" className="secondary v127-library-toggle" aria-expanded={builtInOpen} onClick={()=>setBuiltInOpen(open=>!open)}>{builtInOpen?'▴ '+c.collapseRecipes:'▾ '+c.expandRecipes}</button></div></div>{builtInOpen?<><div className="recipe-image-grid">{filtered.map(r=>{const a=availability(r);return <button className={`recipe-image-tile ${r.image?.includes('/recipe-images-real/')?'has-photo':'has-illustration'}`} key={r.id} onClick={()=>openBuiltIn(r)}><SmartRecipeImage recipe={r}/><span className="recipe-image-copy"><small>{cuisineLabel((r.cuisine||'International') as Cuisine)} · {kindLabel(r.kind)}</small><strong>{r.names[language]}</strong><em className={a===1?'ready':a>.5?'almost':'missing'}>{a===1?'✓ '+c.canMake:a>.5?'◐ '+c.almost:`${Math.round(a*100)}% inventory`}</em></span><i>{c.openRecipe} →</i></button>})}</div>{!filtered.length&&<p>{c.noMatch}</p>}</>:<p className="v127-library-collapsed-note">{filtered.length} {c.recipesWord} · {c.expandRecipes}</p>}</section>
 
+   <section className="panel v144-linked-library" aria-labelledby="v144-linked-title">
+     <div className="panel-title-row v144-linked-header">
+       <div><p className="eyebrow">VEGETARIAN INSPIRATION · SOURCE-LINKED</p>
+         <h2 id="v144-linked-title">Discover Indian vegetarian dishes</h2>
+         <p>Explore a growing index of vegetarian dishes. Some have full GHM inventory and shopping cards; for the rest, follow the author’s link to detailed steps, photographs and available videos.</p>
+       </div>
+       <a className="button secondary" href="https://www.vegrecipesofindia.com/" target="_blank" rel="noopener noreferrer">Visit original library ↗</a>
+     </div>
+     <div className="v144-linked-toolbar">
+       <label><span>Search dishes</span><input value={linkedQuery} onChange={e=>{setLinkedPage(0);setLinkedQuery(e.target.value)}} placeholder="e.g. paneer, chole, dhokla"/></label>
+       <label><span>Category</span><select value={linkedCuisine} onChange={e=>{setLinkedPage(0);setLinkedCuisine(e.target.value)}}><option value="all">All categories</option>{linkedCategories.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+     </div>
+     <p className="v145-recipe-note">{linkedTotal.toLocaleString()} source-linked dishes indexed in GHM. Recipes with GHM cooking cards have editable ingredients; other entries open the original author’s detailed guide.</p>
+     <div className="v145-source-category-grid" aria-label="Browse Dassana's original recipe categories">{sourceRecipeCategories.map(category=><a key={category.url} href={category.url} target="_blank" rel="noopener noreferrer">{category.name} ↗</a>)}</div>
+     {linkedError&&<div className="error form-message" role="alert">{linkedError}</div>}
+     <div className="v144-linked-legal">Source credit: Dassana Amit · Dassana's Veg Recipes. GHM's ingredient amounts and dietary information are independent planning suggestions, <strong>not the author's original quantities or a substitute for her recipe.</strong> Verify ingredients and any dietary restrictions on the original page.</div>
+     {linkedLoading?<div className="empty-state compact">Loading vegetarian inspiration…</div>:
+       filteredLinked.length?<div className="v144-linked-grid">{filteredLinked.map(item=>{
+         const ghmRecipe=recipes.find(recipe=>recipe.id===item.ghm_recipe_id);
+         const hasPlanningCard=Boolean(ghmRecipe);
+         const cardBody=<><span className="v144-linked-image">{ghmRecipe?<img src={ghmRecipe.image||'/recipe-images-real/cuisine/international.webp'} loading="lazy" alt=""/>:<span aria-hidden="true">📖</span>}<i>{hasPlanningCard?'GHM cooking & shopping plan':'Original author guide'}</i></span>
+           <span className="v144-linked-copy"><small>{item.cuisine} · {item.meal_kind==='breakfast'?'Breakfast':item.meal_kind==='light'?'Snack':item.meal_kind==='dessert'?'Dessert':'Meal'}</small><strong>{item.title}</strong><span>{hasPlanningCard?item.summary:'Read the original method, photos and any available videos with the author.'}</span><em>{hasPlanningCard?'Review ingredients & inventory →':'Read original detailed recipe ↗'}</em></span></>;
+         return <article className={`v144-linked-card ${hasPlanningCard?'':'v145-source-only'}`} key={item.slug}>
+           {hasPlanningCard?<button type="button" className="v144-linked-main" onClick={()=>openLinked(item)}>{cardBody}</button>
+             :<a className="v144-linked-main" href={item.source_url} target="_blank" rel="noopener noreferrer">{cardBody}</a>}
+           <div className="v144-linked-footer"><span>By Dassana Amit</span><a href={item.source_url} target="_blank" rel="noopener noreferrer">Original recipe{item.video_on_source?' & video':''} ↗</a></div>
+         </article>;
+       })}</div>:<div className="empty-state compact">No matching dishes. Try a different search or browse the source categories above.</div>}
+     {linkedTotal>linkedPageSize&&<div className="v145-recipe-pages"><button type="button" className="secondary" disabled={linkedLoading||linkedPage===0} onClick={()=>setLinkedPage(p=>Math.max(0,p-1))}>← Previous</button><span>Page {linkedPage+1} of {Math.ceil(linkedTotal/linkedPageSize)}</span><button type="button" className="secondary" disabled={linkedLoading||(linkedPage+1)*linkedPageSize>=linkedTotal} onClick={()=>setLinkedPage(p=>p+1)}>Next →</button></div>}
+   </section>
+
    <section className="panel community-recipes-v89">
      <div className="panel-title-row community-title-v89"><div><p className="eyebrow">COMMUNITY KITCHEN</p><h2>Community recipes</h2><p>Discover recipes shared by Grocery House Manager users. Every card shows who created it and the categories they chose.</p></div><span className="badge">{communityRecipes.length} shared</span></div>
      <div className="community-toolbar-v89"><label><span>🔎</span><input value={communityQ} onChange={e=>setCommunityQ(e.target.value)} placeholder="Search community recipes or cooks" /></label><select value={communityCategory} onChange={e=>setCommunityCategory(e.target.value)}><option value="all">All categories</option>{communityCategories.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
@@ -536,7 +614,9 @@ export default function MealsPage(){
      {myRecipes.length?<div className="my-recipe-grid-v89 v135-recipe-showcase-grid">{myRecipes.map(item=><article key={item.id} className="my-recipe-card-v89 v135-my-recipe-card"><button className="my-recipe-open-v89 v135-my-recipe-open" onClick={()=>openCommunity(item)}><span className="v135-recipe-image-wrap"><img src={recipeMediaUrl(item.image_url)||'/recipe-images-real/cuisine/international.webp'} alt={item.name}/><i>{item.is_shared?'Shared':'Private'}</i></span><span className="recipe-image-copy v135-recipe-copy"><small>{item.cuisine} · {kindLabel(item.meal_kind)}</small><strong>{item.name}</strong><span className="community-card-tags-v89">{(item.categories||[]).slice(0,3).map(tag=><em key={tag}>{tag}</em>)}</span><b>Open recipe →</b></span></button><footer><span className={`share-status-v89 ${item.is_shared?'shared':'private'}`}>{item.is_shared?'● Shared with community':'● Private'}</span><div><button className="secondary" onClick={()=>toggleShare(item)}>{item.is_shared?'Make private':'Share'}</button><button className="secondary" onClick={()=>openEditEditor(item)}>Edit</button><button className="ghost danger-ghost-v89" onClick={()=>deleteRecipe(item)}>Delete</button></div></footer></article>)}</div>:!communityLoading&&<div className="empty-state compact">You have not created a recipe yet. Start with a family favourite and keep it private or share it with the community.</div>}
    </section>
 
-   {detailOpen && <OverlayPortal><div className="modal-backdrop recipe-detail-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setDetailOpen(false)}}><section className="recipe-card panel recipe-detail-modal focus-dialog" role="dialog" aria-modal="true" aria-label={selected.names[language]}><header className="focus-dialog-titlebar recipe-modal-title"><div><p className="eyebrow">{cuisineLabel((selected.cuisine||'International') as Cuisine).toUpperCase()} · {kindLabel(selected.kind).toUpperCase()}</p><h2>{selected.names[language]}</h2></div><button className="icon-btn" data-dialog-close="true" onClick={()=>setDetailOpen(false)} aria-label="Close recipe">×</button></header><div className="focus-dialog-scroll"><SmartRecipeImage recipe={selected} className="recipe-detail-image"/>{selectedCommunity&&<div className="recipe-community-meta-v89"><div className="recipe-uploader-v89">{selectedCommunity.uploader_avatar_url?<img src={selectedCommunity.uploader_avatar_url} alt=""/>:<b>{selectedCommunity.uploader_name.slice(0,1).toUpperCase()}</b>}<span><small>Recipe by</small><strong>{selectedCommunity.uploader_name}</strong></span></div><div className="community-card-tags-v89">{selectedCommunity.categories.map(tag=><em key={tag}>{tag}</em>)}</div>{selectedCommunity.can_edit&&<button className="secondary" onClick={()=>{setDetailOpen(false);openEditEditor(selectedCommunity)}}>✎ Edit my recipe</button>}</div>}<div className="recipe-card-head"><div><div className="diet-chips">{selected.diets.map(d=><span key={d}>{dietLabel(d)}</span>)}</div></div><div className="recipe-ready-score"><strong>{Math.round(availability(selected)*100)}%</strong><small>{c.inventory}</small></div></div>
+   {detailOpen && <OverlayPortal><div className="modal-backdrop recipe-detail-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setDetailOpen(false)}}><section className="recipe-card panel recipe-detail-modal focus-dialog" role="dialog" aria-modal="true" aria-label={selected.names[language]}><header className="focus-dialog-titlebar recipe-modal-title"><div><p className="eyebrow">{cuisineLabel((selected.cuisine||'International') as Cuisine).toUpperCase()} · {kindLabel(selected.kind).toUpperCase()}</p><h2>{selected.names[language]}</h2></div><button className="icon-btn" data-dialog-close="true" onClick={()=>setDetailOpen(false)} aria-label="Close recipe">×</button></header><div className="focus-dialog-scroll"><SmartRecipeImage recipe={selected} className="recipe-detail-image"/>
+    {linkedActive&&<div className="v144-source-banner"><div><strong>GHM grocery-planning card · {linkedActive.title}</strong><p>These ingredients, amounts, serving adjustments, and GHM cooking steps belong to GHM's independent recipe library; they are <b>not transcribed from Dassana's recipe</b>. Review quantities before adding to Shopping. For the source's authentic method and media, visit the author.</p></div><a href={linkedActive.source_url} target="_blank" rel="noopener noreferrer">View Dassana's original recipe{linkedActive.video_on_source?' & video':''} ↗</a></div>}
+{selectedCommunity&&<div className="recipe-community-meta-v89"><div className="recipe-uploader-v89">{selectedCommunity.uploader_avatar_url?<img src={selectedCommunity.uploader_avatar_url} alt=""/>:<b>{selectedCommunity.uploader_name.slice(0,1).toUpperCase()}</b>}<span><small>Recipe by</small><strong>{selectedCommunity.uploader_name}</strong></span></div><div className="community-card-tags-v89">{selectedCommunity.categories.map(tag=><em key={tag}>{tag}</em>)}</div>{selectedCommunity.can_edit&&<button className="secondary" onClick={()=>{setDetailOpen(false);openEditEditor(selectedCommunity)}}>✎ Edit my recipe</button>}</div>}<div className="recipe-card-head"><div><div className="diet-chips">{selected.diets.map(d=><span key={d}>{dietLabel(d)}</span>)}</div></div><div className="recipe-ready-score"><strong>{Math.round(availability(selected)*100)}%</strong><small>{c.inventory}</small></div></div>
     <section className="v126-recipe-overview" aria-label={c.recipeAtGlance}><div><small>{c.servesLabel}</small><strong>{servings}</strong></div><div><small>{c.ingredientsCount}</small><strong>{selected.ingredients.length}</strong></div><div><small>{c.stepsCount}</small><strong>{selected.steps[language].length}</strong></div><div><small>{c.readyLabel}</small><strong>{Math.round(availability(selected)*100)}%</strong></div></section>
     <div className="v126-recipe-section-head"><div><p className="eyebrow">{c.recipeAtGlance}</p><h3>{c.ingredientPlan}</h3><p>{c.ingredientPlanIntro}</p></div><span>👥 {servings}</span></div>
     <div className="ingredient-table"><div className="ingredient-row head"><span></span><span>{c.ingredients}</span><span>{c.required}</span><span>{c.inventory}</span><span>{c.shortage}</span></div>{rows.map((row,i)=><div className={`ingredient-row ${row.shortage<=0?'covered':'needed'} ${!row.autoShop?'manual-only-row':''}`} key={`${row.name}-${i}`}><span><input aria-label={`${c.manual}: ${ingName(row.name)}`} type="checkbox" checked={!!manual[String(i)]} onChange={e=>setManual(m=>({...m,[String(i)]:e.target.checked}))}/></span><span><b>{ingName(row.name)}</b><span className="ingredient-badges">{row.optional&&<small>{c.optional}</small>}{!row.autoShop&&<small className="manual-only-badge">{c.manualOnly}</small>}</span></span><span className="required-edit"><input type="number" min="0" step="0.01" value={Number(fmt(row.required))} onChange={e=>setQtyOverrides(o=>({...o,[row.name]:Math.max(0,Number(e.target.value)||0)}))}/><small>{row.unit}</small></span><span>{row.matched&&compatible(row.matched.unit,row.unit)?`${fmt(row.owned)} ${row.unit}`:row.autoShop?'0 '+row.unit:'—'}</span><span>{!row.autoShop?<em className="manual-only-text">{c.manualOnly}</em>:row.shortage>0?<mark>+ {fmt(row.shortage)} {row.unit}</mark>:<em>✓ {c.enough}</em>}</span></div>)}</div>

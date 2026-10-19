@@ -1,0 +1,15 @@
+/* v145 - functional wallet icon and broad linked-recipe browsing. */
+.v142-wallet-header-link svg{width:23px;height:23px;color:var(--text,#1f4434);display:block;stroke-linecap:round;stroke-linejoin:round}
+html[data-theme="dark"] .v142-wallet-header-link svg{color:#e3f4e8}
+.v145-source-category-grid{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 17px}
+.v145-source-category-grid a{color:var(--text,#174c37)!important;display:inline-flex;align-items:center;min-height:34px;padding:7px 11px;text-decoration:none;background:var(--card,#f4fbf4);border:1px solid var(--border,#aabfb1);border-radius:999px;font-size:.83rem;font-weight:650}
+.v145-source-category-grid a:hover,.v145-source-category-grid a:focus-visible{border-color:#4d9870;text-decoration:underline;outline-offset:3px}
+.v145-recipe-pages{display:flex;gap:12px;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap}
+.v145-recipe-pages button{min-height:41px}
+.v145-source-only .v144-linked-main{cursor:pointer;text-decoration:none}
+.v145-source-only .v144-linked-image{background:linear-gradient(135deg,#ddeee0,#f1ead8)}
+html[data-theme="dark"] .v145-source-only .v144-linked-image{background:linear-gradient(135deg,#204336,#354538)}
+.v145-source-only .v144-linked-copy em{color:var(--text,#26513e);text-decoration:underline;text-underline-offset:3px}
+.v145-source-only .v144-linked-image i{background:#36534b}
+.v145-recipe-note{font-size:.8rem;line-height:1.5;color:var(--text,#25503e);margin:0 0 12px}
+@media(max-width:600px){.v145-source-category-grid{flex-wrap:nowrap;overflow-x:auto;padding:3px 0 12px;scroll-snap-type:x proximity}.v145-source-category-grid a{white-space:nowrap;scroll-snap-align:start}.v145-recipe-pages{gap:7px}.v145-recipe-pages button{flex:1}}
