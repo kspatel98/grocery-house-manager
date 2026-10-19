@@ -28,6 +28,6 @@ export default function FeatureUsageStrip({ houseId, features, compact = false }
         <small>{row.period === 'day' ? 'Resets daily' : 'Resets monthly'}{usage.house_credits?.[key === 'paid_provider_day' || key === 'paid_provider_month' ? 'paid_provider' : key] ? ` · +${usage.house_credits[key === 'paid_provider_day' || key === 'paid_provider_month' ? 'paid_provider' : key]} house credits` : ''}</small>
       </div>;
     })}
-    {!compact && <small className="v139-usage-help">All included limits are shared across the subscription owner's houses. Cached results do not spend additional credits. <a href={`/houses/${houseId}/credits`}>Purchase or view this house’s extra credits</a></small>}
+    {!compact && <small className="v139-usage-help">All included limits are shared across the subscription owner's houses. Cached results do not spend additional credits. <a href={`/wallet?house=${houseId}`}>Purchase or view this house’s extra credits</a></small>}
   </aside>;
 }

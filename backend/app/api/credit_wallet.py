@@ -22,25 +22,10 @@ router = APIRouter(tags=['GHM Wallet'])
 
 # Packs are purchased from the HOUSE pool by the owner or a house admin only.
 # Rates other than receipt scans require explicit owner price configuration.
-REDEMPTION_PACKS = [
-    {'key':'receipt_4', 'feature':'receipt_scan', 'units':4, 'credits':2, 'label':'4 receipt scans'},
-    {'key':'receipt_10', 'feature':'receipt_scan', 'units':10, 'credits':4, 'label':'10 receipt scans'},
-    {'key':'grocery_3', 'feature':'grocery_scan', 'units':3, 'label':'3 grocery image scans'},
-    {'key':'lookup_25', 'feature':'product_lookup', 'units':25, 'label':'25 product lookups'},
-    {'key':'ask_25', 'feature':'ask_ghm', 'units':25, 'label':'25 Ask GHM responses'},
-    {'key':'vision_2', 'feature':'kitchen_vision', 'units':2, 'label':'2 Kitchen Vision scans'},
-    {'key':'price_3', 'feature':'paid_provider', 'units':3, 'label':'3 paid price/flyer requests'},
-]
+from app.api.credit_pricing import all_packs, get_pack, TOPUP_SIZES
 
-def redemption_packs():
-    try: configured=json.loads(os.getenv('GHM_CREDIT_REDEMPTION_RATES','{}'))
-    except (ValueError, TypeError): configured={}
-    if not isinstance(configured,dict):configured={}
-    result=[]
-    for pack in REDEMPTION_PACKS:
-        rate=configured.get(pack['key'],pack.get('credits'))
-        result.append({**pack,'credits':int(rate) if isinstance(rate,int) and not isinstance(rate,bool) and 1 <= rate <= 500 else None})
-    return result
+def redemption_packs(db):
+    return [{**p,'credits':p['exchange_credits'] if p['enabled'] else None} for p in all_packs(db) if p['kind']=='service']
 
 class FundIn(BaseModel):
     credits: Literal[4,10,20]
@@ -74,24 +59,33 @@ def _events(db,owner_type,owner_id):
              'actor_name':actors.get(e.actor_user_id,'Former member'), 'house_id':e.target_house_id,
              'service_pack':e.service_pack_key,'amount_cents':e.amount_cents,'created_at':e.created_at.isoformat()} for e in events]
 
+@router.get('/credits/wallet/houses')
+def my_wallet_houses(db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    memberships=db.query(HouseMember).filter(HouseMember.user_id==user.id).all()
+    ids=[m.house_id for m in memberships]
+    houses=db.query(House).filter(House.id.in_(ids)).all() if ids else []
+    return {'houses':[{'id':h.id,'name':h.name,'role':next((m.role.value for m in memberships if m.house_id==h.id),'member')} for h in houses]}
+
 @router.get('/credits/wallet')
 def personal_wallet(db:Session=Depends(get_db),user:User=Depends(get_current_user)):
-    return {'balance':_balance(db,'user',user.id),'events':_events(db,'user',user.id),'currency':'CAD','credit_unit_cents':100,'purchase_options':[4,10,20]}
+    return {'balance':_balance(db,'user',user.id),'events':_events(db,'user',user.id),'currency':'CAD','credit_unit_cents':100,'purchase_options':[{'credits':p['units'],'price_cents':p['price_cents'],'enabled':p['enabled']} for p in all_packs(db) if p['kind']=='token']}
 
 @router.post('/credits/wallet/checkout')
 def fund_checkout(body:FundIn,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
     if body.house_id:require_house_member(body.house_id,user,db)
+    topup=get_pack(db,f'token_{body.credits}')
+    if not topup or not topup['enabled'] or topup['price_cents'] is None:raise HTTPException(400,'This GHM Token pack is unavailable.')
     if not settings.stripe_secret_key or not settings.stripe_webhook_secret:
         raise HTTPException(503,'Verified Stripe checkout is not configured.')
     stripe.api_key=settings.stripe_secret_key
-    name=f'{body.credits} GHM service credits'+(' for your selected house' if body.house_id else ' for your account')
+    name=f'{body.credits} GHM Tokens'+(' for your selected house' if body.house_id else ' for your account')
     try:
         session=stripe.checkout.Session.create(mode='payment',payment_method_types=['card'],customer_email=user.email,
-            line_items=[{'price_data':{'currency':'cad','unit_amount':body.credits*100,
-                'product_data':{'name':name,'description':'Closed-loop GHM service credits; not cash, non-withdrawable.'}},'quantity':1}],
-            success_url=f"{settings.frontend_url.rstrip('/')}/houses/{body.house_id}/credits?payment=success" if body.house_id else f"{settings.frontend_url.rstrip('/')}/houses?wallet=success",
-            cancel_url=f"{settings.frontend_url.rstrip('/')}/houses/{body.house_id}/credits?payment=cancelled" if body.house_id else f"{settings.frontend_url.rstrip('/')}/houses?wallet=cancelled",
-            metadata={'kind':'ghm_wallet_funding','user_id':str(user.id),'house_id':str(body.house_id or ''),'credits':str(body.credits)},
+            line_items=[{'price_data':{'currency':'cad','unit_amount':topup['price_cents'],
+                'product_data':{'name':name,'description':'GHM Tokens for in-app service exchange; no cash value or withdrawal.'}},'quantity':1}],
+            success_url=f"{settings.frontend_url.rstrip('/')}/wallet?house={body.house_id}&payment=success" if body.house_id else f"{settings.frontend_url.rstrip('/')}/wallet?payment=success",
+            cancel_url=f"{settings.frontend_url.rstrip('/')}/wallet?house={body.house_id}&payment=cancelled" if body.house_id else f"{settings.frontend_url.rstrip('/')}/wallet?payment=cancelled",
+            metadata={'kind':'ghm_wallet_funding','user_id':str(user.id),'house_id':str(body.house_id or ''),'credits':str(body.credits),'amount_cents':str(topup['price_cents'])},
             client_reference_id=str(user.id))
     except Exception:raise HTTPException(503,'Checkout unavailable. Please try again.')
     return {'checkout_url':session['url']}
@@ -103,7 +97,10 @@ def grant_funding(db:Session,session:dict):
     sid=str(session.get('id') or '')
     try:credits=int(md['credits']);uid=int(md['user_id']);hid=int(md['house_id']) if md.get('house_id') else None
     except (KeyError,TypeError,ValueError):return
-    if not sid or credits not in (4,10,20) or int(session.get('amount_total') or -1)!=credits*100:return
+    if not sid or credits not in TOPUP_SIZES:return
+    try: expected=int(md.get('amount_cents') or credits*100)
+    except (ValueError,TypeError):return
+    if expected<50 or int(session.get('amount_total') or -1)!=expected:return
     if (session.get('currency') or 'cad').lower()!='cad':return
     if not db.get(User,uid) or (hid and not db.get(House,hid)):return
     if db.query(CreditWalletEvent).filter_by(stripe_session_id=sid).first():return
@@ -112,7 +109,7 @@ def grant_funding(db:Session,session:dict):
     _increase(db,typ,owner_id,credits)
     db.add(CreditWalletEvent(owner_type=typ,owner_id=owner_id,actor_user_id=uid,delta=credits,
                              event_type='direct_purchase' if hid else 'purchase',target_house_id=hid,
-                             stripe_session_id=sid,amount_cents=credits*100))
+                             stripe_session_id=sid,amount_cents=expected))
     db.commit()
 
 @router.get('/houses/{house_id}/credits/wallet')
@@ -121,7 +118,7 @@ def house_wallet(house_id:int,db:Session=Depends(get_db),user:User=Depends(get_c
     return {'house_id':house_id,'house_name':db.get(House,house_id).name,
             'house_balance':_balance(db,'house',house_id),'personal_balance':_balance(db,'user',user.id),
             'can_redeem':member.role in (HouseRole.owner,HouseRole.admin),
-            'my_role':member.role.value,'redemptions':redemption_packs(),
+            'my_role':member.role.value,'redemptions':redemption_packs(db),
             'house_events':_events(db,'house',house_id),'personal_events':_events(db,'user',user.id)}
 
 @router.post('/houses/{house_id}/credits/wallet/contribute')
@@ -142,7 +139,7 @@ def contribute(house_id:int,body:ContributeIn,db:Session=Depends(get_db),user:Us
 def redeem(house_id:int,body:RedeemIn,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
     member=require_house_member(house_id,user,db)
     if member.role not in (HouseRole.owner,HouseRole.admin):raise HTTPException(403,'Only a house owner or admin can redeem shared credits.')
-    pack=next((p for p in redemption_packs() if p['key']==body.pack_key),None)
+    pack=next((p for p in redemption_packs(db) if p['key']==body.pack_key),None)
     if not pack or pack['credits'] is None:raise HTTPException(400,'This redemption pack has not been priced yet.')
     if not _decrease(db,'house',house_id,pack['credits']):
         db.rollback();raise HTTPException(400,'Insufficient house credits.')

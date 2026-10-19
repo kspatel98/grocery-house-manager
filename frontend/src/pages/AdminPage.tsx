@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import AdminGrowthPanel from '../components/AdminGrowthPanel';
+import AdminCreditPricingPanel from '../components/AdminCreditPricingPanel';
 import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, ProductAnalytics, SiteReview } from '../types';
 
 function starText(value?: number | null) {
@@ -315,6 +316,7 @@ export default function AdminPage() {
         <p className="small-muted">{productAnalytics.message}</p>
       </section> : null}
 
+      <AdminCreditPricingPanel />
       <AdminGrowthPanel users={users} offers={offers} />
 
       <section className="panel v93-ai-admin-panel">

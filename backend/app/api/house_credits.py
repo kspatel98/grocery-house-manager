@@ -78,6 +78,7 @@ def update_policy(house_id:int, body:PolicyIn, db:Session=Depends(get_db), user:
 @router.post('/checkout')
 def checkout(house_id:int,body:CheckoutIn,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
     require_house_member(house_id,user,db)
+    raise HTTPException(410,'Service packs are now exchanged using GHM Tokens in Wallet. Existing completed purchases remain valid.')
     pack = next((x for x in priced_packs() if x['key']==body.pack_key),None)
     if not pack: raise HTTPException(400,'Unknown service-credit pack.')
     if pack['price_cents'] is None:raise HTTPException(400,'This credit pack is not yet priced. Admin must configure its price first.')

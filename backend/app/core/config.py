@@ -233,7 +233,8 @@ class Settings(BaseSettings):
     # OSError: [Errno 101] Network is unreachable during SMTP connect.
     smtp_force_ipv4: bool = True
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+    # Allow optional feature-specific settings loaded with os.getenv without crashing startup.
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
     @property
     def admin_email_list(self) -> list[str]:

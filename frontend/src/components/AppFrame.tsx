@@ -293,7 +293,8 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     ] : []),
     { to: '/reports', label: 'Reports', icon: '📈', group: 'shopping', description: 'Savings, spending and household insight' },
     { to: '/premium-try', label: 'Try Premium Free', icon: '✨', group: 'account', description: 'Choose one premium feature and use it once for free' },
-    { to: '/pricing', label: t('plans'), icon: '✨', group: 'account', description: 'Plans, premium tools and extra scans' },
+    { to: '/pricing', label: t('plans'), icon: '✨', group: 'account', description: 'Plans and premium tools' },
+    { to: contextHouseId ? `/wallet?house=${contextHouseId}` : '/wallet', label: 'GHM Wallet', icon: '◈', group: 'account', description: 'Personal and house tokens, contributions, service exchanges' },
     { to: '/learn', label: 'How GHM helps', icon: '✦', group: 'learn', description: 'The problem each smart feature is designed to solve' },
     { to: '/support', label: t('support'), icon: '💬', group: 'account', description: 'Get help with GHM' },
     { to: '/reviews', label: 'Reviews & feedback', icon: '★', group: 'account', description: 'Rate GHM, update your review and read household feedback' },
@@ -396,7 +397,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   const assistantView = location.pathname === '/assistant' ? (new URLSearchParams(location.search).get('view') || 'today') : null;
   const assistantTitle = assistantView === 'intelligence' ? 'Ask GHM' : assistantView === 'insights' ? 'Insights' : assistantView === 'plan' ? 'Plan' : assistantView === 'spend' ? 'Shop smarter' : assistantView === 'protect' ? 'Protect' : assistantView === 'today' ? 'Today' : null;
   const houseChatPage = /^\/houses\/\d+\/chat$/.test(location.pathname);
-  const pageTitle = houseChatPage ? 'House Chat' : location.pathname.includes('/food') ? 'Food tonight' : (assistantTitle || ([
+  const pageTitle = location.pathname === '/wallet' ? 'GHM Wallet' : houseChatPage ? 'House Chat' : location.pathname.includes('/food') ? 'Food tonight' : (assistantTitle || ([
     ...navItems,
     ...extraNavItems,
     { to: '/profile', label: t('profile'), icon: '👤' },
@@ -464,6 +465,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
               </div>
             </nav>
             {contextHouseId ? <Link to={askGhmHref} className={`mobile-ask-ghm-v119 ${contextPlanRank < 2 ? 'v129-premium-shortcut' : ''}`} aria-label={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'} title={contextPlanRank < 2 ? 'Ask GHM · Family Plus' : 'Ask GHM'}><span aria-hidden="true">{contextPlanRank < 2 ? '🔒' : '✦'}</span></Link> : null}
+            <Link className="v142-wallet-header-link" to={contextHouseId ? `/wallet?house=${contextHouseId}` : "/wallet"} title="GHM Wallet" aria-label="Open GHM Wallet"><img src="/brand/ghm-token.svg" alt="" /></Link>
             <LanguagePicker compact iconOnly />
             <SoundToggle className="header-sound-toggle-v121" />
             <ThemeToggle compact className="header-theme-toggle-v117" />
@@ -570,6 +572,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
                   <span className="v117-action-icon" aria-hidden="true">{contextPlanRank < 1 ? '🔒' : '🧾'}</span><span className="v117-action-label">Scan receipt</span>
                 </Link>
               ) : <Link to="/support" className="desktop-topbar-pill-v86 alt v117-action-pill"><span className="v117-action-icon" aria-hidden="true">?</span><span className="v117-action-label">{t('support')}</span></Link>}
+              <Link className="v142-wallet-header-link" to={contextHouseId ? `/wallet?house=${contextHouseId}` : "/wallet"} title="GHM Wallet" aria-label="Open GHM Wallet"><img src="/brand/ghm-token.svg" alt="" /></Link>
               <LanguagePicker compact iconOnly />
               <NotificationCenter premiumTry={premiumTry} houseId={contextHouseId} />
               <SoundToggle className="desktop-topbar-icon-v105 v121-topbar-sound" />

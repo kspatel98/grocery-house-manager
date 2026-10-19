@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import PageMeta from '../components/PageMeta';
-import type { CouponValidation, Plan, PlanName, ReceiptScanPack, Subscription } from '../types';
+import type { CouponValidation, Plan, PlanName, Subscription } from '../types';
 
 function formatPrice(value: number) {
   return `$${value.toFixed(2)}`;
@@ -54,12 +54,12 @@ const PLAN_BADGE_LABELS: Record<PlanName, string> = {
 const PLAN_FEATURE_ACCESS: { title: string; description: string; minPlan: PlanName }[] = [
   { title: 'Shared household essentials', description: 'One starter house, shared inventory/list access, low-stock and expiry awareness, community recipes, and Food Recall Guardian screening.', minPlan: 'free' },
   { title: 'Receipt Guardian', description: 'Review recent scanned receipts for possible duplicate lines, line-math inconsistencies and unusual price jumps. Every signal stays a review prompt.', minPlan: 'basic' },
-  { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5, and Pro includes 10 across houses you own. Extra scan packs remain available.', minPlan: 'basic' },
-  { title: 'Smart Grocery Image Scan', description: 'Scan one photo containing physical groceries or handwritten/printed lists; Basic includes 2 scans, Family 10 and Pro 25 monthly across owned houses.', minPlan: 'basic' },
-  { title: 'Product lookup + private price memory', description: 'Barcode/name lookup plus household-specific store price history from the groceries you review and save. Included monthly new lookups: Basic 30, Family 120, Pro 250.', minPlan: 'basic' },
+  { title: 'Smart Receipt Scan', description: 'Basic includes 2 scans/month, Family includes 5, and Pro includes 10 across houses you own. Additional service packs are available through GHM Wallet.', minPlan: 'basic' },
+  { title: 'Smart Grocery Image Scan', description: 'Scan one photo containing physical groceries or handwritten/printed lists; Basic includes 2 scans, Family 10 and Pro 20 monthly across owned houses.', minPlan: 'basic' },
+  { title: 'Product lookup + private price memory', description: 'Barcode/name lookup plus household-specific store price history from the groceries you review and save. Included monthly new lookups: Basic 30, Family 100, Pro 200.', minPlan: 'basic' },
   { title: 'GHM Autopilot Weekly Planner + Budget Rescue', description: 'Plan days at home, servings and an optional budget. Autopilot prioritizes inventory and food approaching its expiry date, then creates only the missing grocery list.', minPlan: 'family' },
-  { title: 'Ask GHM Household Intelligence', description: 'Ask household-aware questions using inventory, shopping, receipts, expenses and saved recipes, then continue with follow-up questions in the same conversation. Monthly AI responses: Family 120 and Pro 300.', minPlan: 'family' },
-  { title: 'Automatic Trip Check', description: 'Compare whole-list saved prices plus supported Canadian current-price/flyer signals before you spend. New paid provider calls share a Family quota of 3/day and 20/month or Pro 4/day and 30/month; cached results are reusable.', minPlan: 'family' },
+  { title: 'Ask GHM Household Intelligence', description: 'Ask household-aware questions using inventory, shopping, receipts, expenses and saved recipes, then continue with follow-up questions in the same conversation. Monthly AI responses: Family 120 and Pro 250.', minPlan: 'family' },
+  { title: 'Automatic Trip Check', description: 'Compare whole-list saved prices plus supported Canadian current-price/flyer signals before you spend. New paid provider calls share a Family quota of 5/day and 15/month or Pro 10/day and 25/month; cached results are reusable.', minPlan: 'family' },
   { title: 'Weekly Flyer Intelligence', description: 'Load postal-code-aware flyer deals from the configured provider and match them to household shopping needs when live flyer data is connected.', minPlan: 'family' },
   { title: 'Smart stock-up intelligence', description: 'Uses your household price and purchase history to identify unusually strong prices and recommend a conservative quantity instead of treating every sale as a deal.', minPlan: 'family' },
   { title: 'Savings Ledger', description: 'Separates evidence-backed savings from open opportunities so the value of your household routine remains auditable.', minPlan: 'free' },
@@ -76,10 +76,8 @@ function featureUnlocked(planKey: PlanName, minPlan: PlanName) {
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [scanPacks, setScanPacks] = useState<ReceiptScanPack[]>([]);
   const [error, setError] = useState('');
   const [busyPlan, setBusyPlan] = useState<PlanName | ''>('');
-  const [busyScanPack, setBusyScanPack] = useState('');
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState<CouponValidation | null>(null);
@@ -94,12 +92,8 @@ export default function PricingPage() {
     setLoadingPlans(true);
 
     try {
-      const [plansRes, packsRes] = await Promise.all([
-        api.get<Plan[]>('/billing/plans', { params: { t: Date.now() } }),
-        api.get<ReceiptScanPack[]>('/billing/receipt-scan-packs', { params: { t: Date.now() } }),
-      ]);
+      const plansRes = await api.get<Plan[]>('/billing/plans', { params: { t: Date.now() } });
       setPlans(plansRes.data);
-      setScanPacks(packsRes.data);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -182,22 +176,6 @@ export default function PricingPage() {
     return () => window.clearTimeout(timer);
   }, [location.hash]);
 
-  async function checkoutScanPack(packKey: string) {
-    if (!loggedIn) {
-      navigate('/login');
-      return;
-    }
-    try {
-      setBusyScanPack(packKey);
-      setError('');
-      const { data } = await api.post<{ checkout_url: string }>('/billing/receipt-scan-pack-checkout', { pack_key: packKey });
-      window.location.href = data.checkout_url;
-    } catch (err) {
-      setError(errorMessage(err));
-      setBusyScanPack('');
-    }
-  }
-
   async function manageBilling() {
     if (!loggedIn) {
       navigate('/login');
@@ -278,7 +256,7 @@ export default function PricingPage() {
       </section>
 
       {checkoutStatus === 'success' && <div className="success">Checkout completed. Your plan will update after Stripe confirms the payment.</div>}
-      {checkoutStatus === 'scan_pack_success' && <div className="success">Extra receipt scans purchased. Your scan balance will update after Stripe confirms the payment.</div>}
+      {checkoutStatus === 'scan_pack_success' && <div className="success">Your previous receipt-pack purchase will appear after Stripe confirms it. For future extras, use GHM Wallet.</div>}
       {checkoutStatus === 'cancelled' && <div className="hint">Checkout cancelled. Your current plan is unchanged.</div>}
       {error && <div className="error">{error}</div>}
       {loadingPlans && <div className="panel muted-panel">Loading plans...</div>}
@@ -366,33 +344,7 @@ export default function PricingPage() {
         </section>
       )}
 
-      <section className="panel extra-scan-panel" id="extra-scans">
-        <div className="panel-title-row">
-          <div>
-            <p className="eyebrow">Extra receipt scans</p>
-            <h2>Buy extra scans anytime</h2>
-            <p>Extra scans are one-time purchases. They stay on your account until used, and your included monthly scans are used first automatically.</p>
-          </div>
-          {subscription && <span className="review-rating-pill">Extra balance: {Number(subscription.usage?.extra_receipt_scan_credits || 0)} scan(s)</span>}
-        </div>
-        <div className="plan-access-grid extra-scan-pack-grid">
-          {(scanPacks.length ? scanPacks : [
-            { key: 'mini', name: 'Mini Scan Pack', scan_count: 2, price_cad: 1, description: '2 extra Smart Receipt Scans.' },
-            { key: 'value', name: 'Value Scan Pack', scan_count: 4, price_cad: 2, description: '4 extra Smart Receipt Scans.' },
-            { key: 'power', name: 'Power Scan Pack', scan_count: 10, price_cad: 4, description: '10 extra Smart Receipt Scans.' },
-          ]).map((pack) => (
-            <article className="plan-access-column extra-scan-pack-card" key={pack.key}>
-              <div className="plan-access-column-header"><strong>{pack.name}</strong></div>
-              <div className="price-line compact-price-line"><strong>{pack.scan_count}</strong><span>extra scans</span></div>
-              <p>{pack.description}</p>
-              <div className="limits-box"><span>{formatPrice(pack.price_cad)} CAD one-time</span><span>Never expires until used</span></div>
-              <button className="primary full" type="button" disabled={busyScanPack === pack.key} onClick={() => checkoutScanPack(pack.key)}>
-                {!loggedIn ? 'Login to buy' : busyScanPack === pack.key ? 'Opening checkout...' : `Buy ${pack.scan_count} scans`}
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
+      <section className="panel v142-pricing-wallet" id="extra-scans"><div><p className="eyebrow">GHM WALLET</p><h2>Need more scans or AI services?</h2><p>Buy GHM Tokens for yourself, contribute them to a house, and let the house owner/admin exchange tokens for additional scans, lookups or other supported services. Included monthly plan allowances remain separate.</p></div><Link className="primary" to={loggedIn?'/wallet':'/login?next=%2Fwallet'}>Open GHM Wallet →</Link></section>
 
       <section className="pricing-grid">
         {plans.map((plan) => {

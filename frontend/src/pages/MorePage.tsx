@@ -72,7 +72,7 @@ export default function MorePage() {
       title: 'Capture once. Reuse everywhere.',
       subtitle: 'Receipts, prices and shared expenses stay connected instead of being re-entered.',
       cards: [
-        { to: `/houses/${houseId}/credits`, icon: '◈', title: 'House Credits', description: 'Member contributions, extra scan/AI credits, and shared spending permissions.' },
+        { to: `/wallet?house=${houseId}`, icon: '◈', title: 'GHM Wallet', description: 'Buy GHM Tokens, contribute to a house and exchange for services.' },
         { to: `/houses/${houseId}/scan`, icon: '🧾', title: 'Scan receipt', description: 'Read a receipt, review it, update inventory and optionally create an expense.', badge: 'OCR', minPlan: 'basic', premiumTryFeature: 'smart_receipt_scan' },
         { to: `/houses/${houseId}/receipts`, icon: '🗂️', title: 'Receipt history', description: 'Review saved receipts, images, totals and product history.' },
         { to: `/houses/${houseId}/expenses`, icon: '$', title: 'Money', description: 'Track shared expenses, monthly books, balances and reimbursements.', minPlan: 'family' },
@@ -98,7 +98,7 @@ export default function MorePage() {
         { to: '/profile', icon: '👤', title: 'Profile', description: 'Manage your account, household preferences and subscription details.' },
         { to: '/appearance', icon: '⚙', title: 'Settings & appearance', description: 'Choose light/dark mode, visual style and turn GHM sounds on or off.' },
         { to: '/premium-try', icon: '✨', title: 'Try Premium Free', description: 'Choose one premium feature and use the real workflow once without a card.' },
-        { to: '/pricing', icon: '♛', title: 'Plans', description: 'Compare plans, premium features and extra receipt scan packs.' },
+        { to: '/pricing', icon: '♛', title: 'Plans', description: 'Compare plans, premium features and GHM Wallet tokens.' },
         { to: '/learn', icon: '✦', title: 'How GHM helps', description: 'Learn what each smart feature is for and when it is useful.' },
         { to: '/reviews', icon: '★', title: 'Reviews & feedback', description: 'Rate GHM, edit your review and see household feedback.' },
         { to: '/support', icon: '?', title: 'Support', description: 'Get help with your GHM account, workflows and service.' },

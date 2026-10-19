@@ -289,6 +289,7 @@ def list_receipt_scan_packs():
 
 @router.post("/receipt-scan-pack-checkout", response_model=CheckoutSessionOut)
 def create_receipt_scan_pack_checkout(payload: ReceiptScanPackCheckoutIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    raise HTTPException(status_code=410, detail="Extra services are now exchanged using GHM Tokens in Wallet. Existing receipt scan credits remain valid.")
     pack = RECEIPT_SCAN_PACKS.get(payload.pack_key)
     if not pack:
         raise HTTPException(status_code=400, detail="Choose a valid extra scan pack.")

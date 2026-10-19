@@ -789,6 +789,17 @@ class CreditWalletEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
 
+class GhmCreditPackPricing(Base):
+    """Admin-controlled, versioned-at-checkout pricing for prepaid GHM tokens and service exchanges."""
+    __tablename__ = "ghm_credit_pack_pricing"
+    pack_key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    price_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)  # CAD token checkout packages
+    exchange_credits: Mapped[int | None] = mapped_column(Integer, nullable=True)  # service redemption in tokens
+    provider_cost_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)  # estimated cost for WHOLE pack
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
 class AdminOfferEmailEvent(Base):
     __tablename__ = "admin_offer_email_events"
     id: Mapped[int] = mapped_column(primary_key=True)

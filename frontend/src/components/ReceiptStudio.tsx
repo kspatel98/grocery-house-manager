@@ -188,7 +188,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
       return;
     }
     if (scanUsage && !scanUsage.allowed) {
-      setError(scanUsage.message || 'Smart Receipt Scan is not available right now. You can buy extra scans anytime or enter prices manually.');
+      setError(scanUsage.message || 'Smart Receipt Scan is not available right now. Open GHM Wallet to exchange tokens for extra receipt scans or enter prices manually.');
       return;
     }
     if (scanUsage?.premium_try_available) {
@@ -402,7 +402,7 @@ export default function ReceiptStudio({ houseId, products, sections, receipts, s
 
       <div className="receipt-v85-quota">
         <div><strong>{scanUsage?.premium_try_available ? 'Your free Smart Receipt Scan is ready' : scanLimitText}</strong><small>{scanUsage?.message || 'Manual receipt entry stays available without using a scan.'}</small></div>
-        <div><span>{Number(scanUsage?.extra_credits || 0)} extra</span><Link to="/pricing#extra-scans">Get more scans →</Link></div>
+        <div><span>{Number(scanUsage?.extra_credits || 0)} extra</span><Link to={`/wallet?house=${houseId}`}>Get more scans →</Link></div>
       </div>
       {scanUsage && scanUsage.plan_key === 'free' && !scanUsage.premium_try_selected ? <Link className="premium-try-invite-v102 compact receipt-v102-premium-try" to={`/premium-try?feature=smart_receipt_scan&house=${houseId}`}><span aria-hidden="true">✨</span><div><strong>Want to experience this before subscribing?</strong><small>Choose Smart Receipt Scan as your one free Premium Try. One successful scan, no card required.</small></div><b aria-hidden="true">→</b></Link> : null}
 
