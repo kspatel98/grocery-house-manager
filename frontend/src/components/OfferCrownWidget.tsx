@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import OverlayPortal from './OverlayPortal';
 import type { AdminOfferAction, AdminUserOffer, PlanName } from '../types';
 
 const PLAN_LABELS: Record<string, string> = {
@@ -24,7 +24,7 @@ function offerKindLabel(offer: AdminUserOffer) {
 
 export default function OfferCrownWidget() {
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [selectedPlans, setSelectedPlans] = useState<Record<number, PlanName>>({});
@@ -41,7 +41,7 @@ export default function OfferCrownWidget() {
 
   useEffect(() => {
     loadOffers();
-    const timer = window.setInterval(loadOffers, 5000);
+    const timer = window.setInterval(loadOffers, 30000);
     const refresh = () => {
       if (document.visibilityState === 'visible') loadOffers();
     };
@@ -98,50 +98,44 @@ export default function OfferCrownWidget() {
 
   if (!primaryOffer) return null;
 
-  if (!expanded) {
-    return (
-      <button className="offer-crown-badge" type="button" onClick={() => setExpanded(true)} aria-label="Open special offer">
-        <span>♛</span>
-        <strong>{offers.length}</strong>
-      </button>
-    );
-  }
-
-  return (
-    <aside className="offer-crown-widget" aria-label="Special personal offer">
-      <div className="offer-crown-top">
-        <div className="crown-icon" aria-hidden="true">♛</div>
-        <div>
-          <span>{offerKindLabel(primaryOffer)}</span>
-          <strong>{primaryOffer.title}</strong>
-        </div>
-        <button className="crown-minimize" type="button" onClick={() => setExpanded(false)} aria-label="Minimize offer">–</button>
+  return <>
+    <button type="button" className="v141-offer-notice" onClick={() => setExpanded(true)} aria-label="View your GHM offer">
+      <span className="v141-offer-notice-star" aria-hidden="true">✦</span>
+      <span><strong>Special GHM offer</strong><small>{offers.length} available · Tap to review</small></span>
+      <span aria-hidden="true">→</span>
+    </button>
+    {expanded && <OverlayPortal>
+      <div className="v141-offer-shade" role="presentation" onClick={() => setExpanded(false)}>
+        <section className="v141-offer-dialog" role="dialog" aria-modal="true" aria-label="Your GHM premium offer" onClick={e=>e.stopPropagation()}>
+          <header className="v141-offer-dialog-head">
+            <div><span className="eyebrow">PERSONAL GHM INVITATION</span><h2>{primaryOffer.title}</h2></div>
+            <button type="button" className="v141-offer-close" onClick={() => setExpanded(false)} aria-label="Close offer">×</button>
+          </header>
+          <div className="v141-offer-dialog-body">
+            <div className="v141-offer-highlight"><span aria-hidden="true">✦</span><strong>{primaryOffer.summary}</strong></div>
+            <p>{primaryOffer.status === 'checkout_started' ? 'Your checkout is still waiting. You can continue from this offer.' : primaryOffer.message || 'This offer is available to your GHM account.'}</p>
+            <div className="v141-offer-facts">
+              <div><span>Offer type</span><strong>{offerKindLabel(primaryOffer)}</strong></div>
+              <div><span>Available until</span><strong>{formatExpiry(primaryOffer.expires_at)}</strong></div>
+              {otherCount>0&&<div><span>More offers</span><strong>{otherCount} additional</strong></div>}
+            </div>
+            {primaryOffer.universal && <label className="v141-offer-plan">Choose a plan
+              <select value={selectedPlan} onChange={e=>setSelectedPlans(prev=>({...prev,[primaryOffer.id]:e.target.value as PlanName}))}>
+                <option value="basic">{PLAN_LABELS.basic}</option><option value="family">{PLAN_LABELS.family}</option><option value="pro">{PLAN_LABELS.pro}</option>
+              </select>
+            </label>}
+            {message&&<p className="v141-offer-message" role="status">{message}</p>}
+          </div>
+          <footer className="v141-offer-dialog-actions">
+            <button className="primary" type="button" disabled={busyId===primaryOffer.id} onClick={()=>acceptOffer(primaryOffer)}>
+              {busyId===primaryOffer.id?'Please wait…':primaryOffer.status==='checkout_started'?'Continue checkout':primaryOffer.offer_kind==='free_plan_access'?'Activate free access':'Review and accept'}
+            </button>
+            <button className="secondary" type="button" onClick={()=>setExpanded(false)}>Maybe later</button>
+            <button className="ghost-button" type="button" disabled={busyId===primaryOffer.id} onClick={()=>declineOffer(primaryOffer)}>Decline offer</button>
+          </footer>
+          <small className="v141-offer-fineprint">Review offer terms before accepting. Complimentary access does not automatically enrol you in a paid plan.</small>
+        </section>
       </div>
-      <p>{primaryOffer.status === 'checkout_started' ? 'Your checkout is waiting. Continue payment before this offer expires.' : primaryOffer.message || primaryOffer.summary}</p>
-      <div className="crown-offer-details">
-        <span><strong>Offer</strong>{primaryOffer.summary}</span>
-        <span><strong>Expires</strong>{formatExpiry(primaryOffer.expires_at)}</span>
-        {otherCount > 0 && <span><strong>More</strong>{otherCount} more offer{otherCount === 1 ? '' : 's'} waiting</span>}
-      </div>
-      {primaryOffer.universal && (
-        <label className="crown-plan-picker">
-          Choose plan
-          <select value={selectedPlan} onChange={(event) => setSelectedPlans((prev) => ({ ...prev, [primaryOffer.id]: event.target.value as PlanName }))}>
-            <option value="basic">{PLAN_LABELS.basic}</option>
-            <option value="family">{PLAN_LABELS.family}</option>
-            <option value="pro">{PLAN_LABELS.pro}</option>
-          </select>
-        </label>
-      )}
-      {message && <div className="crown-message">{message}</div>}
-      <div className="crown-actions">
-        <button className="crown-accept" type="button" disabled={busyId === primaryOffer.id} onClick={() => acceptOffer(primaryOffer)}>
-          {busyId === primaryOffer.id ? 'Opening...' : primaryOffer.status === 'checkout_started' ? 'Continue checkout' : primaryOffer.offer_kind === 'free_plan_access' ? 'Accept access' : 'Accept offer'}
-        </button>
-        <button className="crown-soft" type="button" onClick={() => setExpanded(false)}>Minimize</button>
-        <button className="crown-decline" type="button" disabled={busyId === primaryOffer.id} onClick={() => declineOffer(primaryOffer)}>Decline</button>
-        <Link to="/pricing" className="crown-soft crown-link">Plans</Link>
-      </div>
-    </aside>
-  );
+    </OverlayPortal>}
+  </>;
 }

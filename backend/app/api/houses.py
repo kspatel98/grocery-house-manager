@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from app.api.activity_utils import display_name, log_activity
 from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import ensure_house_limit, ensure_member_limit, get_house_plan
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Activity, House, HouseMember, HouseMessageReaction, HouseRole, Invite, Section, User
+from app.models import Activity, House, HouseMember, HouseMessageReaction, HouseRole, Invite, Section, User, CreditWalletBalance, HouseCreditBalance
 from app.services.deletion import purge_house
 from app.schemas import ActivityOut, HouseCreate, HouseMemberOut, HouseMessageIn, HouseMessageReactionIn, HouseMessageReactionOut, HouseOut, HouseUpdate, InviteOut, InvitePreviewOut, PlanLimitsOut, PlanOut
 
@@ -506,6 +507,11 @@ def delete_house(house_id: int, db: Session = Depends(get_db), user: User = Depe
             detail="You can delete this house only when you are the only remaining member. Remove other members first.",
         )
 
+    if db.query(CreditWalletBalance).filter_by(owner_type="house", owner_id=house_id).filter(CreditWalletBalance.balance > 0).first():
+        raise HTTPException(400, "This house has purchased GHM credits remaining. Contact support about the balance before deleting it.")
+    if db.query(HouseCreditBalance).filter_by(house_id=house_id).filter(HouseCreditBalance.balance > 0).first():
+        raise HTTPException(400, "This house has unused purchased service credits. Contact support before deleting it.")
+
     try:
         purge_house(db, house_id)
         db.commit()
@@ -518,6 +524,30 @@ def delete_house(house_id: int, db: Session = Depends(get_db), user: User = Depe
             detail="GHM could not finish deleting this house. Nothing was partially deleted; please retry or contact support.",
         )
     return {"ok": True}
+
+
+class HouseRoleUpdate(BaseModel):
+    role: HouseRole
+
+
+@router.patch("/{house_id}/members/{member_id}/role")
+def change_member_role(house_id: int, member_id: int, payload: HouseRoleUpdate,
+                       db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Only the owner promotes/demotes admins; ownership never transferable here."""
+    require_house_owner(house_id, user, db)
+    membership = db.query(HouseMember).filter_by(house_id=house_id, id=member_id).first()
+    if not membership: raise HTTPException(404, "Member not found.")
+    if membership.role == HouseRole.owner or membership.user_id == user.id:
+        raise HTTPException(400, "House ownership cannot be changed here.")
+    if payload.role not in (HouseRole.admin, HouseRole.member):
+        raise HTTPException(400, "Choose admin or member.")
+    membership.role = payload.role
+    log_activity(db, house_id=house_id, user=user, action="member_role_updated",
+                 message=f"House role updated for {membership.user.full_name or 'member'} to {payload.role.value}.",
+                 entity_type="member", entity_id=membership.user_id)
+    db.commit()
+    db.refresh(membership)
+    return serialize_member(membership)
 
 
 @router.delete("/{house_id}/members/{member_id}")

@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.session import get_db, SessionLocal
 from app.models import PlanName, User, ReceiptScanPurchase, AdminUserOffer
 from app.api.house_credits import grant_completed_checkout
+from app.api.credit_wallet import grant_funding
 from app.schemas import BillingRenewalOut, CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn, PremiumTrySelectIn, PremiumTryStatusOut
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -672,7 +673,9 @@ async def stripe_webhook(request: Request):
     db = SessionLocal()
     try:
         if event_type == "checkout.session.completed":
-            if (data_object.get('metadata') or {}).get('kind') == 'house_credit_pack':
+            if (data_object.get('metadata') or {}).get('kind') == 'ghm_wallet_funding':
+                grant_funding(db, data_object)
+            elif (data_object.get('metadata') or {}).get('kind') == 'house_credit_pack':
                 if not settings.stripe_webhook_secret:
                     raise HTTPException(503, detail='Signed webhook required for paid credit grants.')
                 grant_completed_checkout(db, data_object)

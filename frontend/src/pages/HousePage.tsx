@@ -79,6 +79,14 @@ export default function HousePage() {
     }
   }
 
+  async function changeMemberRole(member: HouseMember, role: 'admin' | 'member') {
+    if (!window.confirm(`${role === 'admin' ? 'Make' : 'Remove admin privileges from'} ${member.full_name || 'this member'}${role === 'admin' ? ' a house admin' : ''}?`)) return;
+    try {
+      await api.patch(`/houses/${id}/members/${member.id}/role`, { role });
+      await loadAll();
+    } catch (err) { setError(errorMessage(err)); }
+  }
+
   async function createInvite() {
     try {
       const { data } = await api.post(`/houses/${id}/invite`);
@@ -349,7 +357,7 @@ export default function HousePage() {
         <ActivityFeed activities={activities} onRefresh={loadAll} />
       </section>}
 
-      <MembersDrawer open={membersOpen} onClose={() => setMembersOpen(false)} members={members} currentUserId={currentUser?.id} houseRole={house?.role} onRemoveMember={removeMember} onCreateInvite={createInvite} inviteUrl={inviteUrl} />
+      <MembersDrawer open={membersOpen} onClose={() => setMembersOpen(false)} members={members} currentUserId={currentUser?.id} houseRole={house?.role} onRemoveMember={removeMember} onChangeRole={changeMemberRole} onCreateInvite={createInvite} inviteUrl={inviteUrl} />
     </main>
   );
 }

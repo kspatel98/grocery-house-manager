@@ -7,6 +7,7 @@ type MembersPanelProps = {
   currentUserId?: number;
   houseRole?: 'owner' | 'admin' | 'member';
   onRemoveMember?: (member: HouseMember) => void;
+  onChangeRole?: (member: HouseMember, role: "admin" | "member") => void;
 };
 
 type MembersDrawerProps = MembersPanelProps & {
@@ -34,7 +35,7 @@ function MemberAvatar({ member }: { member: HouseMember }) {
   );
 }
 
-function MemberRow({ member, currentUserId, houseRole, onRemoveMember }: MembersPanelProps & { member: HouseMember }) {
+function MemberRow({ member, currentUserId, houseRole, onRemoveMember, onChangeRole }: MembersPanelProps & { member: HouseMember }) {
   const isOwner = houseRole === 'owner';
   const isCurrentUser = member.user_id === currentUserId;
   const canKick = isOwner && !isCurrentUser && member.role !== 'owner';
@@ -49,12 +50,17 @@ function MemberRow({ member, currentUserId, houseRole, onRemoveMember }: Members
           <span> Email hidden for privacy</span>
         </small>
       </div>
-      {canKick && <button className="danger small-button" onClick={() => onRemoveMember?.(member)}>Kick out</button>}
+      {canKick && <div className="v141-member-controls">
+        {onChangeRole && <button className="secondary small-button" type="button" onClick={() => onChangeRole(member,member.role === 'admin' ? 'member' : 'admin')}>
+          {member.role === 'admin' ? 'Remove admin' : 'Make admin'}
+        </button>}
+        <button className="danger small-button" type="button" onClick={() => onRemoveMember?.(member)}>Remove</button>
+      </div>}
     </div>
   );
 }
 
-export function MembersPanel({ members, currentUserId, houseRole, onRemoveMember }: MembersPanelProps) {
+export function MembersPanel({ members, currentUserId, houseRole, onRemoveMember, onChangeRole }: MembersPanelProps) {
   const shownMembers = members.slice(0, 5);
 
   return (
@@ -67,7 +73,7 @@ export function MembersPanel({ members, currentUserId, houseRole, onRemoveMember
       </div>
       <div className="member-list compact-member-list">
         {shownMembers.map((member) => (
-          <MemberRow key={member.id} member={member} members={members} currentUserId={currentUserId} houseRole={houseRole} onRemoveMember={onRemoveMember} />
+          <MemberRow key={member.id} member={member} members={members} currentUserId={currentUserId} houseRole={houseRole} onRemoveMember={onRemoveMember} onChangeRole={onChangeRole} />
         ))}
       </div>
     </section>
@@ -101,7 +107,7 @@ export function HouseMembersBar({ members, currentUserId, onOpen, onInvite }: { 
   );
 }
 
-export function MembersDrawer({ open, onClose, members, currentUserId, houseRole, onRemoveMember, onCreateInvite, inviteUrl }: MembersDrawerProps) {
+export function MembersDrawer({ open, onClose, members, currentUserId, houseRole, onRemoveMember, onChangeRole, onCreateInvite, inviteUrl }: MembersDrawerProps) {
   const [query, setQuery] = useState('');
   const [inviteMessage, setInviteMessage] = useState('');
 
@@ -173,7 +179,7 @@ export function MembersDrawer({ open, onClose, members, currentUserId, houseRole
         <div className="drawer-member-list v131-members-list">
           {!filteredMembers.length && <p className="small-muted">No members match your search.</p>}
           {filteredMembers.map((member) => (
-            <MemberRow key={member.id} member={member} members={members} currentUserId={currentUserId} houseRole={houseRole} onRemoveMember={onRemoveMember} />
+            <MemberRow key={member.id} member={member} members={members} currentUserId={currentUserId} houseRole={houseRole} onRemoveMember={onRemoveMember} onChangeRole={onChangeRole} />
           ))}
         </div>
       </aside>

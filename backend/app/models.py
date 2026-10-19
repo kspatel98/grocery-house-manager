@@ -762,6 +762,33 @@ class HouseCreditPolicy(Base):
     members_can_spend: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class CreditWalletBalance(Base):
+    """Closed-loop service credits; not money and not withdrawable."""
+    __tablename__ = "credit_wallet_balances"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_type: Mapped[str] = mapped_column(String(12), index=True)  # user | house
+    owner_id: Mapped[int] = mapped_column(Integer, index=True)
+    balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    __table_args__ = (UniqueConstraint("owner_type", "owner_id", name="uq_credit_wallet_owner"),)
+
+
+class CreditWalletEvent(Base):
+    """Append-only personal and house credit activity. Transfer events share transfer_key."""
+    __tablename__ = "credit_wallet_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_type: Mapped[str] = mapped_column(String(12), index=True)
+    owner_id: Mapped[int] = mapped_column(Integer, index=True)
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    delta: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(35), index=True)
+    target_house_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    service_pack_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    transfer_key: Mapped[str | None] = mapped_column(String(65), nullable=True)
+    stripe_session_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+
 class AdminOfferEmailEvent(Base):
     __tablename__ = "admin_offer_email_events"
     id: Mapped[int] = mapped_column(primary_key=True)
