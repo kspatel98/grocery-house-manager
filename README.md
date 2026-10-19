@@ -1,3 +1,5 @@
+> **Latest SEO update:** [GHM v143 — Guides and search-friendly public HTML](V143_SEO_GUIDES_PUBLIC_HTML.md)
+
 > **Latest v140:** Shared subscription-owner AI/provider quotas, House Credits with Stripe-backed contributions, branded admin offer emails, usage-cost estimates, Ask GHM mobile CSS. See [V140_HOUSE_CREDITS_ADMIN_OFFERS_COSTS.md](V140_HOUSE_CREDITS_ADMIN_OFFERS_COSTS.md).
 
 # Grocery House Manager

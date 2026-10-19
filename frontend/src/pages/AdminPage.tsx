@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import AdminGrowthPanel from '../components/AdminGrowthPanel';
+import AdminGuidesPanel from '../components/AdminGuidesPanel';
 import AdminCreditPricingPanel from '../components/AdminCreditPricingPanel';
 import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, ProductAnalytics, SiteReview } from '../types';
 
@@ -316,6 +317,7 @@ export default function AdminPage() {
         <p className="small-muted">{productAnalytics.message}</p>
       </section> : null}
 
+      <AdminGuidesPanel />
       <AdminCreditPricingPanel />
       <AdminGrowthPanel users={users} offers={offers} />
 

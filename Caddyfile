@@ -8,6 +8,19 @@ grocery-house-manager.com {
         reverse_proxy backend:8000
     }
 
+    # Noindex authenticated/private workspaces even when SPA fallback is used.
+    @privatePages path /houses* /assistant* /admin* /wallet* /profile* /reports* /market* /more* /login* /premium-try* /appearance* /join*
+    header @privatePages X-Robots-Tag "noindex, nofollow"
+
+    # Server-rendered public guide pages are indexable without JavaScript.
+    handle /guides* {
+        reverse_proxy backend:8000
+    }
+
+    handle /guides-sitemap.xml {
+        reverse_proxy backend:8000
+    }
+
     handle /docs* {
         reverse_proxy backend:8000
     }

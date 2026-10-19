@@ -816,3 +816,18 @@ class MarketingOptOut(Base):
     __tablename__ = 'marketing_opt_out'
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id',ondelete='CASCADE'),primary_key=True)
     opted_out: Mapped[bool] = mapped_column(Boolean,default=True)
+
+
+class GuideArticle(Base):
+    """Published public GHM guides, editable without frontend deployments."""
+    __tablename__ = "guide_articles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(130), unique=True, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(180), nullable=False)
+    description: Mapped[str] = mapped_column(String(320), nullable=False)
+    category: Mapped[str] = mapped_column(String(80), nullable=False, default="Household guides")
+    body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

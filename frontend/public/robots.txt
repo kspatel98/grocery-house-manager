@@ -9,3 +9,4 @@ Disallow: /register
 Disallow: /premium-try
 
 Sitemap: https://grocery-house-manager.com/sitemap.xml
+Sitemap: https://grocery-house-manager.com/guides-sitemap.xml

@@ -42,6 +42,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
   const publicNavItems = [
     { to: '/', label: t('home') },
     { to: '/how-it-works', label: 'How it works' },
+    { to: '/guides', label: 'Guides' },
     { to: '/pricing', label: t('plans') },
     { to: '/trust', label: 'Trust' },
     { to: '/support', label: t('support') },
@@ -87,7 +88,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
           </Link>
           <div className="public-desktop-actions-v88">
             <nav className="site-nav" aria-label="Public navigation">
-              {publicNavItems.map((item) => (
+              {publicNavItems.map((item) => item.to === '/guides' ? <a key={item.to} href="/guides" className={location.pathname === item.to ? 'active' : ''}>Guides</a> : (
                 <Link
                   key={item.to}
                   to={item.to}
@@ -108,7 +109,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
             <details className="public-mobile-menu-v88">
               <summary aria-label="Open website menu">•••</summary>
               <div className="public-mobile-menu-panel-v88">
-                {publicNavItems.map((item) => <Link key={item.to} to={item.to}>{item.label}</Link>)}
+                {publicNavItems.map((item) => item.to === '/guides' ? <a key={item.to} href="/guides">Guides</a> : <Link key={item.to} to={item.to}>{item.label}</Link>)}
                 <Link to={loggedIn ? '/houses' : '/login'} className="nav-cta">{loggedIn ? 'Open app' : 'Login'}</Link>
                 <div className="public-mobile-language-v88"><LanguagePicker compact /></div>
               </div>
@@ -148,6 +149,7 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
           </div>
           <div className="footer-links">
             <Link to="/how-it-works">How it works</Link>
+            <a href="/guides">GHM Guides</a>
             <Link to="/autopilot">Autopilot</Link>
             <Link to="/kitchen-vision">Kitchen Vision</Link>
             <Link to="/families">Families</Link>
