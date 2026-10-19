@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import AdminGrowthPanel from '../components/AdminGrowthPanel';
 import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, ProductAnalytics, SiteReview } from '../types';
 
 function starText(value?: number | null) {
@@ -313,6 +314,8 @@ export default function AdminPage() {
         <div className="v95-success-events">{Object.entries(productAnalytics.success_events_30d).map(([name,count]) => <span key={name}><strong>{count}</strong><small>{name.replace(/_/g,' ')}</small></span>)}{!Object.keys(productAnalytics.success_events_30d).length ? <small>No success events recorded yet. V95 begins collecting them as households use the app.</small> : null}</div>
         <p className="small-muted">{productAnalytics.message}</p>
       </section> : null}
+
+      <AdminGrowthPanel users={users} offers={offers} />
 
       <section className="panel v93-ai-admin-panel">
         <div className="panel-title-row"><div><p className="eyebrow">GHM AI INFRASTRUCTURE</p><h2>Kitchen Vision + Household Agent</h2><p>Secrets stay in backend/.env. This panel shows whether inference, the agent endpoint, video processing and media privacy are ready.</p></div><button type="button" className="primary" onClick={testAIInfrastructure} disabled={aiBusy}>{aiBusy ? 'Testing…' : 'Run AI system test'}</button></div>

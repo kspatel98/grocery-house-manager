@@ -3,7 +3,7 @@ import { api } from '../api';
 
 type FeatureKey = 'grocery_scan' | 'product_lookup' | 'ask_ghm' | 'kitchen_vision' | 'receipt_scan' | 'paid_provider_day' | 'paid_provider_month';
 type Counter = { limit: number; used: number; remaining: number; period: 'month' | 'day'; description: string };
-type Usage = { plan_name: string; reset_note: string; features: Record<FeatureKey,Counter> };
+type Usage = { plan_name: string; reset_note: string; house_credits?:Record<string, number>; features: Record<FeatureKey,Counter> };
 
 /** Read-only view. Cached results do not consume a new paid provider run. */
 export default function FeatureUsageStrip({ houseId, features, compact = false }: {houseId?: number | null; features:FeatureKey[]; compact?:boolean}) {
@@ -25,9 +25,9 @@ export default function FeatureUsageStrip({ houseId, features, compact = false }
       if (!row) return null;
       return <div className="v139-usage-item" key={key}><span>{row.description}</span>
         <strong className={row.limit > 0 && row.remaining === 0 ? 'exhausted' : ''}>{row.limit > 0 ? `${row.remaining} of ${row.limit} left` : 'Not included'}</strong>
-        <small>{row.period === 'day' ? 'Resets daily' : 'Resets monthly'}</small>
+        <small>{row.period === 'day' ? 'Resets daily' : 'Resets monthly'}{usage.house_credits?.[key === 'paid_provider_day' || key === 'paid_provider_month' ? 'paid_provider' : key] ? ` · +${usage.house_credits[key === 'paid_provider_day' || key === 'paid_provider_month' ? 'paid_provider' : key]} house credits` : ''}</small>
       </div>;
     })}
-    {!compact && <small className="v139-usage-help">Shared across the owner's houses for AI scans/queries. Paid price/flyer requests are house-based; cached results stay available.</small>}
+    {!compact && <small className="v139-usage-help">All included limits are shared across the subscription owner's houses. Cached results do not spend additional credits. <a href={`/houses/${houseId}/credits`}>Purchase or view this house’s extra credits</a></small>}
   </aside>;
 }

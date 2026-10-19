@@ -1,0 +1,23 @@
+/* V140: isolated mobile Ask GHM chat shell. Do not change all mobile pages. */
+@media (max-width: 980px) {
+  html.ghm-auth-shell-active .v131-ask-chat-active .page.shell.wide.v125-ask-page,
+  html.ghm-auth-shell-active .page.shell.wide.v125-ask-page {
+    width:100% !important; max-width:100% !important; margin-inline:0 !important;
+    padding:0 !important; gap:14px !important; box-sizing:border-box !important;
+  }
+}
+/* Contrast: admin email information and personalized offer cards. */
+.admin-email-panel .email-status-grid > div,
+.admin-offer-list .admin-offer-row,
+.v140-admin-panel {background:var(--ghm-surface-elevated,var(--ghm-surface,#202b28)) !important;color:var(--ghm-text-strong,#eef6f0) !important;border:1px solid var(--ghm-border,#475d55) !important}
+.admin-email-panel .email-status-grid strong,.admin-email-panel .email-status-grid span,
+.admin-offer-list .admin-offer-row strong,.admin-offer-list .admin-offer-row small,
+.v140-admin-panel label,.v140-admin-panel p,.v140-admin-panel small{color:var(--ghm-text-strong,#eef6f0) !important;opacity:1 !important}
+.v140-admin-panel input,.v140-admin-panel select,.v140-admin-panel textarea{max-width:100%;width:100%;box-sizing:border-box; background:var(--ghm-surface,#17221d);color:var(--ghm-text-strong,#eef6f0);border:1px solid var(--ghm-border,#596e66);border-radius:10px;padding:10px}
+.v140-admin-panel {border-radius:16px;padding:18px;margin-block:14px;display:grid;gap:14px}
+.v140-form-row {display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}
+.v140-credit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.v140-credit-card{border:1px solid var(--ghm-border,#586f64);border-radius:12px;padding:12px;display:grid;gap:9px}
+.v140-ledger-row{display:flex;justify-content:space-between;gap:12px; padding:10px 0;border-bottom:1px solid var(--ghm-border,#586f64)}
+.v140-offer-preview{background:#f8faf5;color:#152b24; padding:18px;border-radius:12px;white-space:pre-wrap}
+@media(max-width:560px){.v140-admin-panel{padding:12px}.v140-form-row{grid-template-columns:1fr}}

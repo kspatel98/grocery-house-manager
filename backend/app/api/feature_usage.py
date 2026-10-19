@@ -6,7 +6,7 @@ from app.api.deps import get_current_user, require_house_member
 from app.api.plan_utils import get_house_owner, get_house_plan, receipt_scan_usage
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import HouseProviderBudget, UserFeatureBudget, User
+from app.models import OwnerProviderBudget, HouseCreditBalance, UserFeatureBudget, User
 
 router = APIRouter(prefix="/houses/{house_id}/feature-usage", tags=["feature usage"])
 
@@ -31,15 +31,17 @@ def feature_usage(house_id: int, db: Session = Depends(get_db), user: User = Dep
             count = int(record.count) if record else 0
         return quota_row(int(limit), count, "month", label)
     def provider(period, limit, label):
-        record = db.query(HouseProviderBudget).filter_by(house_id=house_id, period_key=period).first()
+        record = db.query(OwnerProviderBudget).filter_by(owner_id=owner.id if owner else -1, period_key=period).first()
         return quota_row(int(limit), int(record.count) if record else 0, "day" if period.startswith("day:") else "month", label)
     receipt = receipt_scan_usage(db, house_id, user)
     daily_limit = min(max(0, settings.trip_provider_daily_limit), limits.trip_provider_daily_runs)
     monthly_limit = min(max(0, settings.trip_provider_monthly_limit), limits.trip_provider_monthly_runs)
     return {
         "plan_name": plan.name,
+        "house_credits": {r.feature_key: r.balance for r in db.query(HouseCreditBalance).filter_by(house_id=house_id).all()},
         "shared_across_owner_houses": True,
-        "reset_note": "Monthly AI allowances reset at the start of each UTC calendar month. Paid price/flyer provider limits reset daily and monthly.",
+        "paid_provider_scoped_to": "subscription_owner",
+        "reset_note": "Included allowances are shared across all houses owned by the subscription owner. Purchased service credits belong only to this house. UTC calendar resets.",
         "features": {
             "grocery_scan": monthly("grocery_scan", limits.grocery_image_scans_per_month, "Grocery photo/list scans"),
             "product_lookup": monthly("product_lookup", limits.product_lookup_runs_per_month, "Fresh product lookups"),

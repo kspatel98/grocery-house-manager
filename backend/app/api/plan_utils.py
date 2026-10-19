@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.models import House, HouseMember, HouseRole, PlanName, Product, Receipt, ShoppingList, User
+from app.utils.house_credits import balance as house_credit_balance, may_spend, spend
 from app.core.config import settings
 
 
@@ -81,13 +82,13 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Family Plus",
         price_monthly_cad=4.99,
         tagline="Household Autopilot for families who want less planning and smarter trips.",
-        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=10, members_per_house=15, receipt_scans_per_month=5, grocery_image_scans_per_month=10, trip_provider_daily_runs=3, trip_provider_monthly_runs=20, product_lookup_runs_per_month=120, ask_ghm_runs_per_month=120),
+        limits=PlanLimits(houses=5, products_per_house=800, active_lists_per_house=10, members_per_house=15, receipt_scans_per_month=5, grocery_image_scans_per_month=10, trip_provider_daily_runs=5, trip_provider_monthly_runs=15, product_lookup_runs_per_month=100, ask_ghm_runs_per_month=120),
         features=[
             "Everything in Basic Home",
             "Up to 10 active shopping lists per house",
             "10 Smart Grocery Image Scans/month across owned houses",
-            "120 new product lookups/month across owned houses",
-            "3 new paid price/flyer provider runs/day, 20/month; cached comparisons remain available",
+            "100 new product lookups/month across owned houses",
+            "5 new paid price/flyer provider runs/day, 15/month; cached comparisons remain available",
             "Whole-list basket comparison and best-store estimates",
             "Canadian grocery price comparison for supported retailers",
             "GHM Autopilot weekly planner + Budget Rescue",
@@ -107,13 +108,13 @@ PLANS: dict[PlanName, PlanDefinition] = {
         name="Household Pro",
         price_monthly_cad=6.99,
         tagline="Maximum household intelligence for large families, multiple homes, and heavy users.",
-        limits=PlanLimits(houses=10, products_per_house=3000, active_lists_per_house=20, members_per_house=35, receipt_scans_per_month=10, grocery_image_scans_per_month=25, trip_provider_daily_runs=4, trip_provider_monthly_runs=30, product_lookup_runs_per_month=250, ask_ghm_runs_per_month=300, kitchen_vision_scans_per_month=10),
+        limits=PlanLimits(houses=10, products_per_house=3000, active_lists_per_house=20, members_per_house=35, receipt_scans_per_month=10, grocery_image_scans_per_month=20, trip_provider_daily_runs=10, trip_provider_monthly_runs=25, product_lookup_runs_per_month=200, ask_ghm_runs_per_month=250, kitchen_vision_scans_per_month=10),
         features=[
             "Everything in Family Plus",
             "Up to 10 owned houses and 20 active shopping lists per house",
-            "25 Smart Grocery Image Scans/month across owned houses",
-            "250 new product lookups/month across owned houses",
-            "4 new paid price/flyer provider runs/day, 30/month; cached comparisons remain available",
+            "20 Smart Grocery Image Scans/month across owned houses",
+            "200 new product lookups/month across owned houses",
+            "10 new paid price/flyer provider runs/day, 25/month; cached comparisons remain available",
             "Advanced price tracking for multiple stores",
             "10 Smart Receipt Scans per month across houses you own",
             "Large receipt and inventory history",
@@ -411,7 +412,7 @@ def _count_monthly_receipt_scans(db: Session, *, month_start: datetime, house_id
     query = db.query(Receipt).filter(
         Receipt.created_at >= month_start,
         Receipt.ocr_provider.isnot(None),
-        or_(Receipt.receipt_scan_credit_source.is_(None), ~Receipt.receipt_scan_credit_source.in_(["extra", "premium_try"])),
+        or_(Receipt.receipt_scan_credit_source.is_(None), ~Receipt.receipt_scan_credit_source.in_(["extra", "house_extra", "premium_try"])),
     )
     if house_ids is not None:
         if not house_ids:
@@ -436,21 +437,23 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
     remaining = max(limit - used, 0)
     extra_credits = max(int(getattr(owner, "extra_receipt_scan_credits", 0) or 0), 0) if owner else 0
 
+    house_credits = house_credit_balance(db, house_id, "receipt_scan") if may_spend(db, house_id, user.id) else 0
+
     service_cap = max(getattr(settings, "tabscanner_monthly_account_scan_cap", 0), 0)
     service_used = _count_monthly_receipt_scans(db, month_start=month_start, house_ids=None)
     service_remaining = max(service_cap - service_used, 0) if service_cap else None
     service_available = service_cap == 0 or service_remaining > 0
-    will_use_extra_credit = remaining == 0 and extra_credits > 0 and service_available
+    will_use_extra_credit = remaining == 0 and (extra_credits > 0 or house_credits > 0) and service_available
     premium_try_available = premium_try_can_start(db, house_id, user, "smart_receipt_scan", "smart_receipt_scan")
 
-    if limit <= 0 and extra_credits <= 0 and premium_try_available:
+    if limit <= 0 and extra_credits <= 0 and house_credits <= 0 and premium_try_available:
         message = "Your selected free Premium Try is ready. Scan one receipt successfully and this one-time experience will be used."
-    elif limit <= 0 and extra_credits <= 0:
+    elif limit <= 0 and extra_credits <= 0 and house_credits <= 0:
         message = f"Smart Receipt Scan is locked on {plan.name}. You can enter prices manually, buy extra scans, or choose Smart Receipt Scan as your one free Premium Try."
     elif not service_available:
         message = "Smart Receipt Scan is temporarily unavailable because this month's scan capacity has been reached. Manual price entry still works."
-    elif remaining == 0 and extra_credits > 0:
-        message = f"Included scans are finished for {month_label}. {extra_credits} extra scan credit(s) are available."
+    elif remaining == 0 and (extra_credits > 0 or house_credits > 0):
+        message = f"Included scans are finished for {month_label}. {extra_credits} personal and {house_credits} shared house scan credits are available."
     elif remaining == 0:
         message = f"0 of {limit} included Smart Receipt Scans remain for {plan.name} in {month_label}. You can buy extra scans anytime."
     elif remaining == 1:
@@ -465,7 +468,7 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
         "plan_name": plan.name,
         "plan_key": plan.key.value,
         "month_label": month_label,
-        "allowed": (((limit > 0 and remaining > 0) or extra_credits > 0) or premium_try_available) and service_available,
+        "allowed": (((limit > 0 and remaining > 0) or extra_credits > 0 or house_credits > 0) or premium_try_available) and service_available,
         "is_last_available": limit > 0 and remaining == 1 and service_available,
         "premium_try_available": premium_try_available,
         "premium_try_selected": (getattr(user, "premium_try_feature", None) or "") == "smart_receipt_scan" and getattr(user, "premium_try_used_at", None) is None,
@@ -475,6 +478,7 @@ def receipt_scan_usage(db: Session, house_id: int, user: User) -> dict[str, int 
         "message": message,
         "service_capacity_available": service_available,
         "extra_credits": extra_credits,
+        "house_credits": house_credits,
         "will_use_extra_credit": will_use_extra_credit,
         "can_buy_extra_scans": True,
     }
@@ -486,6 +490,8 @@ def choose_receipt_scan_credit_source(db: Session, house_id: int, user: User, re
         return "included"
     if usage.get("extra_credits", 0) > 0:
         return "extra"
+    if usage.get("house_credits", 0) > 0:
+        return "house_extra"
     if begin_premium_try(db, house_id, user, "smart_receipt_scan", requested_feature):
         return "premium_try"
     ensure_receipt_scan_limit(db, house_id, user, requested_feature=requested_feature)
@@ -502,7 +508,7 @@ def consume_extra_receipt_scan_credit(db: Session, house_id: int) -> None:
 def ensure_receipt_scan_limit(db: Session, house_id: int, user: User, requested_feature: str | None = None) -> None:
     usage = receipt_scan_usage(db, house_id, user)
     premium_try_requested = premium_try_can_start(db, house_id, user, "smart_receipt_scan", requested_feature)
-    if usage.get("limit", 0) <= 0 and usage.get("extra_credits", 0) <= 0 and not premium_try_requested:
+    if usage.get("limit", 0) <= 0 and usage.get("extra_credits", 0) <= 0 and usage.get("house_credits", 0) <= 0 and not premium_try_requested:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=usage["message"],
@@ -512,7 +518,7 @@ def ensure_receipt_scan_limit(db: Session, house_id: int, user: User, requested_
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=usage["message"],
         )
-    if usage.get("remaining", 0) <= 0 and usage.get("extra_credits", 0) <= 0 and not premium_try_requested:
+    if usage.get("remaining", 0) <= 0 and usage.get("extra_credits", 0) <= 0 and usage.get("house_credits", 0) <= 0 and not premium_try_requested:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=usage["message"],

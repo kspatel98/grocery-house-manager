@@ -72,6 +72,7 @@ export default function MorePage() {
       title: 'Capture once. Reuse everywhere.',
       subtitle: 'Receipts, prices and shared expenses stay connected instead of being re-entered.',
       cards: [
+        { to: `/houses/${houseId}/credits`, icon: '◈', title: 'House Credits', description: 'Member contributions, extra scan/AI credits, and shared spending permissions.' },
         { to: `/houses/${houseId}/scan`, icon: '🧾', title: 'Scan receipt', description: 'Read a receipt, review it, update inventory and optionally create an expense.', badge: 'OCR', minPlan: 'basic', premiumTryFeature: 'smart_receipt_scan' },
         { to: `/houses/${houseId}/receipts`, icon: '🗂️', title: 'Receipt history', description: 'Review saved receipts, images, totals and product history.' },
         { to: `/houses/${houseId}/expenses`, icon: '$', title: 'Money', description: 'Track shared expenses, monthly books, balances and reimbursements.', minPlan: 'family' },

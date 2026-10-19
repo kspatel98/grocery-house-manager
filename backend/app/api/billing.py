@@ -8,6 +8,7 @@ from app.api.plan_utils import PLANS, PREMIUM_TRY_FEATURES, get_user_plan, plan_
 from app.core.config import settings
 from app.db.session import get_db, SessionLocal
 from app.models import PlanName, User, ReceiptScanPurchase, AdminUserOffer
+from app.api.house_credits import grant_completed_checkout
 from app.schemas import BillingRenewalOut, CheckoutSessionIn, CheckoutSessionOut, CouponValidateIn, CouponValidateOut, NewUserOfferOut, PlanLimitsOut, PlanOut, SubscriptionOut, ReceiptScanPackOut, ReceiptScanPackCheckoutIn, PremiumTrySelectIn, PremiumTryStatusOut
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -662,7 +663,7 @@ async def stripe_webhook(request: Request):
         if settings.stripe_webhook_secret:
             event = stripe.Webhook.construct_event(payload, sig_header, settings.stripe_webhook_secret)
         else:
-            event = stripe.Event.construct_from(await request.json(), stripe.api_key)
+            raise HTTPException(status_code=503, detail='STRIPE_WEBHOOK_SECRET is required to verify billing events.')
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Stripe webhook: {exc}")
 
@@ -671,7 +672,12 @@ async def stripe_webhook(request: Request):
     db = SessionLocal()
     try:
         if event_type == "checkout.session.completed":
-            apply_checkout_session_event(db, data_object)
+            if (data_object.get('metadata') or {}).get('kind') == 'house_credit_pack':
+                if not settings.stripe_webhook_secret:
+                    raise HTTPException(503, detail='Signed webhook required for paid credit grants.')
+                grant_completed_checkout(db, data_object)
+            else:
+                apply_checkout_session_event(db, data_object)
         elif event_type in {"customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"}:
             apply_subscription_event(db, data_object)
     finally:

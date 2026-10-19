@@ -22,6 +22,7 @@ const SupportPage = lazy(() => import('./pages/SupportPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const MarketPage = lazy(() => import('./pages/MarketPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const HouseCreditsPage = lazy(() => import('./pages/HouseCreditsPage'));
 const AssistantPage = lazy(() => import('./pages/AssistantPage'));
 const MealsPage = lazy(() => import('./pages/MealsPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="/market" element={<RequireAuth><MarketPage /></RequireAuth>} />
         <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
         <Route path="/houses/:houseId" element={<RequireAuth><HousePage /></RequireAuth>} />
+        <Route path="/houses/:houseId/credits" element={<RequireAuth><HouseCreditsPage /></RequireAuth>} />
         <Route path="/houses/:houseId/inventory" element={<RequireAuth><InventoryPage /></RequireAuth>} />
         <Route path="/houses/:houseId/scan" element={<RequireAuth><ReceiptScanPage /></RequireAuth>} />
         <Route path="/houses/:houseId/shopping" element={<RequireAuth><ShoppingPage /></RequireAuth>} />

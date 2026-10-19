@@ -720,3 +720,61 @@ class HouseholdTemplate(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     owner: Mapped[User] = relationship()
+
+
+class OwnerProviderBudget(Base):
+    """New provider executions across ALL houses of one subscription owner."""
+    __tablename__ = "owner_provider_budget"
+    __table_args__ = (UniqueConstraint("owner_id", "period_key", name="uq_owner_provider_budget_period"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    period_key: Mapped[str] = mapped_column(String(24), index=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class HouseCreditBalance(Base):
+    __tablename__ = "house_credit_balances"
+    __table_args__ = (UniqueConstraint("house_id", "feature_key", name="uq_house_credit_feature"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    feature_key: Mapped[str] = mapped_column(String(40), index=True)
+    balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class HouseCreditEvent(Base):
+    """Auditable purchase/spend ledger. Purchase ID guards against duplicate Stripe events."""
+    __tablename__ = "house_credit_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), index=True)
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    feature_key: Mapped[str] = mapped_column(String(40), index=True)
+    delta: Mapped[int] = mapped_column(Integer)
+    event_type: Mapped[str] = mapped_column(String(30))
+    pack_key: Mapped[str | None] = mapped_column(String(65), nullable=True)
+    stripe_session_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+
+class HouseCreditPolicy(Base):
+    __tablename__ = "house_credit_policies"
+    house_id: Mapped[int] = mapped_column(ForeignKey("houses.id", ondelete="CASCADE"), primary_key=True)
+    members_can_spend: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class AdminOfferEmailEvent(Base):
+    __tablename__ = "admin_offer_email_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    offer_id: Mapped[int | None] = mapped_column(ForeignKey("admin_user_offers.id", ondelete="SET NULL"), nullable=True)
+    sender_role: Mapped[str] = mapped_column(String(35))
+    subject: Mapped[str] = mapped_column(String(240))
+    sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class MarketingOptOut(Base):
+    __tablename__ = 'marketing_opt_out'
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id',ondelete='CASCADE'),primary_key=True)
+    opted_out: Mapped[bool] = mapped_column(Boolean,default=True)

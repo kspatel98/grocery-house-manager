@@ -29,7 +29,7 @@ router = APIRouter(prefix="/market", tags=["market"])
 def _charge_apify_if_needed(db: Session, house_id: int, user: User, premium_try_feature: str | None, feature_name: str) -> bool:
     if premium_try_can_start(db, house_id, user, feature_name, premium_try_feature):
         return True
-    return consume_house_provider_run(house_id)
+    return consume_house_provider_run(house_id, actor_id=user.id)
 
 
 
@@ -476,7 +476,7 @@ def product_lookup(
     if not premium_try_can_start(db, house_id, user, "product_lookup", premium_try_feature):
         owner = get_house_owner(db, house_id)
         limit = house_plan.limits.product_lookup_runs_per_month
-        if not owner or not consume_feature_call(owner.id, "product_lookup", limit):
+        if not owner or not consume_feature_call(owner.id, "product_lookup", limit, house_id=house_id, actor_id=user.id):
             return ProductLookupOut(
                 premium_required=True, configured=True,
                 message=f"The household reached its {limit} uncached product lookups/month. Previously saved results remain available.",

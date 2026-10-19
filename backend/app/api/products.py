@@ -942,6 +942,10 @@ def upload_receipt_file(
 
     if credit_source == "extra":
         consume_extra_receipt_scan_credit(db, house_id)
+    elif credit_source == "house_extra":
+        from app.utils.house_credits import spend
+        if not spend(db, house_id, user.id, 'receipt_scan'):
+            raise HTTPException(status_code=402, detail='No shared receipt scan credits remain, or the house owner disabled member spending.')
 
     log_activity(
         db,

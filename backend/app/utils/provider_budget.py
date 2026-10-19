@@ -9,16 +9,20 @@ from datetime import datetime, timezone
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from app.db.session import SessionLocal
-from app.models import HouseProviderBudget
+from app.models import OwnerProviderBudget
 from app.core.config import settings
-from app.api.plan_utils import get_house_plan
+from app.api.plan_utils import get_house_plan, get_house_owner
+from app.utils.house_credits import spend
 
 
-def consume_house_provider_run(house_id: int) -> bool:
+def consume_house_provider_run(house_id: int, actor_id: int | None = None) -> bool:
     now = datetime.now(timezone.utc)
     try:
         with SessionLocal() as db:
             plan = get_house_plan(db, house_id)
+            owner = get_house_owner(db, house_id)
+            if owner is None:
+                return False
             periods = [
                 (f"day:{now:%Y-%m-%d}", min(max(0, settings.trip_provider_daily_limit), plan.limits.trip_provider_daily_runs)),
                 (f"month:{now:%Y-%m}", min(max(0, settings.trip_provider_monthly_limit), plan.limits.trip_provider_monthly_runs)),
@@ -31,14 +35,22 @@ def consume_house_provider_run(house_id: int) -> bool:
                 if limit <= 0:
                     db.rollback()
                     return False
-                stmt = insert(HouseProviderBudget).values(house_id=house_id, period_key=key, count=1)
+                stmt = insert(OwnerProviderBudget).values(owner_id=owner.id, period_key=key, count=1)
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=[HouseProviderBudget.house_id, HouseProviderBudget.period_key],
-                    set_={"count": HouseProviderBudget.count + 1},
-                    where=HouseProviderBudget.count < limit,
-                ).returning(HouseProviderBudget.id)
+                    index_elements=[OwnerProviderBudget.owner_id, OwnerProviderBudget.period_key],
+                    set_={"count": OwnerProviderBudget.count + 1},
+                    where=OwnerProviderBudget.count < limit,
+                ).returning(OwnerProviderBudget.id)
                 if db.execute(stmt).scalar_one_or_none() is None:
                     db.rollback()
+                    # Subscription allowance exhausted. A specific prepaid house
+                    # credit may fund this extra invocation. Caller can still
+                    # use cached prices for free before reaching this function.
+                    if actor_id is not None:
+                        with SessionLocal() as credit_db:
+                            if spend(credit_db, house_id, actor_id, 'paid_provider'):
+                                credit_db.commit()
+                                return True
                     return False
             db.commit()
             return True

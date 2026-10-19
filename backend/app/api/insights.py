@@ -727,7 +727,7 @@ def _basket_comparison(
                 return False
             trial_provider_used = True
             return True
-        granted = consume_house_provider_run(house_id)
+        granted = consume_house_provider_run(house_id, actor_id=user.id)
         if not granted:
             budget_exhausted = True
         return granted

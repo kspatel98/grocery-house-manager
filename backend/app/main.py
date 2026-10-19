@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from sqlalchemy.exc import TimeoutError as SQLAlchemyPoolTimeout
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, houses, products, sections, shopping, live, billing, account, admin, market, reviews, offers, insights, expenses, recipes_external, community_recipes, ai, templates, analytics, food, grocery_scan, feature_usage
+from app.api import auth, houses, products, sections, shopping, live, billing, account, admin, market, reviews, offers, insights, expenses, recipes_external, community_recipes, ai, templates, analytics, food, grocery_scan, feature_usage, house_credits, admin_growth, communications
 from app.core.config import settings
 from app.db.session import Base, engine
 from app.db.dev_migrations import ensure_dev_schema
@@ -175,6 +175,9 @@ app.include_router(products.router)
 app.include_router(shopping.router)
 app.include_router(grocery_scan.router)
 app.include_router(feature_usage.router)
+app.include_router(house_credits.router)
+app.include_router(admin_growth.router)
+app.include_router(communications.router)
 app.include_router(live.router)
 app.include_router(billing.router)
 app.include_router(account.router)

@@ -1,3 +1,5 @@
+> **Latest v140:** Shared subscription-owner AI/provider quotas, House Credits with Stripe-backed contributions, branded admin offer emails, usage-cost estimates, Ask GHM mobile CSS. See [V140_HOUSE_CREDITS_ADMIN_OFFERS_COSTS.md](V140_HOUSE_CREDITS_ADMIN_OFFERS_COSTS.md).
+
 # Grocery House Manager
 
 ## Current release: V118 — Complete Localization + Mobile-First Polish

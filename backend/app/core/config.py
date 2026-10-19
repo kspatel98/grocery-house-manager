@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     food_menu_fetch_timeout_seconds: int = 10
 
     # Actual new Apify HTTP runs per household, not page visits or cached comparisons.
-    trip_provider_daily_limit: int = 4
+    trip_provider_daily_limit: int = 10
     trip_provider_monthly_limit: int = 30
 
     # Grocery market/product data integrations.

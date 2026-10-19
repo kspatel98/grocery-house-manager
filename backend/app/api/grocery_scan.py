@@ -79,7 +79,7 @@ def preview_groceries(
         image.file.close()
     owner = get_house_owner(db, house_id)
     limit = get_house_plan(db, house_id).limits.grocery_image_scans_per_month
-    if not owner or not consume_feature_call(owner.id, "grocery_scan", limit):
+    if not owner or not consume_feature_call(owner.id, "grocery_scan", limit, house_id=house_id, actor_id=user.id):
         raise HTTPException(status_code=402, detail=f"The household has reached its Smart Grocery Scan allowance ({limit}/month). Review existing lists, or upgrade the owner's plan. Attempts count even if handwriting cannot be read.")
     try:
         scan = recognize_grocery_image(prepared, mode, alternate_jpeg=original_prepared)

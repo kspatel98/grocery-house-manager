@@ -717,7 +717,7 @@ async def kitchen_vision(
         if not trial_allowed:
             owner = get_house_owner(db, house_id)
             limit = get_house_plan(db, house_id).limits.kitchen_vision_scans_per_month
-            if not owner or not consume_feature_call(owner.id, "kitchen_vision", limit):
+            if not owner or not consume_feature_call(owner.id, "kitchen_vision", limit, house_id=house_id, actor_id=user.id):
                 raise HTTPException(status_code=402, detail=f"Kitchen Vision has reached its {limit} AI scans/month allowance for this household plan.")
         try:
             raw_result = analyze_kitchen_frames(
@@ -1069,7 +1069,7 @@ def household_agent(
     if not trial_allowed:
         owner = get_house_owner(db, house_id)
         limit = get_house_plan(db, house_id).limits.ask_ghm_runs_per_month
-        if not owner or not consume_feature_call(owner.id, "ask_ghm", limit):
+        if not owner or not consume_feature_call(owner.id, "ask_ghm", limit, house_id=house_id, actor_id=user.id):
             raise HTTPException(status_code=402, detail=f"Ask GHM has reached its {limit} AI responses/month allowance for this household plan. Existing conversations stay available.")
     try:
         result = ask_household_agent(prompt=payload.prompt, context=context, language=payload.language, history=[item.model_dump() for item in payload.history])

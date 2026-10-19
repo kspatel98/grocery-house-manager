@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from app.db.session import SessionLocal
 from app.models import UserFeatureBudget
+from app.utils.house_credits import spend
 
 
 def current_period() -> str:
@@ -15,9 +16,9 @@ def used_feature_calls(db, owner_id: int, feature_key: str) -> int:
     return int(record.count) if record else 0
 
 
-def consume_feature_call(owner_id: int, feature_key: str, monthly_limit: int) -> bool:
+def consume_feature_call(owner_id: int, feature_key: str, monthly_limit: int, house_id: int | None = None, actor_id: int | None = None) -> bool:
     """Reserve one provider attempt, even if its response proves unreadable; never charge for preview re-display."""
-    if not owner_id or monthly_limit <= 0:
+    if not owner_id:
         return False
     try:
         with SessionLocal() as db:
@@ -31,8 +32,13 @@ def consume_feature_call(owner_id: int, feature_key: str, monthly_limit: int) ->
                 set_={"count": UserFeatureBudget.count + 1},
                 where=UserFeatureBudget.count < monthly_limit,
             ).returning(UserFeatureBudget.id)
-            if db.execute(stmt).scalar_one_or_none() is None:
+            if monthly_limit <= 0 or db.execute(stmt).scalar_one_or_none() is None:
                 db.rollback()
+                if house_id is not None:
+                    with SessionLocal() as credits_db:
+                        if spend(credits_db, house_id, actor_id, feature_key):
+                            credits_db.commit()
+                            return True
                 return False
             db.commit()
             return True
