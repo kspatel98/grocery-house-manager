@@ -32,6 +32,10 @@ grocery-house-manager.com {
     handle /uploads* {
         reverse_proxy backend:8000
     }
+handle /grocery-products-photo-scan {
+    rewrite * /grocery-products-photo-scan/index.html
+    reverse_proxy frontend:5173
+}
 
     handle {
         reverse_proxy frontend:5173
