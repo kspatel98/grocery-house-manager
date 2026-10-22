@@ -402,6 +402,7 @@ export default function MarketPage() {
           </p>
         </div>
         <div className="market-status-stack">
+          <FeatureUsageStrip houseId={Number(selectedHouseId) || null} features={['product_lookup','paid_provider_day','paid_provider_month']} compact />
           <span className={liveConnected ? 'market-status-pill connected' : 'market-status-pill offline'}>
             <span className="status-dot" /> Live prices: {statusLabel(liveConnected)}
           </span>
@@ -411,7 +412,6 @@ export default function MarketPage() {
       </header>
 
       <FeaturePurposeCard feature="price_compare" />
-      <FeatureUsageStrip houseId={Number(selectedHouseId) || null} features={['product_lookup', 'paid_provider_day', 'paid_provider_month']} />
       {error && <div className="error">{error}</div>}
 
       <section className="panel market-access-panel animated-card-lift">

@@ -876,8 +876,8 @@ export default function AssistantPage() {
               <label className="v132-chat-select"><span>Mode</span><select value={agentModeOverride || 'auto'} onChange={(event) => setAgentModeOverride(event.target.value === 'auto' ? null : event.target.value as AgentMode)}><option value="auto">✦ {agentModeMeta[inferredAgentMode].label} · Auto</option>{(Object.keys(agentModeMeta) as AgentMode[]).map((mode) => <option key={mode} value={mode}>{agentModeMeta[mode].icon} {agentModeMeta[mode].label}</option>)}</select></label>
               {houseId ? <Link className="secondary v132-tool-action" to={`/assistant?house=${houseId}&view=insights`}>📈 Insights</Link> : null}
               {agentTurns.length ? <button type="button" className="secondary v132-tool-action" onClick={() => setNewConversationConfirm(true)}>＋ New conversation</button> : null}
+              <FeatureUsageStrip houseId={houseId} features={['ask_ghm']} compact />
             </div>
-            <FeatureUsageStrip houseId={houseId} features={['ask_ghm']} compact />
 
             {error ? <div className="error v125-ask-message v132-chat-error">{error}</div> : null}
 

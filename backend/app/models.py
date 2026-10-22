@@ -849,3 +849,32 @@ class GuideArticle(Base):
     published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
+class MerchCatalogProduct(Base):
+    """Admin-editable catalog. Orders are deliberately disabled until verified fulfillment is wired."""
+    __tablename__ = 'merch_catalog_products'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sku: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(180))
+    category: Mapped[str] = mapped_column(String(80), default='Other')
+    description: Mapped[str] = mapped_column(Text, default='')
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    price_cents_cad: Mapped[int] = mapped_column(Integer, default=0)
+    printkk_design_id: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class FestivalMealRule(Base):
+    """Dates are curated, not guessed from a lunar calendar; admin can revise without deploy."""
+    __tablename__ = 'festival_meal_rules'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(140))
+    festival_date: Mapped[date] = mapped_column(Date, index=True)
+    region: Mapped[str] = mapped_column(String(120), default='Gujarati / Indian')
+    dishes_json: Mapped[str] = mapped_column(Text, default='[]')
+    reminder_days: Mapped[int] = mapped_column(Integer, default=7)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

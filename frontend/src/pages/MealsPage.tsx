@@ -9,6 +9,7 @@ import HouseContextSwitcher from '../components/HouseContextSwitcher';
 import OverlayPortal from '../components/OverlayPortal';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import { sourceRecipeCategories } from '../sourceRecipeCategories';
+import FestivalMealAdvisor from '../components/FestivalMealAdvisor';
 
 type Row=RecipeIngredient & {required:number; owned:number; shortage:number; matched?:Product; selected:boolean; autoShop:boolean};
 type CookReviewItem={productId:number;name:string;unit:string;available:number;amount:number;selected:boolean;recipeAmount:number;recipeUnit:string;optional:boolean};
@@ -222,6 +223,7 @@ export default function MealsPage(){
  const [manual,setManual]=useState<Record<string,boolean>>({});
  const [qtyOverrides,setQtyOverrides]=useState<Record<string,number>>({});
  const [detailOpen,setDetailOpen]=useState(false);
+ const [checkedCookingSteps,setCheckedCookingSteps]=useState<Record<string,boolean>>({});
  const [builtInOpen,setBuiltInOpen]=useState(true);
  const [addConfirmMode,setAddConfirmMode]=useState<'shortage'|'full'|'manual'|null>(null);
 
@@ -562,6 +564,13 @@ export default function MealsPage(){
  }
 
  return <main className="page shell wide meals-page meals-page-v84 meals-page-v89">
+   <FestivalMealAdvisor houseId={id} onCook={dish=>{
+     const normalized=dish.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+     const exact=recipes.find(recipe=>recipe.names.en.toLowerCase().includes(normalized) || normalized.includes(recipe.names.en.toLowerCase()));
+     if(exact){setSelectedCommunity(null);setLinkedActive(null);setSelected(exact);setDetailOpen(true);setNotice(`Review the ingredients for ${exact.names.en} and add missing amounts to your shopping list after confirmation.`);}
+     else{setQ(dish);setLinkedQuery(dish);setDetailOpen(false);setNotice(`Showing recipe searches for ${dish}. Open a matching dish to check ingredient shortages.`);}
+   }}/>
+
    <section className="meals-hero"><div><p className="eyebrow">SMART MEAL PLANNER</p><div className="feature-heading-with-why-v101"><h1>{c.title}</h1><FeatureWhyButton feature="meals" label="Why?" /></div><p>{c.sub}</p></div><div className="serving-box"><span>👥 {c.servings}</span><input type="number" min="1" max="100" value={servings} onChange={e=>setServings(Math.max(1,Number(e.target.value)||1))}/></div></section>
    <HouseContextSwitcher currentHouseId={id} section="meals" />
    <FeaturePurposeCard feature="meals" />
@@ -623,7 +632,16 @@ export default function MealsPage(){
     {rows.some(r=>!r.autoShop)&&<div className="water-smart-note">💧 {c.waterHelp}</div>}
     {selected.ingredients.some(item=>item.optional)&&<div className="v126-recipe-trust-note"><strong>✓ {c.optional}:</strong> {c.pantryNote}</div>}
     <div className="recipe-share-row-v113"><button className="secondary" type="button" onClick={()=>void shareSelectedRecipe()}>💬 Share recipe to House Chat</button></div><div className="recipe-action-guide"><button disabled={busy} onClick={()=>requestAdd('shortage')}><span className="action-icon">🛒</span><span><strong>{c.addShort}</strong><small>{c.shortHelp}</small></span></button><button className="secondary" disabled={busy} onClick={()=>requestAdd('manual')}><span className="action-icon">☑</span><span><strong>{c.manual}</strong><small>{c.manualHelp}</small></span></button><button className="ghost" disabled={busy} onClick={()=>requestAdd('full')}><span className="action-icon">＋</span><span><strong>{c.addAll}</strong><small>{c.fullHelp}</small></span></button></div><button className="meal-cooked-trigger-v96" onClick={openCookReview}><span>✓</span><span><strong>I cooked this</strong><small>Review the ingredients you actually used before GHM adjusts inventory. Nothing is deducted automatically.</small></span><em>Review use →</em></button>{notice&&<div className="meal-notice">{notice}</div>}
-    <div className="recipe-steps"><div className="recipe-steps-head"><div><p className="eyebrow">{c.stepByStep}</p><h3>{c.method}</h3></div><span>👥 {servings}</span></div><p className="recipe-method-intro">{c.methodIntro}</p><ol className="recipe-step-list">{selected.steps[language].map((s,i)=><li key={i}><span className="step-number">{i+1}</span><div><strong>{c.stepLabel} {i+1}</strong><p>{s}</p></div></li>)}</ol></div>
+    <div className="recipe-steps v146-guided-method"><div className="recipe-steps-head"><div><p className="eyebrow">{c.stepByStep}</p><h3>{c.method}</h3></div><span>👥 {servings}</span></div>
+      <p className="recipe-method-intro">{c.methodIntro} {language==='gu'?'એક પગલું પૂર્ણ થાય ત્યારે તેને ચેક કરો.':language==='hi'?'एक चरण पूरा होने पर उसे चेक करें।':language==='fr'?'Cochez chaque étape une fois terminée.':'Check off each step as you cook. Times are approximate; use the texture and doneness cues.'}</p>
+      <div className="v146-step-progress" role="group" aria-label="Cooking step progress">
+        <div><strong>{selected.steps[language].filter((_,i)=>checkedCookingSteps[`${selected.id}:${i}`]).length} / {selected.steps[language].length}</strong><span>{language==='gu'?'પગલાં પૂર્ણ':language==='hi'?'चरण पूरे':language==='fr'?'étapes terminées':'steps completed'}</span></div>
+        <progress max={Math.max(1,selected.steps[language].length)} value={selected.steps[language].filter((_,i)=>checkedCookingSteps[`${selected.id}:${i}`]).length} />
+        <button className="secondary" type="button" onClick={()=>setCheckedCookingSteps(prev=>Object.fromEntries(Object.entries(prev).filter(([key])=>!key.startsWith(`${selected.id}:`))))}>{language==='gu'?'ફરી શરૂ કરો':language==='hi'?'फिर शुरू करें':language==='fr'?'Recommencer':'Restart steps'}</button>
+      </div>
+      <ol className="recipe-step-list v146-checkable-steps">{selected.steps[language].map((s,i)=><li key={`${selected.id}-${i}`} className={checkedCookingSteps[`${selected.id}:${i}`]?'v146-step-done':''}><span className="step-number">{i+1}</span><div><strong>{c.stepLabel} {i+1}</strong><p>{s}</p><label className="v146-complete-step"><input type="checkbox" checked={!!checkedCookingSteps[`${selected.id}:${i}`]} onChange={e=>setCheckedCookingSteps(prev=>({...prev,[`${selected.id}:${i}`]:e.target.checked}))}/><span>{language==='gu'?'પૂર્ણ થયું':language==='hi'?'पूरा हुआ':language==='fr'?'Terminé':'Mark completed'}</span></label></div></li>)}</ol>
+      {linkedActive&&<p className="v146-method-source-note">{language==='en'?'These are independent GHM cooking instructions, not the original publisher’s method. For Dassana’s full photos and technique notes, open the original recipe link above.':'GHM cooking guidance is independently written. Consult the linked original recipe for source photographs and detailed techniques.'}</p>}
+    </div>
    </div></section></div></OverlayPortal>}
 
    {addConfirmMode&&<OverlayPortal><div className="modal-backdrop v127-add-shopping-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!busy)setAddConfirmMode(null)}}><section className="focus-dialog v127-add-shopping-confirm" role="dialog" aria-modal="true" aria-label={c.confirmAddTitle}><header className="focus-dialog-titlebar"><div><p className="eyebrow">RECIPE SHOPPING</p><h2>{c.confirmAddTitle}</h2><small>{c.confirmAddCopy}</small></div><button className="icon-btn" data-dialog-close="true" disabled={busy} onClick={()=>setAddConfirmMode(null)}>×</button></header><div className="focus-dialog-scroll"><div className="v127-add-shopping-summary"><div><small>{c.shoppingIngredients}</small><strong>{chosenRowsForMode(addConfirmMode).length}</strong></div><div><small>{c.destination}</small><strong>{activeList?.title||'Recipe shopping'}</strong></div></div><div className="v127-add-shopping-preview">{chosenRowsForMode(addConfirmMode).slice(0,8).map(row=><span key={row.name}><b>{ingName(row.name)}</b><small>{fmt(addConfirmMode==='shortage'?row.shortage:row.required)} {row.unit}</small></span>)}{chosenRowsForMode(addConfirmMode).length>8?<em>+{chosenRowsForMode(addConfirmMode).length-8} more</em>:null}</div></div><footer className="focus-dialog-actions"><button className="secondary" disabled={busy} onClick={()=>setAddConfirmMode(null)}>{c.cancel}</button><button className="primary" disabled={busy} onClick={()=>void add(addConfirmMode)}>{busy?'Adding…':c.confirmAddButton}</button></footer></section></div></OverlayPortal>}

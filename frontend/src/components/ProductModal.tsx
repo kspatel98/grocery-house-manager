@@ -77,6 +77,7 @@ async function resizeImageToDataUrl(file: File): Promise<string> {
 
 export default function ProductModal({ houseId, sections, modal, onClose, onSaved }: Props) {
   const product = modal.product;
+  const [barcodePhotoBusy, setBarcodePhotoBusy] = useState(false);
   const [form, setForm] = useState({
     section_id: product?.section_id || modal.sectionId || '',
     name: product?.name || '',
@@ -230,46 +231,58 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
     setScannerOpen(false);
   }
 
+  async function readBarcodePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const photo = event.target.files?.[0];
+    event.target.value = '';
+    if (!photo) return;
+    setScannerError('');
+    setBarcodePhotoBusy(true);
+    try {
+      const data = new FormData(); data.append('file', photo);
+      const response = await api.post<{barcode:string}>('/market/barcode-photo', data, { timeout: 30000 });
+      setField('barcode', response.data.barcode);
+      stopBarcodeScanner();
+    } catch (err) { setScannerError(errorMessage(err)); }
+    finally { setBarcodePhotoBusy(false); }
+  }
+
   async function startBarcodeScanner() {
     setScannerError('');
-    const Detector = (window as unknown as { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
-    if (!Detector) {
-      setScannerError('Camera barcode scanning is not supported by this browser. You can still type or paste the barcode.');
+    if (!window.isSecureContext) {
+      setScannerError('Camera access needs HTTPS. Use the Take photo option or type the printed barcode.');
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerError('Camera access is not available in this browser.');
+      setScannerError('Live camera is not available here. Use Take photo to open your phone camera.');
       return;
     }
     try {
       setScannerOpen(true);
+      // React first needs to mount the conditionally rendered <video> element.
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      const video = scannerVideoRef.current;
+      if (!video) throw new Error('Camera preview is not ready. Try again or use Take photo.');
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       scannerStreamRef.current = stream;
-      const video = scannerVideoRef.current;
-      if (!video) throw new Error('Camera preview is not ready.');
       video.srcObject = stream;
       await video.play();
+      const Detector = (window as unknown as { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+      if (!Detector) {
+        setScannerError('Camera is open, but this browser cannot decode barcodes live. Use Take photo below so GHM can read the printed digits, or enter them manually.');
+        return;
+      }
       const detector = new Detector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
       const scan = async () => {
         if (!scannerStreamRef.current || !scannerVideoRef.current) return;
         try {
           const results = await detector.detect(scannerVideoRef.current);
           const raw = results.find((row) => row.rawValue)?.rawValue?.trim();
-          if (raw) {
-            setField('barcode', raw);
-            stopBarcodeScanner();
-            return;
-          }
-        } catch {
-          // Some browsers throw transient detection errors between video frames.
-        }
+          if (raw) { setField('barcode', raw); stopBarcodeScanner(); return; }
+        } catch { /* An intermittent video frame may be incomplete. */ }
         scannerFrameRef.current = requestAnimationFrame(scan);
       };
       scannerFrameRef.current = requestAnimationFrame(scan);
-    } catch (err) {
-      stopBarcodeScanner();
-      setScannerError(errorMessage(err));
-    }
+    } catch (err) { stopBarcodeScanner(); setScannerError(errorMessage(err)); }
   }
 
   useEffect(() => () => stopBarcodeScanner(), []);
@@ -400,7 +413,11 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
                   <input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} inputMode="numeric" />
                   <button type="button" className="secondary barcode-scan-button" onClick={scannerOpen ? stopBarcodeScanner : startBarcodeScanner}>{scannerOpen ? 'Stop camera' : 'Scan'}</button>
                 </div>
-                <small>On supported phones, Scan uses the rear camera and fills the barcode automatically.</small>
+                <span className="secondary v147-barcode-photo-btn">
+                  {barcodePhotoBusy ? 'Reading photo…' : '📷 Take barcode photo'}
+                  <input type="file" accept="image/*" capture="environment" disabled={barcodePhotoBusy} onChange={readBarcodePhoto} />
+                </span>
+                <small>Live scanning uses your camera when supported. On iPhone, Take barcode photo opens the camera and reads visible printed barcode digits. Confirm the result before saving.</small>
               </label>
             </div>
             {scannerError && <div className="hint compact-message">{scannerError}</div>}

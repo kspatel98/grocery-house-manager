@@ -861,8 +861,21 @@ class SavingsSummaryOut(BaseModel):
     message: str
 
 
+class BasketPricedItemOut(BaseModel):
+    name: str
+    quantity: float
+    unit: str | None = None
+    unit_price: float
+    line_total: float
+    source: str
+    recorded_at: datetime | None = None
+    purchase_note: str | None = None
+
+
 class BasketStoreOptionOut(BaseModel):
     store_name: str
+    address: str | None = None
+    priced_products: list[BasketPricedItemOut] = Field(default_factory=list)
     # known_total is the sum of prices we can actually support for this store.
     # estimated_total is retained for frontend/backward compatibility and mirrors known_total.
     known_total: float = 0
@@ -881,6 +894,7 @@ class BasketStoreOptionOut(BaseModel):
 
 
 class BasketComparisonOut(BaseModel):
+    country_supported: bool = True
     currency_code: str = "CAD"
     premium_required: bool = False
     message: str

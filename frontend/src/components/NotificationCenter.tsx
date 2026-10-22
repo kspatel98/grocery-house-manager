@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { AdminUserOffer, PremiumTryStatus } from '../types';
+import type { FestivalMeal } from './FestivalMealAdvisor';
 import { backgroundTasks, markBackgroundTaskOpened, requestBackgroundResultFocus } from '../backgroundTasks';
 
 type NotificationItem = {
@@ -26,6 +27,7 @@ function seenKeys(): Set<string> {
 
 export default function NotificationCenter({ premiumTry, houseId, compact = false }: { premiumTry: PremiumTryStatus | null; houseId: number | null; compact?: boolean }) {
   const [offers, setOffers] = useState<AdminUserOffer[]>([]);
+  const [festivals,setFestivals] = useState<FestivalMeal[]>([]);
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(() => seenKeys());
   const [taskVersion, setTaskVersion] = useState(0);
@@ -50,6 +52,21 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
     return () => { active = false; window.removeEventListener('account:refresh', load); };
   }, []);
 
+
+  useEffect(() => {
+    let mounted=true;
+    const refreshFestivals=()=>{
+      if(localStorage.getItem('ghm_festival_meal_reminders_enabled')!=='yes'){
+        if(mounted)setFestivals([]);return;
+      }
+      void api.get<FestivalMeal[]>('/festival-meals/upcoming').then(({data})=>{if(mounted)setFestivals(data||[]);}).catch(()=>{if(mounted)setFestivals([]);});
+    };
+    refreshFestivals();
+    const timer=window.setInterval(refreshFestivals,6*60*60*1000);
+    window.addEventListener('ghm:festival-preference',refreshFestivals);
+    window.addEventListener('focus',refreshFestivals);
+    return()=>{mounted=false;window.clearInterval(timer);window.removeEventListener('ghm:festival-preference',refreshFestivals);window.removeEventListener('focus',refreshFestivals);};
+  },[]);
 
   useEffect(() => {
     const refresh = () => setTaskVersion((value) => value + 1);
@@ -83,6 +100,15 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
         eyebrow: 'PREMIUM TRY',
       });
     }
+    for (const festival of festivals){
+      next.unshift({
+        key:`festival:${festival.id}:${festival.festival_date}`,
+        title:`Plan meals for ${festival.name}`,
+        message:`${festival.dishes.join(', ')} — plan ingredients before the weekly shop or look for ready-made options.`,
+        href:houseId?`/houses/${houseId}/meals`:'/houses',
+        eyebrow:'FESTIVAL MEAL IDEA',
+      });
+    }
     const taskItems = backgroundTasks().filter((task) => (task.status === 'ready' || task.status === 'failed') && !task.openedAt).slice(0, 5).map((task) => ({
       key: `background:${task.id}:${task.status}`,
       title: task.status === 'ready' ? `${task.title} is ready` : `${task.title} needs attention`,
@@ -94,7 +120,7 @@ export default function NotificationCenter({ premiumTry, houseId, compact = fals
       backgroundFailed: task.status === 'failed',
     }));
     return [...taskItems, ...next].slice(0, 10);
-  }, [offers, premiumTry, houseId, taskVersion]);
+  }, [offers, premiumTry, houseId, taskVersion, festivals]);
 
   const unread = items.filter((item) => item.backgroundTaskId ? !item.opened : !seen.has(item.key)).length;
 

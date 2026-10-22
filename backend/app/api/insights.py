@@ -64,6 +64,7 @@ from app.schemas import (
     CommunityPriceSignalOut,
     BasketComparisonOut,
     BasketStoreOptionOut,
+    BasketPricedItemOut,
     HouseholdPlanDayOut,
     HouseholdPlanIn,
     HouseholdPlanOut,
@@ -682,6 +683,21 @@ def _basket_comparison(
     if not shopping_list:
         raise HTTPException(status_code=404, detail="Shopping list not found")
 
+    # Regional eligibility comes from the authenticated account, NOT device localStorage.
+    # Never spend a provider credit for a country where Canadian trip pricing is unsupported.
+    country = (user.country or 'Canada').strip().casefold() if user else 'canada'
+    if country not in {'canada', 'ca'}:
+        return BasketComparisonOut(
+            country_supported=False,
+            currency_code=currency_for_country(user.country),
+            message=f'Automatic grocery trip pricing is not yet available in {user.country}. Your list remains usable; no paid lookup was made.',
+            list_id=shopping_list.id,
+            list_title=shopping_list.title,
+            total_items=len([it for it in shopping_list.items if it.status != ShoppingItemStatus.skipped]),
+            location_label=', '.join(part for part in [user.city, user.country] if part),
+            last_refreshed_at=datetime.now(timezone.utc),
+        )
+
     items = [item for item in shopping_list.items if item.status != ShoppingItemStatus.skipped]
     total_items = len(items)
     now = datetime.now(timezone.utc)
@@ -718,19 +734,23 @@ def _basket_comparison(
     location_label = location_label or "Canada"
 
     budget_exhausted = False
-    trial_provider_used = False
+    trip_attempt_approved = False
+    provider_invocations = 0
+    # A user-initiated trip refresh has exactly one GHM price/flyer attempt.
+    # At most 2 underlying billable provider groups may run (live + flyers).
+    # The second group uses the same paid trip allowance rather than charging again.
     def may_purchase_for_house() -> bool:
-        nonlocal budget_exhausted, trial_provider_used
-        if trial_provider_allowed:
-            if trial_provider_used:
+        nonlocal budget_exhausted, trip_attempt_approved, provider_invocations
+        if provider_invocations >= 2:
+            budget_exhausted = True
+            return False
+        if not trip_attempt_approved:
+            if not trial_provider_allowed and not consume_house_provider_run(house_id, actor_id=user.id):
                 budget_exhausted = True
                 return False
-            trial_provider_used = True
-            return True
-        granted = consume_house_provider_run(house_id, actor_id=user.id)
-        if not granted:
-            budget_exhausted = True
-        return granted
+            trip_attempt_approved = True
+        provider_invocations += 1
+        return True
 
     live_rows = []
     live_attempted = False
@@ -869,6 +889,7 @@ def _basket_comparison(
         missing: list[str] = []
         priced = live_count = flyer_count = receipt_count = saved_count = 0
         freshest: datetime | None = None
+        priced_products: list[BasketPricedItemOut] = []
         for item in items:
             qty = max(float(item.requested_quantity or 1), 0.01)
             record = price_map.get(item.id, {}).get(store)
@@ -876,6 +897,12 @@ def _basket_comparison(
                 missing.append(item.product.name)
                 continue
             known_total += record["price"] * qty
+            priced_products.append(BasketPricedItemOut(
+                name=item.product.name, quantity=qty, unit=item.product.unit,
+                unit_price=round(record['price'], 2), line_total=round(record['price'] * qty, 2),
+                source=record['source'], recorded_at=record.get('recorded_at'),
+                purchase_note=record.get('purchase_note'),
+            ))
             priced += 1
             if record["source"] == "live":
                 live_count += 1
@@ -910,6 +937,7 @@ def _basket_comparison(
         store_options.append(
             BasketStoreOptionOut(
                 store_name=store,
+                priced_products=priced_products,
                 known_total=round(known_total, 2),
                 estimated_total=round(known_total, 2),
                 priced_items=priced,

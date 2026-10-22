@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import ReceiptStudio from '../components/ReceiptStudio';
+import FeatureUsageStrip from '../components/FeatureUsageStrip';
 import { FeaturePurposeCard, FeatureWhyButton } from '../components/FeaturePurpose';
 import type { House, Product, Receipt, Section, ShoppingList } from '../types';
 
@@ -50,11 +51,11 @@ export default function ReceiptScanPage() {
           <div className="feature-heading-with-why-v101"><h1>Scan receipt</h1><FeatureWhyButton feature="receipt_scan" label="Why?" /></div>
           <p>Turn one grocery receipt into organized inventory, shopping verification, saved prices and an optional shared expense.</p>
         </div>
-        <nav aria-label="Receipt shortcuts">
+        <div className="v147-feature-title-usage"><FeatureUsageStrip houseId={id} features={['receipt_scan']} compact /><nav aria-label="Receipt shortcuts">
           <Link to={`/houses/${id}/shopping`}>🛒 Shopping</Link>
           <Link to={`/houses/${id}/receipts`}>🗂️ History</Link>
           <Link to={`/houses/${id}/expenses`}>💸 Expenses</Link>
-        </nav>
+        </nav></div>
       </header>
       <FeaturePurposeCard feature="receipt_scan" />
       {loading && <section className="panel skeleton-panel">Loading receipt scanner…</section>}

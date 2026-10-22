@@ -1,5 +1,7 @@
 import type { AppLanguage } from './i18n';
 import { detailedRecipeSteps } from './recipeDetails';
+import { beginnerRecipeGuides } from './recipeBeginnerGuides';
+import { completeBasicCookingGuide } from './recipeBeginnerScaffold';
 export type Diet='jain'|'swaminarayan'|'veg'|'vegan'|'nonveg';
 export type MealKind='proper'|'light'|'breakfast'|'dessert'|'drink';
 export type Cuisine='Gujarati'|'Punjabi'|'South Indian'|'Maharashtrian'|'Rajasthani'|'North Indian'|'International';
@@ -31,7 +33,7 @@ r('tuvar-lilva',N('Tuvar Lilva','તુવેર લીલવા','तुवर 
 r('bateta',N('Bateta nu Shaak','બટેટાનું શાક','आलू की सब्ज़ी','Curry de pommes de terre'),'proper',['jain','swaminarayan','veg','vegan'],[{name:'Potato',qty:700,unit:'g'},{name:'Tomato',qty:180,unit:'g'},{name:'Oil',qty:25,unit:'ml'}], 'Temper spices, add potatoes and tomato and cook to desired gravy consistency.'),
 r('handvo',N('Handvo','હાંડવો','हांडवो','Handvo'),'breakfast',['swaminarayan','veg'],[{name:'Handvo flour',qty:350,unit:'g'},{name:'Yogurt',qty:250,unit:'g'},{name:'Bottle gourd',qty:300,unit:'g'},{name:'Oil',qty:40,unit:'ml'}], 'Ferment batter, mix grated bottle gourd, temper and bake or pan-cook until crisp outside.'),
 r('dhokla',N('Dhokla','ઢોકળા','ढोकला','Dhokla'),'light',['jain','swaminarayan','veg'],[{name:'Rice',qty:220,unit:'g'},{name:'Chana dal',qty:110,unit:'g'},{name:'Yogurt',qty:180,unit:'g'}], 'Ferment ground batter, steam until set and finish with tempering.'),
-r('khaman',N('Khaman','ખમણ','खमन','Khaman'),'light',['jain','swaminarayan','veg'],[{name:'Besan',qty:250,unit:'g'},{name:'Water',qty:300,unit:'ml'},{name:'Lemon',qty:1,unit:'pcs'},{name:'Oil',qty:25,unit:'ml'}], 'Make airy besan batter, steam, cut and pour tempering over it.'),
+r('khaman',N('Khaman','ખમણ','खमन','Khaman'),'light',['jain','swaminarayan','veg'],[{name:'Besan',qty:250,unit:'g'},{name:'Water',qty:300,unit:'ml'},{name:'Lemon',qty:1,unit:'pcs'},{name:'Fruit salt (ENO)',qty:5,unit:'g'},{name:'Oil',qty:25,unit:'ml'}], 'Make airy besan batter, steam, cut and pour tempering over it.'),
 r('khandvi',N('Khandvi','ખાંડવી','खांडवी','Khandvi'),'light',['jain','swaminarayan','veg'],[{name:'Besan',qty:150,unit:'g'},{name:'Yogurt',qty:300,unit:'g'},{name:'Water',qty:450,unit:'ml'}], 'Cook smooth besan-yogurt batter until thick, spread thin, roll and temper.'),
 r('patra',N('Patra','પાત્રા','पात्रा','Patra'),'light',['jain','swaminarayan','veg'],[{name:'Colocasia leaves',qty:8,unit:'pcs'},{name:'Besan',qty:220,unit:'g'},{name:'Jaggery',qty:25,unit:'g'}], 'Coat leaves with spiced besan paste, roll, steam, slice and temper.'),
 r('muthiya',N('Muthiya','મુઠિયા','मुठिया','Muthiya'),'light',['swaminarayan','veg'],[{name:'Whole wheat flour',qty:180,unit:'g'},{name:'Besan',qty:100,unit:'g'},{name:'Bottle gourd',qty:350,unit:'g'},{name:'Yogurt',qty:80,unit:'g'}], 'Make a soft vegetable dough, steam logs, slice and temper.'),
@@ -64,7 +66,7 @@ r('paneer-bhurji',N('Paneer Bhurji','પનીર ભુર્જી','पनी
 r('aloo-paratha',N('Aloo Paratha','આલૂ પરાઠા','आलू पराठा','Paratha aux pommes de terre'),'breakfast',['veg'],[{name:'Whole wheat flour',qty:320,unit:'g'},{name:'Potato',qty:500,unit:'g'},{name:'Ghee',qty:35,unit:'g'}],'Fill soft wheat dough with seasoned mashed potato, roll carefully and cook on a tawa with ghee.','Punjabi'),
 r('vegetable-pulao',N('Vegetable Pulao','શાકભાજી પુલાવ','वेज पुलाव','Pilaf aux légumes'),'proper',['veg'],[{name:'Rice',qty:300,unit:'g'},{name:'Mixed vegetables',qty:400,unit:'g'},{name:'Oil',qty:25,unit:'ml'},{name:'Ginger',qty:12,unit:'g',optional:true}], 'Rinse rice and prepare mixed vegetables. Toast aromatic spices in oil, add vegetables and rice, cover with water and cook gently until the rice is tender.','North Indian'),
 r('palak-paneer',N('Palak Paneer','પાલક પનીર','पालक पनीर','Palak paneer'),'proper',['veg'],[{name:'Spinach',qty:450,unit:'g'},{name:'Paneer',qty:350,unit:'g'},{name:'Tomato',qty:150,unit:'g'},{name:'Oil',qty:25,unit:'ml'},{name:'Ginger',qty:12,unit:'g',optional:true}], 'Clean and cook spinach until wilted, then blend it. Prepare a mild spiced base, combine with spinach, and briefly warm paneer in the sauce.','North Indian'),
-r('idli-sambar',N('Idli Sambar','ઇડલી સાંભાર','इडली सांभर','Idli sambar'),'breakfast',['veg','vegan'],[{name:'Idli rice',qty:300,unit:'g'},{name:'Urad dal',qty:120,unit:'g'},{name:'Tuvar dal',qty:180,unit:'g'},{name:'Mixed vegetables',qty:300,unit:'g'}],'Ferment idli batter and steam until fluffy; serve with a tangy vegetable sambar.','South Indian'),
+r('idli-sambar',N('Idli Sambar','ઇડલી સાંભાર','इडली सांभर','Idli sambar'),'breakfast',['veg','vegan'],[{name:'Idli rice',qty:300,unit:'g'},{name:'Urad dal',qty:120,unit:'g'},{name:'Tuvar dal',qty:180,unit:'g'},{name:'Mixed vegetables',qty:300,unit:'g'},{name:'Tamarind',qty:15,unit:'g',optional:true}],'Ferment idli batter and steam until fluffy; serve with a tangy vegetable sambar.','South Indian'),
 r('masala-dosa',N('Masala Dosa','મસાલા ઢોસા','मसाला डोसा','Masala dosa'),'breakfast',['veg','vegan'],[{name:'Rice',qty:360,unit:'g'},{name:'Urad dal',qty:120,unit:'g'},{name:'Potato',qty:500,unit:'g'},{name:'Oil',qty:35,unit:'ml'}],'Ferment rice-lentil batter, spread thin on a hot tawa and fill with seasoned potato masala.','South Indian'),
 r('vegetable-upma',N('Vegetable Upma','વેજીટેબલ ઉપમા','वेजिटेबल उपमा','Upma aux légumes'),'breakfast',['veg','vegan'],[{name:'Semolina',qty:300,unit:'g'},{name:'Mixed vegetables',qty:250,unit:'g'},{name:'Oil',qty:30,unit:'ml'},{name:'Water',qty:850,unit:'ml'}],'Roast semolina, temper spices and vegetables, then cook with hot water until soft and fluffy.','South Indian'),
 r('lemon-rice',N('Lemon Rice','લીંબુ રાઇસ','लेमन राइस','Riz au citron'),'proper',['jain','swaminarayan','veg','vegan'],[{name:'Rice',qty:320,unit:'g'},{name:'Lemon',qty:2,unit:'pcs'},{name:'Peanuts',qty:60,unit:'g'},{name:'Oil',qty:25,unit:'ml'}],'Cool cooked rice, prepare a mustard-peanut tempering and fold through with fresh lemon juice.','South Indian'),
@@ -169,7 +171,7 @@ export const recipes:Recipe[]=[...baseRecipes,...moreIndianRecipes].map(recipe=>
  cuisine:cuisineOverrides[recipe.id]||recipe.cuisine,
  ingredients:enrichRecipeIngredients(recipe),
  image:realImageOverrides[recipe.id]||cuisinePhotoFallback(recipe),
- steps:detailedRecipeSteps[recipe.id]||recipe.steps
+ steps:beginnerRecipeGuides[recipe.id]||completeBasicCookingGuide(recipe,detailedRecipeSteps[recipe.id]||recipe.steps)
 }));
 
 export const ingredientNames:Record<AppLanguage,Record<string,string>>={

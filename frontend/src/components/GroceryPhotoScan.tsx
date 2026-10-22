@@ -145,7 +145,7 @@ export default function GroceryPhotoScan({ houseId, sections, initialMode = 'wri
       <section className="v137-scan-modal" role="dialog" aria-modal="true" aria-label="Scan groceries" ref={dialogRef} tabIndex={-1}>
         <header className="v137-scan-header">
           <div><small>GHM SMART CAPTURE</small><h2>Scan groceries</h2><p>One picture, many groceries. You review everything before it changes your house.</p></div>
-          <button type="button" className="v137-scan-close" disabled={busy} onClick={onClose} aria-label="Close grocery scanner">×</button>
+          <div className="v147-scan-usage-head">{quota && <span className="v147-scan-usage-pill" aria-label="Grocery photo scan attempts remaining">{quota.remaining} / {quota.limit} scans left</span>}<button type="button" className="v137-scan-close" disabled={busy} onClick={onClose} aria-label="Close grocery scanner">×</button></div>
         </header>
         <div className="v137-scan-content">
           <div className="v137-scan-mode-grid" role="group" aria-label="What do you want to scan?">
@@ -160,7 +160,7 @@ export default function GroceryPhotoScan({ houseId, sections, initialMode = 'wri
             <button type="button" aria-pressed={destination === 'inventory'} className={destination === 'inventory' ? 'active' : ''} disabled={busy} onClick={() => setDestination('inventory')}>🏠 Inventory</button>
             <button type="button" aria-pressed={destination === 'shopping'} className={destination === 'shopping' ? 'active' : ''} disabled={busy} onClick={() => setDestination('shopping')}>🛒 Shopping list</button>
           </div></div> : <p className="v137-scan-info">Written lists go to <strong>Shopping Lists</strong>. They won't increase inventory quantities until shopping is finished.</p>}
-          {quota && <p className="v138-scan-quota">Image scans this month: <strong>{quota.remaining} of {quota.limit} remaining</strong> · Each provider attempt uses one credit, including unclear images.</p>}
+          <small className="v138-scan-quota">Each new image-processing attempt consumes one scan allowance, including unsuccessful reads.</small>
           {stage === 'choose' ? <div className="v137-scan-upload">
             <input ref={fileRef} type="file" id="v137-grocery-photo" accept="image/jpeg,image/png,image/webp" onChange={event => selectFile(event.target.files?.[0] || null)} disabled={busy} />
             {previewUrl ? <img src={previewUrl} alt="Selected grocery scan" className="v137-scan-thumbnail" /> : <span aria-hidden="true" className="v137-scan-upload-icon">📷</span>}

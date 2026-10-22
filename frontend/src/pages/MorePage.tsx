@@ -100,6 +100,7 @@ export default function MorePage() {
         { to: '/premium-try', icon: '✨', title: 'Try Premium Free', description: 'Choose one premium feature and use the real workflow once without a card.' },
         { to: '/pricing', icon: '♛', title: 'Plans', description: 'Compare plans, premium features and GHM Wallet tokens.' },
         { to: '/learn', icon: '✦', title: 'How GHM helps', description: 'Learn what each smart feature is for and when it is useful.' },
+        { to: '/merch', icon: '🛍️', title: 'GHM Merchandise', description: 'Explore branded kitchen aprons, totes and other everyday accessories.' },
         { to: '/reviews', icon: '★', title: 'Reviews & feedback', description: 'Rate GHM, edit your review and see household feedback.' },
         { to: '/support', icon: '?', title: 'Support', description: 'Get help with your GHM account, workflows and service.' },
         { to: '/privacy', icon: '◌', title: 'Privacy', description: 'Read how GHM handles privacy and your data.' },

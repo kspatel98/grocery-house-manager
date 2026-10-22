@@ -386,12 +386,37 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [postalCode, setPostalCode] = useState(() => localStorage.getItem('ghm_price_postal') || '');
+  const [expandedStore, setExpandedStore] = useState<string|null>(null);
+  const [showAllStores, setShowAllStores] = useState(false);
+  const [userGeo, setUserGeo] = useState<{country:string;city:string}>(() => cachedLocation());
+  const [postalCode, setPostalCode] = useState(() => ['canada','ca',''].includes(cachedLocation().country.trim().toLowerCase()) ? scopedPricePostal(cachedLocation()) : '');
   const listSignature = selectedList.items.map((item) => `${item.id}:${item.product_id}:${item.requested_quantity}:${item.status}:${item.product.updated_at || ''}`).join('|');
   const lastComparedSignature = useRef('');
   const [comparisonDirty, setComparisonDirty] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    const loadRegion = async () => {
+      try {
+        const { data } = await api.get<{country?:string;city?:string}>('/auth/me');
+        if (!active) return;
+        const region = {country:data.country || '',city:data.city || ''};
+        setUserGeo(region);
+        const saved = scopedPricePostal(region);
+        setPostalCode(saved);
+        if (region.country && !['canada','ca'].includes(region.country.toLowerCase())) {
+          setPostalCode(''); clearPricePostal();
+        }
+      } catch { /* Server still performs country validation. */ }
+    };
+    void loadRegion();
+    window.addEventListener('account:refresh',loadRegion);
+    return () => { active=false; window.removeEventListener('account:refresh',loadRegion); };
+  }, []);
+  const canadaEnabled = !userGeo.country || ['canada','ca'].includes(userGeo.country.toLowerCase());
+
   async function compare(forceRefresh = false, postal = postalCode, usePremiumTry = false, allowProviderRun = true) {
+    if (!canadaEnabled) { setError(`Automatic trip pricing is not available in ${userGeo.country}. No attempt was used.`); return; }
     if (!navigator.onLine) {
       setError('You are offline. The saved shopping list is still available; price recommendations will refresh when you reconnect.');
       return;
@@ -400,7 +425,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       setBusy(true);
       setError('');
       const normalizedPostal = postal.trim().toUpperCase();
-      if (normalizedPostal) localStorage.setItem('ghm_price_postal', normalizedPostal);
+      if (normalizedPostal) { localStorage.setItem('ghm_price_postal', normalizedPostal); localStorage.setItem('ghm_price_postal_location_scope', regionKey(userGeo)); }
       const request = async () => (await api.get<BasketComparison>(`/insights/houses/${houseId}/shopping-lists/${selectedList.id}/basket-comparison`, {
         params: {
           t: allowProviderRun ? Date.now() : undefined,
@@ -462,8 +487,8 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
     setDetailsOpen(false);
     setError('');
     // Cache-only first paint: zero new Apify spend just because someone opened the list.
-    void compare(false, localStorage.getItem('ghm_price_postal') || '', false, false);
-  }, [selectedList.id, houseId, comparisonSearchParams]);
+    void compare(false, canadaEnabled ? scopedPricePostal(userGeo) : '', false, false);
+  }, [selectedList.id, houseId, comparisonSearchParams, canadaEnabled]);
 
   useEffect(() => {
     if (lastComparedSignature.current && listSignature !== lastComparedSignature.current) setComparisonDirty(true);
@@ -481,8 +506,9 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
             <p className="eyebrow">Family Plus • automatic trip check</p>
             <div className="feature-heading-with-why-v101"><h2>Where should I buy “{selectedList.title}”?</h2><FeatureWhyButton feature="price_compare" label="Why?" /></div>
           </div>
-          <span className={`auto-status ${busy ? 'checking' : (comparisonDirty || comparison?.quantity_review_required || comparison?.price_review_required) ? 'review' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : (comparisonDirty || comparison?.quantity_review_required || comparison?.price_review_required) ? '!' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparisonDirty ? 'List changed' : comparison?.quantity_review_required ? 'Needs quantity review' : comparison?.price_review_required ? 'Needs price review' : comparison ? 'Prices checked' : 'Ready to check'}</span>
+          <div className="v147-trip-header-controls"><FeatureUsageStrip houseId={Number(houseId)} features={['paid_provider_day','paid_provider_month']} compact /><span className={`auto-status ${busy ? 'checking' : (comparisonDirty || comparison?.quantity_review_required || comparison?.price_review_required) ? 'review' : comparison ? 'done' : 'ready'}`}><i aria-hidden="true">{busy ? '●' : (comparisonDirty || comparison?.quantity_review_required || comparison?.price_review_required) ? '!' : comparison ? '✓' : '○'}</i>{busy ? 'Checking prices…' : comparisonDirty ? 'List changed' : comparison?.quantity_review_required ? 'Needs quantity review' : comparison?.price_review_required ? 'Needs price review' : comparison ? 'Prices checked' : 'Ready to check'}</span></div>
         </div>
+        {!canadaEnabled || comparison?.country_supported === false ? <div className="v147-country-warning" role="status">Automatic grocery trip pricing is not available in your selected country ({userGeo.country || 'outside Canada'}). Your shopping list still works. No paid price/flyer attempt will be charged.</div> : null}
         <p>GHM compares the whole list using shared live-price cache, current flyers and your household price history. Paid lookups run only for products whose shared result is missing or expired.</p>
 
         {comparison?.premium_required ? (
@@ -501,7 +527,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
           </div>
         ) : null}
 
-        {comparison?.live_configured && !comparison.premium_required ? (
+        {canadaEnabled && comparison?.live_configured && !comparison.premium_required ? (
           <form className="basket-location-inline" onSubmit={(event) => { event.preventDefault(); void compare(false, postalCode, false, true); }}>
             <label>
               <span>Postal code (optional) for nearby prices</span>
@@ -513,7 +539,7 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
         ) : null}
 
         <div className="whole-list-actions">
-          <button className="primary" type="button" onClick={() => compare(false, postalCode, false, true)} disabled={busy || !navigator.onLine}>{busy ? 'Refreshing prices…' : comparisonDirty ? 'Resume price check' : 'Refresh prices'}</button>
+          <button className="primary" type="button" onClick={() => compare(false, postalCode, false, true)} disabled={busy || !navigator.onLine || !canadaEnabled}>{busy ? 'Refreshing prices…' : comparisonDirty ? 'Resume price check' : 'Refresh prices'}</button>
           {comparison?.store_options.length && !comparison.quantity_review_required && !comparisonDirty ? <button className="secondary" type="button" onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen ? 'Collapse details' : comparison.price_review_required ? 'Review flagged prices' : 'View store details'}</button> : null}
         </div>
         {error && <div className="error compact-message">{error}</div>}
@@ -557,19 +583,31 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
 
       {comparison && !comparisonDirty && detailsOpen && !comparison.premium_required && comparison.store_options.length ? (
         <div className="whole-list-results">
-          {comparison.store_options.slice(0, 6).map((store, index) => (
-            <div key={store.store_name} className={!comparison.price_review_required && store.complete && index === 0 ? 'best' : ''}>
-              <span>{!comparison.price_review_required && store.complete && index === 0 ? '★ ' : ''}{store.store_name}</span>
-              <strong>{money(store.known_total, comparison.currency_code)}{store.complete ? '' : ' known'}</strong>
-              <small>{store.priced_items}/{store.total_items} items found • {store.source_summary}</small>
-              {!store.complete ? <small className="basket-missing-line">Missing: {store.missing_items.slice(0, 4).join(', ')}{store.missing_items.length > 4 ? ` +${store.missing_items.length - 4} more` : ''}</small> : null}
-            </div>
+          {(showAllStores ? comparison.store_options : comparison.store_options.slice(0, 5)).map((store, index) => (
+            <article key={store.store_name} className={`v147-store-card ${!comparison.price_review_required && store.complete && index === 0 ? 'best' : ''}`}>
+              <button type="button" className="v147-store-head" onClick={() => setExpandedStore(current => current === store.store_name ? null : store.store_name)} aria-expanded={expandedStore===store.store_name}>
+                <span>{!comparison.price_review_required && store.complete && index === 0 ? '★ ' : ''}{store.store_name}</span>
+                <strong>{money(store.known_total, comparison.currency_code)}{store.complete ? '' : ' known'}</strong>
+                <small>{store.priced_items}/{store.total_items} products • {store.source_summary} • {expandedStore===store.store_name ? 'Hide details ↑' : 'View details ↓'}</small>
+              </button>
+              {expandedStore === store.store_name ? <div className="v147-store-expanded">
+                <p>{store.address || 'An exact store branch address was not supplied with these price records. Select a branch before travelling.'}</p>
+                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([store.address || store.store_name, userGeo.city, userGeo.country].filter(Boolean).join(', '))}`} target="_blank" rel="noreferrer">Find nearby branch on Google Maps ↗</a>
+                <div className="v147-priced-items">{(store.priced_products || []).map((item, i) => <div key={`${item.name}-${i}`}><span><b>{item.name}</b><small>{item.quantity} {item.unit || ''} × {money(item.unit_price, comparison.currency_code)} · {item.source}{item.purchase_note ? ` · ${item.purchase_note}` : ''}</small></span><strong>{money(item.line_total, comparison.currency_code)}</strong></div>)}</div>
+                {store.missing_items.length ? <p>Unavailable prices: {store.missing_items.join(', ')}. These are excluded from the total.</p> : null}
+              </div> : null}
+            </article>
           ))}
+          {!showAllStores && comparison.store_options.length > 5 ? <button type="button" className="secondary v147-more-stores" onClick={() => setShowAllStores(true)}>Show {comparison.store_options.length-5} more stores</button> : null}
+          {showAllStores && comparison.store_options.length > 5 ? <button type="button" className="secondary v147-more-stores" onClick={() => setShowAllStores(false)}>Show fewer stores</button> : null}
           {comparison.split_store_total != null ? (
             <div className={comparison.split_store_worth_it ? 'whole-list-split-result worth-it' : 'whole-list-split-result'}>
-              <span>Two-store check{comparison.split_store_names?.length ? ` • ${comparison.split_store_names.join(' + ')}` : ''}</span>
+              <span>Two-store plan • {comparison.split_store_names.join(' + ')}</span>
               <strong>{money(comparison.split_store_total, comparison.currency_code)}</strong>
-              <small>{comparison.split_store_recommendation || 'Every item has a real saved or current price in this two-store combination.'}</small>
+              <small>{comparison.split_store_recommendation || 'Both stores cover the grocery list with observed prices.'}</small>
+              <details className="v147-split-details"><summary>View each product's recommended store</summary>{comparison.split_store_picks.map((pick,i)=><p key={i}>{pick}</p>)}</details>
+              {comparison.split_store_names.length === 2 ? <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(comparison.split_store_names[0]+', '+userGeo.city+', '+userGeo.country)}&destination=${encodeURIComponent(comparison.split_store_names[1]+', '+userGeo.city+', '+userGeo.country)}&travelmode=driving`} target="_blank" rel="noreferrer">Explore a two-store route on Google Maps ↗</a> : null}
+              <small>Choose the exact branches in Maps; these are retailer-name searches, not verified store addresses or driving distances.</small>
             </div>
           ) : null}
           <p className="small-muted basket-no-guess-note">Only prices we actually found are totaled. Missing prices are never filled with guesses.</p>
@@ -577,6 +615,23 @@ function WholeListComparison({ houseId, selectedList, premiumTry }: { houseId: n
       ) : null}
     </section>
   );
+}
+
+function regionKey(region:{country:string;city:string}) {
+  return `${(region.country || 'Canada').trim().toLocaleLowerCase()}|${(region.city || '').trim().toLocaleLowerCase()}`;
+}
+function clearPricePostal() {
+  localStorage.removeItem('ghm_price_postal');
+  localStorage.removeItem('ghm_price_postal_location_scope');
+}
+function scopedPricePostal(region:{country:string;city:string}) {
+  // Intentionally invalidate legacy postal values without saved location attribution.
+  // A postal code for a previous city must not be reused silently in a trip search.
+  const scope=localStorage.getItem('ghm_price_postal_location_scope');
+  const value=localStorage.getItem('ghm_price_postal') || '';
+  if(!value)return '';
+  if(!scope || scope !== regionKey(region)) {clearPricePostal();return '';}
+  return value;
 }
 
 function cachedLocation() {
@@ -608,7 +663,7 @@ function SmartShoppingSuggestions({ houseId, selectedList, premiumTry }: { house
     if (!selectedList) return;
     try {
       setBusy(true);
-      const flyerPostal = localStorage.getItem('ghm_price_postal') || '';
+      const flyerPostal = scopedPricePostal({city,country});
       const { data } = await api.get<ShoppingSuggestions>(`/market/houses/${houseId}/shopping-lists/${selectedList.id}/suggestions`, {
         params: { city: city || undefined, country: country || undefined, postal_code: flyerPostal || undefined, lat: nextLat ?? undefined, lng: nextLng ?? undefined },
         headers: usePremiumTry ? { 'X-GHM-Premium-Try': 'nearby_store_suggestions' } : undefined,

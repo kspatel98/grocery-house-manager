@@ -733,7 +733,10 @@ export type SavingsSummary = {
   message: string;
 };
 
+export type BasketPricedItem = { name:string; quantity:number; unit?:string|null; unit_price:number; line_total:number; source:string; recorded_at?:string|null; purchase_note?:string|null };
 export type BasketStoreOption = {
+  address?:string|null;
+  priced_products?:BasketPricedItem[];
   store_name: string;
   known_total: number;
   estimated_total: number;
@@ -751,6 +754,7 @@ export type BasketStoreOption = {
 };
 
 export type BasketComparison = {
+  country_supported?:boolean;
   currency_code: string;
   premium_required: boolean;
   message: string;

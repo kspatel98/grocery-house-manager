@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 import requests
-from fastapi import APIRouter, Depends, Query, Header
+from fastapi import APIRouter, Depends, Query, Header, UploadFile, File, HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -1065,3 +1065,42 @@ def shopping_suggestions(
         nearby_stores=stores,
         item_suggestions=suggestions,
     )
+
+
+@router.post('/barcode-photo')
+async def barcode_photo(file: UploadFile = File(...), _: User = Depends(get_current_user)):
+    """Camera-photo fallback: reads only printed EAN/UPC digits with checksum validation.
+
+    This is intentionally not marketed as optical barcode decoding. If the digits are
+    obscured, the client offers manual entry rather than fabricating an identity.
+    """
+    from io import BytesIO
+    from PIL import Image, ImageOps, ImageEnhance
+    import pytesseract
+    payload = await file.read(6_000_001)
+    if len(payload) > 6_000_000:
+        raise HTTPException(413, 'Barcode photo is too large (maximum 6 MB).')
+    if not (file.content_type or '').startswith('image/'):
+        raise HTTPException(400, 'Please capture a photo of the product barcode.')
+    try:
+        img = Image.open(BytesIO(payload))
+        img.verify()
+        img = Image.open(BytesIO(payload)).convert('RGB')
+        if img.width * img.height > 20_000_000:
+            raise ValueError('Image too large')
+        img.thumbnail((2000, 2000))
+        gray = ImageEnhance.Contrast(ImageOps.grayscale(img)).enhance(2)
+        raw = pytesseract.image_to_string(gray, config='--psm 11 -c tessedit_char_whitelist=0123456789')
+    except Exception:
+        raise HTTPException(422, 'Unable to read printed barcode digits. Try a clearer photo or type the digits.')
+    def valid_gtin(value: str) -> bool:
+        if len(value) not in (8, 12, 13, 14): return False
+        digits = [int(c) for c in value]
+        check = sum(d * (3 if i % 2 else 1) for i, d in enumerate(reversed(digits[:-1])))
+        return (10 - check % 10) % 10 == digits[-1]
+    compact = re.sub(r'(?<=\d)[\s-]+(?=\d)', '', raw)
+    numbers = re.findall(r'\d{8,14}', compact)
+    match = next((n for n in numbers if valid_gtin(n)), None)
+    if not match:
+        raise HTTPException(422, 'Barcode digits were not confidently recognized. Please enter them manually.')
+    return {'barcode': match, 'method': 'printed-digits-ocr', 'confidence': 'checksum-validated'}

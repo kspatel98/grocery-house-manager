@@ -276,12 +276,11 @@ export default function KitchenVisionPage() {
           <p>Fridge, cupboards, rack, pantry, freezer—scan one area at a time. GHM remembers what normally appears there and never treats a hidden product as gone just because the camera missed it.</p>
         </div>
         <div className="kitchen-map-mode-actions-v96">
-          <button type="button" className={!fullRefresh ? 'primary' : 'secondary'} onClick={() => startQuick(selectedZoneId || undefined)}>Quick scan</button>
+              <button type="button" className={!fullRefresh ? 'primary' : 'secondary'} onClick={() => startQuick(selectedZoneId || undefined)}>Quick scan</button>
           <button type="button" className={fullRefresh ? 'primary' : 'secondary'} onClick={startFullRefresh}>Full kitchen refresh</button>
         </div>
       </header>
 
-      <FeatureUsageStrip houseId={id} features={['kitchen_vision']} compact />
       {error ? <div className="error">{error}</div> : null}
       {message ? <div className="success">{message}</div> : null}
       {premiumTry?.available ? (premiumTry.selected_feature === 'kitchen_vision' ? <div className="premium-try-invite-v102"><span aria-hidden="true">✨</span><div><strong>Your free Kitchen Vision experience is ready.</strong><small>Scan one real storage area. The try is used only after GHM successfully analyzes it; you can still review changes before applying them.</small></div><b aria-hidden="true">Ready</b></div> : <Link className="premium-try-invite-v102" to={`/premium-try?feature=kitchen_vision&house=${id}`}><span aria-hidden="true">✨</span><div><strong>Want to see Kitchen Vision before subscribing?</strong><small>Choose it as your one free Premium Try. One successful scan, no card required.</small></div><b aria-hidden="true">→</b></Link>) : null}
