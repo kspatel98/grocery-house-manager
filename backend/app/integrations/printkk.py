@@ -1,0 +1,70 @@
+"""PrintKK account API adapter. No implicit retries for order creation or payment.
+
+API signatures and exact request/response structures MUST be validated against
+https://api-docs.printkk.com/ using the account's staging credentials before
+MERCH_CHECKOUT_ENABLED or PRINTKK_AUTO_PAY is switched on.
+"""
+import logging
+import requests
+from app.core.config import settings
+
+log=logging.getLogger(__name__)
+class PrintKKError(RuntimeError): pass
+
+class PrintKKClient:
+    def __init__(self, api_key=None):
+        self.key=api_key or settings.printkk_api_key
+        if not self.key:raise PrintKKError('PRINTKK_API_KEY is missing')
+        base=settings.printkk_api_base.rstrip('/')
+        if not base.startswith('https://api.printkk.com/'):
+            raise PrintKKError('Only the official PrintKK HTTPS endpoint is permitted.')
+        self.base=base
+    def call(self,method,path,payload=None):
+        if not path.startswith('/api/v1/') or '?' in path or '..' in path:
+            raise PrintKKError('Invalid PrintKK endpoint.')
+        try:
+            r=requests.request(method,self.base+path,headers={'Api-Key':self.key,'Accept':'application/json'},
+                json=payload if method!='GET' else None, timeout=(5,18),allow_redirects=False)
+            r.raise_for_status()
+            data=r.json()
+            if data.get('success') is not True:
+                raise PrintKKError('PrintKK refused the operation: '+str(data.get('msg') or data.get('code'))[:200])
+            return data.get('data') or {}
+        except PrintKKError:raise
+        except requests.RequestException as e:
+            # Important: timeout may occur AFTER provider accepted POST.
+            raise PrintKKError('PrintKK network result uncertain; reconcile in PrintKK before retrying.') from e
+        except ValueError as e:raise PrintKKError('Invalid provider JSON response.') from e
+    def order_detail(self,order_id):
+        if not str(order_id).isdigit():raise PrintKKError('Invalid supplier ID')
+        return self.call('GET',f'/api/v1/order/{order_id}')
+    def pay(self,order_id):
+        return self.call('POST','/api/v1/pay/wallet',{'orderId':order_id})
+    def payment(self,order_id):
+        if not str(order_id).isdigit():raise PrintKKError('Invalid supplier ID')
+        return self.call('GET',f'/api/v1/pay/{order_id}')
+    def cancel(self,order_id):
+        if not str(order_id).isdigit():raise PrintKKError('Invalid supplier ID')
+        return self.call('PUT',f'/api/v1/order/cancel/{order_id}',{})
+    def create_order(self,order):
+        """Draft creation, intentionally never charged during this API call.
+
+        Only admin invokes this, after user payment; payload mirrors public API
+        concepts, but supplier-specific acceptance must be proved with a real
+        non-customer pilot. On timeout the DB blocks resubmission automatically.
+        """
+        import json
+        a=json.loads(order.shipping_address_json)
+        items=json.loads(order.items_json)
+        payload={
+            'externalOrderId':order.public_id,
+            'orderItems':[{'designSpecificationCode':x['printkk_design_specification_code'],
+                           'quantity':x['quantity']} for x in items],
+            'shippingAddress':{
+                'firstName':a['name'].split(' ')[0],
+                'lastName':' '.join(a['name'].split(' ')[1:]) or '-',
+                'address1':a['line1'],'address2':a.get('line2') or '',
+                'city':a['city'],'state':a['province'], 'postalCode':a['postal_code'],
+                'country':'CA','phone':a.get('phone') or ''},
+            'shippingType':['economy','standard','express']}
+        return self.call('POST','/api/v1/order',payload)

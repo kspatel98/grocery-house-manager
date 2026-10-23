@@ -852,7 +852,7 @@ class GuideArticle(Base):
 
 
 class MerchCatalogProduct(Base):
-    """Admin-editable catalog. Orders are deliberately disabled until verified fulfillment is wired."""
+    """Admin-editable catalog; old orders store immutable product snapshots."""
     __tablename__ = 'merch_catalog_products'
     id: Mapped[int] = mapped_column(primary_key=True)
     sku: Mapped[str] = mapped_column(String(80), unique=True, index=True)
@@ -864,6 +864,57 @@ class MerchCatalogProduct(Base):
     printkk_design_id: Mapped[str | None] = mapped_column(String(140), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class MerchOrder(Base):
+    """Immutable financial snapshots with explicit customer/supplier lifecycles."""
+    __tablename__ = 'merch_orders'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='RESTRICT'), index=True)
+    client_key: Mapped[str] = mapped_column(String(100))
+    cart_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(40), default='awaiting_payment', index=True)
+    customer_name: Mapped[str] = mapped_column(String(180))
+    customer_email: Mapped[str] = mapped_column(String(255))
+    shipping_address_json: Mapped[str] = mapped_column(Text)
+    items_json: Mapped[str] = mapped_column(Text)
+    subtotal_cents: Mapped[int] = mapped_column(Integer)
+    shipping_cents: Mapped[int] = mapped_column(Integer)
+    tax_cents: Mapped[int] = mapped_column(Integer)
+    total_cents: Mapped[int] = mapped_column(Integer)
+    tokens_reserved: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_refunded: Mapped[bool] = mapped_column(Boolean, default=False)
+    stripe_due_cents: Mapped[int] = mapped_column(Integer, default=0)
+    stripe_session_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_refund_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    payment_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    printkk_order_id: Mapped[str | None] = mapped_column(String(140), unique=True, nullable=True)
+    provider_stage: Mapped[str] = mapped_column(String(40), default='not_submitted')
+    provider_status: Mapped[str | None] = mapped_column(String(70), nullable=True)
+    provider_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    provider_response_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tracking_number: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    tracking_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    carrier: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cancellation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    support_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    __table_args__ = (UniqueConstraint('user_id','client_key', name='uq_merch_user_checkout_key'),)
+
+
+class MerchOrderEvent(Base):
+    __tablename__ = 'merch_order_events'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('merch_orders.id',ondelete='CASCADE'), index=True)
+    event_key: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    actor_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    kind: Mapped[str] = mapped_column(String(60))
+    detail: Mapped[str] = mapped_column(Text, default='')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 

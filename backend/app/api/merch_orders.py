@@ -1,0 +1,580 @@
+"""GHM merchandise ordering: CAD amounts, signed payments, wallet escrow, audit events.
+
+Live checkout is feature-gated. Backend always derives price/stock/tax, never trusts
+client totals. PrintKK order submission is a separate administrative workflow.
+"""
+from __future__ import annotations
+import hashlib
+import json
+import logging
+import secrets
+from datetime import datetime, timezone
+from typing import Literal
+import stripe
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+from app.api.deps import get_current_user
+from app.api.admin import require_admin
+from app.api.credit_wallet import _balance, _increase, _decrease
+from app.core.config import settings
+from app.db.session import get_db
+from app.models import MerchCatalogProduct, MerchOrder, MerchOrderEvent, CreditWalletEvent, User
+
+router = APIRouter(prefix='/merch', tags=['GHM Store orders'])
+logger = logging.getLogger(__name__)
+
+class Address(BaseModel):
+    name: str = Field(min_length=2,max_length=140)
+    line1: str = Field(min_length=5,max_length=180)
+    line2: str = Field(default='',max_length=180)
+    city: str = Field(min_length=2,max_length=120)
+    province: str = Field(min_length=2,max_length=80)
+    postal_code: str = Field(min_length=3,max_length=16)
+    country: Literal['CA'] = 'CA'
+    phone: str = Field(default='',max_length=30)
+    @field_validator('province')
+    @classmethod
+    def valid_province(cls,value):
+        value=value.upper().strip()
+        if value not in {'AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'}:
+            raise ValueError('Select a Canadian province or territory')
+        return value
+    @field_validator('postal_code')
+    @classmethod
+    def valid_postal(cls,value):
+        import re
+        value=value.upper().replace(' ','').strip()
+        if not re.fullmatch(r'[ABCEGHJ-NPRSTVXY][0-9][ABCEGHJ-NPRSTV-Z][0-9][ABCEGHJ-NPRSTV-Z][0-9]',value):
+            raise ValueError('Enter a valid Canadian postal code')
+        return value[:3]+' '+value[3:]
+
+class CartLine(BaseModel):
+    product_id: int = Field(gt=0)
+    quantity: int = Field(ge=1,le=10)
+
+class QuoteRequest(BaseModel):
+    items: list[CartLine] = Field(min_length=1,max_length=15)
+    shipping: Address
+    tokens: int = Field(default=0,ge=0,le=500)
+
+class CheckoutRequest(QuoteRequest):
+    idempotency_key: str = Field(min_length=16,max_length=100,pattern=r'^[a-zA-Z0-9_-]+$')
+
+class CancelRequest(BaseModel):
+    reason: str = Field(default='Customer requested cancellation.',max_length=400)
+
+class AdminAction(BaseModel):
+    reason: str = Field(default='',max_length=500)
+
+
+def ready():
+    return bool(settings.merch_checkout_enabled and settings.merch_tax_enabled and
+                settings.stripe_secret_key and settings.stripe_webhook_secret and
+                settings.printkk_api_key and settings.merch_shipping_cents_cad>=0)
+
+def require_ready():
+    if not ready():
+        raise HTTPException(503,'GHM Store checkout is not enabled until shipping, Stripe Tax, PrintKK and signed payments are verified.')
+
+def event(db, order, kind, detail='', key=None, actor=None):
+    db.add(MerchOrderEvent(order_id=order.id,kind=kind,detail=detail[:1500],event_key=key,actor_user_id=actor))
+
+def snapshot(db, body):
+    ids=[x.product_id for x in body.items]
+    if len(set(ids))!=len(ids):raise HTTPException(400,'Combine duplicate cart lines before checkout.')
+    rows=db.query(MerchCatalogProduct).filter(MerchCatalogProduct.id.in_(ids)).all()
+    lookup={x.id:x for x in rows}
+    items=[]
+    for line in body.items:
+        p=lookup.get(line.product_id)
+        if not p or not p.active or p.price_cents_cad<=0 or not p.printkk_design_id:
+            raise HTTPException(400,f'Item {line.product_id} is unavailable or missing its PrintKK variant.')
+        items.append({'product_id':p.id,'sku':p.sku,'name':p.name,'quantity':line.quantity,
+            'unit_cents':p.price_cents_cad,'printkk_design_specification_code':p.printkk_design_id,
+            'image_url':p.image_url})
+    subtotal=sum(x['unit_cents']*x['quantity'] for x in items)
+    if subtotal>2_000_000:raise HTTPException(400,'Cart exceeds the order maximum.')
+    return items,subtotal
+
+def tax_quote(subtotal,shipping_cents,address):
+    """Stripe Tax must calculate the full taxable sale *before* GHM credit application.
+
+    Merchant must activate and validate tax registrations in Stripe. The customer
+    is not charged through this calculation; Checkout charges its fixed result.
+    """
+    if not settings.merch_tax_enabled:
+        raise HTTPException(503,'Stripe Tax for GHM merchandise is not configured.')
+    stripe.api_key=settings.stripe_secret_key
+    try:
+        result=stripe.tax.Calculation.create(currency='cad',
+            customer_details={'address':{'line1':address.line1,'line2':address.line2 or None,
+                'city':address.city,'state':address.province,'postal_code':address.postal_code,
+                'country':'CA'},'address_source':'shipping'},
+            line_items=[{'amount':subtotal,'reference':'ghm-merch-goods','tax_behavior':'exclusive'}],
+            shipping_cost={'amount':shipping_cents,'tax_behavior':'exclusive'})
+        amount_total=int(result['amount_total'])
+        tax=int(result['tax_amount_exclusive']) if result.get('tax_amount_exclusive') is not None else amount_total-subtotal-shipping_cents
+        if tax<0 or amount_total!=subtotal+shipping_cents+tax:raise ValueError('Inconsistent Stripe Tax result')
+        return tax, str(result.get('id') or '')
+    except Exception as exc:
+        logger.exception('Merchandise tax calculation failed')
+        raise HTTPException(503,'Unable to calculate delivery taxes. No purchase was made.') from exc
+
+def quote(db,body,user_id):
+    require_ready()
+    items,sub=snapshot(db,body)
+    delivery=int(settings.merch_shipping_cents_cad)
+    tax,_=tax_quote(sub,delivery,body.shipping)
+    total=sub+delivery+tax
+    balance=_balance(db,'user',user_id)
+    max_tokens=min(balance,settings.merch_max_tokens_per_order,total//100)
+    if body.tokens>max_tokens:
+        raise HTTPException(400,f'You can apply up to {max_tokens} available whole GHM Tokens to this order.')
+    token_use=body.tokens
+    due=total-token_use*100
+    if 0<due<50:
+        # Stripe's minimum CAD payment must be met; user can use one fewer token.
+        raise HTTPException(400,'Card remainder must be at least CA$0.50. Reduce tokens by one.')
+    return {'items':items,'subtotal_cents':sub,'shipping_cents':delivery,'tax_cents':tax,
+      'total_cents':total,'tokens':token_use,'tokens_available':balance,
+      'max_tokens':max_tokens,'card_cents':due,'currency':'CAD',
+      'tax_note':'Tax estimated using Stripe Tax. Seller registrations and tax treatment require verification.'}
+
+def public_order(o, include_private=False):
+    result={'id':o.public_id,'status':o.status,'items':json.loads(o.items_json),
+        'subtotal_cents':o.subtotal_cents,'shipping_cents':o.shipping_cents,
+        'tax_cents':o.tax_cents,'total_cents':o.total_cents,'tokens_used':o.tokens_reserved,
+        'card_cents':o.stripe_due_cents,'created_at':o.created_at.isoformat() if o.created_at else None,
+        'provider_stage':o.provider_stage,'provider_status':o.provider_status,
+        'tracking_number':o.tracking_number,'tracking_url':o.tracking_url,'carrier':o.carrier,
+        'cancellation_reason':o.cancellation_reason}
+    if include_private:
+        result.update({'email':o.customer_email,'shipping_address':json.loads(o.shipping_address_json),
+            'printkk_order_id':o.printkk_order_id,'provider_response':o.provider_response_json,
+            'stripe_session_id':o.stripe_session_id,'stripe_refund_id':o.stripe_refund_id,
+            'support_note':o.support_note})
+    return result
+
+@router.post('/quote')
+def create_quote(body:QuoteRequest,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    return quote(db,body,user.id)
+
+@router.post('/checkout')
+def checkout(body:CheckoutRequest,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    require_ready()
+    digest=hashlib.sha256(body.model_dump_json(exclude={'idempotency_key'}).encode()).hexdigest()
+    old=db.query(MerchOrder).filter_by(user_id=user.id,client_key=body.idempotency_key).first()
+    if old:
+        if old.cart_hash!=digest:raise HTTPException(409,'Checkout key was already used for a different order.')
+        if old.status in ('checkout_attention','awaiting_payment') and not old.stripe_checkout_url:
+            raise HTTPException(409,'Checkout requires Stripe reconciliation. Contact GHM support with the order reference.')
+        return {'order':public_order(old),'checkout_url':old.stripe_checkout_url,'reused':True}
+    total=quote(db,body,user.id)
+    order=MerchOrder(public_id='GHM-'+secrets.token_hex(7).upper(),user_id=user.id,
+        client_key=body.idempotency_key,cart_hash=digest,
+        status='awaiting_payment' if total['card_cents'] else 'paid',
+        customer_name=body.shipping.name,customer_email=user.email,
+        shipping_address_json=body.shipping.model_dump_json(),items_json=json.dumps(total['items']),
+        subtotal_cents=total['subtotal_cents'],shipping_cents=total['shipping_cents'],
+        tax_cents=total['tax_cents'],total_cents=total['total_cents'],
+        tokens_reserved=total['tokens'],stripe_due_cents=total['card_cents'],
+        payment_verified_at=datetime.now(timezone.utc) if not total['card_cents'] else None)
+    try:
+        if total['tokens'] and not _decrease(db,'user',user.id,total['tokens']):
+            db.rollback();raise HTTPException(409,'GHM Token balance changed. Refresh checkout.')
+        db.add(order);db.flush()
+        if total['tokens']:
+            db.add(CreditWalletEvent(owner_type='user',owner_id=user.id,actor_user_id=user.id,
+                delta=-total['tokens'],event_type='merch_escrow',transfer_key=order.public_id,
+                amount_cents=total['tokens']*100))
+        event(db,order,'created',actor=user.id)
+        if not total['card_cents']:event(db,order,'payment_verified','All-token checkout; securely debited.',actor=user.id)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        previous=db.query(MerchOrder).filter_by(user_id=user.id,client_key=body.idempotency_key).first()
+        if previous and previous.cart_hash==digest:
+            return {'order':public_order(previous),'checkout_url':previous.stripe_checkout_url,'reused':True}
+        raise HTTPException(409,'Checkout collision. Please retry with a new order key.')
+    if not total['card_cents']:
+        return {'order':public_order(order),'checkout_url':None,'reused':False}
+    stripe.api_key=settings.stripe_secret_key
+    try:
+        session=stripe.checkout.Session.create(mode='payment',payment_method_types=['card'],
+            customer_email=user.email,
+            line_items=[{'price_data':{'currency':'cad','unit_amount':total['card_cents'],
+                'product_data':{'name':f'GHM Merchandise order {order.public_id}',
+                   'description':f"Total CA${total['total_cents']/100:.2f}, including {total['tokens']} GHM Tokens and taxes"}},'quantity':1}],
+            success_url=f"{settings.frontend_url.rstrip('/')}/merch?order={order.public_id}&payment=success",
+            cancel_url=f"{settings.frontend_url.rstrip('/')}/merch?order={order.public_id}&payment=cancelled",
+            client_reference_id=order.public_id,
+            metadata={'kind':'ghm_merch','order_id':str(order.id),'public_id':order.public_id,
+                'amount_cents':str(total['card_cents']),'user_id':str(user.id)},
+            idempotency_key='ghm-merch-session-'+order.public_id)
+        order.stripe_session_id=str(session.id);order.stripe_checkout_url=str(session.url)
+        event(db,order,'stripe_checkout_created')
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception('Stripe merch session creation uncertain: %s',order.public_id)
+        # Do not release escrow automatically: Stripe may have created a Session
+        # before a timeout. Reconcile by idempotency key; avoid duplicate orders.
+        order=db.get(MerchOrder,order.id)
+        order.status='checkout_attention'
+        event(db,order,'checkout_attention','Stripe creation result uncertain; admin reconciliation required.')
+        db.commit()
+        raise HTTPException(503,'Checkout requires review. No second order should be created. Contact GHM support.') from exc
+    return {'order':public_order(order),'checkout_url':order.stripe_checkout_url,'reused':False}
+
+@router.get('/orders')
+def my_orders(db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    return [public_order(o) for o in db.query(MerchOrder).filter_by(user_id=user.id).order_by(MerchOrder.id.desc()).limit(100)]
+
+@router.get('/orders/{public_id}')
+def order_detail(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    order=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
+    if not order:raise HTTPException(404,'Order not found.')
+    return public_order(order)
+
+@router.get('/orders/{public_id}/receipt')
+def order_receipt(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
+    if not o:raise HTTPException(404,'Order not found.')
+    return {'receipt_number':o.public_id,'date':o.created_at.isoformat() if o.created_at else None,
+      'merchant':'Grocery House Manager','currency':'CAD','items':json.loads(o.items_json),
+      'subtotal_cents':o.subtotal_cents,'shipping_cents':o.shipping_cents,
+      'tax_cents':o.tax_cents,'total_cents':o.total_cents,'ghm_tokens_used':o.tokens_reserved,
+      'stripe_paid_cents':o.stripe_due_cents,'payment_status':'paid' if o.payment_verified_at else 'unpaid',
+      'status':o.status,'delivery':json.loads(o.shipping_address_json)}
+
+@router.post('/orders/{public_id}/cancel-request')
+def request_cancel(public_id:str,body:CancelRequest,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if o.status in ('canceled','refunded','refund_pending'):
+        return public_order(o)
+    if o.status not in ('awaiting_payment','checkout_attention','paid','fulfillment_review','supplier_unpaid','submitted'):
+        raise HTTPException(409,'This order is being fulfilled. Please contact support to discuss returns.')
+    o.cancellation_reason=body.reason
+    if o.status in ('paid','fulfillment_review','supplier_unpaid','submitted'):
+        o.status='cancel_requested'
+    event(db,o,'cancel_requested',body.reason,actor=user.id)
+    db.commit()
+    return public_order(o)
+
+@router.get('/admin/orders')
+def admin_orders(db:Session=Depends(get_db),_:User=Depends(require_admin)):
+    return [public_order(o,True) for o in db.query(MerchOrder).order_by(MerchOrder.id.desc()).limit(300)]
+
+
+def refund_tokens(db,o,actor=None):
+    if o.tokens_reserved>0 and not o.tokens_refunded:
+        _increase(db,'user',o.user_id,o.tokens_reserved)
+        db.add(CreditWalletEvent(owner_type='user',owner_id=o.user_id,actor_user_id=actor,
+             delta=o.tokens_reserved,event_type='merch_refund',transfer_key=o.public_id,
+             amount_cents=o.tokens_reserved*100))
+        o.tokens_refunded=True
+        event(db,o,'tokens_refunded',f'{o.tokens_reserved} GHM Tokens restored.',actor=actor)
+
+
+def verify_paid_session(db,session, event_id=None):
+    """Called ONLY after Stripe signature verification and matching amount/currency."""
+    md=session.get('metadata') or {}
+    if md.get('kind')!='ghm_merch' or session.get('payment_status')!='paid':return False
+    try:order_id=int(md['order_id'])
+    except (KeyError,ValueError,TypeError):return False
+    o=db.get(MerchOrder,order_id)
+    if not o or o.stripe_due_cents<=0:return False
+    if md.get('public_id')!=o.public_id or md.get('user_id')!=str(o.user_id):return False
+    if str(session.get('id')) != str(o.stripe_session_id):
+        # Stripe webhook can beat our DB commit: retry rather than silently accept
+        # a payment bound to an uncommitted/unrecognized session.
+        raise RuntimeError('Session ID mismatch or not yet persisted; retry webhook.')
+    if str(session.get('currency','')).lower()!='cad' or int(session.get('amount_total') or -1)!=o.stripe_due_cents:
+        logger.error('Merch checkout totals mismatch for order %s',o.public_id)
+        raise RuntimeError('Stripe totals mismatch; manual review required.')
+    if not o.payment_verified_at:
+        o.payment_verified_at=datetime.now(timezone.utc)
+        o.stripe_payment_intent_id=str(session.get('payment_intent') or '') or None
+        if o.status in ('awaiting_payment','checkout_attention'):
+            o.status='cancel_requested' if o.cancellation_reason else 'paid'
+        event(db,o,'payment_verified',f'Checkout {session.get("id")}',key=event_id)
+        db.commit()
+    return True
+
+
+def expire_checkout(db,session,event_id=None):
+    md=session.get('metadata') or {}
+    if md.get('kind')!='ghm_merch':return
+    try:o=db.get(MerchOrder,int(md['order_id']))
+    except (TypeError,ValueError,KeyError):return
+    if not o or o.stripe_session_id!=session.get('id') or o.payment_verified_at:return
+    if o.status not in ('awaiting_payment','checkout_attention'):return
+    refund_tokens(db,o)
+    o.status='canceled';event(db,o,'checkout_expired',key=event_id)
+    db.commit()
+
+from app.integrations.printkk import PrintKKClient, PrintKKError
+
+def paid_ready(o):
+    return bool(o.payment_verified_at and o.status in ('paid','fulfillment_review'))
+
+@router.post('/admin/orders/{public_id}/submit')
+def admin_submit(public_id:str,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id).with_for_update().first()
+    if not o:raise HTTPException(404,'Not found.')
+    if not paid_ready(o):raise HTTPException(409,'Order is not fully paid or is canceled.')
+    if o.provider_stage!='not_submitted' or o.printkk_order_id:
+        raise HTTPException(409,'PrintKK submission previously attempted. Reconcile it rather than retry.')
+    if not settings.printkk_api_key:raise HTTPException(503,'PrintKK API key is missing.')
+    # Persist attempt marker BEFORE calling external API. Never auto-resubmit an
+    # unknown outcome; operator must reconcile the supplier dashboard first.
+    o.provider_stage='submission_uncertain';o.provider_attempted_at=datetime.now(timezone.utc)
+    event(db,o,'supplier_submission_started',actor=user.id)
+    db.commit()
+    try:
+        data=PrintKKClient().create_order(o)
+        result=data.get('order') if isinstance(data.get('order'),dict) else data
+        supplier_id=result.get('orderId') or result.get('id')
+        if not supplier_id:raise PrintKKError('PrintKK response had no order ID; reconcile manually.')
+        o.printkk_order_id=str(supplier_id)
+        o.provider_stage='draft_unpaid';o.provider_status='pendingPayment'
+        o.provider_response_json=json.dumps(data)[:5000]
+        o.status='supplier_unpaid'
+        event(db,o,'supplier_draft_created',f'PrintKK ID {supplier_id}',actor=user.id)
+        db.commit()
+    except PrintKKError as exc:
+        o.provider_response_json=json.dumps({'issue':str(exc)})
+        event(db,o,'supplier_submission_uncertain',str(exc),actor=user.id)
+        db.commit()
+        raise HTTPException(502,str(exc)) from exc
+    return public_order(o,True)
+
+@router.post('/admin/orders/{public_id}/pay-supplier')
+def admin_pay_supplier(public_id:str,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id).with_for_update().first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if not paid_ready(o) and o.status!='supplier_unpaid':raise HTTPException(409,'Customer payment is not verified.')
+    if o.provider_stage!='draft_unpaid' or not o.printkk_order_id:
+        raise HTTPException(409,'No unpaid supplier draft. Reconcile before trying again.')
+    o.provider_stage='supplier_payment_uncertain';event(db,o,'supplier_payment_started',actor=user.id);db.commit()
+    try:
+        data=PrintKKClient().pay(o.printkk_order_id)
+        o.provider_stage='paid';o.provider_status='waitingForFulfillment';o.status='submitted'
+        o.provider_response_json=json.dumps(data)[:5000]
+        event(db,o,'supplier_paid',actor=user.id)
+        db.commit()
+    except PrintKKError as exc:
+        event(db,o,'supplier_payment_uncertain',str(exc),actor=user.id);db.commit()
+        raise HTTPException(502,str(exc)) from exc
+    return public_order(o,True)
+
+@router.post('/admin/orders/{public_id}/sync')
+def admin_sync(public_id:str,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id).first()
+    if not o or not o.printkk_order_id:raise HTTPException(404,'No PrintKK order ID recorded.')
+    try:
+        data=PrintKKClient().order_detail(o.printkk_order_id)
+    except PrintKKError as exc:raise HTTPException(502,str(exc)) from exc
+    info=data.get('order') if isinstance(data.get('order'),dict) else data
+    state=str(info.get('orderStatus') or info.get('status') or '')[:70]
+    o.provider_status=state or o.provider_status
+    if state in ('waitingForFulfillment','beingFulfilled','partiallyShipped','shipped','completed'):
+        o.provider_stage='paid'
+        if o.status not in ('cancel_requested','refund_pending','refunded'):
+            o.status={'shipped':'shipped','completed':'completed'}.get(state,'processing')
+    if state in ('canceled','closed'):
+        o.provider_stage='supplier_canceled'
+    # Courier records differ by supplier product; store explicit validated fields.
+    o.tracking_number=str(info.get('trackingNumber') or o.tracking_number or '') or None
+    o.carrier=str(info.get('carrier') or info.get('logisticsCompany') or o.carrier or '') or None
+    url=str(info.get('trackingUrl') or o.tracking_url or '')
+    if url.startswith('https://') or not url:o.tracking_url=url or None
+    event(db,o,'supplier_status_synced',state,actor=user.id)
+    db.commit()
+    return public_order(o,True)
+
+@router.post('/admin/orders/{public_id}/reconcile')
+def admin_reconcile(public_id:str, supplier_order_id:str, db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    """Link a supplier order found manually after a timeout, never resend POST."""
+    o=db.query(MerchOrder).filter_by(public_id=public_id).with_for_update().first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if o.printkk_order_id or o.provider_stage!='submission_uncertain':raise HTTPException(409,'Order is not awaiting supplier reconciliation.')
+    if not supplier_order_id.isdecimal():raise HTTPException(400,'Invalid PrintKK order ID.')
+    try:data=PrintKKClient().order_detail(supplier_order_id)
+    except PrintKKError as exc:raise HTTPException(502,str(exc)) from exc
+    # Operator must visually verify that supplier order items and ship-to match.
+    o.printkk_order_id=supplier_order_id;o.provider_stage='draft_unpaid'
+    o.provider_response_json=json.dumps(data)[:5000];o.status='supplier_unpaid'
+    event(db,o,'supplier_order_reconciled',f'Admin linked {supplier_order_id}',actor=user.id)
+    db.commit();return public_order(o,True)
+
+@router.post('/admin/orders/{public_id}/cancel-and-refund')
+def admin_cancel_and_refund(public_id:str,body:AdminAction,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id).with_for_update().first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if o.status=='refunded':return public_order(o,True)
+    if o.status=='checkout_attention' and not o.stripe_session_id:
+        raise HTTPException(409,'Stripe checkout outcome must be reconciled before releasing reserved tokens.')
+    if o.stripe_refund_id and o.status=='refund_pending':
+        stripe.api_key=settings.stripe_secret_key
+        try:
+            result=stripe.Refund.retrieve(o.stripe_refund_id)
+            if str(result.get('status'))=='succeeded':
+                refund_tokens(db,o,actor=user.id)
+                o.status='refunded'
+                event(db,o,'card_refund_succeeded',str(result.id),actor=user.id)
+                db.commit()
+        except Exception:
+            raise HTTPException(503,'Refund needs reconciliation in Stripe before another action.')
+        return public_order(o,True)
+    if not o.payment_verified_at and o.stripe_session_id:
+        stripe.api_key=settings.stripe_secret_key
+        try:
+            session=stripe.checkout.Session.expire(o.stripe_session_id)
+            if session.get('status')=='expired':
+                expire_checkout(db,session)
+                return public_order(o,True)
+        except Exception:
+            raise HTTPException(409,'Unable to safely expire Stripe checkout. Verify payment state first.')
+        raise HTTPException(409,'Stripe checkout was not confirmed expired. Check for a paid charge.')
+    if o.provider_stage in ('submission_uncertain','supplier_payment_uncertain'):
+        raise HTTPException(409,'Supplier outcome uncertain; reconcile before refund.')
+    if o.printkk_order_id and o.provider_stage!='supplier_canceled':
+        raise HTTPException(409,'Verify supplier cancellation first. Paid PrintKK orders may be non-cancelable.')
+    if o.stripe_due_cents>0 and o.payment_verified_at and not o.stripe_payment_intent_id:
+        raise HTTPException(409,'Missing verified Stripe payment intent; reconcile payment before refund.')
+    if o.stripe_due_cents and o.payment_verified_at and not o.stripe_refund_id:
+        stripe.api_key=settings.stripe_secret_key
+        try:
+            refund=stripe.Refund.create(payment_intent=o.stripe_payment_intent_id,
+                reason='requested_by_customer',metadata={'ghm_merch_order':o.public_id},
+                idempotency_key='ghm-merch-refund-'+o.public_id)
+        except Exception as exc:
+            raise HTTPException(503,'Stripe refund result uncertain; verify Stripe Dashboard before retrying.') from exc
+        o.stripe_refund_id=refund.id
+        o.status='refund_pending'
+        event(db,o,'card_refund_initiated',str(refund.id),actor=user.id)
+        if refund.get('status')=='succeeded':
+            refund_tokens(db,o,actor=user.id)
+            o.status='refunded'
+            event(db,o,'card_refund_succeeded',str(refund.id),actor=user.id)
+        db.commit()
+        # When pending, a signed Stripe refund webhook must confirm completion.
+        return public_order(o,True)
+    refund_tokens(db,o,actor=user.id)
+    o.status='refunded' if o.payment_verified_at else 'canceled'
+    event(db,o,'order_refunded',body.reason,actor=user.id)
+    db.commit();return public_order(o,True)
+
+
+def confirm_refund(db,refund,event_id=None):
+    """Signed refund.updated/refund.created callback; tokens released on success."""
+    if refund.get('status')!='succeeded':return False
+    order_ref=str((refund.get('metadata') or {}).get('ghm_merch_order') or '')
+    if not order_ref:return False
+    o=db.query(MerchOrder).filter_by(public_id=order_ref).first()
+    if not o or o.stripe_refund_id != refund.get('id'):return False
+    if o.status!='refunded':
+        refund_tokens(db,o);o.status='refunded';event(db,o,'card_refund_succeeded',str(refund.get('id')),key=event_id);db.commit()
+    return True
+
+@router.post('/admin/orders/{public_id}/cancel-supplier')
+def admin_cancel_supplier(public_id:str,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id).with_for_update().first()
+    if not o or not o.printkk_order_id:raise HTTPException(404,'No PrintKK order for this reference.')
+    if o.provider_stage!='draft_unpaid':
+        raise HTTPException(409,'Only pending-payment PrintKK drafts can be canceled automatically. Contact supplier support for paid orders.')
+    o.provider_stage='supplier_cancel_uncertain'
+    event(db,o,'supplier_cancel_started',actor=user.id)
+    db.commit()
+    try:
+        data=PrintKKClient().cancel(o.printkk_order_id)
+        o.provider_response_json=json.dumps(data)[:5000]
+        o.provider_stage='supplier_canceled'
+        o.provider_status='canceled'
+        event(db,o,'supplier_canceled',actor=user.id)
+        db.commit()
+    except PrintKKError as exc:
+        event(db,o,'supplier_cancel_uncertain',str(exc),actor=user.id)
+        db.commit()
+        raise HTTPException(502,str(exc)) from exc
+    return public_order(o,True)
+
+class ReconcileStripeRequest(BaseModel):
+    session_id: str = Field(min_length=8,max_length=255,pattern=r'^cs_[A-Za-z0-9_]+$')
+
+@router.post('/admin/orders/{public_id}/reconcile-stripe')
+def reconcile_stripe_checkout(public_id:str,body:ReconcileStripeRequest,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    """Recover Stripe session result after an uncertain create response.
+
+    Never declare payment success based on admin input alone: retrieve Stripe's
+    signed account API object, validate metadata, amount, order and currency.
+    """
+    o=db.query(MerchOrder).filter_by(public_id=public_id).with_for_update().first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if o.stripe_session_id and o.stripe_session_id!=body.session_id:
+        raise HTTPException(409,'Different session already attached.')
+    stripe.api_key=settings.stripe_secret_key
+    try:session=stripe.checkout.Session.retrieve(body.session_id)
+    except Exception:raise HTTPException(503,'Unable to verify this session through Stripe.')
+    md=session.get('metadata') or {}
+    if (md.get('kind')!='ghm_merch' or md.get('public_id')!=o.public_id or
+        md.get('user_id')!=str(o.user_id) or md.get('order_id')!=str(o.id) or
+        str(session.get('currency','')).lower()!='cad' or
+        int(session.get('amount_total') or -1)!=o.stripe_due_cents):
+        raise HTTPException(409,'Stripe session does not match the order and payment amount.')
+    o.stripe_session_id=body.session_id
+    o.stripe_checkout_url=session.get('url') or o.stripe_checkout_url
+    event(db,o,'stripe_session_reconciled',body.session_id,actor=user.id)
+    db.commit()
+    if session.get('payment_status')=='paid':verify_paid_session(db,session)
+    elif session.get('status')=='expired':expire_checkout(db,session)
+    elif o.status=='checkout_attention':
+        o.status='awaiting_payment';db.commit()
+    return public_order(o,True)
+
+class TrackingPatch(BaseModel):
+    carrier: str = Field(min_length=2,max_length=120)
+    tracking_number: str = Field(min_length=4,max_length=200)
+    tracking_url: str | None = Field(default=None,max_length=500)
+
+@router.put('/admin/orders/{public_id}/tracking')
+def admin_tracking(public_id:str,body:TrackingPatch,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id).first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if o.provider_stage!='paid' or not o.printkk_order_id:
+        raise HTTPException(409,'Cannot assign shipment tracking before confirmed supplier payment.')
+    if body.tracking_url and not body.tracking_url.startswith('https://'):
+        raise HTTPException(400,'Tracking URL must use HTTPS.')
+    o.carrier=body.carrier;o.tracking_number=body.tracking_number;o.tracking_url=body.tracking_url
+    o.status='shipped'
+    event(db,o,'tracking_updated',body.carrier+' '+body.tracking_number,actor=user.id)
+    db.commit()
+    return public_order(o,True)
+
+class CancelEvidence(BaseModel):
+    reference: str = Field(min_length=20,max_length=400)
+
+@router.post('/admin/orders/{public_id}/verify-supplier-canceled')
+def admin_supplier_cancel_evidence(public_id:str,body:CancelEvidence,db:Session=Depends(get_db),user:User=Depends(require_admin)):
+    """Required only if PrintKK support cancels a paid order outside the API.
+
+    Human verification must include supplier support confirmation reference. This
+    authorizes later refund, not an immediate payout to the customer.
+    """
+    o=db.query(MerchOrder).filter_by(public_id=public_id).with_for_update().first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if not o.printkk_order_id or o.provider_stage=='supplier_canceled':
+        raise HTTPException(409,'Nothing to verify or already canceled.')
+    if o.provider_stage in ('submission_uncertain','supplier_payment_uncertain'):
+        raise HTTPException(409,'Reconcile the external charge and order before proceeding.')
+    o.provider_stage='supplier_canceled'
+    o.provider_status='canceled'
+    o.support_note=body.reference
+    event(db,o,'supplier_cancel_confirmed_by_admin',body.reference,actor=user.id)
+    db.commit()
+    return public_order(o,True)

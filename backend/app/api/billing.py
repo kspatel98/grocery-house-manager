@@ -671,9 +671,17 @@ async def stripe_webhook(request: Request):
 
     event_type = event["type"]
     data_object = event["data"]["object"]
+    from app.api.merch_orders import verify_paid_session, expire_checkout, confirm_refund
     db = SessionLocal()
     try:
-        if event_type == "checkout.session.completed":
+        merch_event = (data_object.get('metadata') or {}).get('kind') == 'ghm_merch'
+        if event_type in ('checkout.session.completed','checkout.session.async_payment_succeeded') and merch_event:
+            verify_paid_session(db, data_object, event_id=str(event.get('id') or ''))
+        elif event_type in ('checkout.session.expired','checkout.session.async_payment_failed') and merch_event:
+            expire_checkout(db, data_object, event_id=str(event.get('id') or ''))
+        elif event_type in ('refund.created','refund.updated'):
+            confirm_refund(db,data_object,event_id=str(event.get('id') or ''))
+        elif event_type == "checkout.session.completed":
             if (data_object.get('metadata') or {}).get('kind') == 'ghm_wallet_funding':
                 grant_funding(db, data_object)
             elif (data_object.get('metadata') or {}).get('kind') == 'house_credit_pack':

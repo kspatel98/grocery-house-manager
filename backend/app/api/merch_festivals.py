@@ -13,6 +13,7 @@ from app.api.deps import get_current_user
 from app.api.admin import require_admin
 from app.db.session import get_db
 from app.models import User, MerchCatalogProduct, FestivalMealRule
+from app.core.config import settings
 
 router = APIRouter(tags=['Merchandise and festivals'])
 
@@ -34,8 +35,8 @@ def product_dict(row):
 
 @router.get('/merch')
 def products(db:Session=Depends(get_db)):
-    return {'currency':'CAD','token_value_cents':100,'checkout_available':False,
-      'message':'Catalog preview. Merch checkout will open after fulfillment and payments have been verified.',
+    return {'currency':'CAD','token_value_cents':100,'checkout_available':bool(settings.merch_checkout_enabled and settings.merch_tax_enabled and settings.stripe_secret_key and settings.stripe_webhook_secret and settings.printkk_api_key),
+      'message':'Merch checkout is controlled by payment, tax and fulfillment readiness checks.',
       'products':[product_dict(row) for row in db.query(MerchCatalogProduct)
           .filter(MerchCatalogProduct.active.is_(True)).order_by(MerchCatalogProduct.priority.desc(),MerchCatalogProduct.id.desc()).all()]}
 
@@ -67,10 +68,6 @@ def admin_delete_product(product_id:int,db:Session=Depends(get_db),_:User=Depend
     if not item:raise HTTPException(404,'Product not found.')
     db.delete(item);db.commit()
     return {'deleted':True}
-
-@router.post('/merch/checkout')
-def merch_checkout_disabled(user:User=Depends(get_current_user)):
-    raise HTTPException(503,'Merchandise checkout is not yet enabled. GHM Tokens have not been deducted.')
 
 class FestivalIn(BaseModel):
     name: str = Field(min_length=2,max_length=140)

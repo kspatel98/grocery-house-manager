@@ -5,6 +5,7 @@ import AdminGrowthPanel from '../components/AdminGrowthPanel';
 import AdminGuidesPanel from '../components/AdminGuidesPanel';
 import AdminCreditPricingPanel from '../components/AdminCreditPricingPanel';
 import AdminMerchFestivalPanel from '../components/AdminMerchFestivalPanel';
+import AdminMerchOrdersPanel from '../components/AdminMerchOrdersPanel';
 import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, ProductAnalytics, SiteReview } from '../types';
 
 function starText(value?: number | null) {
@@ -321,6 +322,7 @@ export default function AdminPage() {
       <AdminGuidesPanel />
       <AdminCreditPricingPanel />
       <AdminMerchFestivalPanel />
+      <AdminMerchOrdersPanel />
       <AdminGrowthPanel users={users} offers={offers} />
 
       <section className="panel v93-ai-admin-panel">

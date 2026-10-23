@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     # Comma-separated app administrator emails. The owner email is included by default.
     admin_emails: str = "kp3813294@gmail.com"
 
+    # Merchandise is OFF until Stripe Tax, shipping policy, supplier costs and
+    # payment/fulfillment testing are independently verified in production.
+    merch_checkout_enabled: bool = False
+    merch_shipping_cents_cad: int = 999
+    merch_tax_enabled: bool = False
+    merch_canadian_only: bool = True
+    merch_max_tokens_per_order: int = 500
+    printkk_api_key: str | None = None
+    printkk_api_base: str = 'https://api.printkk.com/pkk-openapi'
+
     # Optional Google Maps Platform Places API key for nearby grocery store search.
     google_places_api_key: str | None = None
 
