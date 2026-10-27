@@ -36,8 +36,8 @@ def test_merch_checkout_verified_and_idempotent(monkeypatch):
         data=types.SimpleNamespace(id=f'cs_{num}',url=f'https://checkout.stripe.com/test/{num}')
         sessions.append(kw)
         return data
-    stripe.tax=types.SimpleNamespace(Calculation=types.SimpleNamespace(create=lambda **kw:{'amount_total':kw['line_items'][0]['amount']+kw['shipping_cost']['amount']+350,'tax_amount_exclusive':350,'id':'tax_1'}))
-    stripe.checkout=types.SimpleNamespace(Session=types.SimpleNamespace(create=new_session))
+    monkeypatch.setattr(shop.stripe,'tax',types.SimpleNamespace(Calculation=types.SimpleNamespace(create=lambda **kw:{'amount_total':kw['line_items'][0]['amount']+kw['shipping_cost']['amount']+350,'tax_amount_exclusive':350,'id':'tax_1'})),raising=False)
+    monkeypatch.setattr(shop.stripe,'checkout',types.SimpleNamespace(Session=types.SimpleNamespace(create=new_session)),raising=False)
     with Session() as db:
         user=User(email='merch@example.org')
         db.add(user);db.flush()

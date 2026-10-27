@@ -74,7 +74,12 @@ def test_recipe_unit_conversion_and_live_package_math():
     product = SimpleNamespace(name="Bananas", unit="kg")
     item = SimpleNamespace(product=product, requested_quantity=0.25)
     unit_row = SimpleNamespace(sale_price=None, price=2.99, unit_price="$1.69/kg", package_size="1 kg", matched_product_name="Bananas")
-    assert round(_live_effective_unit_price(item, unit_row), 2) == 1.69
+    # A known 1 kg package must be bought whole; do not use a $/kg shelf comparison
+    # as though the store sold a 0.25 kg portion.
+    assert round(_live_effective_unit_price(item, unit_row), 2) == 11.96
+
+    weighted_row = SimpleNamespace(sale_price=None, price=2.99, unit_price="$1.69/kg", package_size="", matched_product_name="Bananas (loose)")
+    assert round(_live_effective_unit_price(item, weighted_row), 2) == 1.69
 
     package_row = SimpleNamespace(sale_price=None, price=2.99, unit_price=None, package_size="1 kg", matched_product_name="Bananas 1 kg")
     # One package costs $2.99 for the requested 0.25 kg, so effective per requested kg is 11.96.

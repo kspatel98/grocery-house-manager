@@ -4,16 +4,20 @@ No fabricated payments/orders: merchandise is browseable until PrintKK order han
 signature-verified payment and atomic token redemption are deployed and tested.
 """
 from datetime import date, timedelta
+from pathlib import Path
+import io
+import secrets
 from typing import Optional
 import json
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.api.admin import require_admin
 from app.db.session import get_db
 from app.models import User, MerchCatalogProduct, FestivalMealRule
 from app.core.config import settings
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 router = APIRouter(tags=['Merchandise and festivals'])
 
@@ -28,10 +32,63 @@ class ProductIn(BaseModel):
     active: bool = False
     priority: int = Field(default=0,ge=-5000,le=5000)
 
+    @field_validator('image_url')
+    @classmethod
+    def validate_image_url(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        value = value.strip()
+        # Merch images are either securely hosted by GHM or a public HTTPS image.
+        if value.startswith('/uploads/merch/') and '..' not in value and '?' not in value and '#' not in value:
+            return value
+        from urllib.parse import urlparse
+        url = urlparse(value)
+        if url.scheme == 'https' and url.hostname and not url.username and not url.password:
+            return value
+        raise ValueError('Use a secure HTTPS photo URL or upload an image through GHM.')
+
 
 def product_dict(row):
     return {key:getattr(row,key) for key in ('id','sku','name','category','description','image_url',
                'price_cents_cad','printkk_design_id','active','priority')}
+
+@router.post('/merch/admin/upload-image')
+async def admin_upload_merch_image(file: UploadFile = File(...), _: User = Depends(require_admin)):
+    """Admin-only product photography upload to the existing persistent uploads volume.
+
+    Never trust the original extension or filename. Decode, resize and re-encode
+    raster data to WebP so HTML/polyglot files cannot be served as images.
+    """
+    if file.content_type not in {'image/png', 'image/jpeg', 'image/webp'}:
+        raise HTTPException(415, 'Upload a JPG, PNG or WebP image.')
+    content = await file.read(5 * 1024 * 1024 + 1)
+    await file.close()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(413, 'Product image must be 5 MB or smaller.')
+    if not content:
+        raise HTTPException(400, 'Select an image to upload.')
+    try:
+        with Image.open(io.BytesIO(content)) as source:
+            if source.format not in {'JPEG', 'PNG', 'WEBP'}:
+                raise HTTPException(415, 'Upload a JPG, PNG or WebP image.')
+            if source.width * source.height > 20_000_000:
+                raise HTTPException(413, 'Image dimensions exceed the safety limit.')
+            # Loads the complete pixel data, catching truncated or malformed files.
+            source.load()
+            normalized = ImageOps.exif_transpose(source)
+            normalized.thumbnail((1600, 1600))
+            data = io.BytesIO()
+            normalized.convert('RGB').save(data, format='WEBP', quality=85, method=4)
+    except HTTPException:
+        raise
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        raise HTTPException(400, 'This image could not be decoded safely.')
+    folder = Path(settings.upload_dir) / 'merch'
+    folder.mkdir(parents=True, exist_ok=True)
+    filename = f'{secrets.token_hex(20)}.webp'
+    (folder / filename).write_bytes(data.getvalue())
+    return {'url': f'/uploads/merch/{filename}'}
+
 
 @router.get('/merch')
 def products(db:Session=Depends(get_db)):

@@ -15,5 +15,5 @@ def test_plan_limits_v138():
     assert pro.receipt_scans_per_month == 10
     assert PLANS[PlanName.basic].limits.grocery_image_scans_per_month == 2
     assert family.grocery_image_scans_per_month == 10
-    assert pro.grocery_image_scans_per_month == 25
+    assert pro.grocery_image_scans_per_month == 20  # Current Household Pro limit
     assert pro.trip_provider_monthly_runs > family.trip_provider_monthly_runs

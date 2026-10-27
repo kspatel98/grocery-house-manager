@@ -28,6 +28,7 @@ export default function MerchandisePage(){
  const [cart,setCart]=useState<Record<number,number>>(readCart),[address,setAddress]=useState<Address>(initialAddress);
  const [tokens,setTokens]=useState(0),[quote,setQuote]=useState<Quote|null>(null),[checkoutKey,setCheckoutKey]=useState(freshKey);
  const [orders,setOrders]=useState<Order[]>([]),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+ const [pendingReturnOrder,setPendingReturnOrder]=useState<string|null>(null);
  const [expandedProduct,setExpandedProduct]=useState<number|null>(null),[expandedOrder,setExpandedOrder]=useState<string|null>(null);
  const [timeline,setTimeline]=useState<Record<string,TimelineEvent[]>>({}),[receipt,setReceipt]=useState<Receipt|null>(null);
  const lines=useMemo(()=>Object.entries(cart).filter(([,n])=>n>0).map(([id,n])=>({product_id:Number(id),quantity:n})),[cart]);
