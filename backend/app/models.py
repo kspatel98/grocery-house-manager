@@ -867,6 +867,20 @@ class MerchCatalogProduct(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class MerchStoreControls(Base):
+    """Administrator-controlled store settings, persisted through deployments.
+
+    Live payment readiness remains subject to server configuration, so the UI
+    cannot accidentally turn on payments with missing secrets or taxes.
+    """
+    __tablename__ = 'merch_store_controls'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    checkout_audience: Mapped[str] = mapped_column(String(24), default='paused')
+    pilot_email: Mapped[str] = mapped_column(String(255), default='')
+    fulfillment_mode: Mapped[str] = mapped_column(String(24), default='manual')
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
 class MerchOrder(Base):
     """Immutable financial snapshots with explicit customer/supplier lifecycles."""
     __tablename__ = 'merch_orders'

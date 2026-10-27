@@ -24,6 +24,7 @@ app.state.db_error = None
 app.state.db_consecutive_failures = 0
 app.state.schema_warnings = []
 app.state.db_retry_task = None
+app.state.merch_auto_task = None
 
 
 def _probe_database() -> None:
@@ -118,9 +119,24 @@ def _mark_database_unready(exc: Exception) -> None:
     engine.dispose()
 
 
+async def _merch_auto_loop() -> None:
+    """Slow, bounded worker; never runs until DB bootstrap has succeeded."""
+    from app.services.merch_auto_fulfillment import process_batch
+    while True:
+        await asyncio.sleep(40)
+        if not app.state.db_initialized_once or not settings.merch_auto_fulfillment_allowed:
+            continue
+        try:
+            await asyncio.to_thread(process_batch, 3)
+        except Exception:
+            logger.exception('Merchandise automatic draft worker failed; manual review remains available.')
+
+
 @app.on_event("startup")
 async def start_database_guard() -> None:
     _ensure_database_retry_task()
+    if app.state.merch_auto_task is None or app.state.merch_auto_task.done():
+        app.state.merch_auto_task = asyncio.create_task(_merch_auto_loop())
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

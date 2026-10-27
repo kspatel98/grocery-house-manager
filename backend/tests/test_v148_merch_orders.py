@@ -41,13 +41,14 @@ def test_merch_checkout_verified_and_idempotent(monkeypatch):
     with Session() as db:
         user=User(email='merch@example.org')
         db.add(user);db.flush()
+        db.add(shop.MerchStoreControls(id=1,checkout_audience='public',pilot_email='',fulfillment_mode='manual'))
         db.add(MerchCatalogProduct(sku='GHM-TOTE',name='GHM Tote',price_cents_cad=2499,
             printkk_design_id='DESIGN_SPEC_VARIANT_1',active=True))
         _increase(db,'user',user.id,20)
         db.commit()
         address=shop.Address(name='Demo Shopper',line1='123 Example Street',city='Hamilton',province='ON',postal_code='L8P 1A1')
         body=shop.CheckoutRequest(items=[shop.CartLine(product_id=1,quantity=1)],shipping=address,tokens=10,idempotency_key='checkout_key_1234567890')
-        q=shop.quote(db,body,user.id)
+        q=shop.quote(db,body,user.id,user)
         assert q['subtotal_cents']==2499 and q['tax_cents']==350 and q['card_cents']==2749
         result=shop.checkout(body,db,user)
         assert result['checkout_url']=='https://checkout.stripe.com/test/1'

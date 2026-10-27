@@ -21,7 +21,7 @@ from app.api.admin import require_admin
 from app.api.credit_wallet import _balance, _increase, _decrease
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import MerchCatalogProduct, MerchOrder, MerchOrderEvent, CreditWalletEvent, User
+from app.models import MerchCatalogProduct, MerchOrder, MerchOrderEvent, MerchStoreControls, CreditWalletEvent, User
 
 router = APIRouter(prefix='/merch', tags=['GHM Store orders'])
 logger = logging.getLogger(__name__)
@@ -73,24 +73,47 @@ class AdminAction(BaseModel):
 def ready():
     return bool(settings.merch_checkout_enabled and settings.merch_tax_enabled and
                 settings.stripe_secret_key and settings.stripe_webhook_secret and
-                settings.printkk_api_key and settings.merch_shipping_cents_cad>=0)
+                settings.printkk_api_key and settings.merch_shipping_cents_cad >= 0)
 
-def require_ready(user=None):
+
+def controls(db=None):
+    """Existing installations retain pilot behavior until Admin saves settings."""
+    if isinstance(db, Session):
+        row = db.get(MerchStoreControls, 1)
+        if row:
+            return row
+    # Preserve v150 legacy pilot rather than opening checkout after upgrade.
+    return MerchStoreControls(id=1, checkout_audience=(
+        'pilot' if settings.merch_pilot_email else 'paused'),
+        pilot_email=settings.merch_pilot_email or '', fulfillment_mode='manual')
+
+
+def effective_access(db=None, user=None):
+    control = controls(db)
+    audience = control.checkout_audience
+    email = (control.pilot_email or '').strip().casefold()
+    is_tester = bool(email and user and (user.email or '').strip().casefold() == email)
+    allowed = bool(ready() and (audience == 'public' or (audience == 'pilot' and is_tester)))
+    return {'checkout_available': allowed,
+            'pilot_mode': audience == 'pilot', 'is_pilot_tester': is_tester,
+            'audience': audience,
+            'message': ('GHM Store is paused by its administrator.' if audience == 'paused' else
+                        'Private pilot: only the designated GHM account may place orders.' if audience == 'pilot' and not is_tester else
+                        'Checkout needs payment, tax, shipping and PrintKK configuration.' if not ready() else
+                        'Secure checkout is available.')}
+
+
+def require_ready(user=None, db=None):
     if not ready():
-        raise HTTPException(503,'GHM Store checkout is not enabled until shipping, Stripe Tax, PrintKK and signed payments are verified.')
-    pilot=(settings.merch_pilot_email or '').strip().casefold()
-    if pilot and (not user or (user.email or '').strip().casefold()!=pilot):
-        raise HTTPException(403,'GHM Store is in private pilot mode. Checkout is limited to the designated tester.')
+        raise HTTPException(503, 'GHM Store requires configured Stripe, Stripe Tax, shipping and PrintKK settings.')
+    policy = effective_access(db, user)
+    if not policy['checkout_available']:
+        raise HTTPException(403, policy['message'])
 
 
 @router.get('/access')
-def checkout_access(user: User=Depends(get_current_user)):
-    pilot=(settings.merch_pilot_email or '').strip().casefold()
-    return {'checkout_available':bool(ready() and (not pilot or (user.email or '').strip().casefold()==pilot)),
-            'pilot_mode':bool(pilot),'is_pilot_tester':bool(pilot and (user.email or '').strip().casefold()==pilot),
-            'message':('Private pilot: only the approved GHM account can purchase.' if pilot else
-                       'Payments are available after GHM Store activation.' if ready() else
-                       'GHM checkout is paused until taxes, payment and supplier checks are approved.')}
+def checkout_access(user: User=Depends(get_current_user), db:Session=Depends(get_db)):
+    return effective_access(db if isinstance(db, Session) else None, user)
 
 
 def event(db, order, kind, detail='', key=None, actor=None):
@@ -138,7 +161,7 @@ def tax_quote(subtotal,shipping_cents,address):
         raise HTTPException(503,'Unable to calculate delivery taxes. No purchase was made.') from exc
 
 def quote(db,body,user_id,user=None):
-    require_ready(user)
+    require_ready(user,db)
     items,sub=snapshot(db,body)
     delivery=int(settings.merch_shipping_cents_cad)
     tax,_=tax_quote(sub,delivery,body.shipping)
@@ -178,7 +201,7 @@ def create_quote(body:QuoteRequest,db:Session=Depends(get_db),user:User=Depends(
 
 @router.post('/checkout')
 def checkout(body:CheckoutRequest,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
-    require_ready(user)
+    require_ready(user,db)
     digest=hashlib.sha256(body.model_dump_json(exclude={'idempotency_key'}).encode()).hexdigest()
     old=db.query(MerchOrder).filter_by(user_id=user.id,client_key=body.idempotency_key).first()
     if old:
@@ -305,21 +328,62 @@ def request_cancel(public_id:str,body:CancelRequest,db:Session=Depends(get_db),u
     db.commit()
     return public_order(o)
 
+class StoreControlsUpdate(BaseModel):
+    checkout_audience: Literal['paused', 'pilot', 'public']
+    pilot_email: str = Field(default='', max_length=255)
+    fulfillment_mode: Literal['manual', 'automatic']
+    confirm_public_checkout: bool = False
+    confirm_automatic_supplier_submissions: bool = False
+
+
+@router.put('/admin/store-controls')
+def admin_update_store_controls(body:StoreControlsUpdate, db:Session=Depends(get_db), user:User=Depends(require_admin)):
+    # Explicit acknowledgement prevents an accidental public sales launch.
+    if body.checkout_audience=='public':
+        if not body.confirm_public_checkout:
+            raise HTTPException(400,'Confirm that checkout will be open to all signed-in customers.')
+        if not ready():
+            raise HTTPException(409,'Complete server payment/tax/supplier configuration before enabling public checkout.')
+    email=body.pilot_email.strip().lower()
+    if body.checkout_audience=='pilot' and ('@' not in email or '.' not in email.split('@')[-1]):
+        raise HTTPException(400,'Provide the exact GHM tester account email for private pilot.')
+    if body.fulfillment_mode=='automatic':
+        if not body.confirm_automatic_supplier_submissions:
+            raise HTTPException(400,'Confirm automatic PrintKK draft submission after verified payment.')
+        if not settings.merch_auto_fulfillment_allowed:
+            raise HTTPException(409,'Set MERCH_AUTO_FULFILLMENT_ALLOWED=true after validating a real PrintKK draft submission.')
+    record=db.get(MerchStoreControls,1)
+    if not record:
+        record=MerchStoreControls(id=1)
+        db.add(record)
+    record.checkout_audience=body.checkout_audience
+    record.pilot_email=email
+    record.fulfillment_mode=body.fulfillment_mode
+    db.commit()
+    logger.warning('GHM store settings changed by admin user %s: audience=%s fulfillment=%s',user.id,record.checkout_audience,record.fulfillment_mode)
+    return {'checkout_audience':record.checkout_audience,'pilot_email':record.pilot_email,
+            'fulfillment_mode':record.fulfillment_mode,'auto_worker_enabled':bool(settings.merch_auto_fulfillment_allowed)}
+
+
 @router.get('/admin/readiness')
 def admin_merch_readiness(db:Session=Depends(get_db),_:User=Depends(require_admin)):
     active=db.query(MerchCatalogProduct).filter(MerchCatalogProduct.active.is_(True)).all()
     prepared=sum(1 for item in active if item.price_cents_cad>0 and item.printkk_design_id)
+    ctrl=controls(db)
     return {'checkout_enabled':bool(settings.merch_checkout_enabled),
             'tax_enabled':bool(settings.merch_tax_enabled),
             'stripe_key_configured':bool(settings.stripe_secret_key),
             'stripe_webhook_configured':bool(settings.stripe_webhook_secret),
             'printkk_key_configured':bool(settings.printkk_api_key),
-            'pilot_mode':bool(settings.merch_pilot_email),
-            'pilot_email':settings.merch_pilot_email or None,
+            'pilot_mode':ctrl.checkout_audience=='pilot',
+            'pilot_email':ctrl.pilot_email or None,
+            'checkout_audience':ctrl.checkout_audience,
+            'fulfillment_mode':ctrl.fulfillment_mode,
+            'auto_worker_enabled':bool(settings.merch_auto_fulfillment_allowed),
             'shipping_cents_cad':int(settings.merch_shipping_cents_cad),
             'active_products':len(active),'products_ready_for_checkout':prepared,
             'ready_configuration':ready(),
-            'note':'Configuration checks do not verify tax registrations, PrintKK charges, accurate variant IDs or actual payment processing.'}
+            'note':'Configuration checks do not verify actual taxes, shipping charges, PrintKK designs, or settlement. Automatic mode creates supplier drafts; supplier wallet charges require manual approval.'}
 
 @router.get('/admin/test-printkk-connection')
 def admin_test_printkk_connection(_:User=Depends(require_admin)):

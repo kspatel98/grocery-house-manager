@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     merch_tax_enabled: bool = False
     merch_canadian_only: bool = True
     merch_max_tokens_per_order: int = 500
+    # Owner-approved automatic drafting: supplier wallet charges stay manual.
+    merch_auto_fulfillment_allowed: bool = False
     printkk_api_key: str | None = None
     printkk_api_base: str = 'https://api.printkk.com/pkk-openapi'
 
