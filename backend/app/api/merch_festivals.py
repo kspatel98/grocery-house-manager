@@ -36,7 +36,7 @@ def product_dict(row):
 @router.get('/merch')
 def products(db:Session=Depends(get_db)):
     return {'currency':'CAD','token_value_cents':100,'checkout_available':bool(settings.merch_checkout_enabled and settings.merch_tax_enabled and settings.stripe_secret_key and settings.stripe_webhook_secret and settings.printkk_api_key),
-      'message':'Merch checkout is controlled by payment, tax and fulfillment readiness checks.',
+      'pilot_mode':bool(settings.merch_pilot_email),'message':'Merch checkout is controlled by payment, tax and fulfillment readiness checks.',
       'products':[product_dict(row) for row in db.query(MerchCatalogProduct)
           .filter(MerchCatalogProduct.active.is_(True)).order_by(MerchCatalogProduct.priority.desc(),MerchCatalogProduct.id.desc()).all()]}
 

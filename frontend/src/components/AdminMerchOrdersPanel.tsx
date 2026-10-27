@@ -1,16 +1,22 @@
-import { useEffect,useState } from 'react';
+import { useEffect,useMemo,useState } from 'react';
 import { api,errorMessage } from '../api';
-type Order={id:string;status:string;items:{name:string;quantity:number}[];total_cents:number;tokens_used:number;card_cents:number;provider_stage:string;provider_status?:string|null;printkk_order_id?:string|null;shipping_address?:{name:string;city:string;province:string;postal_code:string};tracking_number?:string|null;created_at:string;support_note?:string|null};
+type Order={id:string;status:string;items:{name:string;quantity:number;sku:string}[];total_cents:number;tokens_used:number;card_cents:number;provider_stage:string;provider_status?:string|null;printkk_order_id?:string|null;shipping_address?:{name:string;line1:string;line2:string;city:string;province:string;postal_code:string;country:string;phone?:string};tracking_number?:string|null;created_at:string;support_note?:string|null;customer_email?:string};
+type Readiness={checkout_enabled:boolean;tax_enabled:boolean;stripe_key_configured:boolean;stripe_webhook_configured:boolean;printkk_key_configured:boolean;pilot_mode:boolean;pilot_email?:string|null;shipping_cents_cad:number;active_products:number;products_ready_for_checkout:number;ready_configuration:boolean;note:string};
+const money=(c:number)=>`$${(c/100).toFixed(2)}`;
+const needsAttention=(o:Order)=>['paid','fulfillment_review','supplier_unpaid','checkout_attention','cancel_requested'].includes(o.status)||['submission_uncertain','supplier_payment_uncertain','supplier_cancel_uncertain'].includes(o.provider_stage);
 export default function AdminMerchOrdersPanel(){
- const [orders,setOrders]=useState<Order[]>([]),[busy,setBusy]=useState(''),[note,setNote]=useState('');
+ const [readiness,setReadiness]=useState<Readiness|null>(null),[probe,setProbe]=useState(''),[orders,setOrders]=useState<Order[]>([]),[busy,setBusy]=useState(''),[note,setNote]=useState(''),[query,setQuery]=useState(''),[filter,setFilter]=useState<'attention'|'all'|'fulfilled'>('attention'),[expanded,setExpanded]=useState<string|null>(null);
  const reload=async()=>{try{const {data}=await api.get<Order[]>('/merch/admin/orders');setOrders(data);}catch(e){setNote(errorMessage(e));}};
- useEffect(()=>{void reload();},[]);
+ useEffect(()=>{void reload();void api.get<Readiness>('/merch/admin/readiness').then(r=>setReadiness(r.data)).catch(()=>{});},[]);
+ async function testConnection(){setProbe('Testing PrintKK read-only catalog connection…');try{const {data}=await api.get<{connected:boolean;message:string}>('/merch/admin/test-printkk-connection');setProbe(data.message);}catch(e){setProbe(errorMessage(e));}}
+ const visible=useMemo(()=>orders.filter(o=>{if(filter==='attention'&&!needsAttention(o))return false;if(filter==='fulfilled'&&!['shipped','completed','submitted','processing'].includes(o.status))return false;const text=[o.id,o.customer_email,o.shipping_address?.name,o.shipping_address?.city,o.printkk_order_id,...o.items.map(i=>i.name)].join(' ').toLowerCase();return text.includes(query.trim().toLowerCase());}),[orders,query,filter]);
  async function action(order:Order,step:'submit'|'pay-supplier'|'sync'|'cancel-and-refund'|'reconcile'|'cancel-supplier'|'reconcile-stripe'|'tracking'|'verify-supplier-canceled'){
-   const confirmMessage=step==='pay-supplier'?'Pay PrintKK using your supplier wallet? This is a real supplier charge.':step==='submit'?'Submit this PAID order to PrintKK? Verify the design, shipping details and estimated supplier cost first.':'Continue with this order action?';
-   if(!window.confirm(confirmMessage))return;
+   const promptText=step==='pay-supplier'?'This will charge your actual PrintKK supplier wallet. Check the delivery details and supplier total in PrintKK before continuing.':step==='submit'?'Create a REAL PrintKK draft for this paid customer order? Verify artwork variant and delivery address.':'Continue with this order action?';
+   if(!window.confirm(promptText))return;
+   if(step==='pay-supplier'&&!window.confirm(`Final confirmation: charge PrintKK for order ${order.id}?`))return;
    setBusy(order.id+step);setNote('');
    try{let path=`/merch/admin/orders/${encodeURIComponent(order.id)}/${step}`;let data:Record<string,string>={};
-     if(step==='reconcile-stripe'){const id=window.prompt('Verified Stripe Checkout Session ID from dashboard:');if(!id)return;data={session_id:id};}
+     if(step==='reconcile-stripe'){const id=window.prompt('Verified Stripe Checkout Session ID:');if(!id)return;data={session_id:id};}
      if(step==='tracking'){
        const carrier=window.prompt('Verified carrier name:');if(!carrier)return;
        const tracking_number=window.prompt('Tracking number:');if(!tracking_number)return;
@@ -18,34 +24,37 @@ export default function AdminMerchOrdersPanel(){
        await api.put(`/merch/admin/orders/${encodeURIComponent(order.id)}/tracking`,{carrier,tracking_number,tracking_url:tracking_url||null});await reload();return;
      }
      if(step==='verify-supplier-canceled'){
-       const reference=window.prompt('Supplier support cancellation confirmation/reference (minimum 20 characters):');if(!reference)return;
+       const reference=window.prompt('Supplier support cancellation reference (minimum 20 characters):');if(!reference)return;
        await api.post(`/merch/admin/orders/${encodeURIComponent(order.id)}/verify-supplier-canceled`,{reference});await reload();return;
      }
-     if(step==='reconcile') {const id=window.prompt('Existing PrintKK order ID found in supplier dashboard:');if(!id)return;path+=`?supplier_order_id=${encodeURIComponent(id)}`;}
-     if(step==='cancel-and-refund'){const reason=window.prompt('Reason documented in audit history:','Order canceled before fulfillment.');if(reason===null)return;data={reason};}
-     await api.post(path,data);setNote(`${order.id}: ${step} request accepted.`);await reload();
+     if(step==='reconcile'){const id=window.prompt('PrintKK order ID found in the supplier dashboard:');if(!id)return;path+=`?supplier_order_id=${encodeURIComponent(id)}`;}
+     if(step==='cancel-and-refund'){const reason=window.prompt('Reason for refund (saved in audit log):','Order canceled before fulfillment.');if(reason===null)return;data={reason};}
+     await api.post(path,data);setNote(`${order.id}: ${step} processed. Confirm supplier or Stripe dashboard if an external operation was involved.`);await reload();
    }catch(e){setNote(errorMessage(e));}finally{setBusy('');}
  }
- return <section className="panel v148-admin-orders"><div className="panel-title-row"><div><p className="eyebrow">GHM STORE · FINANCIAL OPERATIONS</p><h2>Merchandise orders & fulfillment</h2><p>Verify card/token payments, inspect shipping details, submit PrintKK drafts, fund fulfillment and reconcile exceptions. Supplier actions are deliberately not automatic until tested.</p></div><button className="secondary" onClick={()=>void reload()}>Refresh</button></div>
+ return <section className="panel v149-admin-orders"><div className="panel-title-row"><div><p className="eyebrow">GHM STORE · ORDER OPERATIONS</p><h2>Merchandise orders</h2><p>Review payment verification, PrintKK fulfillment, cancellations and customer tracking. Supplier charges are never automatic.</p></div><button className="secondary" type="button" onClick={()=>void reload()}>Refresh</button></div>
+ {readiness&&<div className="v149-admin-readiness"><div><strong>Store activation</strong><p>{readiness.ready_configuration?'Configuration fields present — live transaction testing is still required.':'Checkout paused or configuration incomplete.'}</p><small>Stripe key: {readiness.stripe_key_configured?'set':'missing'} · Webhook: {readiness.stripe_webhook_configured?'set':'missing'} · PrintKK key: {readiness.printkk_key_configured?'set':'missing'} · Stripe Tax toggle: {readiness.tax_enabled?'on':'off'}</small><small>Canadian shipping configuration: {money(readiness.shipping_cents_cad)} · Prepared products: {readiness.products_ready_for_checkout}/{readiness.active_products}</small><small>{readiness.pilot_mode?`Private pilot: ${readiness.pilot_email||'configured'}`:'No private pilot restriction configured — enabling checkout would open it to all signed-in customers.'}</small></div><button type="button" className="secondary" disabled={!readiness.printkk_key_configured} onClick={()=>void testConnection()}>Test PrintKK connection (no charge)</button>{probe&&<p role="status" className="small-muted">{probe}</p>}</div>}
+ <div className="v149-admin-metrics"><div><strong>{orders.length}</strong><span>Orders</span></div><div><strong>{orders.filter(needsAttention).length}</strong><span>Need attention</span></div><div><strong>{orders.filter(o=>['shipped','completed'].includes(o.status)).length}</strong><span>Shipped / completed</span></div></div>
+ <div className="v149-admin-filters"><label>Find an order<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Order, buyer, city, product…"/></label><label>Show<select value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="attention">Needs attention</option><option value="all">All orders</option><option value="fulfilled">Fulfillment in progress / shipped</option></select></label></div>
  {note&&<p role="status" className="hint">{note}</p>}
- {!orders.length&&<p>No merchandise orders yet.</p>}
- {orders.map(o=><article className="v148-admin-order" key={o.id}>
-  <div className="v148-order-top"><strong>{o.id}</strong><span>{o.status.replace(/_/g,' ')} · {o.provider_stage}</span></div>
+ {!visible.length&&<p className="small-muted">No matching merchandise orders.</p>}
+ {visible.map(o=><article className="v148-admin-order v149-admin-order" key={o.id}>
+  <div className="v148-order-top"><div><strong>{o.id}</strong><small>{o.created_at?new Date(o.created_at).toLocaleString():''} · {o.customer_email||'Customer'}</small></div><span className="v149-admin-order-status">{o.status.replace(/_/g,' ')} · {o.provider_stage}</span></div>
   <p>{o.items.map(x=>`${x.name} × ${x.quantity}`).join(', ')}</p>
-  <p><strong>${(o.total_cents/100).toFixed(2)} CAD</strong> · {o.tokens_used} tokens · ${(o.card_cents/100).toFixed(2)} card</p>
-  <small>Ship to: {o.shipping_address?.name} · {o.shipping_address?.city}, {o.shipping_address?.province} {o.shipping_address?.postal_code}</small>
-  <small>PrintKK: {o.printkk_order_id||'Not created'} · {o.provider_status||o.provider_stage} · Tracking {o.tracking_number||'Not assigned'}</small>
+  <p><strong>{money(o.total_cents)} CAD</strong> · {o.tokens_used} tokens · {money(o.card_cents)} card</p>
+  <button type="button" className="secondary" aria-expanded={expanded===o.id} onClick={()=>setExpanded(expanded===o.id?null:o.id)}>{expanded===o.id?'Hide order and operations':'Review order / manage fulfillment'}</button>
+  {expanded===o.id&&<div className="v149-admin-order-expanded"><div><h4>Ship to</h4><p>{o.shipping_address?.name}<br/>{o.shipping_address?.line1}<br/>{o.shipping_address?.line2&&<>{o.shipping_address.line2}<br/></>}{o.shipping_address?.city}, {o.shipping_address?.province} {o.shipping_address?.postal_code}<br/>{o.shipping_address?.country||'CA'} {o.shipping_address?.phone||''}</p></div><div><h4>Supplier and tracking</h4><p>PrintKK ID: {o.printkk_order_id||'Not created'}<br/>Status: {o.provider_status||o.provider_stage}<br/>Tracking: {o.tracking_number||'Not available'}<br/>{o.support_note&&`Support note: ${o.support_note}`}</p></div>
   <div className="v148-admin-actions">
-   {['paid','fulfillment_review'].includes(o.status)&&o.provider_stage==='not_submitted'&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'submit')}>Submit draft to PrintKK</button>}
-   {o.status==='checkout_attention'&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'reconcile-stripe')}>Reconcile Stripe checkout</button>}
-   {o.provider_stage==='submission_uncertain'&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'reconcile')}>Reconcile supplier ID</button>}
-   {o.provider_stage==='draft_unpaid'&&o.status==='supplier_unpaid'&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'pay-supplier')}>Pay PrintKK</button>}
-   {o.printkk_order_id&&o.provider_stage==='draft_unpaid'&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'cancel-supplier')}>Cancel unpaid PrintKK draft</button>}
-   {o.printkk_order_id&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'sync')}>Sync tracking/status</button>}
-   {o.printkk_order_id&&o.provider_stage==='paid'&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'tracking')}>Enter verified tracking</button>}
-   {o.printkk_order_id&&o.provider_stage!=='supplier_canceled'&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'verify-supplier-canceled')}>Verify supplier support cancellation</button>}
-   {['cancel_requested','paid','awaiting_payment','supplier_unpaid'].includes(o.status)&&<button className="secondary" disabled={!!busy} onClick={()=>void action(o,'cancel-and-refund')}>Cancel/refund (policy checks)</button>}
-  </div>
+   {['paid','fulfillment_review'].includes(o.status)&&o.provider_stage==='not_submitted'&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'submit')}>Create PrintKK draft</button>}
+   {o.status==='checkout_attention'&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'reconcile-stripe')}>Reconcile Stripe</button>}
+   {o.provider_stage==='submission_uncertain'&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'reconcile')}>Reconcile supplier order</button>}
+   {o.provider_stage==='draft_unpaid'&&o.status==='supplier_unpaid'&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'pay-supplier')}>Approve supplier wallet charge</button>}
+   {o.printkk_order_id&&o.provider_stage==='draft_unpaid'&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'cancel-supplier')}>Cancel unpaid supplier draft</button>}
+   {o.printkk_order_id&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'sync')}>Refresh tracking</button>}
+   {o.printkk_order_id&&o.provider_stage==='paid'&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'tracking')}>Enter verified tracking</button>}
+   {o.printkk_order_id&&o.provider_stage!=='supplier_canceled'&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'verify-supplier-canceled')}>Confirm PrintKK cancellation</button>}
+   {['cancel_requested','paid','awaiting_payment','supplier_unpaid'].includes(o.status)&&<button className="secondary" type="button" disabled={!!busy} onClick={()=>void action(o,'cancel-and-refund')}>Cancellation / refund</button>}
+  </div></div>}
  </article>)}
  </section>;
 }

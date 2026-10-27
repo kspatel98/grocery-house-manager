@@ -91,6 +91,8 @@ export default function App() {
         <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
         <Route path="/more" element={<RequireAuth><MorePage /></RequireAuth>} />
         <Route path="/merch" element={<PublicRoute><MerchandisePage /></PublicRoute>} />
+        <Route path="/merch/cart" element={<Navigate to="/merch?view=cart" replace />} />
+        <Route path="/merch/orders" element={<Navigate to="/merch?view=orders" replace />} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/learn" element={<RequireAuth><LearnGhmPage /></RequireAuth>} />
         <Route path="/premium-try" element={<RequireAuth><PremiumTryPage /></RequireAuth>} />

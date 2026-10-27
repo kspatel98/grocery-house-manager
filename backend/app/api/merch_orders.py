@@ -75,9 +75,23 @@ def ready():
                 settings.stripe_secret_key and settings.stripe_webhook_secret and
                 settings.printkk_api_key and settings.merch_shipping_cents_cad>=0)
 
-def require_ready():
+def require_ready(user=None):
     if not ready():
         raise HTTPException(503,'GHM Store checkout is not enabled until shipping, Stripe Tax, PrintKK and signed payments are verified.')
+    pilot=(settings.merch_pilot_email or '').strip().casefold()
+    if pilot and (not user or (user.email or '').strip().casefold()!=pilot):
+        raise HTTPException(403,'GHM Store is in private pilot mode. Checkout is limited to the designated tester.')
+
+
+@router.get('/access')
+def checkout_access(user: User=Depends(get_current_user)):
+    pilot=(settings.merch_pilot_email or '').strip().casefold()
+    return {'checkout_available':bool(ready() and (not pilot or (user.email or '').strip().casefold()==pilot)),
+            'pilot_mode':bool(pilot),'is_pilot_tester':bool(pilot and (user.email or '').strip().casefold()==pilot),
+            'message':('Private pilot: only the approved GHM account can purchase.' if pilot else
+                       'Payments are available after GHM Store activation.' if ready() else
+                       'GHM checkout is paused until taxes, payment and supplier checks are approved.')}
+
 
 def event(db, order, kind, detail='', key=None, actor=None):
     db.add(MerchOrderEvent(order_id=order.id,kind=kind,detail=detail[:1500],event_key=key,actor_user_id=actor))
@@ -123,8 +137,8 @@ def tax_quote(subtotal,shipping_cents,address):
         logger.exception('Merchandise tax calculation failed')
         raise HTTPException(503,'Unable to calculate delivery taxes. No purchase was made.') from exc
 
-def quote(db,body,user_id):
-    require_ready()
+def quote(db,body,user_id,user=None):
+    require_ready(user)
     items,sub=snapshot(db,body)
     delivery=int(settings.merch_shipping_cents_cad)
     tax,_=tax_quote(sub,delivery,body.shipping)
@@ -160,11 +174,11 @@ def public_order(o, include_private=False):
 
 @router.post('/quote')
 def create_quote(body:QuoteRequest,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
-    return quote(db,body,user.id)
+    return quote(db,body,user.id,user)
 
 @router.post('/checkout')
 def checkout(body:CheckoutRequest,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
-    require_ready()
+    require_ready(user)
     digest=hashlib.sha256(body.model_dump_json(exclude={'idempotency_key'}).encode()).hexdigest()
     old=db.query(MerchOrder).filter_by(user_id=user.id,client_key=body.idempotency_key).first()
     if old:
@@ -172,7 +186,7 @@ def checkout(body:CheckoutRequest,db:Session=Depends(get_db),user:User=Depends(g
         if old.status in ('checkout_attention','awaiting_payment') and not old.stripe_checkout_url:
             raise HTTPException(409,'Checkout requires Stripe reconciliation. Contact GHM support with the order reference.')
         return {'order':public_order(old),'checkout_url':old.stripe_checkout_url,'reused':True}
-    total=quote(db,body,user.id)
+    total=quote(db,body,user.id,user)
     order=MerchOrder(public_id='GHM-'+secrets.token_hex(7).upper(),user_id=user.id,
         client_key=body.idempotency_key,cart_hash=digest,
         status='awaiting_payment' if total['card_cents'] else 'paid',
@@ -239,6 +253,32 @@ def order_detail(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_
     if not order:raise HTTPException(404,'Order not found.')
     return public_order(order)
 
+# Public-safe milestones. Never expose raw supplier responses, addresses or internal notes.
+CUSTOMER_MILESTONES = {
+    'created': 'Order created',
+    'stripe_checkout_created': 'Secure payment started',
+    'payment_verified': 'Payment confirmed',
+    'supplier_draft_created': 'Order received by fulfillment partner',
+    'supplier_paid': 'Preparing your order',
+    'tracking_updated': 'Tracking information available',
+    'supplier_canceled': 'Fulfillment canceled',
+    'cancel_requested': 'Cancellation requested',
+    'checkout_expired': 'Unpaid checkout expired',
+    'tokens_refunded': 'GHM Tokens refunded',
+    'card_refund_completed': 'Card refund completed',
+    'supplier_cancel_confirmed_by_admin': 'Fulfillment cancellation confirmed',
+}
+
+@router.get('/orders/{public_id}/timeline')
+def order_timeline(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
+    if not o:raise HTTPException(404,'Order not found.')
+    events=(db.query(MerchOrderEvent).filter_by(order_id=o.id)
+            .order_by(MerchOrderEvent.id.asc()).limit(200).all())
+    return [{'label':CUSTOMER_MILESTONES[e.kind], 'kind':e.kind,
+             'date':e.created_at.isoformat() if e.created_at else None}
+            for e in events if e.kind in CUSTOMER_MILESTONES]
+
 @router.get('/orders/{public_id}/receipt')
 def order_receipt(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
     o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
@@ -264,6 +304,33 @@ def request_cancel(public_id:str,body:CancelRequest,db:Session=Depends(get_db),u
     event(db,o,'cancel_requested',body.reason,actor=user.id)
     db.commit()
     return public_order(o)
+
+@router.get('/admin/readiness')
+def admin_merch_readiness(db:Session=Depends(get_db),_:User=Depends(require_admin)):
+    active=db.query(MerchCatalogProduct).filter(MerchCatalogProduct.active.is_(True)).all()
+    prepared=sum(1 for item in active if item.price_cents_cad>0 and item.printkk_design_id)
+    return {'checkout_enabled':bool(settings.merch_checkout_enabled),
+            'tax_enabled':bool(settings.merch_tax_enabled),
+            'stripe_key_configured':bool(settings.stripe_secret_key),
+            'stripe_webhook_configured':bool(settings.stripe_webhook_secret),
+            'printkk_key_configured':bool(settings.printkk_api_key),
+            'pilot_mode':bool(settings.merch_pilot_email),
+            'pilot_email':settings.merch_pilot_email or None,
+            'shipping_cents_cad':int(settings.merch_shipping_cents_cad),
+            'active_products':len(active),'products_ready_for_checkout':prepared,
+            'ready_configuration':ready(),
+            'note':'Configuration checks do not verify tax registrations, PrintKK charges, accurate variant IDs or actual payment processing.'}
+
+@router.get('/admin/test-printkk-connection')
+def admin_test_printkk_connection(_:User=Depends(require_admin)):
+    if not settings.printkk_api_key:
+        raise HTTPException(503,'PRINTKK_API_KEY is missing in the backend environment.')
+    # Official documented catalog-category GET is read-only: no order and no wallet charge.
+    try:
+        PrintKKClient().call('GET','/api/v1/product/category')
+    except PrintKKError as exc:
+        raise HTTPException(502,f'PrintKK read-only connection check failed: {exc}') from exc
+    return {'connected':True,'message':'PrintKK catalog API authentication succeeded. Order creation, actual shipping quote, supplier wallet payment and tracking are NOT yet verified.'}
 
 @router.get('/admin/orders')
 def admin_orders(db:Session=Depends(get_db),_:User=Depends(require_admin)):

@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # Merchandise is OFF until Stripe Tax, shipping policy, supplier costs and
     # payment/fulfillment testing are independently verified in production.
     merch_checkout_enabled: bool = False
+    # While set, merchandise checkout is allowed only for this verified account email.
+    # Use this with live Stripe for a controlled owner-only sample shipment.
+    merch_pilot_email: str | None = None
     merch_shipping_cents_cad: int = 999
     merch_tax_enabled: bool = False
     merch_canadian_only: bool = True
