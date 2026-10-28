@@ -109,7 +109,9 @@ def admin_add_product(body:ProductIn,db:Session=Depends(get_db),_:User=Depends(r
     db.add(item);db.commit();db.refresh(item)
     return product_dict(item)
 
-@router.put('/merch/admin/{product_id}')
+# Numeric path converter avoids shadowing static admin endpoints such as
+# /merch/admin/store-controls, even if future router registration order changes.
+@router.put('/merch/admin/{product_id:int}')
 def admin_update_product(product_id:int,body:ProductIn,db:Session=Depends(get_db),_:User=Depends(require_admin)):
     item=db.get(MerchCatalogProduct,product_id)
     if not item:raise HTTPException(404,'Product not found.')
@@ -119,7 +121,7 @@ def admin_update_product(product_id:int,body:ProductIn,db:Session=Depends(get_db
     db.commit();db.refresh(item)
     return product_dict(item)
 
-@router.delete('/merch/admin/{product_id}')
+@router.delete('/merch/admin/{product_id:int}')
 def admin_delete_product(product_id:int,db:Session=Depends(get_db),_:User=Depends(require_admin)):
     item=db.get(MerchCatalogProduct,product_id)
     if not item:raise HTTPException(404,'Product not found.')

@@ -214,8 +214,12 @@ app.include_router(offers.router)
 app.include_router(insights.router)
 app.include_router(expenses.router)
 app.include_router(linked_recipes.router)
-app.include_router(merch_festivals.router)
+# Register the exact /merch/admin/store-controls and /merch/admin/readiness
+# operations before generic merchandise product-ID routes. Otherwise Starlette
+# can dispatch "store-controls" to the product editor and FastAPI returns a
+# misleading 422 (integer product_id + missing ProductIn body fields).
 app.include_router(merch_orders.router)
+app.include_router(merch_festivals.router)
 app.include_router(recipes_external.router)
 app.include_router(community_recipes.router)
 app.include_router(ai.router)
