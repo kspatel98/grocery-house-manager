@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime, timezone
 from typing import Literal
 import stripe
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -189,7 +189,7 @@ def quote(db,body,user_id,user=None):
     return {'items':items,'subtotal_cents':sub,'shipping_cents':delivery,'tax_cents':tax,
       'total_cents':total,'tokens':token_use,'tokens_available':balance,
       'max_tokens':max_tokens,'card_cents':due,'currency':'CAD',
-      'tax_note':'Tax estimated using Stripe Tax. Seller registrations and tax treatment require verification.'}
+      'tax_note':'Customer sales tax calculated with Stripe Tax. Delivery is GHM’s configured customer shipping charge, not a live PrintKK freight quote.'}
 
 def public_order(o, include_private=False):
     result={'id':o.public_id,'status':o.status,'items':json.loads(o.items_json),
@@ -198,7 +198,7 @@ def public_order(o, include_private=False):
         'card_cents':o.stripe_due_cents,'created_at':o.created_at.isoformat() if o.created_at else None,
         'provider_stage':o.provider_stage,'provider_status':o.provider_status,
         'tracking_number':o.tracking_number,'tracking_url':o.tracking_url,'carrier':o.carrier,
-        'cancellation_reason':o.cancellation_reason}
+        'cancellation_reason':o.cancellation_reason,'payment_confirmed':bool(o.payment_verified_at),'cancellation_pending':bool(o.cancellation_reason and o.status not in ('canceled','refunded'))}
     if include_private:
         result.update({'email':o.customer_email,'shipping_address':json.loads(o.shipping_address_json),
             'printkk_order_id':o.printkk_order_id,'provider_response':o.provider_response_json,
@@ -317,12 +317,61 @@ def order_timeline(public_id:str,db:Session=Depends(get_db),user:User=Depends(ge
 def order_receipt(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
     o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
     if not o:raise HTTPException(404,'Order not found.')
+    if not o.payment_verified_at: raise HTTPException(409, 'A payment receipt is available only after verified payment.')
     return {'receipt_number':o.public_id,'date':o.created_at.isoformat() if o.created_at else None,
       'merchant':'Grocery House Manager','currency':'CAD','items':json.loads(o.items_json),
       'subtotal_cents':o.subtotal_cents,'shipping_cents':o.shipping_cents,
       'tax_cents':o.tax_cents,'total_cents':o.total_cents,'ghm_tokens_used':o.tokens_reserved,
       'stripe_paid_cents':o.stripe_due_cents,'payment_status':'paid' if o.payment_verified_at else 'unpaid',
-      'status':o.status,'delivery':json.loads(o.shipping_address_json)}
+      'status':o.status,'delivery':json.loads(o.shipping_address_json),
+      'seller_name':settings.merch_seller_legal_name or 'Grocery House Manager',
+      'seller_address':settings.merch_seller_address or '',
+      'gst_hst_number':settings.merch_gst_hst_number or None}
+
+@router.get('/orders/{public_id}/receipt.pdf')
+def order_receipt_pdf(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    """Immutable paid-order receipt PDF; tax numbers only if merchant configured them.
+
+    Tax on the receipt is GHM's Stripe Tax calculation, NOT PrintKK input tax.
+    """
+    import io
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import simpleSplit
+    o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if not o.payment_verified_at:raise HTTPException(409,'Receipt is available after confirmed payment.')
+    a=json.loads(o.shipping_address_json); items=json.loads(o.items_json)
+    out=io.BytesIO(); pdf=canvas.Canvas(out,pagesize=letter)
+    pdf.setTitle(f'GHM merchandise receipt {o.public_id}')
+    top=letter[1]-52
+    def line(txt, y, size=10, bold=False):
+        pdf.setFont('Helvetica-Bold' if bold else 'Helvetica',size)
+        for part in simpleSplit(str(txt),'Helvetica',size,500):
+            pdf.drawString(50,y,part);y-=size+5
+        return y
+    y=line(settings.merch_seller_legal_name or 'Grocery House Manager',top,16,True)
+    if settings.merch_seller_address:y=line(settings.merch_seller_address,y,9)
+    if settings.merch_gst_hst_number:y=line('GST/HST registration: '+settings.merch_gst_hst_number,y,9)
+    y-=13;y=line('PAYMENT RECEIPT  '+o.public_id,y,12,True)
+    y=line('Paid: '+o.payment_verified_at.strftime('%Y-%m-%d %H:%M UTC'),y)
+    y=line('Customer: '+o.customer_name,y)
+    y=line('Deliver to: '+', '.join(filter(None,[a.get('line1'),a.get('line2'),a.get('city'),a.get('province'),a.get('postal_code'),'Canada'])),y)
+    y-=12
+    for item in items:
+        if y<135:pdf.showPage();y=letter[1]-60
+        y=line(f"{item['name']}  x{item['quantity']}   CAD {item['unit_cents']*item['quantity']/100:.2f}",y)
+    y-=12
+    for label,cents in [('Merchandise',o.subtotal_cents),('Shipping',o.shipping_cents),('Sales tax calculated by Stripe Tax',o.tax_cents),('Total CAD',o.total_cents),('Redeemed GHM Tokens',o.tokens_reserved*100),('Card payment',o.stripe_due_cents)]:
+        if y<105:pdf.showPage();y=letter[1]-60
+        y=line(f'{label}: CAD {cents/100:.2f}',y,10,label=='Total CAD')
+    if o.status in ('refunded','refund_pending'):
+        y=line('Refund status: '+o.status.replace('_',' ')+'. See refund confirmation for adjustments.',y-10,9)
+    y=line('This is the GHM customer payment record, not a PrintKK supplier invoice.',y-12,8)
+    pdf.save();out.seek(0)
+    return Response(content=out.read(),media_type='application/pdf',headers={
+      'Content-Disposition':f'attachment; filename="GHM-{o.public_id}-receipt.pdf"',
+      'Cache-Control':'private, no-store'})
 
 @router.post('/orders/{public_id}/cancel-request')
 def request_cancel(public_id:str,body:CancelRequest,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
@@ -332,9 +381,13 @@ def request_cancel(public_id:str,body:CancelRequest,db:Session=Depends(get_db),u
         return public_order(o)
     if o.status not in ('awaiting_payment','checkout_attention','paid','fulfillment_review','supplier_unpaid','submitted'):
         raise HTTPException(409,'This order is being fulfilled. Please contact support to discuss returns.')
+    if o.cancellation_reason and o.status=='cancel_requested':
+        return public_order(o)  # do not spam the admin audit queue
     o.cancellation_reason=body.reason
     if o.status in ('paid','fulfillment_review','supplier_unpaid','submitted'):
         o.status='cancel_requested'
+    # Keep awaiting_payment / checkout_attention until Stripe verifies a payment;
+    # the separate cancellation_pending flag still exposes these in Admin.
     event(db,o,'cancel_requested',body.reason,actor=user.id)
     db.commit()
     return public_order(o)
@@ -412,6 +465,103 @@ def admin_test_printkk_connection(_:User=Depends(require_admin)):
     except PrintKKError as exc:
         raise HTTPException(502,f'PrintKK read-only connection check failed: {exc}') from exc
     return {'connected':True,'message':'PrintKK catalog API authentication succeeded. Order creation, actual shipping quote, supplier wallet payment and tracking are NOT yet verified.'}
+
+def _printkk_design_rows(data):
+    """Normalize only recognized response containers, never invent specification codes."""
+    if isinstance(data,list): rows=data
+    elif isinstance(data,dict):
+        rows=next((data[k] for k in ('records','list','items','rows','data') if isinstance(data.get(k),list)),None)
+        if rows is None:
+            for key in ('page','result'):
+                block=data.get(key)
+                if isinstance(block,dict):
+                    rows=next((block[k] for k in ('records','list','items','rows') if isinstance(block.get(k),list)),None)
+                    if rows is not None:break
+    else: rows=None
+    if rows is None:raise HTTPException(502,'PrintKK returned an unrecognized design list format. No data was changed.')
+    results=[]
+    for item in rows[:30]:
+        if not isinstance(item,dict):continue
+        code=item.get('designCode') or item.get('code')
+        if not code:continue
+        results.append({'design_code':str(code),'name':str(item.get('designName') or item.get('name') or code)[:180],
+                        'image_url':_printkk_image(item)})
+    return results
+
+def _printkk_image(obj):
+    if not isinstance(obj,dict):return None
+    candidate=next((obj.get(k) for k in ('mockupUrl','previewUrl','imageUrl','thumbnailUrl','coverUrl') if isinstance(obj.get(k),str)),None)
+    if candidate and candidate.startswith('https://') and len(candidate)<=2000:return candidate
+    return None
+
+@router.get('/admin/printkk-designs')
+def admin_printkk_designs(page:int=1, _:User=Depends(require_admin)):
+    if not 1<=page<=100:raise HTTPException(400,'Page out of range.')
+    try:
+        data=PrintKKClient().design_page(page,15)
+        return {'designs':_printkk_design_rows(data),'page':page}
+    except PrintKKError as exc:raise HTTPException(502,str(exc)) from exc
+
+@router.get('/admin/printkk-designs/{design_code}')
+def admin_printkk_design_detail(design_code:str,_:User=Depends(require_admin)):
+    try:data=PrintKKClient().design_detail(design_code)
+    except PrintKKError as exc:raise HTTPException(502,str(exc)) from exc
+    if not isinstance(data,dict):raise HTTPException(502,'Unexpected design-detail response from PrintKK.')
+    raw=data.get('design') if isinstance(data.get('design'),dict) else data
+    variants=raw.get('designSpecifications') or raw.get('specifications') or []
+    if isinstance(variants,dict):variants=variants.get('list') or variants.get('records') or []
+    if not isinstance(variants,list):variants=[]
+    variants_out=[]
+    for v in variants:
+        if not isinstance(v,dict):continue
+        code=v.get('designSpecificationCode')
+        if not code:continue
+        variants_out.append({'specification_code':str(code),'label':str(v.get('specificationName') or v.get('name') or v.get('color') or code)[:160],
+                             'image_url':_printkk_image(v) or _printkk_image(raw)})
+    return {'design_code':design_code,'name':str(raw.get('designName') or raw.get('name') or design_code)[:180],
+            'category':str(raw.get('categoryName') or raw.get('productCategory') or '')[:80],
+            'description':str(raw.get('description') or raw.get('productDescription') or '')[:3000],
+            'image_url':_printkk_image(raw),'variants':variants_out,
+            'note':'Choose an exact specification. Product descriptions and CAD retail pricing must be reviewed by GHM.'}
+
+@router.get('/admin/orders/{public_id}/supplier-breakdown')
+def admin_supplier_breakdown(public_id:str,db:Session=Depends(get_db),_:User=Depends(require_admin)):
+    """Read-only *supplier* costs after a PrintKK draft/order exists.
+
+    These are never presented as GHM customer taxes or pre-checkout quotes.
+    A missing currency/field is intentionally unknown, not guessed.
+    """
+    order=db.query(MerchOrder).filter_by(public_id=public_id).first()
+    if not order or not order.printkk_order_id:
+        raise HTTPException(404,'No supplier order exists yet. Exact PrintKK costs cannot be quoted here.')
+    try:data=PrintKKClient().order_detail(order.printkk_order_id)
+    except PrintKKError as exc:raise HTTPException(502,str(exc)) from exc
+    info=data.get('order') if isinstance(data,dict) and isinstance(data.get('order'),dict) else data
+    if not isinstance(info,dict):raise HTTPException(502,'Supplier cost response is not a recognized object.')
+    def candidate(*keys):
+        from decimal import Decimal,InvalidOperation
+        for key in keys:
+            value=info.get(key)
+            if isinstance(value,(int,float,str)) and not isinstance(value,bool):
+                try:
+                    amount=Decimal(str(value))
+                    if amount>=0 and amount.is_finite():return str(amount)
+                except (InvalidOperation,ValueError):pass
+        return None
+    currency=info.get('currency') or info.get('currencyCode')
+    return {'supplier_order_id':order.printkk_order_id,
+            'currency':str(currency).upper() if currency else None,
+            'shipping':candidate('shippingFee','shippingAmount','shippingCost'),
+            'tax':candidate('taxFee','taxAmount','tax'),
+            'product_cost':candidate('productAmount','productCost','productFee'),
+            'supplier_total':candidate('totalPrice','totalAmount','orderAmount'),
+            'note':'Read-only PrintKK supplier charges from an existing order. No currency conversion is applied, and these are not GHM customer taxes. Missing fields must be checked in PrintKK Dashboard.'}
+
+@router.get('/admin/cancellation-requests')
+def admin_cancellation_queue(db:Session=Depends(get_db),_:User=Depends(require_admin)):
+    rows=db.query(MerchOrder).filter(MerchOrder.cancellation_reason.isnot(None),
+        MerchOrder.status.notin_(['canceled','refunded'])).order_by(MerchOrder.updated_at.desc()).limit(200).all()
+    return [public_order(row,True) for row in rows]
 
 @router.get('/admin/orders')
 def admin_orders(db:Session=Depends(get_db),_:User=Depends(require_admin)):

@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     merch_max_tokens_per_order: int = 500
     # Owner-approved automatic drafting: supplier wallet charges stay manual.
     merch_auto_fulfillment_allowed: bool = False
+    merch_seller_legal_name: str | None = None
+    merch_seller_address: str | None = None
+    merch_gst_hst_number: str | None = None
     printkk_api_key: str | None = None
     printkk_api_base: str = 'https://api.printkk.com/pkk-openapi'
 

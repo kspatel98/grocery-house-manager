@@ -19,12 +19,12 @@ class PrintKKClient:
         if not base.startswith('https://api.printkk.com/'):
             raise PrintKKError('Only the official PrintKK HTTPS endpoint is permitted.')
         self.base=base
-    def call(self,method,path,payload=None):
+    def call(self,method,path,payload=None,params=None):
         if not path.startswith('/api/v1/') or '?' in path or '..' in path:
             raise PrintKKError('Invalid PrintKK endpoint.')
         try:
             r=requests.request(method,self.base+path,headers={'Api-Key':self.key,'Accept':'application/json'},
-                json=payload if method!='GET' else None, timeout=(5,18),allow_redirects=False)
+                json=payload if method!='GET' else None, params=params if method=='GET' else None, timeout=(5,18),allow_redirects=False)
             r.raise_for_status()
             data=r.json()
             if data.get('success') is not True:
@@ -35,6 +35,16 @@ class PrintKKClient:
             # Important: timeout may occur AFTER provider accepted POST.
             raise PrintKKError('PrintKK network result uncertain; reconcile in PrintKK before retrying.') from e
         except ValueError as e:raise PrintKKError('Invalid provider JSON response.') from e
+    def design_page(self, page=1, size=15):
+        """Read-only list of owner's saved PrintKK designs; no fulfillment costs."""
+        if not 1 <= page <= 100 or not 1 <= size <= 30:
+            raise PrintKKError('Invalid design pagination.')
+        return self.call('GET','/api/v1/design/page',params={'pageNum':page,'pageSize':size})
+    def design_detail(self, code):
+        import re
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,140}',str(code)):
+            raise PrintKKError('Invalid design code.')
+        return self.call('GET',f'/api/v1/design/{code}')
     def order_detail(self,order_id):
         if not str(order_id).isdigit():raise PrintKKError('Invalid supplier ID')
         return self.call('GET',f'/api/v1/order/{order_id}')
