@@ -1,5 +1,6 @@
 """Public storefront controls and safe automatic PrintKK draft regression tests."""
 from datetime import datetime, timezone
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -77,3 +78,53 @@ def test_automatic_drafts_created_once_and_never_auto_pay(monkeypatch):
         o=db.query(MerchOrder).one()
         assert o.status=='supplier_unpaid' and o.provider_stage=='draft_unpaid'
         assert o.printkk_order_id=='1234'
+
+
+def test_public_preference_persists_while_checkout_is_unconfigured(monkeypatch):
+    mock_readiness(monkeypatch)
+    # This was the v151 regression: an administrator could not save Public
+    # while their backend .env was still configured for a private pilot.
+    monkeypatch.setattr(shop.settings, 'merch_checkout_enabled', False)
+    monkeypatch.setattr(shop.settings, 'merch_tax_enabled', False)
+    monkeypatch.setattr(shop.settings, 'merch_pilot_email', 'pilot@example.org')
+    Session = memory_db()
+    with Session() as db:
+        admin = User(email='pilot@example.org')
+        buyer = User(email='customer@example.org')
+        db.add_all([admin, buyer]); db.commit()
+        body = shop.StoreControlsUpdate(checkout_audience='public',
+              fulfillment_mode='manual', confirm_public_checkout=True)
+        result = shop.admin_update_store_controls(body, db, admin)
+        assert result['checkout_audience'] == 'public'
+        assert result['checkout_live'] is False
+        assert 'MERCH_CHECKOUT_ENABLED=true' in result['missing_configuration']
+        assert db.get(MerchStoreControls, 1).checkout_audience == 'public'
+        assert shop.checkout_access(buyer, db)['checkout_available'] is False
+        assert shop.admin_merch_readiness(db, admin)['checkout_audience'] == 'public'
+        assert shop.admin_merch_readiness(db, admin)['checkout_live'] is False
+        with pytest.raises(HTTPException) as blocked:
+            shop.require_ready(buyer, db)
+        assert blocked.value.status_code == 503
+        # Once backend readiness is restored, the saved public setting takes effect.
+        monkeypatch.setattr(shop.settings, 'merch_checkout_enabled', True)
+        monkeypatch.setattr(shop.settings, 'merch_tax_enabled', True)
+        assert shop.checkout_access(buyer, db)['checkout_available'] is True
+
+
+def test_automatic_preference_persists_without_worker_permission(monkeypatch):
+    mock_readiness(monkeypatch)
+    monkeypatch.setattr(shop.settings, 'merch_auto_fulfillment_allowed', False)
+    Session = memory_db()
+    with Session() as db:
+        admin = User(email='admin@example.org')
+        db.add(admin); db.commit()
+        body = shop.StoreControlsUpdate(checkout_audience='public',
+            fulfillment_mode='automatic', confirm_public_checkout=True,
+            confirm_automatic_supplier_submissions=True)
+        result = shop.admin_update_store_controls(body, db, admin)
+        assert result['checkout_audience'] == 'public'
+        assert result['fulfillment_mode'] == 'automatic'
+        assert result['auto_worker_enabled'] is False
+        assert db.get(MerchStoreControls, 1).fulfillment_mode == 'automatic'
+        # Service layer still hard-blocks actual supplier submission.
+        assert auto.process_batch() == 0

@@ -1,0 +1,3 @@
+
+/* v152: keep merchandise activation errors beside the setting that triggered them. */
+.v152-store-status{margin-top:12px;padding:12px 14px;border:1px solid var(--border,#8996aa);border-radius:12px;line-height:1.55;color:var(--text,#e5e7eb);overflow-wrap:anywhere}.v152-store-status p{margin:6px 0 10px}.v152-store-status button{margin-top:6px;max-width:100%}

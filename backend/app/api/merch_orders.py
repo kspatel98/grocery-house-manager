@@ -70,10 +70,21 @@ class AdminAction(BaseModel):
     reason: str = Field(default='',max_length=500)
 
 
+def missing_checkout_configuration():
+    """Safe, descriptive readiness diagnostics (never return credential values)."""
+    checks = (
+        ('MERCH_CHECKOUT_ENABLED=true', settings.merch_checkout_enabled),
+        ('MERCH_TAX_ENABLED=true', settings.merch_tax_enabled),
+        ('STRIPE_SECRET_KEY', settings.stripe_secret_key),
+        ('STRIPE_WEBHOOK_SECRET', settings.stripe_webhook_secret),
+        ('PRINTKK_API_KEY', settings.printkk_api_key),
+        ('MERCH_SHIPPING_CENTS_CAD (nonnegative)', settings.merch_shipping_cents_cad >= 0),
+    )
+    return [label for label, configured in checks if not configured]
+
+
 def ready():
-    return bool(settings.merch_checkout_enabled and settings.merch_tax_enabled and
-                settings.stripe_secret_key and settings.stripe_webhook_secret and
-                settings.printkk_api_key and settings.merch_shipping_cents_cad >= 0)
+    return not missing_checkout_configuration()
 
 
 def controls(db=None):
@@ -342,16 +353,18 @@ def admin_update_store_controls(body:StoreControlsUpdate, db:Session=Depends(get
     if body.checkout_audience=='public':
         if not body.confirm_public_checkout:
             raise HTTPException(400,'Confirm that checkout will be open to all signed-in customers.')
-        if not ready():
-            raise HTTPException(409,'Complete server payment/tax/supplier configuration before enabling public checkout.')
+        # Save the administrator's chosen audience even when server credentials
+        # are missing. effective_access() and require_ready() STILL block all
+        # customer quotes and payments until every configured gate passes.
     email=body.pilot_email.strip().lower()
     if body.checkout_audience=='pilot' and ('@' not in email or '.' not in email.split('@')[-1]):
         raise HTTPException(400,'Provide the exact GHM tester account email for private pilot.')
     if body.fulfillment_mode=='automatic':
         if not body.confirm_automatic_supplier_submissions:
             raise HTTPException(400,'Confirm automatic PrintKK draft submission after verified payment.')
-        if not settings.merch_auto_fulfillment_allowed:
-            raise HTTPException(409,'Set MERCH_AUTO_FULFILLMENT_ALLOWED=true after validating a real PrintKK draft submission.')
+        # Store the requested mode even if the worker is still turned off.
+        # process_one()/process_batch() independently check
+        # MERCH_AUTO_FULFILLMENT_ALLOWED before contacting PrintKK.
     record=db.get(MerchStoreControls,1)
     if not record:
         record=MerchStoreControls(id=1)
@@ -362,7 +375,9 @@ def admin_update_store_controls(body:StoreControlsUpdate, db:Session=Depends(get
     db.commit()
     logger.warning('GHM store settings changed by admin user %s: audience=%s fulfillment=%s',user.id,record.checkout_audience,record.fulfillment_mode)
     return {'checkout_audience':record.checkout_audience,'pilot_email':record.pilot_email,
-            'fulfillment_mode':record.fulfillment_mode,'auto_worker_enabled':bool(settings.merch_auto_fulfillment_allowed)}
+            'fulfillment_mode':record.fulfillment_mode,'auto_worker_enabled':bool(settings.merch_auto_fulfillment_allowed),
+            'checkout_live':bool(record.checkout_audience=='public' and ready()),
+            'missing_configuration':missing_checkout_configuration()}
 
 
 @router.get('/admin/readiness')
@@ -383,7 +398,9 @@ def admin_merch_readiness(db:Session=Depends(get_db),_:User=Depends(require_admi
             'shipping_cents_cad':int(settings.merch_shipping_cents_cad),
             'active_products':len(active),'products_ready_for_checkout':prepared,
             'ready_configuration':ready(),
-            'note':'Configuration checks do not verify actual taxes, shipping charges, PrintKK designs, or settlement. Automatic mode creates supplier drafts; supplier wallet charges require manual approval.'}
+            'checkout_live':bool(ctrl.checkout_audience=='public' and ready()),
+            'missing_configuration':missing_checkout_configuration(),
+            'note':'Public is a saved access preference, not proof that checkout is live. Payment remains disabled until all server settings are ready. Configuration checks do not verify actual taxes, shipping charges, PrintKK designs, or settlement. Supplier wallet charges require manual approval.'}
 
 @router.get('/admin/test-printkk-connection')
 def admin_test_printkk_connection(_:User=Depends(require_admin)):
