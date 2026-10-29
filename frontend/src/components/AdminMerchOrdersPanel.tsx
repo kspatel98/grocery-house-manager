@@ -6,7 +6,6 @@ const money=(c:number)=>`$${(c/100).toFixed(2)}`;
 const needsAttention=(o:Order)=>!!o.cancellation_pending||['paid','fulfillment_review','supplier_unpaid','checkout_attention','cancel_requested'].includes(o.status)||['submission_uncertain','supplier_payment_uncertain','supplier_cancel_uncertain'].includes(o.provider_stage);
 export default function AdminMerchOrdersPanel(){
  const [adminView,setAdminView]=useState<'orders'|'cancellations'|'settings'>('orders');
- const [adminView,setAdminView]=useState<'orders'|'cancellations'|'settings'>('orders');
  const [audience,setAudience]=useState<'paused'|'pilot'|'public'>('paused'),[pilotEmail,setPilotEmail]=useState(''),[fulfillment,setFulfillment]=useState<'manual'|'automatic'>('manual'),[saving,setSaving]=useState(false);
  const [cancellations,setCancellations]=useState<Order[]>([]),[readiness,setReadiness]=useState<Readiness|null>(null),[controlMessage,setControlMessage]=useState(''),[probe,setProbe]=useState(''),[orders,setOrders]=useState<Order[]>([]),[busy,setBusy]=useState(''),[note,setNote]=useState(''),[query,setQuery]=useState(''),[filter,setFilter]=useState<'attention'|'all'|'paid'|'unpaid'|'fulfilled'>('all'),[expanded,setExpanded]=useState<string|null>(null),[supplierCosts,setSupplierCosts]=useState<Record<string,string>>({});
  const reload=async()=>{try{const [all,pending]=await Promise.all([api.get<Order[]>('/merch/admin/orders'),api.get<Order[]>('/merch/admin/cancellation-requests')]);setOrders(all.data);setCancellations(pending.data);}catch(e){setNote(errorMessage(e));}};
