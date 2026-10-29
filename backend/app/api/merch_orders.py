@@ -198,9 +198,9 @@ def public_order(o, include_private=False):
         'card_cents':o.stripe_due_cents,'created_at':o.created_at.isoformat() if o.created_at else None,
         'provider_stage':o.provider_stage,'provider_status':o.provider_status,
         'tracking_number':o.tracking_number,'tracking_url':o.tracking_url,'carrier':o.carrier,
-        'cancellation_reason':o.cancellation_reason,'payment_confirmed':bool(o.payment_verified_at),'cancellation_pending':bool(o.cancellation_reason and o.status not in ('canceled','refunded'))}
+        'cancellation_reason':o.cancellation_reason,'payment_confirmed':bool(o.payment_verified_at),'cancellation_pending':bool(o.payment_verified_at and o.cancellation_reason and o.status not in ('canceled','refunded'))}
     if include_private:
-        result.update({'email':o.customer_email,'shipping_address':json.loads(o.shipping_address_json),
+        result.update({'email':o.customer_email,'customer_email':o.customer_email,'shipping_address':json.loads(o.shipping_address_json),
             'printkk_order_id':o.printkk_order_id,'provider_response':o.provider_response_json,
             'stripe_session_id':o.stripe_session_id,'stripe_refund_id':o.stripe_refund_id,
             'support_note':o.support_note})
@@ -379,18 +379,72 @@ def request_cancel(public_id:str,body:CancelRequest,db:Session=Depends(get_db),u
     if not o:raise HTTPException(404,'Order not found.')
     if o.status in ('canceled','refunded','refund_pending'):
         return public_order(o)
-    if o.status not in ('awaiting_payment','checkout_attention','paid','fulfillment_review','supplier_unpaid','submitted'):
+    if not o.payment_verified_at or o.status in ('awaiting_payment','checkout_attention'):
+        raise HTTPException(409,'No payment is confirmed. Use Cancel unpaid order instead.')
+    if o.status not in ('paid','fulfillment_review','supplier_unpaid','submitted'):
         raise HTTPException(409,'This order is being fulfilled. Please contact support to discuss returns.')
     if o.cancellation_reason and o.status=='cancel_requested':
         return public_order(o)  # do not spam the admin audit queue
     o.cancellation_reason=body.reason
     if o.status in ('paid','fulfillment_review','supplier_unpaid','submitted'):
         o.status='cancel_requested'
-    # Keep awaiting_payment / checkout_attention until Stripe verifies a payment;
-    # the separate cancellation_pending flag still exposes these in Admin.
     event(db,o,'cancel_requested',body.reason,actor=user.id)
     db.commit()
     return public_order(o)
+
+@router.post('/orders/{public_id}/refresh-payment')
+def refresh_own_payment(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    """Reconcile only a known Stripe checkout session belonging to this customer."""
+    o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if o.payment_verified_at or o.status in ('canceled','refunded'):
+        return public_order(o)
+    if not o.stripe_session_id:
+        raise HTTPException(409,'Stripe checkout session is not known; contact support for payment reconciliation.')
+    stripe.api_key=settings.stripe_secret_key
+    try:session=stripe.checkout.Session.retrieve(o.stripe_session_id)
+    except Exception as exc:raise HTTPException(503,'Stripe payment verification is temporarily unavailable. No additional payment was taken.') from exc
+    if session.get('payment_status')=='paid':
+        try:
+            verify_paid_session(db,session)
+        except RuntimeError as exc:
+            raise HTTPException(409,'Stripe payment needs manual verification by GHM support.') from exc
+    elif session.get('status')=='expired':expire_checkout(db,session)
+    return public_order(o)
+
+
+@router.post('/orders/{public_id}/cancel-unpaid')
+def cancel_unpaid(public_id:str,db:Session=Depends(get_db),user:User=Depends(get_current_user)):
+    """Cancel unpaid checkout only after Stripe confirms the session is unpaid/expired."""
+    o=db.query(MerchOrder).filter_by(public_id=public_id,user_id=user.id).with_for_update().first()
+    if not o:raise HTTPException(404,'Order not found.')
+    if o.status=='canceled':return public_order(o)
+    if o.payment_verified_at or o.status not in ('awaiting_payment','checkout_attention'):
+        raise HTTPException(409,'This order may be paid. Request cancellation instead.')
+    if o.printkk_order_id or o.provider_stage!='not_submitted':
+        raise HTTPException(409,'Supplier order exists. Contact support before cancellation.')
+    if o.stripe_session_id:
+        stripe.api_key=settings.stripe_secret_key
+        try:
+            session=stripe.checkout.Session.retrieve(o.stripe_session_id)
+            if session.get('payment_status')=='paid':
+                verify_paid_session(db,session)
+                raise HTTPException(409,'Stripe confirms payment was received. Request cancellation and refund instead.')
+            if session.get('status')=='open':
+                session=stripe.checkout.Session.expire(o.stripe_session_id)
+            if session.get('status')!='expired':
+                raise HTTPException(409,'Payment remains unsettled. Try again after Stripe confirms expiry.')
+        except HTTPException:raise
+        except Exception as exc:
+            raise HTTPException(503,'Could not verify the unpaid Stripe session. Nothing was canceled; retry after checking Stripe.') from exc
+    elif o.status=='checkout_attention':
+        raise HTTPException(409,'Stripe session creation was uncertain. Admin must reconcile it before cancellation.')
+    refund_tokens(db,o,actor=user.id)
+    o.status='canceled';o.cancellation_reason=None
+    event(db,o,'unpaid_order_canceled','Unpaid order safely canceled by customer.',actor=user.id)
+    db.commit()
+    return public_order(o)
+
 
 class StoreControlsUpdate(BaseModel):
     checkout_audience: Literal['paused', 'pilot', 'public']
@@ -484,15 +538,32 @@ def _printkk_design_rows(data):
         if not isinstance(item,dict):continue
         code=item.get('designCode') or item.get('code')
         if not code:continue
+        images=_printkk_images(item)
         results.append({'design_code':str(code),'name':str(item.get('designName') or item.get('name') or code)[:180],
-                        'image_url':_printkk_image(item)})
+                        'image_url':images[0] if images else None,'image_urls':images})
     return results
 
+def _printkk_images(obj):
+    """Read all recognized PrintKK preview/mockup URLs, avoiding credentials and arbitrary nested data."""
+    if not isinstance(obj,dict):return []
+    urls=[]
+    def add(value):
+        if isinstance(value,str) and value.startswith('https://') and len(value)<=2000 and value not in urls:
+            urls.append(value)
+        elif isinstance(value,dict):
+            for key in ('url','imageUrl','mockupUrl','previewUrl','thumbnailUrl','src','originalUrl'):
+                if isinstance(value.get(key),str):add(value[key])
+    for key in ('mockupUrl','previewUrl','imageUrl','thumbnailUrl','coverUrl','mainImage','mainImageUrl'):
+        if key in obj:add(obj[key])
+    for key in ('mockupUrls','previewUrls','imageUrls','mockups','images','previewImages','displayImages','productImages','renderImages'):
+        block=obj.get(key)
+        if isinstance(block,list):
+            for el in block[:24]:add(el)
+    return urls[:12]
+
 def _printkk_image(obj):
-    if not isinstance(obj,dict):return None
-    candidate=next((obj.get(k) for k in ('mockupUrl','previewUrl','imageUrl','thumbnailUrl','coverUrl') if isinstance(obj.get(k),str)),None)
-    if candidate and candidate.startswith('https://') and len(candidate)<=2000:return candidate
-    return None
+    urls=_printkk_images(obj)
+    return urls[0] if urls else None
 
 @router.get('/admin/printkk-designs')
 def admin_printkk_designs(page:int=1, _:User=Depends(require_admin)):
@@ -516,12 +587,14 @@ def admin_printkk_design_detail(design_code:str,_:User=Depends(require_admin)):
         if not isinstance(v,dict):continue
         code=v.get('designSpecificationCode')
         if not code:continue
+        gallery=list(dict.fromkeys(_printkk_images(v)+_printkk_images(raw)))[:12]
         variants_out.append({'specification_code':str(code),'label':str(v.get('specificationName') or v.get('name') or v.get('color') or code)[:160],
-                             'image_url':_printkk_image(v) or _printkk_image(raw)})
+                             'image_url':gallery[0] if gallery else None,'image_urls':gallery})
+    gallery=_printkk_images(raw)
     return {'design_code':design_code,'name':str(raw.get('designName') or raw.get('name') or design_code)[:180],
             'category':str(raw.get('categoryName') or raw.get('productCategory') or '')[:80],
             'description':str(raw.get('description') or raw.get('productDescription') or '')[:3000],
-            'image_url':_printkk_image(raw),'variants':variants_out,
+            'image_url':gallery[0] if gallery else None,'image_urls':gallery,'variants':variants_out,
             'note':'Choose an exact specification. Product descriptions and CAD retail pricing must be reviewed by GHM.'}
 
 @router.get('/admin/orders/{public_id}/supplier-breakdown')
@@ -559,7 +632,7 @@ def admin_supplier_breakdown(public_id:str,db:Session=Depends(get_db),_:User=Dep
 
 @router.get('/admin/cancellation-requests')
 def admin_cancellation_queue(db:Session=Depends(get_db),_:User=Depends(require_admin)):
-    rows=db.query(MerchOrder).filter(MerchOrder.cancellation_reason.isnot(None),
+    rows=db.query(MerchOrder).filter(MerchOrder.payment_verified_at.isnot(None),MerchOrder.cancellation_reason.isnot(None),
         MerchOrder.status.notin_(['canceled','refunded'])).order_by(MerchOrder.updated_at.desc()).limit(200).all()
     return [public_order(row,True) for row in rows]
 

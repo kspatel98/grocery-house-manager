@@ -31,10 +31,26 @@ class PrintKKClient:
                 raise PrintKKError('PrintKK refused the operation: '+str(data.get('msg') or data.get('code'))[:200])
             return data.get('data') or {}
         except PrintKKError:raise
+        except requests.HTTPError as e:
+            status=e.response.status_code if e.response is not None else 0
+            if status in (401,403):
+                raise PrintKKError(f'PrintKK denied API access (HTTP {status}). Verify API key validity, permissions, and PrintKK API endpoint; do not share the key.') from e
+            if status==404:
+                raise PrintKKError('PrintKK API endpoint returned 404. Confirm the endpoint and API base in PrintKK documentation.') from e
+            if status==429:
+                raise PrintKKError('PrintKK API request limit reached (429). Retry later.') from e
+            raise PrintKKError(f'PrintKK API returned HTTP {status}; check the server logs and provider status.') from e
+        except requests.Timeout as e:
+            if method=='GET':
+                raise PrintKKError('PrintKK read-only request timed out. Check server connectivity to api.printkk.com, and retry; no order or payment was created.') from e
+            raise PrintKKError('PrintKK order/payment response timed out; reconcile in PrintKK before retrying.') from e
+        except requests.ConnectionError as e:
+            if method=='GET':
+                raise PrintKKError('Cannot connect to PrintKK API. Verify DNS, outbound HTTPS/443, and PRINTKK_API_BASE on the GHM server.') from e
+            raise PrintKKError('PrintKK order/payment connection failed; reconcile before retrying.') from e
         except requests.RequestException as e:
-            # Important: timeout may occur AFTER provider accepted POST.
-            raise PrintKKError('PrintKK network result uncertain; reconcile in PrintKK before retrying.') from e
-        except ValueError as e:raise PrintKKError('Invalid provider JSON response.') from e
+            raise PrintKKError('PrintKK request failed; check server connectivity and logs. Never retry uncertain order payments automatically.') from e
+        except ValueError as e:raise PrintKKError('PrintKK did not return valid JSON.') from e
     def design_page(self, page=1, size=15):
         """Read-only list of owner's saved PrintKK designs; no fulfillment costs."""
         if not 1 <= page <= 100 or not 1 <= size <= 30:

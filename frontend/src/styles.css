@@ -12877,3 +12877,29 @@ html[data-ghm-theme="dark"] :where(.feature-flow-v96 article,.feature-scenario-v
 .v154-design-variant img{width:60px;height:60px;object-fit:contain;border-radius:8px}
 .v154-design-import select{max-width:100%;width:100%}
 @media(max-width:650px){.v154-cancel-queue,.v154-design-import{padding:12px}}
+
+/* v155: Admin merchandise / order workspace */
+.v155-admin-workspace{min-width:0;max-width:100%;overflow:visible}
+.v155-admin-banner{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:22px;border-radius:18px;background:linear-gradient(120deg,rgba(23,93,159,.12),rgba(232,153,47,.11));border:1px solid var(--ghm-border);margin-bottom:16px;min-width:0}
+.v155-admin-banner h2{margin:2px 0 8px;font-size:clamp(1.3rem,3vw,1.85rem);line-height:1.2;color:var(--ghm-text)}
+.v155-admin-banner p{margin:0;max-width:680px;color:var(--ghm-muted);overflow-wrap:anywhere}
+.v155-stats{display:grid;grid-template-columns:repeat(3,minmax(84px,1fr));gap:8px}
+.v155-stats>div{display:grid;gap:3px;padding:12px;border:1px solid var(--ghm-border);border-radius:12px;background:var(--ghm-surface-elevated);text-align:center}
+.v155-stats strong{font-size:1.4rem;color:var(--ghm-text)}.v155-stats small{font-size:.76rem;color:var(--ghm-muted)}
+.v155-admin-tabs{display:flex;gap:7px;overflow-x:auto;padding:5px 2px 13px;margin-bottom:8px;scrollbar-width:thin}
+.v155-admin-tabs button{flex:0 0 auto;border:1px solid var(--ghm-border);border-radius:999px;color:var(--ghm-text);background:var(--ghm-surface-elevated);font-weight:700;padding:10px 16px;min-height:42px;cursor:pointer}
+.v155-admin-tabs button[aria-current="page"]{background:var(--ghm-primary,#236bb5);color:#fff;border-color:var(--ghm-primary,#236bb5)}
+.v155-admin-workspace .v147-admin-columns{align-items:start}.v155-admin-workspace .v147-admin-form{padding:17px;background:var(--ghm-surface-elevated);border:1px solid var(--ghm-border);border-radius:15px}
+.v155-admin-workspace .v147-admin-form h3{margin-top:0}.v155-admin-workspace label,.v155-admin-workspace input,.v155-admin-workspace select,.v155-admin-workspace textarea{min-width:0}
+.v155-admin-workspace .v147-admin-entry{align-items:center;gap:12px}
+.v155-catalog-info{display:flex;align-items:center;gap:10px;min-width:0;flex:1}.v155-catalog-info>img,.v155-catalog-placeholder{width:64px;height:66px;min-width:64px;object-fit:contain;border-radius:10px;border:1px solid var(--ghm-border);background:var(--ghm-surface-elevated);display:grid;place-items:center}
+.v155-catalog-info>div{min-width:0}.v155-catalog-info strong,.v155-design-tile strong{display:block;overflow-wrap:anywhere}
+.v155-design-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:11px;margin:16px 0}
+.v155-design-tile{border:1px solid var(--ghm-border);border-radius:13px;padding:10px;display:grid;gap:6px;min-width:0;text-align:left;background:var(--ghm-surface-elevated);color:var(--ghm-text);cursor:pointer}
+.v155-design-tile img{width:100%;height:160px;object-fit:contain;background:var(--ghm-surface);border-radius:10px}.v155-design-tile small{color:var(--ghm-muted);overflow-wrap:anywhere}
+.v155-gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:9px;margin:12px 0}.v155-gallery-grid img{width:100%;aspect-ratio:1;object-fit:contain;border:1px solid var(--ghm-border);border-radius:10px;background:var(--ghm-surface)}
+.v155-gallery-card{min-width:0}.v155-gallery-card>div{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.v155-gallery-card button{font-size:.72rem;padding:4px 7px}
+.v155-product-gallery{min-width:0}.v155-product-thumbs{display:flex;gap:7px;overflow-x:auto;padding:8px 0}.v155-product-thumbs button{padding:3px;border-radius:9px;border:2px solid transparent;cursor:pointer;flex:0 0 auto;background:var(--ghm-surface-elevated)}
+.v155-product-thumbs button.selected{border-color:var(--ghm-primary,#236bb5)}.v155-product-thumbs img{width:62px;height:64px;object-fit:contain;border-radius:6px}
+.v155-order-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.v155-admin-workspace .v149-admin-order{border:1px solid var(--ghm-border);border-radius:12px;padding:14px;margin-bottom:10px;background:var(--ghm-surface-elevated)}
+@media(max-width:760px){.v155-admin-banner{flex-direction:column;align-items:stretch;padding:15px}.v155-stats{grid-template-columns:repeat(3,1fr)}.v155-admin-workspace .v147-admin-columns{grid-template-columns:1fr}.v155-admin-tabs button{padding:9px 12px}.v155-order-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.v155-catalog-info>img{width:52px;height:55px;min-width:52px}}

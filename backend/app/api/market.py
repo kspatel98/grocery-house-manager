@@ -1069,38 +1069,58 @@ def shopping_suggestions(
 
 @router.post('/barcode-photo')
 async def barcode_photo(file: UploadFile = File(...), _: User = Depends(get_current_user)):
-    """Camera-photo fallback: reads only printed EAN/UPC digits with checksum validation.
+    """Read actual EAN/UPC/ITF/Code128 bars first, then checksum-validate OCR digits.
 
-    This is intentionally not marketed as optical barcode decoding. If the digits are
-    obscured, the client offers manual entry rather than fabricating an identity.
+    Zero external OCR cost; image stays on our backend. No guessed product codes.
     """
     from io import BytesIO
-    from PIL import Image, ImageOps, ImageEnhance
+    from PIL import Image, ImageOps, ImageEnhance, ImageFilter
     import pytesseract
     payload = await file.read(6_000_001)
     if len(payload) > 6_000_000:
         raise HTTPException(413, 'Barcode photo is too large (maximum 6 MB).')
-    if not (file.content_type or '').startswith('image/'):
-        raise HTTPException(400, 'Please capture a photo of the product barcode.')
+    if (file.content_type or '').lower() not in ('image/jpeg','image/png','image/webp'):
+        raise HTTPException(400, 'Upload a JPEG, PNG or WebP barcode photo.')
     try:
-        img = Image.open(BytesIO(payload))
-        img.verify()
-        img = Image.open(BytesIO(payload)).convert('RGB')
-        if img.width * img.height > 20_000_000:
-            raise ValueError('Image too large')
-        img.thumbnail((2000, 2000))
-        gray = ImageEnhance.Contrast(ImageOps.grayscale(img)).enhance(2)
-        raw = pytesseract.image_to_string(gray, config='--psm 11 -c tessedit_char_whitelist=0123456789')
-    except Exception:
-        raise HTTPException(422, 'Unable to read printed barcode digits. Try a clearer photo or type the digits.')
+        with Image.open(BytesIO(payload)) as image:
+            image.verify()
+        with Image.open(BytesIO(payload)) as image:
+            if image.width * image.height > 20_000_000:raise ValueError('Image too large')
+            img = ImageOps.exif_transpose(image).convert('RGB')
+            img.thumbnail((2200, 2200))
+    except Exception as exc:
+        raise HTTPException(422, 'Could not decode the uploaded image.') from exc
+
     def valid_gtin(value: str) -> bool:
-        if len(value) not in (8, 12, 13, 14): return False
-        digits = [int(c) for c in value]
-        check = sum(d * (3 if i % 2 else 1) for i, d in enumerate(reversed(digits[:-1])))
-        return (10 - check % 10) % 10 == digits[-1]
-    compact = re.sub(r'(?<=\d)[\s-]+(?=\d)', '', raw)
-    numbers = re.findall(r'\d{8,14}', compact)
-    match = next((n for n in numbers if valid_gtin(n)), None)
-    if not match:
-        raise HTTPException(422, 'Barcode digits were not confidently recognized. Please enter them manually.')
-    return {'barcode': match, 'method': 'printed-digits-ocr', 'confidence': 'checksum-validated'}
+        if len(value) not in (8, 12, 13, 14) or not value.isdigit():return False
+        digits=[int(c) for c in value]
+        total=sum(d*(3 if i%2 else 1) for i,d in enumerate(reversed(digits[:-1])))
+        return (10-total%10)%10==digits[-1]
+
+    # Read the *bars*, not just human-readable numbers. Works when numbers are blurry.
+    try:
+        from pyzbar.pyzbar import decode as decode_bars
+        for angle in (0,90,270):
+            source=img if angle==0 else img.rotate(angle,expand=True)
+            for result in decode_bars(source):
+                value=result.data.decode('ascii','ignore').strip()
+                if result.type in ('EAN13','EAN8','UPCA','UPCE','I25','CODE128') and (valid_gtin(value) or (result.type=='CODE128' and value.isdigit() and len(value)<=32)):
+                    return {'barcode':value,'method':'optical-barcode-decoder','confidence':'high'}
+    except Exception:
+        # pyzbar / libzbar may not be installed on an older deployment.
+        pass
+
+    # Fallback: recognize printed digits; never fabricate an invalid EAN/UPC.
+    for angle in (0,90,270):
+        source=img if angle==0 else img.rotate(angle,expand=True)
+        gray=ImageOps.grayscale(source)
+        for processed in (ImageEnhance.Contrast(gray).enhance(2.0),gray.filter(ImageFilter.SHARPEN)):
+            try:
+                raw=pytesseract.image_to_string(processed, config='--psm 6 -c tessedit_char_whitelist=0123456789')
+            except Exception:
+                continue
+            compact=re.sub(r'(?<=\d)[\s-]+(?=\d)', '', raw)
+            for candidate in re.findall(r'\d{8,14}',compact):
+                if valid_gtin(candidate):
+                    return {'barcode':candidate,'method':'printed-digits-ocr','confidence':'checksum-validated'}
+    raise HTTPException(422, 'No readable barcode detected. Center the complete bars in bright light, keep the image sharp, or enter the barcode digits.')

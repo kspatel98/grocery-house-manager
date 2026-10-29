@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.api.admin import require_admin
 from app.db.session import get_db
-from app.models import User, MerchCatalogProduct, FestivalMealRule
+from app.models import User, MerchCatalogProduct, MerchProductImage, FestivalMealRule
 from app.core.config import settings
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -27,6 +27,7 @@ class ProductIn(BaseModel):
     category: str = Field(default='Other',max_length=80)
     description: str = Field(default='',max_length=3000)
     image_url: Optional[str] = Field(default=None,max_length=2000)
+    image_urls: Optional[list[str]] = Field(default=None,max_length=12)
     price_cents_cad: int = Field(ge=0,le=2_000_000)
     printkk_design_id: Optional[str] = Field(default=None,max_length=140)
     active: bool = False
@@ -47,10 +48,30 @@ class ProductIn(BaseModel):
             return value
         raise ValueError('Use a secure HTTPS photo URL or upload an image through GHM.')
 
+    @field_validator('image_urls')
+    @classmethod
+    def validate_image_urls(cls, value):
+        if value is None:return None
+        result=[]
+        for url in value:
+            valid=cls.validate_image_url(url)
+            if valid and valid not in result:result.append(valid)
+        return result
+
 
 def product_dict(row):
-    return {key:getattr(row,key) for key in ('id','sku','name','category','description','image_url',
+    result={key:getattr(row,key) for key in ('id','sku','name','category','description','image_url',
                'price_cents_cad','printkk_design_id','active','priority')}
+    gallery=[row.image_url] if row.image_url else []
+    gallery.extend(img.url for img in row.images if img.url not in gallery)
+    result['image_urls']=gallery
+    return result
+
+
+def save_gallery(item, urls):
+    if urls is None:return
+    unique=list(dict.fromkeys(([item.image_url] if item.image_url else []) + urls))[:12]
+    item.images=[MerchProductImage(url=url,position=i) for i,url in enumerate(unique) if url!=item.image_url]
 
 @router.post('/merch/admin/upload-image')
 async def admin_upload_merch_image(file: UploadFile = File(...), _: User = Depends(require_admin)):
@@ -105,7 +126,10 @@ def admin_products(db:Session=Depends(get_db),_:User=Depends(require_admin)):
 def admin_add_product(body:ProductIn,db:Session=Depends(get_db),_:User=Depends(require_admin)):
     if db.query(MerchCatalogProduct).filter_by(sku=body.sku).first():
         raise HTTPException(409,'This SKU already exists.')
-    item=MerchCatalogProduct(**body.model_dump())
+    payload=body.model_dump(exclude={'image_urls'})
+    if body.image_urls and not payload.get('image_url'):payload['image_url']=body.image_urls[0]
+    item=MerchCatalogProduct(**payload)
+    save_gallery(item,body.image_urls)
     db.add(item);db.commit();db.refresh(item)
     return product_dict(item)
 
@@ -117,7 +141,8 @@ def admin_update_product(product_id:int,body:ProductIn,db:Session=Depends(get_db
     if not item:raise HTTPException(404,'Product not found.')
     conflict=db.query(MerchCatalogProduct).filter_by(sku=body.sku).first()
     if conflict and conflict.id != item.id:raise HTTPException(409,'SKU already exists.')
-    for k,v in body.model_dump().items():setattr(item,k,v)
+    for k,v in body.model_dump(exclude={'image_urls'}).items():setattr(item,k,v)
+    save_gallery(item,body.image_urls)
     db.commit();db.refresh(item)
     return product_dict(item)
 

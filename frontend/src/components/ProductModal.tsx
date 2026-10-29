@@ -109,6 +109,9 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
   const scannerStreamRef = useRef<MediaStream | null>(null);
   const scannerFrameRef = useRef<number | null>(null);
+  const serverScannerTimerRef = useRef<number | null>(null);
+  const serverScanBusyRef = useRef(false);
+  const serverScanAttemptsRef = useRef(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerError, setScannerError] = useState('');
 
@@ -223,6 +226,8 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
   }
 
   function stopBarcodeScanner() {
+    if(serverScannerTimerRef.current!==null)window.clearInterval(serverScannerTimerRef.current);
+    serverScannerTimerRef.current=null;serverScanBusyRef.current=false;serverScanAttemptsRef.current=0;
     if (scannerFrameRef.current !== null) cancelAnimationFrame(scannerFrameRef.current);
     scannerFrameRef.current = null;
     scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -268,7 +273,37 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
       await video.play();
       const Detector = (window as unknown as { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: CanvasImageSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
       if (!Detector) {
-        setScannerError('Camera is open, but this browser cannot decode barcodes live. Use Take photo below so GHM can read the printed digits, or enter them manually.');
+        // Safari and other browsers may lack BarcodeDetector. Read actual bars
+        // using GHM's server decoder instead of pretending OCR alone is a scanner.
+        setScannerError('Camera ready. GHM is checking barcode frames securely. Hold the whole barcode steady in good light.');
+        serverScanAttemptsRef.current=0;
+        const scanServerFrame = async () => {
+          const currentVideo=scannerVideoRef.current;
+          if(!currentVideo || !scannerStreamRef.current || serverScanBusyRef.current || !currentVideo.videoWidth)return;
+          if(serverScanAttemptsRef.current>=12){
+            if(serverScannerTimerRef.current!==null)window.clearInterval(serverScannerTimerRef.current);
+            serverScannerTimerRef.current=null;
+            setScannerError('Could not detect the bars automatically. Try a clear close-up photo or enter the numbers manually.');
+            return;
+          }
+          serverScanAttemptsRef.current++;
+          const canvas=document.createElement('canvas');
+          const width=Math.min(1280,currentVideo.videoWidth),scale=width/currentVideo.videoWidth;
+          canvas.width=width;canvas.height=Math.round(currentVideo.videoHeight*scale);
+          canvas.getContext('2d')?.drawImage(currentVideo,0,0,canvas.width,canvas.height);
+          serverScanBusyRef.current=true;
+          try{
+            const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/jpeg',.83));
+            if(!blob)return;
+            const payload=new FormData();payload.append('file',blob,'barcode-frame.jpg');
+            const {data}=await api.post<{barcode:string}>('/market/barcode-photo',payload,{timeout:14000});
+            if(!scannerStreamRef.current)return;
+            setField('barcode',data.barcode);stopBarcodeScanner();setScannerError('Barcode scanned successfully.');
+          }catch{/* Another camera frame may be clearer. */}
+          finally{serverScanBusyRef.current=false;}
+        };
+        serverScannerTimerRef.current=window.setInterval(()=>void scanServerFrame(),2500);
+        void scanServerFrame();
         return;
       }
       const detector = new Detector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });

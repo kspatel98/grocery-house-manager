@@ -865,6 +865,16 @@ class MerchCatalogProduct(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    images: Mapped[list['MerchProductImage']] = relationship('MerchProductImage', cascade='all, delete-orphan', lazy='selectin', order_by='MerchProductImage.position')
+
+
+class MerchProductImage(Base):
+    """Additional merchandise mockups; separate table works on existing databases."""
+    __tablename__ = 'merch_product_images'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey('merch_catalog_products.id', ondelete='CASCADE'), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class MerchStoreControls(Base):

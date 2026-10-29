@@ -16,7 +16,7 @@ from app.api import merch_orders
 from app.models import User,MerchOrder
 
 
-def test_cancel_queue_includes_unpaid_and_returns_unique_paid_pdf(monkeypatch):
+def test_cancel_queue_requires_paid_order_and_returns_unique_paid_pdf(monkeypatch):
     engine=create_engine('sqlite:///:memory:',connect_args={'check_same_thread':False},poolclass=StaticPool)
     Base.metadata.create_all(engine)
     with sessionmaker(bind=engine)() as db:
@@ -36,12 +36,14 @@ def test_cancel_queue_includes_unpaid_and_returns_unique_paid_pdf(monkeypatch):
         c=TestClient(api)
         q=c.get('/merch/admin/cancellation-requests')
         assert q.status_code==200,q.text
-        assert q.json()[0]['id']=='GHM-V154-CANCEL'
-        assert q.json()[0]['cancellation_pending'] is True
+        assert q.json()==[]  # Unpaid checkouts are not cancellation requests.
         unpaid=c.get('/merch/orders/GHM-V154-CANCEL/receipt.pdf')
         assert unpaid.status_code==409
         order.payment_verified_at=datetime.now(timezone.utc)
         db.commit()
+        q2=c.get('/merch/admin/cancellation-requests')
+        assert q2.json()[0]['id']=='GHM-V154-CANCEL'
+        assert q2.json()[0]['cancellation_pending'] is True
         paid=c.get('/merch/orders/GHM-V154-CANCEL/receipt.pdf')
         assert paid.status_code==200,paid.text
         assert paid.content.startswith(b'%PDF')
