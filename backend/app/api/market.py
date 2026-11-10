@@ -1100,12 +1100,21 @@ async def barcode_photo(file: UploadFile = File(...), _: User = Depends(get_curr
     # Read the *bars*, not just human-readable numbers. Works when numbers are blurry.
     try:
         from pyzbar.pyzbar import decode as decode_bars
-        for angle in (0,90,270):
+        # Handle glossy packets, small distant codes, portrait orientation and
+        # low-contrast retail labels before attempting text OCR.
+        for angle in (0,90,180,270):
             source=img if angle==0 else img.rotate(angle,expand=True)
-            for result in decode_bars(source):
-                value=result.data.decode('ascii','ignore').strip()
-                if result.type in ('EAN13','EAN8','UPCA','UPCE','I25','CODE128') and (valid_gtin(value) or (result.type=='CODE128' and value.isdigit() and len(value)<=32)):
-                    return {'barcode':value,'method':'optical-barcode-decoder','confidence':'high'}
+            gray=ImageOps.grayscale(source)
+            for candidate_image in (
+                source,
+                ImageEnhance.Contrast(gray).enhance(2.1),
+                ImageEnhance.Sharpness(gray).enhance(2.0),
+                gray.point(lambda pixel: 255 if pixel > 135 else 0),
+            ):
+                for result in decode_bars(candidate_image):
+                    value=result.data.decode('ascii','ignore').strip()
+                    if result.type in ('EAN13','EAN8','UPCA','UPCE','I25','CODE128') and (valid_gtin(value) or (result.type=='CODE128' and value.isdigit() and len(value)<=32)):
+                        return {'barcode':value,'method':'optical-barcode-decoder','confidence':'high'}
     except Exception:
         # pyzbar / libzbar may not be installed on an older deployment.
         pass

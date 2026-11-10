@@ -953,3 +953,51 @@ class FestivalMealRule(Base):
     reminder_days: Mapped[int] = mapped_column(Integer, default=7)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class CommunityTip(Base):
+    """Opt-in public restaurant and offer recommendations, moderated before publishing."""
+    __tablename__ = 'community_tips'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)  # restaurant | offer
+    place_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    place_name: Mapped[str] = mapped_column(String(180))
+    city: Mapped[str] = mapped_column(String(120), index=True)
+    address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    maps_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    title: Mapped[str] = mapped_column(String(180))  # dish or offer headline
+    diet_tags_json: Mapped[str] = mapped_column(Text, default='[]')
+    price_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency_code: Mapped[str] = mapped_column(String(3), default='CAD')
+    tax_basis: Mapped[str] = mapped_column(String(16), default='unknown')
+    notes: Mapped[str] = mapped_column(Text, default='')
+    offer_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    offer_expires: Mapped[date | None] = mapped_column(Date, nullable=True)
+    images_json: Mapped[str] = mapped_column(Text, default='[]')
+    status: Mapped[str] = mapped_column(String(20), default='pending', index=True)
+    report_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped['User'] = relationship()
+
+
+class CommunityTipReport(Base):
+    __tablename__ = 'community_tip_reports'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tip_id: Mapped[int] = mapped_column(ForeignKey('community_tips.id', ondelete='CASCADE'), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
+    reason: Mapped[str] = mapped_column(String(240))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    __table_args__ = (UniqueConstraint('tip_id', 'user_id', name='uq_community_tip_report'),)
+
+
+class CommunityPlaceLookupCounter(Base):
+    """Daily guard against uncontrolled paid Google Places lookups."""
+    __tablename__ = 'community_place_lookup_counters'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    day_key: Mapped[str] = mapped_column(String(10), index=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+    __table_args__ = (UniqueConstraint('user_id', 'day_key', name='uq_community_place_lookup_day'),)

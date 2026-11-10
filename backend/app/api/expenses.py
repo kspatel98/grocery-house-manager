@@ -501,7 +501,7 @@ def create_expense(house_id: int, payload: ExpenseCreateIn, db: Session = Depend
     return _summary(db, house_id)
 
 
-@router.put("/{expense_id}", response_model=ExpenseSummaryOut)
+@router.put("/{expense_id:int}", response_model=ExpenseSummaryOut)
 def update_expense(house_id: int, expense_id: int, payload: ExpenseCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     require_house_member(house_id, user, db)
     row = (

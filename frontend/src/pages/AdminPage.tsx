@@ -6,6 +6,7 @@ import AdminGuidesPanel from '../components/AdminGuidesPanel';
 import AdminCreditPricingPanel from '../components/AdminCreditPricingPanel';
 import AdminMerchFestivalPanel from '../components/AdminMerchFestivalPanel';
 import AdminMerchOrdersPanel from '../components/AdminMerchOrdersPanel';
+import AdminCommunityPanel from '../components/AdminCommunityPanel';
 import type { AdminAction, AdminEmailStatus, AdminSummary, AdminUser, AdminUserOffer, AISystemStatus, PlanName, ProductAnalytics, SiteReview } from '../types';
 
 function starText(value?: number | null) {
@@ -21,6 +22,7 @@ const PLAN_LABELS: Record<PlanName, string> = {
 };
 
 export default function AdminPage() {
+  const [adminSection, setAdminSection] = useState<'overview'|'merch'|'community'|'people'|'billing'|'content'|'system'>('overview');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [productAnalytics, setProductAnalytics] = useState<ProductAnalytics | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -293,7 +295,15 @@ export default function AdminPage() {
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
 
-      {summary && (
+      <nav className="admin-section-nav-v157" aria-label="Admin sections">
+        {([
+          ['overview','📊','Overview'],['merch','📦','Merch & orders'],['community','🤝','Community'],
+          ['people','👥','Users & reviews'],['billing','💳','Plans & offers'],
+          ['content','📚','Content & festivals'],['system','⚙️','System health'],
+        ] as const).map(([key,icon,name])=><button key={key} className={adminSection===key?'active':''} type="button" onClick={()=>setAdminSection(key)}><span aria-hidden="true">{icon}</span><strong>{name}</strong></button>)}
+      </nav>
+      {adminSection==='overview' && <div className="admin-quick-actions-v157"><div><p className="eyebrow">WORKSPACE OVERVIEW</p><h2>What would you like to manage?</h2><p>Use the sections above to keep everyday support, merchandise and community moderation separate.</p></div><div><button type="button" className="secondary" onClick={()=>setAdminSection('community')}>🤝 Review community tips</button><button type="button" className="secondary" onClick={()=>setAdminSection('merch')}>📦 Check merchandise orders</button><button type="button" className="secondary" onClick={()=>setAdminSection('system')}>⚙️ Verify services</button></div></div>}
+      {adminSection==='overview' && summary && (
         <section className="stats-grid admin-stats-grid">
           <div className="stat-card"><strong>{summary.total_users}</strong><span>Total users</span></div>
           <div className="stat-card"><strong>{summary.paid_or_granted_users}</strong><span>Paid/granted users</span></div>
@@ -303,7 +313,7 @@ export default function AdminPage() {
         </section>
       )}
 
-      {productAnalytics ? <section className="panel v95-product-analytics">
+      {adminSection==='overview' && productAnalytics ? <section className="panel v95-product-analytics">
         <div className="panel-title-row"><div><p className="eyebrow">PRODUCT HEALTH</p><h2>Activation & retention</h2><p>Measure whether households actually return and complete useful work—not just whether they registered.</p></div><span className="badge">Privacy-light events</span></div>
         <div className="v95-product-analytics-grid">
           <span><small>Active today</small><strong>{productAnalytics.active_users_1d}</strong></span>
@@ -319,12 +329,11 @@ export default function AdminPage() {
         <p className="small-muted">{productAnalytics.message}</p>
       </section> : null}
 
-      <AdminGuidesPanel />
-      <AdminCreditPricingPanel />
-      <AdminMerchFestivalPanel />
-      <AdminMerchOrdersPanel />
-      <AdminGrowthPanel users={users} offers={offers} />
-
+      {adminSection==='content' && <><AdminGuidesPanel /><AdminMerchFestivalPanel /></>}
+      {adminSection==='billing' && <><AdminCreditPricingPanel /><AdminGrowthPanel users={users} offers={offers} /></>}
+      {adminSection==='merch' && <AdminMerchOrdersPanel />}
+      {adminSection==='community' && <AdminCommunityPanel />}
+      {adminSection==='system' && <>
       <section className="panel v93-ai-admin-panel">
         <div className="panel-title-row"><div><p className="eyebrow">GHM AI INFRASTRUCTURE</p><h2>Kitchen Vision + Household Agent</h2><p>Secrets stay in backend/.env. This panel shows whether inference, the agent endpoint, video processing and media privacy are ready.</p></div><button type="button" className="primary" onClick={testAIInfrastructure} disabled={aiBusy}>{aiBusy ? 'Testing…' : 'Run AI system test'}</button></div>
         <div className="v93-ai-status-grid">{aiStatus?.components.map((component) => {
@@ -371,6 +380,8 @@ export default function AdminPage() {
         <p className="small-muted">If the test fails, check server logs: <code>docker compose logs backend --tail=100</code>. If SMTP times out, use EMAIL_PROVIDER=resend.</p>
       </section>
 
+      </>}
+      {adminSection==='billing' && <>
       <section className="panel admin-plan-counts">
         <div className="panel-title-row">
           <div>
@@ -469,6 +480,8 @@ export default function AdminPage() {
         </div>
       </section>
 
+      </>}
+      {adminSection==='people' && <>
       <section className="panel admin-plan-counts">
         <div className="panel-title-row">
           <div>
@@ -547,6 +560,7 @@ export default function AdminPage() {
           </table>
         </div>
       </section>
+      </>}
     </main>
   );
 }

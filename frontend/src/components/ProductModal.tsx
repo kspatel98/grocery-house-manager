@@ -275,15 +275,15 @@ export default function ProductModal({ houseId, sections, modal, onClose, onSave
       if (!Detector) {
         // Safari and other browsers may lack BarcodeDetector. Read actual bars
         // using GHM's server decoder instead of pretending OCR alone is a scanner.
-        setScannerError('Camera ready. GHM is checking barcode frames securely. Hold the whole barcode steady in good light.');
+        setScannerError('Live barcode scanning is active. Hold the entire barcode steady inside the camera view.');
         serverScanAttemptsRef.current=0;
         const scanServerFrame = async () => {
           const currentVideo=scannerVideoRef.current;
           if(!currentVideo || !scannerStreamRef.current || serverScanBusyRef.current || !currentVideo.videoWidth)return;
-          if(serverScanAttemptsRef.current>=12){
+          if(serverScanAttemptsRef.current>=20){
             if(serverScannerTimerRef.current!==null)window.clearInterval(serverScannerTimerRef.current);
             serverScannerTimerRef.current=null;
-            setScannerError('Could not detect the bars automatically. Try a clear close-up photo or enter the numbers manually.');
+            setScannerError('Could not detect a complete barcode. Turn the package so the bars face the camera, move slightly farther away, or take a sharp photo.');
             return;
           }
           serverScanAttemptsRef.current++;

@@ -410,6 +410,7 @@ export default function MarketPage() {
           <button className="secondary" onClick={load}>Refresh</button>
         </div>
       </header>
+      <div className="community-food-entry-v157"><div><strong>🏷️ Found a local discount?</strong><span>Help other GHM shoppers discover store specials, flyer deals and honest price tips.</span></div><Link to="/community?type=offer&share=1" className="primary center-link">Share an offer</Link><Link to="/community?type=offer" className="secondary center-link">Community deals</Link></div>
 
       <FeaturePurposeCard feature="price_compare" />
       {error && <div className="error">{error}</div>}

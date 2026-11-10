@@ -177,6 +177,7 @@ export default function FoodTonightPage() {
         </div>
       </header>
 
+      <div className="community-food-entry-v157"><div><strong>🍽️ A dish worth sharing?</strong><span>Help the GHM community discover favorite meals and useful local finds.</span></div><Link className="primary center-link" to="/community?type=restaurant&share=1">Share your recommendation</Link><Link className="secondary center-link" to="/community?type=restaurant">Explore community tips</Link></div>
       <section className="food-tonight-control-v98">
         {mode === 'restaurant' && <label><span>Dietary preference</span><select value={dietary} onChange={(event) => setDietary(event.target.value as Dietary)}>{(Object.keys(DIET_LABELS) as Dietary[]).map((key) => <option key={key} value={key}>{DIET_LABELS[key]}</option>)}</select></label>}
         <label className="food-query-v98"><span>{mode === 'restaurant' ? 'What are you in the mood for? · optional' : 'What kind of store? · optional'}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={mode === 'restaurant' ? 'Indian, pizza, Gujarati, Thai…' : 'Indian grocery, supermarket, bakery…'} /></label>

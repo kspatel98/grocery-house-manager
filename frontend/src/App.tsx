@@ -30,6 +30,7 @@ const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
 const KitchenVisionPage = lazy(() => import('./pages/KitchenVisionPage'));
 const FoodTonightPage = lazy(() => import('./pages/FoodTonightPage'));
+const CommunityTipsPage = lazy(() => import('./pages/CommunityTipsPage'));
 const FeatureLandingPage = lazy(() => import('./pages/FeatureLandingPage'));
 const LearnGhmPage = lazy(() => import('./pages/LearnGhmPage'));
 const PremiumTryPage = lazy(() => import('./pages/PremiumTryPage'));
@@ -90,6 +91,7 @@ export default function App() {
         <Route path="/houses" element={<RequireAuth><HousesPage /></RequireAuth>} />
         <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
         <Route path="/more" element={<RequireAuth><MorePage /></RequireAuth>} />
+        <Route path="/community" element={<RequireAuth><CommunityTipsPage /></RequireAuth>} />
         <Route path="/merch" element={<PublicRoute><MerchandisePage /></PublicRoute>} />
         <Route path="/merch/cart" element={<Navigate to="/merch?view=cart" replace />} />
         <Route path="/merch/orders" element={<Navigate to="/merch?view=orders" replace />} />

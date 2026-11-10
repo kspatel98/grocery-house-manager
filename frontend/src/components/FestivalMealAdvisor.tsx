@@ -15,7 +15,7 @@ export default function FestivalMealAdvisor({houseId,onCook}:{houseId:number;onC
  },[enabled]);
  return <section className="panel v147-festival-panel" aria-label="Festival meal planning">
    <div className="panel-title-row"><div><p className="eyebrow">SEASONAL COOKING · OPTIONAL</p><h2>Festival meal planner</h2><p>Plan traditional favorites before your weekly grocery trip. Choose a homemade recipe or explore a ready-made option.</p></div>
-     <label className="v147-festival-opt"><input type="checkbox" checked={enabled} onChange={event=>{const value=event.target.checked;setEnabled(value);localStorage.setItem(preferenceKey,value?'yes':'no');window.dispatchEvent(new Event('ghm:festival-preference'));if(!value)setItems([]);}}/> Remind me about festival meals</label>
+     <label className="v147-festival-opt v157-festival-opt"><input type="checkbox" checked={enabled} onChange={event=>{const value=event.target.checked;setEnabled(value);localStorage.setItem(preferenceKey,value?'yes':'no');window.dispatchEvent(new Event('ghm:festival-preference'));if(!value)setItems([]);}}/><span>Remind me about festival meals</span></label>
    </div>
    {!enabled?<p className="small-muted">Enable reminders to show relevant upcoming celebrations, optionally 7 days ahead. GHM does not infer your cultural or religious preferences.</p>:null}
    {enabled&&!items.length?<p className="small-muted">No configured festival is within its reminder window. GHM checks the calendar when you use the app and while it remains open.</p>:null}

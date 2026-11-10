@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../api';
 import { useHouseLiveRefresh } from '../hooks';
 import { money } from '../currency';
@@ -91,6 +91,8 @@ function shareFor(expense: HouseExpense, userId: number | null) { return userId 
 
 export default function ExpensesPage() {
   const { houseId, month: monthRoute } = useParams();
+  const navigate = useNavigate();
+  const monthSwipeStart = useRef<{x:number;y:number}|null>(null);
   const id = Number(houseId);
   const [params] = useSearchParams();
   const monthCandidate = monthRoute || params.get('month') || '';
@@ -330,6 +332,18 @@ export default function ExpensesPage() {
   }, [expenses, currentUserId, currentMonthKey, activeExpenseMonth, summary?.months]);
 
   const monthViewBook = monthView ? (monthBooks.find(book => book.month === monthView) || { month: monthView, houseSpend: 0, myShare: 0, myPaid: 0, expenseCount: 0 }) : null;
+  const monthIndex = monthBooks.findIndex(book => book.month === monthView);
+  const olderMonth = monthView && monthIndex >= 0 ? monthBooks[monthIndex + 1]?.month : undefined;
+  const newerMonth = monthView && monthIndex > 0 ? monthBooks[monthIndex - 1]?.month : undefined;
+  function monthSwipeFinish(event: React.TouchEvent) {
+    const start=monthSwipeStart.current; monthSwipeStart.current=null;
+    if(!start || !monthView || event.changedTouches.length!==1 || open || monthCreateOpen || monthEditOpen)return;
+    const end=event.changedTouches[0];const dx=end.clientX-start.x,dy=end.clientY-start.y;
+    if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.3)return;
+    const next=dx>0?olderMonth:newerMonth;
+    if(next)navigate(`/houses/${id}/expenses/${next}`);
+  }
+
   const monthViewExpenses = useMemo(() => monthView ? (accountSummary?.expenses || expenses.filter(expense => (expense.expense_month || monthKey(expense.expense_date)) === monthView)) : [], [expenses, monthView, accountSummary]);
   const rangeExpenses = useMemo(() => {
     if (insightRange === 'all') return expenses;
@@ -461,7 +475,8 @@ export default function ExpensesPage() {
       <Link className={expenseSection === 'insights' ? 'active' : ''} to={`/houses/${id}/expenses?view=insights`}>Statistics & insights</Link>
     </nav>}
 
-    {monthView && monthViewBook && <section className="expense-month-workspace-v105">
+    {monthView && monthViewBook && <section className="expense-month-workspace-v105" onTouchStart={e=>{if(e.touches.length===1)monthSwipeStart.current={x:e.touches[0].clientX,y:e.touches[0].clientY};}} onTouchEnd={monthSwipeFinish}>
+      <nav className="expense-month-pager-v157" aria-label="Switch expense account month"><button type="button" className="secondary" disabled={!olderMonth} onClick={()=>olderMonth&&navigate(`/houses/${id}/expenses/${olderMonth}`)}>‹ Older month</button><span>{monthLabel(monthView)}<small>Swipe horizontally to switch months</small></span><button type="button" className="secondary" disabled={!newerMonth} onClick={()=>newerMonth&&navigate(`/houses/${id}/expenses/${newerMonth}`)}>Newer month ›</button></nav>
       <header className="expense-month-workspace-head-v105">
         <div><Link className="breadcrumb" to={`/houses/${id}/expenses`}>← All expense accounts</Link><p className="eyebrow">EXPENSE ACCOUNT</p><h2>{monthStateFor(monthView)?.name || monthLabel(monthView)}</h2><p>Accounting period: {monthLabel(monthView)} · Expenses, reimbursements and activity stay together in this account.</p></div>
         <div className="expense-month-workspace-actions-v105">
